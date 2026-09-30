@@ -1,0 +1,25 @@
+flowchart LR
+    AD["Admin"]
+    GV["Giáo viên"]
+    SV["Sinh viên"]
+    AI["AI Engine"]
+    subgraph HT["Smart Exam Grading System"]
+        UC01([UC01 Đăng nhập])
+        UC02([UC02 Quản trị hệ thống])
+        UC03([UC03 Import DS sinh viên])
+        UC04([UC04 Quản lý kỳ thi & đáp án])
+        UC05([UC05 Sinh mã đề & phiếu PDF])
+        UC06([UC06 Upload ảnh phiếu])
+        UC07([UC07 Chấm phiếu])
+        UC08([UC08 Match SBD])
+        UC09([UC09 Đối soát review])
+        UC10([UC10 Thống kê & xuất điểm])
+        UC11([UC11 Tra cứu điểm])
+    end
+    AD --- UC01 & UC02
+    GV --- UC01 & UC03 & UC04 & UC05 & UC06 & UC09 & UC10
+    SV --- UC01 & UC11
+    UC06 -. include .-> UC07
+    UC07 -. include .-> UC08
+    UC07 --- AI
+    UC09 -. extend .-> UC07

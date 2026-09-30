@@ -1,0 +1,22 @@
+flowchart LR
+    subgraph C["Client"]
+        FE["Streamlit Web UI<br/>(trình duyệt)"]
+    end
+    subgraph S["Application Server"]
+        API["FastAPI<br/>REST API + JWT"]
+        subgraph AI["AI Engine (cv_engine)"]
+            PRE["Preprocessing<br/>OpenCV"]
+            OMR["OMR classifier<br/>CNN/SVM"]
+            OCR["OCR digit CNN<br/>Keras"]
+        end
+    end
+    subgraph D["Data"]
+        DB[("PostgreSQL 17<br/>smart_exam")]
+        FS[("File storage<br/>ảnh, PDF, model")]
+    end
+    K["Kaggle Notebook<br/>train model (GPU)"]
+    FE -- "HTTP/JSON" --> API
+    API --> PRE --> OMR & OCR
+    API -- "SQL / function" --> DB
+    API --> FS
+    K -. "file .keras" .-> FS

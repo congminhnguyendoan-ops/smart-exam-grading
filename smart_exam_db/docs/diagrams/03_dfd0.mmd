@@ -1,0 +1,11 @@
+flowchart LR
+    AD["Admin"]
+    GV["Giáo viên"]
+    SV["Sinh viên"]
+    P0(("0<br/>Hệ thống chấm<br/>thi OMR/OCR"))
+    AD -- "tài khoản, cấu hình, model" --> P0
+    GV -- "đề, đáp án, DS SV,<br/>ảnh phiếu, quyết định đối soát" --> P0
+    P0 -- "phiếu PDF, bảng điểm,<br/>hàng đợi review, thống kê" --> GV
+    SV -- "thông tin đăng nhập" --> P0
+    P0 -- "điểm cá nhân" --> SV
+    P0 -- "báo cáo hệ thống" --> AD

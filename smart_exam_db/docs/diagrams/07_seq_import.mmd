@@ -1,0 +1,15 @@
+sequenceDiagram
+    actor GV as Giáo viên
+    participant FE as Streamlit
+    participant API as FastAPI
+    participant DB as PostgreSQL
+    GV->>FE: Chọn file Excel + kỳ thi
+    FE->>API: POST /students/import
+    API->>API: Đọc bằng pandas, kiểm tra định dạng
+    API->>DB: INSERT student_imports
+    loop Mỗi dòng hợp lệ
+        API->>DB: fn_upsert_student(SBD, tên, lớp, exam_id)
+    end
+    API->>DB: UPDATE student_imports (số dòng OK/lỗi)
+    API-->>FE: Kết quả + danh sách dòng lỗi
+    FE-->>GV: Thông báo import

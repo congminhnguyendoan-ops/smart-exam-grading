@@ -1,0 +1,27 @@
+sequenceDiagram
+    actor GV as Giáo viên
+    participant FE as Streamlit
+    participant API as FastAPI
+    participant AI as AI Engine
+    participant DB as PostgreSQL
+    GV->>FE: Chọn kỳ thi, upload ảnh
+    FE->>API: POST /exams/{id}/sheets
+    API->>DB: INSERT answer_sheets (uploaded)
+    API->>AI: process(image)
+    AI->>AI: Đo độ mờ, căn chỉnh, cắt ROI
+    AI->>AI: OMR classifier từng ô
+    AI->>AI: OCR CNN đọc SBD, mã đề
+    AI-->>API: đáp án tô, SBD, mã đề + confidence
+    API->>DB: INSERT sheet_answers, ocr_digits
+    API->>DB: SELECT fn_process_sheet(sheet_id)
+    DB->>DB: Chấm theo đáp án mã đề
+    DB->>DB: Match SBD với DS dự thi
+    alt Khớp SBD và đủ ngưỡng tin cậy
+        DB->>DB: INSERT results (auto)
+        DB-->>API: graded, điểm
+    else SBD không khớp / confidence thấp / trùng / sai mã đề
+        DB->>DB: INSERT review_queue (lý do)
+        DB-->>API: needs_review, lý do
+    end
+    API-->>FE: Kết quả từng phiếu
+    FE-->>GV: Bảng kết quả + số phiếu cần review

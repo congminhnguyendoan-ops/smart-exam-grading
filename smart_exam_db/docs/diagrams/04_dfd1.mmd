@@ -1,0 +1,26 @@
+flowchart LR
+    GV["Giáo viên"]
+    SV["Sinh viên"]
+    P2(("2.0<br/>Quản lý SV"))
+    P3(("3.0<br/>Quản lý đề thi"))
+    P4(("4.0<br/>Nhận diện phiếu"))
+    P5(("5.0<br/>Chấm & match SBD"))
+    P6(("6.0<br/>Đối soát"))
+    P7(("7.0<br/>Thống kê, tra cứu"))
+    D1[("D1 Sinh viên")]
+    D2[("D2 Đề & đáp án")]
+    D3[("D3 Phiếu & nhận diện")]
+    D4[("D4 Kết quả")]
+    D5[("D5 Hàng đợi review")]
+    GV -- "file Excel" --> P2 --> D1
+    GV -- "đề, đáp án" --> P3 --> D2
+    GV -- "ảnh phiếu" --> P4 --> D3
+    D3 --> P5
+    D1 & D2 --> P5
+    P5 -- "đủ tin cậy" --> D4
+    P5 -- "không chắc chắn" --> D5
+    D5 --> P6
+    GV -- "xác nhận SV" --> P6 --> D4
+    D4 --> P7
+    P7 -- "thống kê" --> GV
+    P7 -- "điểm" --> SV

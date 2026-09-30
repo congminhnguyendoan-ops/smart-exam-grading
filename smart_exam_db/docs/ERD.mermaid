@@ -1,0 +1,159 @@
+erDiagram
+    users ||--o| students : "tài khoản tra cứu"
+    users ||--o{ exams : "tạo"
+    users ||--o{ scan_batches : "upload"
+    users ||--o{ review_queue : "xử lý"
+    users ||--o{ student_imports : "import"
+    classes ||--o{ students : "gồm"
+    student_imports ||--o{ students : "nhập từ"
+    subjects ||--o{ exams : "thuộc"
+    sheet_templates ||--o{ exams : "dùng mẫu"
+    exams ||--o{ exam_students : "danh sách thi"
+    students ||--o{ exam_students : "đăng ký"
+    exams ||--o{ questions : "câu gốc"
+    exams ||--o{ exam_codes : "mã đề"
+    exam_codes ||--o{ answer_keys : "đáp án"
+    questions ||--o{ answer_keys : "ánh xạ"
+    exams ||--o{ scan_batches : ""
+    scan_batches ||--o{ answer_sheets : "chứa"
+    exams ||--o{ answer_sheets : ""
+    exam_codes ||--o{ answer_sheets : "nhận diện"
+    ml_models ||--o{ answer_sheets : "OMR/OCR model"
+    students ||--o{ answer_sheets : "match SBD"
+    answer_sheets ||--o{ sheet_answers : "OMR từng câu"
+    answer_sheets ||--o{ ocr_digits : "OCR từng chữ số"
+    answer_sheets ||--o| results : "sinh điểm"
+    students ||--o{ results : "có điểm"
+    exams ||--o{ results : ""
+    answer_sheets ||--o{ review_queue : "cần đối soát"
+    results ||--o{ score_audit_logs : "lịch sử"
+
+    users {
+        bigint user_id PK
+        varchar username UK
+        varchar email UK
+        varchar password_hash
+        user_role role
+    }
+    classes {
+        bigint class_id PK
+        varchar class_code UK
+    }
+    students {
+        bigint student_id PK
+        varchar student_code UK "= SBD"
+        varchar full_name
+        bigint class_id FK
+        bigint user_id FK
+    }
+    student_imports {
+        bigint import_id PK
+        varchar file_name
+        int success_rows
+        jsonb error_details
+    }
+    subjects {
+        bigint subject_id PK
+        varchar subject_code UK
+    }
+    sheet_templates {
+        bigint template_id PK
+        smallint num_questions
+        smallint sbd_digits
+        jsonb layout_config
+    }
+    exams {
+        bigint exam_id PK
+        bigint subject_id FK
+        bigint template_id FK
+        smallint num_questions
+        numeric max_score
+        exam_status status
+    }
+    exam_students {
+        bigint exam_id PK,FK
+        bigint student_id PK,FK
+        varchar room
+    }
+    questions {
+        bigint question_id PK
+        bigint exam_id FK
+        smallint original_no
+        char correct_option
+    }
+    exam_codes {
+        bigint exam_code_id PK
+        bigint exam_id FK
+        varchar code
+    }
+    answer_keys {
+        bigint answer_key_id PK
+        bigint exam_code_id FK
+        smallint question_no
+        bigint question_id FK
+        char correct_option
+        numeric points
+    }
+    ml_models {
+        bigint model_id PK
+        model_type model_type
+        varchar version
+        jsonb metrics
+        boolean is_active
+    }
+    scan_batches {
+        bigint batch_id PK
+        bigint exam_id FK
+    }
+    answer_sheets {
+        bigint sheet_id PK
+        bigint exam_id FK
+        varchar image_path
+        varchar detected_sbd
+        numeric sbd_confidence
+        varchar detected_exam_code
+        bigint exam_code_id FK
+        bigint matched_student_id FK
+        numeric raw_score
+        sheet_status status
+    }
+    sheet_answers {
+        bigint sheet_id PK,FK
+        smallint question_no PK
+        bubble_state state
+        varchar selected_options
+        numeric confidence
+    }
+    ocr_digits {
+        bigint ocr_digit_id PK
+        bigint sheet_id FK
+        ocr_field field
+        char predicted_digit
+        numeric confidence
+        char corrected_digit
+    }
+    results {
+        bigint result_id PK
+        bigint exam_id FK
+        bigint student_id FK
+        bigint sheet_id FK,UK
+        numeric score
+        result_status status
+    }
+    review_queue {
+        bigint review_id PK
+        bigint sheet_id FK
+        review_reason_arr reasons
+        review_status status
+    }
+    score_audit_logs {
+        bigint audit_id PK
+        bigint result_id FK
+        numeric old_score
+        numeric new_score
+        bigint changed_by
+    }
+    system_settings {
+        varchar setting_key PK
+        text setting_value
+    }

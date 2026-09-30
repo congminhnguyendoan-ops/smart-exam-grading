@@ -1,0 +1,25 @@
+sequenceDiagram
+    actor GV as Giáo viên
+    participant FE as Streamlit
+    participant API as FastAPI
+    participant DB as PostgreSQL
+    GV->>FE: Mở hàng đợi review
+    FE->>API: GET /reviews?exam_id=
+    API->>DB: SELECT v_review_pending
+    DB-->>FE: Danh sách theo độ ưu tiên
+    GV->>FE: Chọn 1 phiếu
+    FE->>API: GET /reviews/{id}/suggestions
+    API->>DB: fn_suggest_students(sheet_id)
+    DB-->>FE: SV có SBD lệch ≤ 1 chữ số
+    FE-->>GV: Ảnh gốc + SBD nhận diện + gợi ý
+    alt Xác nhận SV
+        GV->>FE: Chọn SV đúng, sửa ô nếu cần
+        FE->>API: POST /reviews/{id}/resolve
+        API->>DB: fn_resolve_review(...)
+        DB->>DB: Ghi results (confirmed) + audit log
+    else Loại phiếu
+        GV->>FE: Loại (quét trùng, ảnh hỏng)
+        FE->>API: POST /reviews/{id}/reject
+        API->>DB: fn_reject_review(...)
+    end
+    API-->>FE: Cập nhật hàng đợi
