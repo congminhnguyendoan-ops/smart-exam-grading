@@ -35,7 +35,8 @@ Bài toán cốt lõi cần giải: **tránh ghi nhầm điểm** (đọc sai SB
 ## 3. Cấu trúc thư mục
 
 Thư mục gốc dự án (mở trong PyCharm): **`C:\Users\MSI\PycharmProjects\smart_exam_db_1`**
-(chứa `CLAUDE.md`, `.venv/`, `.idea/` và thư mục `smart_exam_db/` bên dưới). Chưa phải git repo.
+(chứa `CLAUDE.md`, `.gitignore`, `.venv/`, `.idea/` và thư mục `smart_exam_db/` bên dưới).
+Là git repo, nhánh `main`, tác giả cấu hình `--local`: `congminhnguyendoan-ops`.
 Lưu ý: `answer_sheet/` cũng có `.venv/` và `.idea/` riêng (xem mục 8).
 
 ```
@@ -160,6 +161,7 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - [x] Baseline rule-based: 36/40 câu, 4 lỗi đều ở ô tô mờ (đã chụp màn hình cho báo cáo).
 - [x] Chạy `update_template.sql` → `UPDATE 1` trên mẫu "Phiếu chuẩn 40 câu A4".
 - [x] In phiếu đúng tỉ lệ 100% (đã sửa lỗi Fit to printer margins).
+- [x] Tạo `.gitignore`, `git init`, commit đầu tiên `399d48c` (53 file) – 30/09/2026.
 
 ## 7. Việc dang dở
 
@@ -176,37 +178,37 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - `import fitz` bị cảnh báo deprecated → đổi sang `import pymupdf`.
 - Python 3.14 rất mới: cần kiểm tra TensorFlow có hỗ trợ không trước khi chạy suy luận local;
   nếu không, tạo venv riêng Python 3.12 cho phần ML.
-- **`data/` CHƯA được gitignore** (kiểm tra 30/09/2026): dự án chưa phải git repo và **không có
-  `.gitignore` nào của dự án** – chỉ có các file tự sinh trong `.idea/` và `.venv/`. Phải tạo
-  `.gitignore` (ít nhất `data/`, `.venv/`, `__pycache__/`, `.idea/`) **trước** `git init` / push GitHub.
+- Git: đã có `.gitignore` ở gốc (loại `.venv/`, `.idea/`, `data/`, `__pycache__/`, `.env`, ảnh
+  `*.png/*.jpg` trong `answer_sheet/output/`). Chưa có remote GitHub.
 - Có 2 venv: `smart_exam_db_1/.venv` và `smart_exam_db/answer_sheet/.venv` – cần xác định PyCharm
   đang dùng cái nào để tránh cài thư viện nhầm chỗ.
 - Mật khẩu DB `smartexam123` bị ghi cứng trong `00_create_database.sql`, `run_all.bat/.sh`,
   `tools/db_check.py`, `HUONG_DAN.md` – chấp nhận được khi làm local, cần lưu ý nếu công khai repo.
 - Không gửi ảnh qua Zalo/Messenger (bị nén) – chỉ chép bằng cáp hoặc Google Drive.
 
-### Mâu thuẫn giữa CLAUDE.md và code/tài liệu khác (chưa sửa – chờ người dùng quyết)
+### Điểm đã được người dùng chốt (30/09/2026) – `HUONG_DAN.md` lỗi thời ở các điểm này, theo CLAUDE.md
 
-1. **Số lớp OMR**: CLAUDE.md chốt classifier **3 lớp cấp ô** + luật cấp câu. Nhưng `01_schema.sql`
-   ghi ENUM `bubble_state` = `blank/filled/faint/multiple` là "4 lớp của OMR classifier";
-   `04_seed.sql` ghi model "4 lớp"; `HUONG_DAN.md` Tuần 5 lưu ảnh ô vào `data/cells/{…,multiple}/`.
-   (Cột `sheet_answers.state` là trạng thái **cấp câu**, nên dùng 4 giá trị ở đó vẫn hợp lý – chỉ
-   cần sửa comment/tài liệu cho khỏi hiểu nhầm.)
-2. **Tô nhiều ô không vào review**: ENUM `review_reason` có `multiple_marks` nhưng `fn_process_sheet`
+- **Không phải mâu thuẫn**: classifier **3 lớp cấp ô** (`blank/filled/faint`); ENUM `bubble_state`
+  4 giá trị (`blank/filled/faint/multiple`) là **trạng thái cấp câu** của `sheet_answers.state`.
+  Comment "4 lớp của OMR classifier" trong `01_schema.sql`, ghi chú "4 lớp" trong `04_seed.sql` và
+  thư mục `data/cells/multiple/` ở `HUONG_DAN.md` Tuần 5 là cách diễn đạt cũ – không có lớp ô `multiple`.
+- **PostgreSQL 17** (bỏ qua các chỗ ghi 16 trong `HUONG_DAN.md`, `run_all.bat`, `01_schema.sql`).
+  `psql` vẫn **không** có trong PATH → `run_all.bat` sẽ báo lỗi nếu chưa thêm `...\PostgreSQL\17\bin`.
+- **40 phiếu** (0001–0040) × 2 ảnh = 80 ảnh (bỏ qua "30–50 phiếu" ở `HUONG_DAN.md` Tuần 3).
+- **Fine-tune CNN chữ số theo mục 4**: fine-tune bằng trang chữ số; 360 chữ số trên phiếu chỉ để
+  test (bỏ qua "thu chữ số từ phiếu để fine-tune" ở `HUONG_DAN.md` Tuần 6).
+
+### Mâu thuẫn còn mở (chưa sửa – chờ người dùng quyết)
+
+1. **Tô nhiều ô không vào review**: ENUM `review_reason` có `multiple_marks` nhưng `fn_process_sheet`
    **không bao giờ dùng** → câu tô 2 ô chỉ bị chấm sai rồi ghi điểm tự động (`status='auto'`),
    trái với mục tiêu "phiếu không chắc chắn thì đưa giáo viên xem lại".
-3. **run_all.bat reset DB**: `00_create_database.sql` chạy `DROP DATABASE`, `04_seed.sql` ghi
+2. **run_all.bat reset DB**: `00_create_database.sql` chạy `DROP DATABASE`, `04_seed.sql` ghi
    `layout_config` tạm (toạ độ cũ, không khớp `sheet_layout.py`). Chạy lại `run_all.bat` ⇒ **mất
    kết quả `update_template.sql`** (mục 6), phải chạy lại nó.
-4. **psql / phiên bản PostgreSQL**: `run_all.bat` và `HUONG_DAN.md` giả định `psql` có trong PATH và
-   đường dẫn `PostgreSQL\16\bin`; mục 5 ghi psql **không** có trong PATH, bản cài là 17.
-   `01_schema.sql` ghi "đã test trên 16".
-5. **Dữ liệu fine-tune CNN chữ số**: `HUONG_DAN.md` Tuần 6 "thu 200–500 chữ số thật **từ phiếu** →
-   fine-tune"; CLAUDE.md chốt fine-tune bằng **trang chữ số**, 360 chữ số trên phiếu **chỉ để test**.
-6. **Số phiếu thu**: `HUONG_DAN.md` Tuần 3 "tô 30–50 phiếu"; CLAUDE.md: 40 phiếu × 2 ảnh = 80 ảnh.
-7. **Cấu trúc thư mục**: `HUONG_DAN.md` đề xuất `smart-exam/cv_engine/preprocessing.py`; CLAUDE.md
+3. **Cấu trúc thư mục**: `HUONG_DAN.md` đề xuất `smart-exam/cv_engine/preprocessing.py`; CLAUDE.md
    mục 7 ghi `preprocessing.py` (chưa nói đặt ở đâu). Cần chốt vị trí trước Tuần 4.
-8. **Thư viện**: `answer_sheet/requirements.txt` chỉ có reportlab/opencv/numpy/pymupdf (ghi `>=4.0`,
+4. **Thư viện**: `answer_sheet/requirements.txt` chỉ có reportlab/opencv/numpy/pymupdf (ghi `>=4.0`,
    `>=4.8`, `>=1.24`…), không có `psycopg` (cần cho `tools/db_check.py`) hay `playwright`
    (cần cho `docs/wireframes/gen.py`). Phiên bản ở bảng mục 2 chưa đối chiếu với venv thực tế.
 
@@ -226,3 +228,4 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - Dùng `pathlib`, đọc/ghi UTF-8 (Windows). Thông báo in ra màn hình và comment bằng **tiếng Việt**.
 - Nhãn lớp: `blank` / `filled` / `faint` (cấp ô); `blank` / đáp án / `multiple` (cấp câu).
 - Mỗi con số đưa vào báo cáo phải tái tạo được bằng script.
+- Khi `HUONG_DAN.md` (viết trước) khác CLAUDE.md thì **theo CLAUDE.md**.
