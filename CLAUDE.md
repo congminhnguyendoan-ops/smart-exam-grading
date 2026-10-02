@@ -162,6 +162,12 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - [x] Chạy `update_template.sql` → `UPDATE 1` trên mẫu "Phiếu chuẩn 40 câu A4".
 - [x] In phiếu đúng tỉ lệ 100% (đã sửa lỗi Fit to printer margins).
 - [x] Tạo `.gitignore`, `git init`, commit đầu tiên `399d48c` (53 file) – 30/09/2026.
+- [x] Sửa lỗi `multiple_marks` (02/10/2026): `fn_process_sheet` bước (4b) đưa phiếu có câu tô nhiều ô
+      (`state='multiple'` hoặc `length(selected_options) > 1`) vào review, ghi `multiple_mark_questions`
+      vào `details`. Kiểm thử `database/tests/test_multiple_marks.sql` (BEGIN…ROLLBACK, không để lại dữ liệu):
+      3 phiếu A/B/C đúng mong đợi, in "KẾT LUẬN: ĐÃ SỬA". Đã cài vào DB qua pgAdmin.
+      Cài lại riêng hàm này: trong pgAdmin bôi đen từ dòng `CREATE OR REPLACE FUNCTION fn_process_sheet`
+      đến dòng `END $$;` ngay trước comment `-- 6. fn_suggest_students` rồi F5 (không chạy cả file).
 
 ## 7. Việc dang dở
 
@@ -200,9 +206,10 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 
 ### Mâu thuẫn còn mở (chưa sửa – chờ người dùng quyết)
 
-1. **Tô nhiều ô không vào review**: ENUM `review_reason` có `multiple_marks` nhưng `fn_process_sheet`
-   **không bao giờ dùng** → câu tô 2 ô chỉ bị chấm sai rồi ghi điểm tự động (`status='auto'`),
-   trái với mục tiêu "phiếu không chắc chắn thì đưa giáo viên xem lại".
+1. ~~**Tô nhiều ô không vào review**: ENUM `review_reason` có `multiple_marks` nhưng `fn_process_sheet`
+   **không bao giờ dùng** → câu tô 2 ô chỉ bị chấm sai rồi ghi điểm tự động (`status='auto'`).~~
+   **ĐÃ SỬA 02/10/2026** – xem mục 6. Hệ quả: phiếu 6 của `04_seed.sql` giờ có lý do review
+   `{low_omr_confidence, multiple_marks}`; luồng `05_demo_workflow.sql` không đổi.
 2. **run_all.bat reset DB**: `00_create_database.sql` chạy `DROP DATABASE`, `04_seed.sql` ghi
    `layout_config` tạm (toạ độ cũ, không khớp `sheet_layout.py`). Chạy lại `run_all.bat` ⇒ **mất
    kết quả `update_template.sql`** (mục 6), phải chạy lại nó.

@@ -188,6 +188,7 @@ DECLARE
     v_reasons     review_reason[] := '{}';
     v_details     JSONB := '{}'::jsonb;
     v_low_q       SMALLINT[];
+    v_multi_q     SMALLINT[];
     v_dup_sheet   BIGINT;
     v_result_id   BIGINT;
     v_review_id   BIGINT;
@@ -224,6 +225,16 @@ BEGIN
     IF v_low_q IS NOT NULL THEN
         v_reasons := v_reasons || 'low_omr_confidence'::review_reason;
         v_details := v_details || jsonb_build_object('low_confidence_questions', to_jsonb(v_low_q));
+    END IF;
+
+    -- (4b) Câu tô nhiều ô: luôn bị chấm sai => giáo viên phải xem ảnh để xác nhận
+    --      (kiểm tra cả selected_options phòng khi backend ghi state sai)
+    SELECT array_agg(question_no ORDER BY question_no) INTO v_multi_q
+    FROM sheet_answers
+    WHERE sheet_id = p_sheet_id AND (state = 'multiple' OR length(selected_options) > 1);
+    IF v_multi_q IS NOT NULL THEN
+        v_reasons := v_reasons || 'multiple_marks'::review_reason;
+        v_details := v_details || jsonb_build_object('multiple_mark_questions', to_jsonb(v_multi_q));
     END IF;
 
     -- (5) MATCH SBD với bảng students (trong phạm vi roster của kỳ thi nếu có)
