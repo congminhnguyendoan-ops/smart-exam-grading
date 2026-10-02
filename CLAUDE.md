@@ -191,6 +191,24 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - Mật khẩu DB `smartexam123` bị ghi cứng trong `00_create_database.sql`, `run_all.bat/.sh`,
   `tools/db_check.py`, `HUONG_DAN.md` – chấp nhận được khi làm local, cần lưu ý nếu công khai repo.
 - Không gửi ảnh qua Zalo/Messenger (bị nén) – chỉ chép bằng cáp hoặc Google Drive.
+- **`find_markers()`/`align()` trong `check_layout.py` chọn nhầm marker mà KHÔNG báo lỗi – phải xử lý ở
+  Tuần 4 (`preprocessing.py`)** (phát hiện 02/10/2026 trên 90 ảnh thật): **23/90 ảnh** nắn sai
+  (20/40 ảnh C3 đều sai, cộng 0021_C2, 0028_C4, 0032_C4, D007). Hàm chỉ lấy "vết đen gần vuông gần
+  góc ẢNH nhất", không kiểm tra kết quả, nên 4 điểm sai vẫn cho ra ảnh "đã nắn". Bốn nguyên nhân:
+  1. **Ngưỡng tỉ lệ w/h `0.7–1.4` quá chặt**: ảnh C3 bị phối cảnh làm marker xa thành w/h 1,40–1,51
+     → bị loại. Nới thành `0.5–2.0` thì 15/18 ảnh C3 hết sai (thí nghiệm chỉ đổi đúng ngưỡng này).
+  2. **Ô tròn đáp án/SBD và chữ số viết tay cũng lọt bộ lọc** (~170–480 ứng viên/ảnh, lẽ ra 4) → khi
+     thiếu marker thật, ô gần góc nhất bị chọn (ví dụ câu 40-D làm BR, mẫu "Sai ✓" làm TL).
+  3. **Marker chạm mép khung hình / dính bóng** (0014_C3, 0028_C4, 0032_C4, D007): contour méo (độ đặc
+     0,41–0,50, 6 đỉnh) → bị loại. **Tờ khác lọt vào khung** (0021_C2): marker tờ khác gần góc ảnh hơn.
+  4. **Ảnh nằm ngang** (0006_C2, 0006_C3: iPhone ghi EXIF Orientation=3 thay vì 6 khi chụp úp xuống):
+     đủ 4 marker đúng nhưng gán TL/TR/BR/BL theo góc ảnh → phiếu bị nắn xoay 90°.
+  Hướng xử lý: nới w/h; chọn 4 marker theo **hình học** (tứ giác lồi, tỉ lệ ~182:269 mm, cùng kích
+  thước) thay vì "gần góc ảnh nhất"; xác định chiều phiếu bằng nội dung; **kiểm tra sau khi nắn** (tâm
+  6×6 mm mỗi marker phải đen kín ≥ 0,5 – marker thật ~1,0, nhầm 0,03–0,43) và báo lỗi thay vì trả ảnh sai.
+  Đã kiểm chứng tên ảnh không bị ảnh hưởng (đọc tay mã phiếu + đối chiếu SBD/mã đề với `ground_truth.csv`).
+  Tái tạo danh sách 23 ảnh: `python tools/prepare_photos.py preview` (in các ảnh align() không tin cậy).
+  Hệ quả: `check_photos.py` sẽ lưu ảnh nắn SAI vào `_aligned/` mà báo OK cho các ảnh này.
 
 ### Điểm đã được người dùng chốt (30/09/2026) – `HUONG_DAN.md` lỗi thời ở các điểm này, theo CLAUDE.md
 
