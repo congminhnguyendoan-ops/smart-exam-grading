@@ -171,9 +171,33 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 
 ## 7. Việc dang dở
 
-- [ ] **Thu dữ liệu** (đang ở Bước 3/7 của `HUONG_DAN_THU_DU_LIEU.md`): phát phiếu tô theo kịch bản,
-      thu trang chữ số, chụp 80 ảnh + 10 trang, chạy `check_photos.py`, sửa `ground_truth.csv`, sao lưu `data/`.
-- [ ] Script đổi tên ảnh hàng loạt theo thứ tự chụp (đã đề xuất, chưa viết).
+- [ ] **BỘ ẢNH – VIỆC CÒN LẠI DUY NHẤT: chụp lại `0014_C3`** (tiếp tục 03/10/2026). Yêu cầu ảnh mới:
+      **độ phối cảnh ≤ 0,73** (như các ảnh C3 khác, xem dòng `0014_C3` bên dưới) và **4 marker cách mép
+      khung hình rộng rãi** (lần chụp IMG_4361 marker BR chỉ cách mép 14 px). Quy trình: chép ảnh vào
+      `data/raw_heic/` → đọc mã phiếu + đo marker/độ phối cảnh → nếu đạt thì
+      `python tools/prepare_photos.py replace --src data/raw_heic/<ảnh> --name 0014_C3.jpg --reason "marker BR bị cắt (hụt 13%)"`
+      (ảnh cũ tự chuyển sang `data/raw_rejected/`, `mapping.csv` tự cập nhật) → cập nhật mục này → commit.
+      Phần còn lại của bộ ảnh đã xong: phát phiếu, tô, chụp 80 ảnh + 10 trang, đổi tên, chép, thay 3 ảnh lỗi.
+- [ ] Việc thu dữ liệu KHÔNG thuộc bộ ảnh, chưa ghi nhận là đã làm: đối chiếu `ground_truth.csv` với
+      cái thực sự có trên giấy (người tô sai → sửa CSV → `make_dataset_plan.py --from-csv`), sao lưu `data/`.
+- [x] Script đổi tên ảnh: `tools/prepare_photos.py` (`plan` → `preview` → `apply`). 02/10/2026 đã chép
+      80 ảnh → `data/raw/`, 10 trang → `data/raw_digits/` (khớp SHA-256 với nguồn; HEIC gốc giữ nguyên).
+- [ ] **`check_photos.py` CHƯA ĐÁNG TIN cho đến khi sửa `find_markers()` ở Tuần 4**: nó báo "OK" cho
+      23/90 ảnh mà `align()` chọn nhầm marker và lưu ảnh nắn SAI vào `_aligned/` (xem mục 8). Đến lúc
+      đó chỉ dùng nó để kiểm tra tên file / độ mờ / độ phân giải; không dùng `_aligned/` để cắt ô hay
+      làm dữ liệu train. Kiểm tra nắn đúng/sai tạm thời bằng `python tools/prepare_photos.py preview`.
+- [x] Chụp lại ảnh có marker bị khung hình cắt (02/10/2026), thay bằng
+      `prepare_photos.py replace` (ảnh cũ DI CHUYỂN sang `data/raw_rejected/`, `mapping.csv` ghi cả hai):
+      `0028_C4` ← IMG_4357 (BR cũ hụt 14%), `0032_C4` ← IMG_4358 (BR 33%), `D007` ← IMG_4359 (TR 16%).
+      Ảnh mới: mã phiếu/trang đọc tay + SBD/mã đề khớp `ground_truth.csv`, 4 marker trong khung,
+      `align()` nắn đúng. Ảnh chụp lại là JPG (iPhone "Most Compatible"), không phải HEIC – vẫn đủ
+      4032×3024, EXIF đầy đủ. `0021_C2` giữ lại (4 marker nguyên vẹn, chỉ có tờ khác lọt vào góc).
+- [ ] **`0014_C3` – chi tiết** (việc còn lại ở dòng đầu mục 7): ảnh cũ trong `data/raw/` có marker BR bị cắt (hụt 13%).
+      Đã chụp lại 2 lần, đều đúng phiếu 0014, 4 marker trong khung, nhưng **chưa đủ nghiêng cho C3**.
+      "Độ phối cảnh" = min(trên/dưới, trái/phải và nghịch đảo) của tứ giác 4 marker, đo trên toàn bộ
+      ảnh: **C1 0,82–0,99** (trung vị 0,89, 20 ảnh), **C3 0,60–0,73** (trung vị 0,62, 19 ảnh, bỏ 0006_C3
+      nằm ngang). IMG_4356 = 0,85; IMG_4361 = 0,80 (trái/phải 1,00 → không nghiêng ngang). Cần ≤ ~0,73.
+      Khi có ảnh đạt: `replace --src <ảnh> --name 0014_C3.jpg --reason "marker BR bị cắt (hụt 13%)"`.
 - [ ] Tuần 4: `preprocessing.py` (phát triển từ `align()` trong `check_layout.py`).
 - [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
 - [ ] Backend API, frontend, luồng review cho giáo viên.

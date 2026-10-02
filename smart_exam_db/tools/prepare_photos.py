@@ -12,6 +12,13 @@ Bước 1 (lệnh `plan`):
 
 Lệnh `preview`: chỉ tạo lại preview.html từ mapping.csv hiện có (giữ nguyên chỗ bạn đã sửa).
 
+Bước 2 (lệnh `apply`): chép data/_prepare/jpg/<old_name> -> data/raw/<new_name> (ảnh phiếu) hoặc
+  data/raw_digits/<new_name> (trang chữ số). Kiểm tra TOÀN BỘ mapping trước, có lỗi thì không chép gì.
+  Không bao giờ ghi đè file đã có, không xoá ảnh nguồn. Dòng có new_name rỗng (ảnh đã bị thay) bị bỏ qua.
+
+Lệnh `replace`: thay 1 ảnh đã chép bằng ảnh chụp lại. Ảnh cũ được DI CHUYỂN sang data/raw_rejected/
+  (không xoá), ảnh mới chép vào đúng chỗ, mapping.csv ghi lại cả hai.
+
 Preview tự kiểm tra kết quả align() (find_markers() có thể chọn nhầm marker mà không báo lỗi):
   - Sau khi nắn, tâm 6x6 mm của mỗi marker phải gần như đen kín; nếu không -> chọn nhầm marker.
   - So ảnh nắn với mẫu phiếu ở 4 chiều xoay (NCC); chiều khác 0° tốt hơn rõ -> ảnh nằm ngang.
@@ -20,6 +27,8 @@ Preview tự kiểm tra kết quả align() (find_markers() có thể chọn nh�
 Chạy (từ thư mục smart_exam_db/):
   python tools/prepare_photos.py plan
   python tools/prepare_photos.py preview
+  python tools/prepare_photos.py apply
+  python tools/prepare_photos.py replace --src data/raw_heic/IMG_4357.JPG --name 0028_C4.jpg --reason "..."
 """
 import argparse
 import base64
@@ -27,6 +36,7 @@ import csv
 import html
 import json
 import re
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -48,6 +58,8 @@ N_SHEETS = 40
 N_DIGIT_PAGES = 10
 JPEG_QUALITY = 95
 IMG_RE = re.compile(r"IMG_(\d+)", re.I)
+SHEET_NAME_RE = re.compile(r"^(\d{4})_(C[1-4])\.jpg$")    # giống check_photos.py
+DIGIT_NAME_RE = re.compile(r"^D\d{3}\.jpg$")
 
 # Thẻ EXIF
 EXIF_IFD = 0x8769
@@ -321,6 +333,121 @@ def cmd_preview(a) -> None:
     build_preview(Path(a.work))
 
 
+# ---------------------------------------------------------------- lệnh apply (Bước 2)
+def cmd_apply(a) -> None:
+    work, raw, raw_digits = Path(a.work), Path(a.raw), Path(a.raw_digits)
+    with (work / "mapping.csv").open(encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.DictReader(f))
+    with Path(a.ground_truth).open(encoding="utf-8-sig", newline="") as f:
+        expected_conds = {r["sheet_id"]: sorted(c.strip() for c in r["conditions"].split("+"))
+                          for r in csv.DictReader(f)}
+
+    errors, plan, seen, conds = [], [], set(), {}
+    for r in rows:
+        old, new = r["old_name"].strip(), r["new_name"].strip()
+        if not new:                     # ảnh đã bị thay (lệnh replace) -> bỏ qua
+            continue
+        m = SHEET_NAME_RE.match(new)
+        if m:
+            dst = raw / new
+            conds.setdefault(m.group(1), []).append(m.group(2))
+        elif DIGIT_NAME_RE.match(new):
+            dst = raw_digits / new
+        else:
+            errors.append(f"#{r['order']} {old}: tên mới '{new}' sai định dạng (cần NNNN_Ck.jpg hoặc DNNN.jpg)")
+            continue
+        src = work / "jpg" / old
+        if new in seen:
+            errors.append(f"#{r['order']} {old}: tên mới '{new}' bị trùng")
+        seen.add(new)
+        if not src.exists():
+            errors.append(f"#{r['order']}: không thấy ảnh nguồn {src}")
+        if dst.exists():
+            errors.append(f"#{r['order']}: {dst} đã tồn tại – không ghi đè")
+        plan.append((src, dst))
+
+    # Mỗi phiếu phải có đúng các điều kiện ghi trong ground_truth.csv
+    for sid, want in expected_conds.items():
+        got = sorted(conds.get(sid, []))
+        if got != want:
+            errors.append(f"Phiếu {sid}: có ảnh {got or 'không có'}, ground_truth.csv cần {want}")
+    for sid in sorted(set(conds) - set(expected_conds)):
+        errors.append(f"Phiếu {sid}: không có trong ground_truth.csv")
+    n_sheet = sum(1 for _, d in plan if d.parent == raw)
+    n_digit = len(plan) - n_sheet
+    if n_digit != N_DIGIT_PAGES:
+        errors.append(f"Có {n_digit} trang chữ số, cần {N_DIGIT_PAGES}")
+
+    if errors:
+        print("DỪNG – chưa chép ảnh nào. Sửa mapping.csv rồi chạy lại:")
+        for e in errors:
+            print("  -", e)
+        sys.exit(1)
+
+    raw.mkdir(parents=True, exist_ok=True)
+    raw_digits.mkdir(parents=True, exist_ok=True)
+    for src, dst in plan:
+        shutil.copy2(src, dst)          # copy2: giữ nguyên nội dung + EXIF + thời gian file
+    print(f"Đã chép {n_sheet} ảnh phiếu -> {raw}")
+    print(f"Đã chép {n_digit} trang chữ số -> {raw_digits}")
+    print("Ảnh nguồn (raw_heic/, _prepare/jpg/) giữ nguyên.")
+
+
+# ---------------------------------------------------------------- lệnh replace (thay ảnh chụp lại)
+def cmd_replace(a) -> None:
+    src, name, work = Path(a.src), a.name.strip(), Path(a.work)
+    if SHEET_NAME_RE.match(name):
+        dst = Path(a.raw) / name
+    elif DIGIT_NAME_RE.match(name):
+        dst = Path(a.raw_digits) / name
+    else:
+        sys.exit(f"DỪNG: tên '{name}' sai định dạng (cần NNNN_Ck.jpg hoặc DNNN.jpg)")
+    rejected = Path(a.rejected) / name
+    if rejected.exists():
+        sys.exit(f"DỪNG: {rejected} đã tồn tại – không ghi đè ảnh đã loại trước đó")
+    if not dst.exists():
+        sys.exit(f"DỪNG: không thấy ảnh cũ {dst} để thay")
+    if not src.exists():
+        sys.exit(f"DỪNG: không thấy ảnh mới {src}")
+
+    mapping = work / "mapping.csv"
+    with mapping.open(encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        fields, rows = reader.fieldnames, list(reader)
+    old_rows = [r for r in rows if r["new_name"].strip() == name]
+    if len(old_rows) != 1:
+        sys.exit(f"DỪNG: mapping.csv có {len(old_rows)} dòng new_name = {name}, cần đúng 1")
+
+    jpg = work / "jpg" / f"{src.stem}.jpg"
+    if not jpg.exists():
+        convert(src, jpg)
+    t, source = capture_time(src)
+
+    rejected.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(dst, rejected)          # DI CHUYỂN ảnh cũ, không xoá
+    shutil.copy2(jpg, dst)
+
+    old = old_rows[0]
+    old["new_name"] = ""
+    old["note"] = (f"ĐÃ THAY bằng {src.name} – ảnh cũ ở {rejected.relative_to(ROOT).as_posix()} "
+                   f"({a.reason})")
+    rows.append({
+        "order": max(int(r["order"]) for r in rows) + 1,
+        "old_name": jpg.name,
+        "heic_name": src.name,
+        "capture_time": t.isoformat(sep=" ") if t else "",
+        "time_source": source if t else "thiếu EXIF",
+        "new_name": name,
+        "note": f"chụp lại thay {old['heic_name']}",
+    })
+    with mapping.open("w", encoding="utf-8-sig", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        w.writerows(rows)
+    print(f"{name}: {old['heic_name']} -> {rejected.relative_to(ROOT).as_posix()} | "
+          f"{src.name} -> {dst.relative_to(ROOT).as_posix()} | mapping.csv đã cập nhật")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Chuẩn bị ảnh dữ liệu từ HEIC")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -332,8 +459,21 @@ def main() -> None:
     p.add_argument("--overwrite-mapping", action="store_true", help="Ghi đè mapping.csv đã có")
     p = sub.add_parser("preview", help="Chỉ tạo lại preview.html từ mapping.csv hiện có")
     p.add_argument("--work", default=ROOT / "data" / "_prepare")
+    p = sub.add_parser("apply", help="Bước 2: chép ảnh sang data/raw và data/raw_digits theo mapping.csv")
+    p.add_argument("--work", default=ROOT / "data" / "_prepare")
+    p.add_argument("--raw", default=ROOT / "data" / "raw")
+    p.add_argument("--raw-digits", default=ROOT / "data" / "raw_digits")
+    p.add_argument("--ground-truth", default=ANSWER_SHEET / "output" / "ground_truth.csv")
+    p = sub.add_parser("replace", help="Thay 1 ảnh đã chép bằng ảnh chụp lại (ảnh cũ -> data/raw_rejected/)")
+    p.add_argument("--src", required=True, help="Ảnh chụp lại (HEIC hoặc JPG), vd data/raw_heic/IMG_4357.JPG")
+    p.add_argument("--name", required=True, help="Tên cần thay, vd 0028_C4.jpg hoặc D007.jpg")
+    p.add_argument("--reason", required=True, help="Lý do loại ảnh cũ (ghi vào mapping.csv)")
+    p.add_argument("--work", default=ROOT / "data" / "_prepare")
+    p.add_argument("--raw", default=ROOT / "data" / "raw")
+    p.add_argument("--raw-digits", default=ROOT / "data" / "raw_digits")
+    p.add_argument("--rejected", default=ROOT / "data" / "raw_rejected")
     a = ap.parse_args()
-    {"plan": cmd_plan, "preview": cmd_preview}[a.cmd](a)
+    {"plan": cmd_plan, "preview": cmd_preview, "apply": cmd_apply, "replace": cmd_replace}[a.cmd](a)
 
 
 if __name__ == "__main__":
