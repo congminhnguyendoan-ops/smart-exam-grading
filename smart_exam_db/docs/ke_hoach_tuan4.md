@@ -97,7 +97,7 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   người dùng xem bằng mắt → kết luận cuối ghi `data/_eval/align_cu/truth_dev.csv`. **Không** suy số
   "trước" từ ghi chú CLAUDE.md mục 8 (danh sách đó tự mâu thuẫn; chỉ dùng để đối chiếu, lệch thì giải thích).
   Tự kiểm chứng phép 2 bằng ảnh đúng (đã xem bằng mắt) bị làm hỏng cố ý: dịch 2 mm, dịch 7 mm ngang,
-  11 mm dọc, xoay 1°, xoay 180°, nhầm loại trang (mẫu trang chữ số cho ảnh phiếu và ngược lại) – phải
+  11 mm dọc, 5,8 mm dọc (bước bubble SBD/mã đề – lần chạy đầu đã có 4 ô lưới khớp nhầm đúng bước này), xoay 1°, xoay 180°, nhầm loại trang (mẫu trang chữ số cho ảnh phiếu và ngược lại) – phải
   bắt được hết. (Không kiểm "nhầm phiếu NNNN": 40 trang `phieu_danh_so.pdf` chỉ khác chữ số cuối của
   "Mã phiếu" – vùng ~184–188 × 25–27,5 mm, kiểm tra pixel 03/10/2026; 10 trang `trang_chu_so.pdf` cũng
   vậy – nên phép 2 dùng 1 mẫu cho mỗi loại trang, che vùng mã. Sai tên ảnh do `prepare_photos.py
@@ -123,6 +123,11 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
 - **Việc**: thử 4 cách gán TL/TR/BR/BL (xoay 0/90/180/270°), chọn chiều bằng nội dung (không tin EXIF),
   bằng một dấu hiệu **riêng của preprocessing** (ví dụ vị trí khối ô đáp án / dòng tiêu đề so với marker),
   không dùng phép so phiếu trắng của `eval_preprocessing.py`.
+- **Kiểm tra chiều phải dựa trên NỘI DUNG, không dựa marker**: 4 marker giống hệt nhau, ảnh xoay 90°/180°
+  vẫn có marker thật ở cả 4 góc ⇒ độ đen marker (phép 1, và mọi tự kiểm tra kiểu đó ở Bước 5) về bản chất
+  không bắt được lỗi chiều. 0006_C2/0006_C3 (`align_cu`, 03/10/2026) chỉ hụt nhẹ (đen 0,85 / 0,90) vì
+  trang dọc bị ép vào tứ giác ngang (méo ~1,48 : 0,68) làm ô kiểm tra 6×6 mm lấn ra ngoài marker – tình
+  cờ, không dựa vào được (ảnh xoay 180° sẽ đen 1,00).
 - **Cách đo**: `eval_preprocessing.py` trên dev, riêng 0006_C2, 0006_C3 phải "đúng".
 - **Xong khi**: 0006 nắn đúng; không ảnh nào khác đổi từ đúng sang sai.
 
@@ -145,6 +150,12 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
 ### Bước 7 – Đánh giá cuối (một lần)
 - **Việc**: chốt code (commit), rồi chạy `eval_preprocessing.py --split test` trên 0035–0040 đúng một lần;
   chạy thêm toàn bộ 80 ảnh và 10 trang chữ số để báo cáo; ghi số "trước/sau" theo C1–C4.
-- **Cách đo**: bảng trước (bước 1) / sau (bước 7) cho dev và test.
+- **Cách đo**: bảng trước (bước 1) / sau (bước 7) cho dev và test. Đo lại cả độ chính xác của ảnh nắn
+  đúng (`lech_trungvi_mm`, `lech_max_mm` trên ô lưới tin cậy) – xem mục tiêu dưới.
+- **Mục tiêu độ chính xác** (từ Bước 1, `align_cu`/dev 03/10/2026): ảnh nắn đúng vẫn có `lech_max` 1,4–1,6 mm
+  (0023_C4 1,56; D006 1,45; 0017_C1 1,44), không tính 0014_C2 (giấy cong, 4,2 mm) – sát dung sai ~1 mm của
+  OMR đọc toạ độ cố định. ⇒ preprocessing mới cần **tâm marker chính xác hơn** (tâm theo moment/khớp góc
+  thay vì contour thô, dưới pixel). Lưu ý: phép 2 hiện đo theo bước nguyên pixel 150 DPI (0,17 mm) – cần
+  tinh chỉnh dưới pixel trước khi so số trước/sau ở mức vài phần mười mm.
 - **Xong khi**: số liệu tái tạo được bằng một lệnh, đưa vào báo cáo; lỗi im lặng trên test được nêu
   trung thực dù bằng bao nhiêu.
