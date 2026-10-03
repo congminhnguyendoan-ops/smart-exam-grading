@@ -48,7 +48,7 @@ sys.path.insert(0, str(ANSWER_SHEET))
 sys.path.insert(0, str(ROOT / "tools"))
 from check_layout import align, render_pdf_page  # noqa: E402  (không sửa check_layout.py)
 from prepare_photos import marker_fill  # noqa: E402
-from check_labels import local_darkness  # noqa: E402
+from check_labels import SEARCH_MM, item_box, local_darkness, register  # noqa: E402
 
 SPLITS = {"dev": range(1, 35), "test": range(35, 41)}     # mã phiếu; trang chữ số D001–D010 thuộc dev
 WORK_DPI = 150                       # độ phân giải làm phép 2 (0,17 mm/px – đủ đo lệch cỡ 0,5 mm)
@@ -262,26 +262,39 @@ def doc_nhan_o() -> dict:
     return out
 
 
-def p3_nhan(aligned, layout, nhan: dict) -> dict:
-    """Mỗi hàng câu / cột chữ số có ô filled: hiệu = min(filled) − max(blank) (độ tối local_darkness)."""
-    groups = []                                              # [(tâm, bán kính, {ô: nhãn})]
+def p3_nhan(aligned, layout, nhan: dict, phieu_trang=None) -> dict:
+    """Mỗi hàng câu / cột chữ số có ô filled: hiệu = min(filled) − max(blank) (độ tối local_darkness).
+    Mặc định đo tại toạ độ layout (không dò lại). phieu_trang (ảnh 300 DPI của phieu_trang.pdf) -> chế độ
+    'dò lại': mỗi hàng câu / mỗi khối SBD, mã đề dò lệch ±4 mm như check_labels.py audit (dùng cho dung-sai).
+    Trả số đo gộp + tách 'dap_an_*' (ô Ø5 mm) và 'chu_so_*' (bubble SBD/mã đề Ø4,4 mm, bước dọc 5,8 mm)."""
+    groups = []                                              # [(loại, item dò lại, tâm, bán kính, nhãn)]
     ans = layout["answers"]
     for q in range(1, ans["num_questions"] + 1):
-        groups.append(([ans["centers"][str(q)][o] for o in ans["options"]], ans["bubble_radius"],
-                       [nhan[(str(q), o)] for o in ans["options"]]))
+        groups.append(("dap_an", ("q", q), [ans["centers"][str(q)][o] for o in ans["options"]],
+                       ans["bubble_radius"], [nhan[(str(q), o)] for o in ans["options"]]))
     for field in ("sbd", "exam_code"):
         f = layout[field]
         for c, col in enumerate(f["bubbles"]):
-            groups.append((col, f["bubble_radius"], [nhan[(f"{field}{c + 1}", str(k))] for k in range(10)]))
-    hieu = []
-    for centers, r, labs in groups:
+            groups.append(("chu_so", (field, 0), col, f["bubble_radius"],
+                           [nhan[(f"{field}{c + 1}", str(k))] for k in range(10)]))
+    shift = {}
+    if phieu_trang is not None:
+        search = round(SEARCH_MM * layout["dpi"] / 25.4)
+        for item in {g[1] for g in groups}:
+            shift[item] = register(aligned, phieu_trang, item_box(layout, item), search)
+    hieu = {"dap_an": [], "chu_so": []}
+    for kind, item, centers, r, labs in groups:
         if "filled" not in labs or "blank" not in labs:
             continue
-        d = [local_darkness(aligned, cx, cy, r) for cx, cy in centers]
-        hieu.append(min(v for v, l in zip(d, labs) if l == "filled") - max(v for v, l in zip(d, labs) if l == "blank"))
-    h = np.array(hieu)
-    return {"so_hang": len(h), "ti_le_hang_duong": float((h > 0).mean()), "hieu_min": float(h.min()),
-            "hieu_p10": float(np.percentile(h, 10)), "hieu_trungvi": float(np.median(h))}
+        sx, sy = shift.get(item, (0, 0))
+        d = [local_darkness(aligned, cx + sx, cy + sy, r) for cx, cy in centers]
+        hieu[kind].append(min(v for v, l in zip(d, labs) if l == "filled") - max(v for v, l in zip(d, labs) if l == "blank"))
+
+    def stats(h, p=""):
+        h = np.array(h)
+        return {f"{p}so_hang": len(h), f"{p}ti_le_hang_duong": float((h > 0).mean()), f"{p}hieu_min": float(h.min()),
+                f"{p}hieu_p10": float(np.percentile(h, 10)), f"{p}hieu_trungvi": float(np.median(h))}
+    return {**stats(hieu["dap_an"] + hieu["chu_so"]), **stats(hieu["dap_an"], "dap_an_"), **stats(hieu["chu_so"], "chu_so_")}
 
 
 # ============================================================================ kết luận tự động
@@ -532,6 +545,150 @@ def cmd_tu_kiem(a) -> None:
         for r in out_rows:
             w.writerow({k: (f"{v:.4f}" if isinstance(v, float) else v) for k, v in r.items()})
     print(f"\nĐã ghi {path}")
+    tu_kiem_anh_that(a, layout, goc, mau, mask)
+
+
+def ghi_csv(path: Path, rows: list[dict]) -> None:
+    with path.open("w", encoding="utf-8-sig", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0]))
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: (f"{v:.4f}" if isinstance(v, float) else v) for k, v in r.items()})
+
+
+def anh_dung_bang_mat(ten_pp: str, chi_phieu=False) -> list[Anh]:
+    """Ảnh dev mà người dùng đã kết luận 'dung' bằng mắt (xem_bang_mat.csv của phương pháp)."""
+    p = EVAL_DIR / ten_pp / "xem_bang_mat.csv"
+    dung = {r["anh"] for r in csv.DictReader(p.open(encoding="utf-8-sig")) if r["ket_luan_mat"] == "dung"}
+    return [x for x in list_images("dev") if x.ten in dung and (x.loai == "phieu" or not chi_phieu)]
+
+
+def xoay(gray300, goc_do) -> np.ndarray:
+    h, w = gray300.shape
+    M = cv2.getRotationMatrix2D((w / 2, h / 2), goc_do, 1.0)
+    return cv2.warpAffine(gray300, M, (w, h), flags=cv2.INTER_LINEAR, borderValue=255)
+
+
+# (tên ca, hàm làm hỏng ảnh nắn 300 DPI, có đổi loại trang mẫu không)
+CA_LAM_HONG = [
+    ("goc", lambda g: g, False),
+    ("dich_2mm_doc", lambda g: dich(g, 0, 2), False),
+    ("dich_7mm_ngang", lambda g: dich(g, 7, 0), False),
+    ("dich_11mm_doc", lambda g: dich(g, 0, 11), False),
+    ("dich_5_8mm_doc", lambda g: dich(g, 0, 5.8), False),
+    ("xoay_1do", lambda g: xoay(g, 1), False),
+    ("xoay_180", lambda g: np.ascontiguousarray(g[::-1, ::-1]), False),
+    ("nham_loai_trang", lambda g: g, True),
+]
+# số đo dùng để xét "bị bắt": (tên, True nếu càng cao càng tốt)
+SO_DO_BAT = [("den_min", True), ("khop_net", True), ("diem_tieu_de", True), ("so_o_tin_cay", True),
+             ("ti_le_hang_duong", True), ("lech_toan_trang_mm", False), ("lech_trungvi_mm", False)]
+
+
+def tu_kiem_anh_that(a, layout, goc, mau, mask) -> None:
+    """Ảnh nắn đúng (kết luận bằng mắt) bị làm hỏng cố ý -> mỗi ca phải có ít nhất 1 số đo ra NGOÀI khoảng của
+    ảnh không-sai trong diem_dev.csv (chưa có ngưỡng chốt, nên dùng khoảng quan sát làm mốc)."""
+    out = EVAL_DIR / a.phuong_phap
+    mat = {r["anh"]: r["ket_luan_mat"] for r in csv.DictReader((out / "xem_bang_mat.csv").open(encoding="utf-8-sig"))}
+    tot = [r for r in csv.DictReader((out / "diem_dev.csv").open(encoding="utf-8-sig")) if mat[r["anh"]] != "sai"]
+    khoang = {}
+    for k, cao_tot in SO_DO_BAT:
+        v = [float(r[k]) for r in tot if r[k] != ""]
+        khoang[k] = (min(v), max(v))
+    print(f"\nKhoảng số đo của {len(tot)} ảnh không-sai (mốc 'bị bắt' = ra ngoài khoảng này):")
+    for k, cao_tot in SO_DO_BAT:
+        print(f"  {k:20s} {'≥' if cao_tot else '≤'} {khoang[k][0 if cao_tot else 1]:.3f}")
+    nhan = doc_nhan_o()
+    f = PHUONG_PHAP[a.phuong_phap]
+    rows = []
+    images = anh_dung_bang_mat(a.phuong_phap)
+    print(f"\nẢnh 'dung' bằng mắt: {', '.join(x.ten for x in images)}")
+    print(f"{'ca':16s} {'ảnh':8s} {'den':>5s} {'khop':>5s} {'tđề':>5s} {'ô tc':>4s} {'hàng+':>5s} {'lệch tt':>7s} {'lệch tv':>7s}  bị bắt bởi")
+    for anh in images:
+        aligned, _, _ = goi_phuong_phap(f, anh, layout["page_px"])
+        for ten, ham, doi_trang in CA_LAM_HONG:
+            g = ham(aligned)
+            loai_mau = ("chu_so" if anh.loai == "phieu" else "phieu") if doi_trang else anh.loai
+            r = {"ca": ten, "anh": anh.ten, "dieu_kien": anh.dieu_kien, "loai_mau": loai_mau,
+                 "den_min": float(min(marker_fill(g, layout).values()))}
+            d2, _, _ = p2_net(to_work(g, layout["page_px"]), mau[loai_mau], mask, layout)
+            r.update({k: d2[k] for k in ("khop_net", "diem_tieu_de", "so_o_tin_cay", "lech_toan_trang_mm",
+                                         "lech_trungvi_mm", "lech_max_mm")})
+            r["ti_le_hang_duong"] = p3_nhan(g, layout, nhan[anh.ma])["ti_le_hang_duong"] if anh.loai == "phieu" else ""
+            bat = []
+            for k, cao_tot in SO_DO_BAT:
+                if r[k] == "" or not np.isfinite(r[k]):
+                    continue
+                if (cao_tot and r[k] < khoang[k][0]) or (not cao_tot and r[k] > khoang[k][1]):
+                    bat.append(k)
+            r["bi_bat_boi"] = " ".join(bat)
+            rows.append(r)
+            hd = f"{r['ti_le_hang_duong']:5.2f}" if r["ti_le_hang_duong"] != "" else "    -"
+            print(f"{ten:16s} {anh.ten:8s} {r['den_min']:5.2f} {r['khop_net']:5.2f} {r['diem_tieu_de']:5.2f} "
+                  f"{r['so_o_tin_cay']:4d} {hd} {r['lech_toan_trang_mm']:7.2f} {r['lech_trungvi_mm']:7.2f}  "
+                  f"{r['bi_bat_boi'] or ('(ảnh gốc)' if ten == 'goc' else 'KHÔNG BỊ BẮT')}")
+    ghi_csv(out / "tu_kiem_anh_dev.csv", rows)
+    lot = [r for r in rows if r["ca"] != "goc" and not r["bi_bat_boi"]]
+    goc_bat = [r for r in rows if r["ca"] == "goc" and r["bi_bat_boi"]]
+    print(f"\nCa làm hỏng không bị bắt: {len(lot)}/{len(rows) - len(images)}"
+          + (" – " + ", ".join(f"{r['ca']}:{r['anh']}" for r in lot) if lot else ""))
+    if goc_bat:
+        print("CHÚ Ý – ảnh gốc (chưa làm hỏng) nằm ngoài khoảng: " + ", ".join(f"{r['anh']} ({r['bi_bat_boi']})" for r in goc_bat))
+    print(f"Đã ghi {out / 'tu_kiem_anh_dev.csv'}")
+
+
+# ============================================================================ lệnh dung-sai (dung sai OMR)
+DUNG_SAI_MM = [round(0.25 * k, 2) for k in range(17)]                      # 0 … 4 mm
+HUONG = [(1, 0), (-1, 0), (0, 1), (0, -1), (0.7071, 0.7071), (-0.7071, 0.7071), (0.7071, -0.7071), (-0.7071, -0.7071)]
+
+
+def cmd_dung_sai(a) -> None:
+    """Dung sai lệch của OMR: dịch ảnh phiếu nắn đúng (bằng mắt) d mm theo 8 hướng, đo lại phép 3 ở 2 chế độ:
+    co_dinh (đọc tại toạ độ layout) và do_lai (dò lại từng hàng / khối ±4 mm như audit). Dung sai = d lớn nhất
+    mà mọi hàng câu / cột chữ số vẫn có ô filled tối hơn mọi ô blank (ti_le_hang_duong = 1) ở mọi ảnh, mọi hướng,
+    mọi d' ≤ d. Không tính 0014_C2 (giấy cong: đã lệch cục bộ ~4 mm khi d = 0) vào dung sai, chỉ in kèm."""
+    layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
+    out = EVAL_DIR / a.phuong_phap
+    nhan = doc_nhan_o()
+    trang = render_pdf_page(ANSWER_SHEET / "output" / "phieu_trang.pdf", layout["dpi"])
+    f = PHUONG_PHAP[a.phuong_phap]
+    images = anh_dung_bang_mat(a.phuong_phap, chi_phieu=True)
+    print(f"Ảnh phiếu 'dung' bằng mắt: {', '.join(x.ten for x in images)}  (dung sai không tính 0014_C2)")
+    rows = []
+    for anh in images:
+        aligned, _, _ = goi_phuong_phap(f, anh, layout["page_px"])
+        for d in DUNG_SAI_MM:
+            for hx, hy in (HUONG if d > 0 else [(0, 0)]):
+                g = dich(aligned, d * hx, d * hy)
+                for che_do, pt in (("co_dinh", None), ("do_lai", trang)):
+                    m = p3_nhan(g, layout, nhan[anh.ma], pt)
+                    for kind in ("dap_an", "chu_so"):
+                        rows.append({"anh": anh.ten, "che_do": che_do, "loai_o": kind, "d_mm": d,
+                                     "huong_x": hx, "huong_y": hy,
+                                     "ti_le_hang_duong": m[f"{kind}_ti_le_hang_duong"],
+                                     "hieu_min": m[f"{kind}_hieu_min"], "hieu_p10": m[f"{kind}_hieu_p10"]})
+        print(f"  xong {anh.ten}")
+    ghi_csv(out / "dung_sai_dev.csv", rows)
+
+    for che_do in ("co_dinh", "do_lai"):
+        for kind, ten in (("dap_an", "ô đáp án Ø5"), ("chu_so", "bubble SBD/mã đề Ø4,4")):
+            print(f"\n[{che_do}] {ten}: theo d (mm) – ti_le_hang_duong nhỏ nhất | hieu_min nhỏ nhất (qua 8 hướng)")
+            print(f"{'d':>5s} " + " ".join(f"{x.ten:>15s}" for x in images))
+            dung_sai, con_dat = None, True
+            for d in DUNG_SAI_MM:
+                cells, all_ok = [], True
+                for anh in images:
+                    s = [r for r in rows if r["anh"] == anh.ten and r["che_do"] == che_do and r["loai_o"] == kind and r["d_mm"] == d]
+                    tl, hm = min(r["ti_le_hang_duong"] for r in s), min(r["hieu_min"] for r in s)
+                    cells.append(f"{tl:6.3f} | {hm:+.3f}")
+                    if anh.ten != "0014_C2" and tl < 1:
+                        all_ok = False
+                print(f"{d:5.2f} " + " ".join(f"{c:>15s}" for c in cells))
+                con_dat = con_dat and all_ok              # mọi d' ≤ d đều phải đạt
+                if con_dat:
+                    dung_sai = d
+            print(f"  -> dung sai ({che_do}, {ten}): {dung_sai if dung_sai is not None else 'không đạt cả ở d = 0'} mm")
+    print(f"\nĐã ghi {out / 'dung_sai_dev.csv'}")
 
 
 # ============================================================================ lệnh tam-marker (kiểm tra B)
@@ -621,11 +778,14 @@ def main() -> None:
     r.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
     r.add_argument("--split", default="dev", choices=sorted(SPLITS))
     r.add_argument("--xac-nhan-test", action="store_true", help="bắt buộc khi --split test (chỉ dùng ở Bước 7)")
-    sub.add_parser("tu-kiem", help="kiểm chứng phép 2 trên trang mẫu render (không dịch / dịch 0,5 mm)")
+    t = sub.add_parser("tu-kiem", help="kiểm chứng phép đo: trang mẫu render + ảnh 'dung' bằng mắt bị làm hỏng cố ý")
+    t.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
+    t = sub.add_parser("dung-sai", help="dung sai lệch của OMR (toạ độ cố định / dò lại từng hàng)")
+    t.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
     t = sub.add_parser("tam-marker", help="kiểm tra B: tâm marker trên ảnh nắn đúng so với layout (cần run + xem_bang_mat.csv)")
     t.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
     a = ap.parse_args()
-    {"run": cmd_run, "tu-kiem": cmd_tu_kiem, "tam-marker": cmd_tam_marker}[a.lenh](a)
+    {"run": cmd_run, "tu-kiem": cmd_tu_kiem, "dung-sai": cmd_dung_sai, "tam-marker": cmd_tam_marker}[a.lenh](a)
 
 
 if __name__ == "__main__":
