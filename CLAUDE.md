@@ -254,6 +254,21 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - [ ] Tuần 4: `cv_engine/preprocessing.py` (phát triển từ `align()` trong `check_layout.py`), theo
       `docs/ke_hoach_tuan4.md` (8 bước, làm từng bước, dừng chờ người dùng sau mỗi bước).
       Bước 0 (thư mục, quy tắc dev/test, kế hoạch) xong 03/10/2026.
+      **Bước 1 xong 03/10/2026** – `tools/eval_preprocessing.py` (lệnh `run`, `tu-kiem`, `dung-sai`,
+      `tam-marker`, `finalize`, `report`; chỉ ghi `data/_eval/`). Ngưỡng + căn cứ: `data/_eval/nguong.json`.
+      Số liệu "trước" của `align()` cũ (`python tools/eval_preprocessing.py report`, từ
+      `data/_eval/align_cu/truth_dev.csv`; 26 ảnh kết luận bằng mắt, 52 tự động):
+      | Điều kiện | Ảnh | Đúng | Lỗi im lặng | Bị từ chối |
+      |---|---|---|---|---|
+      | C1 | 17 | 17 | 0 | 0 |
+      | C2 | 18 | 14 | 4 | 0 |
+      | C3 | 17 | **2** | **15** | 0 |
+      | C4 | 16 | 16 | 0 | 0 |
+      | D (trang chữ số) | 10 | 10 | 0 | 0 |
+      | **Tổng dev** | **78** | **59** | **19** | **0** |
+      Phát hiện kèm theo: OMR đọc toạ độ cố định chịu lệch 1,75 mm (bubble SBD) / 2,0 mm (ô đáp án), dò lại
+      từng hàng 3,0 / 3,25 mm; 0014_C2 giấy cong (lệch cục bộ 4,2 mm) ⇒ **Tuần 5: OMR phải dò lại từng hàng**.
+      Nội dung lệch xuống ~+0,3 mm có hệ thống, không do `align()` (khả dĩ nhất: máy in).
 - [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
 - [ ] Backend API, frontend, luồng review cho giáo viên.
 - [ ] (Hướng phát triển) Lưu các lần giáo viên sửa làm dữ liệu train thêm (human-in-the-loop).

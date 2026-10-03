@@ -71,7 +71,7 @@ Ngưỡng của phép 2 và 3 chọn từ các ảnh **đã kiểm tra bằng m�
 nhất hoặc sát ngưỡng → xuất HTML cho người dùng xem → kết luận bằng mắt.
 
 **Phép so phiếu trắng (2) và đối chiếu nhãn (3) CHỈ dùng trong `tools/eval_preprocessing.py`.** Tự kiểm
-tra của `preprocessing.py` ở Bước 5 **không được** dùng lại chúng (cũng không import code của chúng): nếu
+tra của `preprocessing.py` (`verify()`, Bước 4) **không được** dùng lại chúng (cũng không import code của chúng): nếu
 dùng chung, lỗi của phép đo sẽ trùng lỗi của hàm được đo và lỗi im lặng bị che mất. Lúc chạy thật cũng
 không có nhãn hay mã phiếu để chọn trang mẫu.
 
@@ -126,58 +126,86 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
 - **Xong khi**: `align_cu/truth_dev.csv` có đủ 78 dòng dev; ngưỡng phép 2, 3 chốt (≤ dung sai OMR) và ghi
   lại kèm ảnh làm căn cứ; bảng "trước" theo C1–C4 tái tạo được từ file đó bằng một lệnh.
 
-### Bước 2 – Tìm ứng viên marker (nguyên nhân 1, 3)
-- **Việc**: nới tỉ lệ w/h (≈ 0,5–2,0), xem lại ngưỡng độ đặc / số đỉnh cho marker méo; giữ
-  *nhiều* ứng viên – việc chọn để bước 3.
-- **Cách đo**: tỉ lệ ảnh dev có đủ 4 marker thật trong danh sách ứng viên (marker thật = điểm mà ảnh
-  nắn đúng chiếu ngược ra); số ứng viên trung bình/ảnh.
-- **Xong khi**: 100% ảnh dev có đủ 4 marker thật trong ứng viên (hoặc ảnh thiếu được giải thích từng cái).
+### Quy ước chung cho Bước 2–7 (chốt 03/10/2026)
+- **Mỗi bước = một phương pháp mới trong eval** (`v2_load`, `v3_hinh_hoc`, `v4_verify`, `v5_chuan_hoa`, …),
+  đăng ký trong `PHUONG_PHAP` của `eval_preprocessing.py`, có thư mục `data/_eval/<ten>/` và `truth_dev.csv`
+  riêng: `run` → xem bằng mắt mọi ảnh `sai`/`xem` → `finalize` → `report`. Ngưỡng giữ nguyên `nguong.json`.
+- **`preprocess(path)` trả một dataclass kết quả** (chốt từ Bước 2, điền dần):
+  `anh_nan` (xám, đã nắn, chưa chuẩn hoá) · `anh_chuan_hoa` (Bước 5) · `ok` · `ly_do` (mã: `thieu_marker`,
+  `marker_khong_dat`, `sai_huong`, `khong_khop_bo_cuc`, `anh_mo`, …) · `marker` (toạ độ 4 tâm trên ảnh gốc,
+  dưới pixel) · `huong_xoay` (0/90/180/270) · `blur_score`. Hàm bọc cho eval: `ok` → `anh_nan`, không thì
+  `(None, ly_do)`.
+- Tuần 5 chọn `anh_nan` hay `anh_chuan_hoa` để train OMR **bằng thí nghiệm** (so F1 lớp `faint` theo C1–C4),
+  không chọn theo cảm tính.
+- `preprocessing.py` không import phép 2/3 của `eval_preprocessing.py` (Định nghĩa đo).
 
-### Bước 3 – Chọn 4 marker theo hình học (nguyên nhân 2, 3)
-- **Việc**: thay "gần góc ảnh nhất" bằng tìm bộ 4 ứng viên tạo tứ giác lồi, tỉ lệ cạnh ~182:269 mm
-  (cho phép phối cảnh), 4 marker cùng cỡ; ưu tiên bộ có điểm kiểm tra cao nhất.
-- **Cách đo**: `eval_preprocessing.py` trên dev.
-- **Xong khi**: số ảnh "đúng" tăng rõ so với bước 1, đặc biệt C3; không tăng lỗi im lặng.
+### Bước 2 – Khung module + `load_image()`
+- **Việc**: tạo `cv_engine/preprocessing.py` với dataclass kết quả và `load_image(path)`: đường dẫn Unicode,
+  HEIC/JPG (pillow-heif), áp EXIF Orientation, trả ảnh xám. Thêm `pillow-heif`, `psycopg`, `playwright` vào
+  `answer_sheet/requirements.txt` (đang thiếu – CLAUDE.md mục 8, mâu thuẫn 4).
+- **Lưu ý**: mọi ảnh `data/raw/` đã có Orientation = 1 (xoay đã áp vào điểm ảnh khi chuyển HEIC→JPG), và EXIF
+  gốc của 0006 **sai** (3 thay vì 6) ⇒ `load_image()` không sửa được 0006; chiều phiếu quyết định bằng nội
+  dung ở Bước 4. Phần EXIF chỉ kiểm được bằng ảnh thử tự tạo.
+- **Cách đo**: ảnh thử có EXIF 1/3/6/8 (tạo trong `data/_eval/_exif/`, không ghi `data/raw/`) → ra đúng chiều
+  điểm ảnh; 78 ảnh dev đọc ra giống hệt `cv2.imdecode` (so từng điểm ảnh).
+- **Xong khi**: cả hai phép trên đạt; `pip install -r requirements.txt` chạy được trên venv đang dùng.
 
-### Bước 4 – Xác định chiều phiếu (nguyên nhân 4)
-- **Việc**: thử 4 cách gán TL/TR/BR/BL (xoay 0/90/180/270°), chọn chiều bằng nội dung (không tin EXIF),
-  bằng một dấu hiệu **riêng của preprocessing** (ví dụ vị trí khối ô đáp án / dòng tiêu đề so với marker),
-  không dùng phép so phiếu trắng của `eval_preprocessing.py`.
+### Bước 3 – Lọc ứng viên + chọn 4 marker theo hình học (nguyên nhân 1, 2, 3) – `v3_hinh_hoc`
+- **Việc**: lọc ứng viên (nới w/h ≈ 0,5–2,0; xem lại độ đặc / số đỉnh cho marker méo; giữ *nhiều* ứng viên);
+  chọn bộ 4 tạo tứ giác lồi, tỉ lệ ~182:269 mm (cho phép phối cảnh; trang chữ số dùng chung tỉ lệ), 4 marker
+  cùng cỡ – thay "gần góc ảnh nhất"; **tâm marker dưới pixel** (moment / khớp góc thay vì contour thô).
+- **Cách đo**: phụ – tỉ lệ ảnh dev có đủ 4 marker thật trong danh sách ứng viên (marker thật = điểm mà ảnh nắn
+  đúng chiếu ngược ra), số ứng viên trung bình/ảnh (tách lỗi "không tìm thấy" với "chọn sai"). Chính – eval
+  `v3_hinh_hoc` trên dev.
+- **Xong khi**: phụ 100% (hoặc ảnh thiếu được giải thích từng cái); số ảnh đúng tăng rõ so với `align_cu`
+  (nhất là C3, 2/17); lỗi im lặng không tăng; `lech_max` của ảnh đúng giảm so với 1,4–1,6 mm (mục tiêu độ chính
+  xác, xem Bước 7).
+
+### Bước 4 – Warp + chiều phiếu bằng nội dung + `verify()` từ chối có lý do (nguyên nhân 4) – `v4_verify`
+- **Việc**: warp; thử 4 cách gán TL/TR/BR/BL (0/90/180/270°), chọn chiều bằng **dấu hiệu nội dung riêng của
+  preprocessing** (ví dụ vị trí khối ô đáp án / dòng tiêu đề so với marker), không tin EXIF, không dùng phép so
+  phiếu trắng của eval. `verify()` tự kiểm tra: độ đen marker, hình học 4 marker, dấu hiệu bố cục riêng, độ nét
+  (Laplacian → `blur_score`, từ chối `anh_mo` nếu quá mờ) → `ok = False` kèm mã lý do thay vì trả ảnh sai.
 - **Kiểm tra chiều phải dựa trên NỘI DUNG, không dựa marker**: 4 marker giống hệt nhau, ảnh xoay 90°/180°
-  vẫn có marker thật ở cả 4 góc ⇒ độ đen marker (phép 1, và mọi tự kiểm tra kiểu đó ở Bước 5) về bản chất
-  không bắt được lỗi chiều. 0006_C2/0006_C3 (`align_cu`, 03/10/2026) chỉ hụt nhẹ (đen 0,85 / 0,90) vì
-  trang dọc bị ép vào tứ giác ngang (méo ~1,48 : 0,68) làm ô kiểm tra 6×6 mm lấn ra ngoài marker – tình
-  cờ, không dựa vào được (ảnh xoay 180° sẽ đen 1,00).
-- **Cách đo**: `eval_preprocessing.py` trên dev, riêng 0006_C2, 0006_C3 phải "đúng".
-- **Xong khi**: 0006 nắn đúng; không ảnh nào khác đổi từ đúng sang sai.
+  vẫn có marker thật ở cả 4 góc ⇒ độ đen marker về bản chất không bắt được lỗi chiều. 0006_C2/0006_C3
+  (`align_cu`) chỉ hụt nhẹ (đen 0,85 / 0,90) vì trang dọc bị ép vào tứ giác ngang (méo ~1,48 : 0,68) – tình
+  cờ, không dựa vào được; `tu-kiem` xoay 180°: độ đen 1,00 ở cả 7 ảnh.
+- **Cách đo**: eval `v4_verify` trên dev; ảnh giả có lỗi cố ý (che 1 marker, tờ khác lọt khung, xoay 90/180°,
+  làm mờ) – tạo trong `data/_eval/`.
+- **Xong khi**: 0006_C2, 0006_C3 đúng; **lỗi im lặng = 0 trên dev** và trên ảnh giả; mỗi ảnh bị từ chối có
+  lý do đúng; không ảnh nào đổi từ đúng sang sai so với Bước 3.
 
-### Bước 5 – Tự kiểm tra sau khi nắn + từ chối có lý do
-- **Việc**: `preprocessing.py` tự kiểm tra kết quả (độ đen marker, hình học 4 marker, dấu hiệu bố cục riêng –
-  **không** dùng lại phép 2/3 của `eval_preprocessing.py`) và **raise lỗi có
-  mã lý do** (`thieu_marker`, `marker_khong_dat`, `khong_khop_mau`…) thay vì trả ảnh sai. Đo thêm độ nét
-  (Laplacian) cho `answer_sheets.blur_score`.
-- **Cách đo**: `eval_preprocessing.py` trên dev + ảnh giả có lỗi cố ý (che 1 marker, tờ khác lọt khung).
-- **Xong khi**: **lỗi im lặng = 0** trên dev và trên ảnh giả; mỗi ảnh bị từ chối có lý do đúng.
+### Bước 5 – `normalize()` khử bóng / cân bằng sáng – `v5_chuan_hoa`
+- **Việc**: điền `anh_chuan_hoa` (giữ nguyên `anh_nan`). Khử nền/bóng (vd chia cho nền ước lượng), cân bằng
+  sáng giữa C1–C4.
+- **Rủi ro**: khử bóng mạnh có thể xoá nét tô mờ – đúng lớp hiếm nhất (`faint` 4%).
+- **Cách đo** (eval chỉ đo vị trí nên cần phép riêng, ghi vào `data/_eval/v5_chuan_hoa/`): độ đồng đều nền
+  giấy theo C1–C4; độ tách `filled`/`blank` và **`faint`/`blank`** theo nhãn `cell_labels.csv`, so `anh_nan`
+  với `anh_chuan_hoa`; chú ý C2 (tối), C4 (đèn vàng), 0032_C4 (vệt bóng). Eval vị trí chạy lại để chắc
+  không đổi.
+- **Xong khi**: nền đồng đều hơn ở mọi điều kiện; độ tách `faint`/`blank` **không giảm** ở điều kiện nào;
+  kết quả eval giống hệt Bước 4.
 
-### Bước 6 – Hoàn thiện module, nối vào công cụ cũ
-- **Việc**: API gọn (`preprocess(path) -> kết quả`), docstring tiếng Việt; `check_photos.py` dùng module
-  mới (sinh lại `_aligned/`); chạy lại `check_labels.py audit` để quét 0006, 0018; kiểm thử
-  tự động cho các ảnh khó (pytest hoặc script).
-- **Cách đo**: `eval_preprocessing.py` (không đổi kết quả so với bước 5); audit quét được 40/40 phiếu dev+test
-  *chỉ đếm số phiếu quét được*, không xem nhãn 0035–0040 ở bước này.
-- **Xong khi**: CLAUDE.md mục 7/8 cập nhật (gỡ cảnh báo `check_photos.py`).
+### Bước 6 – API + thay `align()` trong các công cụ
+- **Việc**: API gọn `preprocess(path) -> kết quả`, docstring tiếng Việt; thay `align()` trong `check_photos.py`
+  (sinh lại `_aligned/`), `check_labels.py`, `prepare_photos.py`; kiểm thử tự động cho các ảnh khó (pytest hoặc
+  script: 0006, 0013_C2, 0014_C2, 0018_C2, 0021_C2, ảnh C3, ảnh giả Bước 4).
+- **Audit nhãn CHỈ trên 0001–0034** (quét lại 0006, 0018). **0035–0040 audit SAU Bước 7** – audit mở ảnh và nhãn
+  phiếu test, làm trước sẽ mất tính khách quan của đánh giá cuối.
+- **Cách đo**: eval không đổi so với Bước 5; audit quét được 34/34 phiếu dev.
+- **Xong khi**: CLAUDE.md mục 7/8 cập nhật (gỡ cảnh báo `check_photos.py`, `align()`).
 
 ### Bước 7 – Đánh giá cuối (một lần)
-- **Việc**: chốt code (commit), rồi chạy `eval_preprocessing.py --split test` trên 0035–0040 đúng một lần;
-  chạy thêm toàn bộ 80 ảnh và 10 trang chữ số để báo cáo; ghi số "trước/sau" theo C1–C4.
-- **Cách đo**: bảng trước (bước 1) / sau (bước 7) cho dev và test. Đo lại cả độ chính xác của ảnh nắn
-  đúng (`lech_trungvi_mm`, `lech_max_mm` trên ô lưới tin cậy) – xem mục tiêu dưới.
-- **Mục tiêu độ chính xác** (từ Bước 1, `align_cu`/dev 03/10/2026): ảnh nắn đúng vẫn có `lech_max` 1,4–1,6 mm
-  (0023_C4 1,56; D006 1,45; 0017_C1 1,44), không tính 0014_C2 (giấy cong, 4,2 mm) – sát dung sai đo được
-  của OMR đọc toạ độ cố định (1,75 mm với bubble SBD/mã đề). ⇒ preprocessing mới cần **tâm marker chính xác
-  hơn** (tâm theo moment/khớp góc thay vì contour thô, dưới pixel). Phép 2 đã đo dưới pixel (nội suy parabol)
-  nên so trước/sau được ở mức vài phần mười mm; nhớ sàn chung ~0,3 mm (máy in, Bước 1).
+- **Việc**: chốt code (commit), rồi chạy `eval_preprocessing.py run --split test --xac-nhan-test` trên
+  0035–0040 đúng một lần; chạy thêm toàn bộ 80 ảnh và 10 trang chữ số để báo cáo; ghi số "trước/sau" theo C1–C4.
+  Sau đó mới audit nhãn 0035–0040 (Bước 6).
 - **Xem bằng mắt TOÀN BỘ ảnh máy kết luận `sai`** (và mọi ảnh `xem`) ở lần đánh giá cuối, cả dev lẫn test,
   trước khi ghi `truth_*.csv` – không để số "lỗi im lặng" của báo cáo dựa hoàn toàn vào máy.
-- **Xong khi**: số liệu tái tạo được bằng một lệnh, đưa vào báo cáo; lỗi im lặng trên test được nêu
-  trung thực dù bằng bao nhiêu.
+- **Cách đo**: bảng trước (`align_cu`, Bước 1) / sau cho dev và test. Đo lại độ chính xác của ảnh nắn đúng
+  (`lech_trungvi_mm`, `lech_max_mm` trên ô lưới tin cậy).
+- **Mục tiêu độ chính xác** (từ Bước 1, `align_cu`/dev): ảnh nắn đúng vẫn có `lech_max` 1,4–1,6 mm (0023_C4 1,56;
+  D006 1,45; 0017_C1 1,44), không tính 0014_C2 (giấy cong, 4,2 mm) – sát dung sai đo được của OMR đọc toạ độ cố
+  định (1,75 mm với bubble SBD/mã đề). Phép 2 đo dưới pixel nên so trước/sau được ở mức vài phần mười mm; nhớ
+  sàn chung ~0,3 mm (máy in, Bước 1).
+- **Xong khi**: số liệu tái tạo được bằng một lệnh, đưa vào báo cáo; lỗi im lặng trên test được nêu trung thực
+  dù bằng bao nhiêu.
