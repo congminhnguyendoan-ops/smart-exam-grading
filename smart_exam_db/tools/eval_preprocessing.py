@@ -15,8 +15,7 @@ preprocessing.py không được dùng lại):
                - lech_toan_trang: tìm độ lệch ±15 mm trên dải tiêu đề (chữ in, không lặp chu kỳ)
                - lưới 6x8 ô: mỗi ô tìm độ lệch ±6 mm quanh lech_toan_trang, ghi điểm khớp + độ duy nhất
                  (đỉnh nhất − đỉnh thứ hai cách xa > 2 mm: ô tròn lặp đều 7/11/5,8 mm dễ cho đỉnh giả).
-                 lech_trungvi/lech_max chỉ tính trên ô tin cậy (duy_nhat >= DUY_NHAT_MIN); ảnh có
-                 < SO_O_TIN_CAY_MIN ô tin cậy luôn là 'xem'.
+                 lech_trungvi/lech_max chỉ tính trên ô tin cậy (duy_nhat >= nguong.json:duy_nhat_min).
                - khop_net: % điểm nét của mẫu có nét ảnh trong vòng 1 mm (chỉ chiều mẫu→ảnh: chì/chữ
                  viết tay thêm nét không làm giảm điểm)
   3. Nhãn    : (chỉ phiếu) ô filled theo cell_labels.csv phải tối hơn ô blank cùng hàng/cột,
@@ -61,13 +60,16 @@ GRID = (6, 8)                        # số ô lưới ngang x dọc
 GRID_AREA_MM = (20, 20, 190, 277)    # vùng chia lưới (bên trong 4 marker)
 TILE_SEARCH_MM = 6.0
 PEAK_EXCLUDE_MM = 2.0                # đỉnh thứ hai phải cách đỉnh nhất hơn bấy nhiêu
-# Ô lưới "tin cậy" = đỉnh khớp duy nhất. Chọn từ lần chạy align_cu/dev 03/10/2026: 4 ô khớp nhầm 1 bước bubble
-# SBD (5,2–5,8 mm) có duy_nhat 0,0006–0,016; ô vùng bubble SBD/mã đề thường ≤ 0,03; mọi ô khác trên 59 ảnh
-# khớp ≥ 0,088. 0,05 nằm giữa khoảng trống 0,03–0,088.
-DUY_NHAT_MIN = 0.05
-# Ít ô tin cậy hơn thế -> không đủ căn cứ, ảnh luôn là 'xem'. Cùng lần chạy: 59 ảnh khớp có 45–48 ô,
-# 19 ảnh lệch có 1–22 ô (lưới 48 ô). Đặt 40: chừa ~5 ô bị bóng/che so với ảnh khớp kém nhất.
-SO_O_TIN_CAY_MIN = 40
+# Mọi ngưỡng (kèm căn cứ chọn) nằm trong data/_eval/nguong.json – không khai báo lại ở đây.
+NGUONG_PATH = EVAL_DIR / "nguong.json"
+NGUONG = json.loads(NGUONG_PATH.read_text(encoding="utf-8")) if NGUONG_PATH.exists() else None
+QUYET_DINH = [k for k, v in (NGUONG or {}).items() if isinstance(v, dict) and v.get("vai_tro") == "quyet_dinh"]
+
+
+def nguong(khoa: str) -> float:
+    if NGUONG is None:
+        sys.exit(f"Thiếu {NGUONG_PATH} – file ngưỡng (xem docs/ke_hoach_tuan4.md, Bước 1).")
+    return NGUONG[khoa]["gia_tri"]
 MIN_TILE_EDGE = 0.01                 # ô lưới có < 1% điểm nét của mẫu: quá trống, bỏ
 NEAR_MM = 1.0                        # khop_net: nét ảnh trong vòng 1 mm
 
@@ -222,7 +224,7 @@ def p2_net(anh_w, mau_e, mask, layout) -> tuple[dict, list]:
 
     measured = [t for t in tiles if t["dx"] is not None]
     for t in tiles:
-        t["tin_cay"] = t["dx"] is not None and t["duy_nhat"] >= DUY_NHAT_MIN
+        t["tin_cay"] = t["dx"] is not None and t["duy_nhat"] >= nguong("duy_nhat_min")
     ok = [t for t in tiles if t["tin_cay"]]           # chỉ ô có đỉnh khớp duy nhất (tránh khớp nhầm chu kỳ)
     lech = np.array([np.hypot(t["dx"], t["dy"]) / PX for t in ok]) if ok else np.array([np.nan])
     lech_all = np.array([np.hypot(t["dx"], t["dy"]) / PX for t in measured]) if measured else np.array([np.nan])
@@ -298,16 +300,43 @@ def p3_nhan(aligned, layout, nhan: dict, phieu_trang=None) -> dict:
 
 
 # ============================================================================ kết luận tự động
-def ket_luan_tu_dong(r: dict, nguong=None) -> tuple[str, str]:
-    """('dung'|'sai'|'xem', lý do). Bước 1 chưa có nguong.json -> luôn 'xem'.
-    Luật cố định: ít ô lưới tin cậy (< SO_O_TIN_CAY_MIN) -> 'xem' dù có ngưỡng."""
+def ket_luan_tu_dong(r: dict) -> tuple[str, str]:
+    """('dung'|'sai'|'xem', lý do) theo nguong.json['luat']:
+    dung = đạt TẤT CẢ phép quyết định; sai = trượt rõ >= 2 phép; còn lại = xem. Thiếu/NaN = trượt rõ.
+    ti_le_hang_duong chỉ áp dụng cho phiếu."""
     if r["tra_anh"] != "co":
         return "", ""                                      # từ chối: không cần kết luận nắn đúng/sai
-    if r["so_o_tin_cay"] < SO_O_TIN_CAY_MIN:
-        return "xem", f"chỉ {r['so_o_tin_cay']} ô lưới tin cậy (< {SO_O_TIN_CAY_MIN})"
-    if nguong is None:
-        return "xem", "chưa có ngưỡng"
-    raise NotImplementedError("luật theo nguong.json: làm sau khi chốt ngưỡng")
+    if NGUONG is None:
+        return "xem", "chưa có nguong.json"
+    truot, ro = [], []
+    for k in QUYET_DINH:
+        n = NGUONG[k]
+        if n.get("ap_dung") == "chi_phieu" and r.get("loai") != "phieu":
+            continue
+        v = r.get(n["so_do"])
+        v = float(v) if v not in (None, "") else float("nan")
+        if not np.isfinite(v):
+            truot.append(f"{n['so_do']}=?")
+            ro.append(n["so_do"])
+            continue
+        lo = n["huong"] == "min"
+        if (v < n["gia_tri"]) if lo else (v > n["gia_tri"]):
+            truot.append(f"{n['so_do']}={v:.3g}")
+            if (v < n["truot_ro"]) if lo else (v > n["truot_ro"]):
+                ro.append(n["so_do"])
+    if not truot:
+        return "dung", "đạt mọi phép"
+    if len(ro) >= 2:
+        return "sai", "trượt rõ: " + ", ".join(t for t in truot if t.split("=")[0] in ro)
+    return "xem", "trượt: " + ", ".join(truot) + (f" (rõ: {', '.join(ro)})" if ro else "")
+
+
+def co_giay_cong(r: dict) -> bool:
+    """Chỉ với ảnh 'dung': ảnh nắn sai thì lech_max lớn là đương nhiên, cờ vô nghĩa."""
+    if r.get("ket_luan_tu_dong") != "dung":
+        return False
+    v = r.get("lech_max_mm")
+    return v not in (None, "") and np.isfinite(float(v)) and float(v) > nguong("giay_cong_lech_max_mm")
 
 
 # ============================================================================ xuất ảnh / HTML
@@ -459,12 +488,14 @@ def cmd_run(a) -> None:
             ghi_jpg(out / "anh" / f"{anh.ten}_chong.jpg", chong)
             ghi_jpg(out / "anh" / f"{anh.ten}_chong_nho.jpg", chong, max_w=840, q=80)
         r["ket_luan_tu_dong"], r["ly_do_tu_dong"] = ket_luan_tu_dong(r)
+        r["giay_cong"] = int(co_giay_cong(r))
         rows.append(r)
         tom = (f"khop_net={r['khop_net']:.2f} lech_trungvi={r['lech_trungvi_mm']:.1f}mm "
                f"lech_max={r['lech_max_mm']:.1f}mm" if aligned is not None else f"TỪ CHỐI: {ly_do}")
         print(f"[{n:2d}/{len(images)}] {anh.ten:8s} {tom}")
 
     cols = ["phuong_phap", "anh", "loai", "dieu_kien", "tra_anh", "ly_do", "giay", "ket_luan_tu_dong", "ly_do_tu_dong",
+            "giay_cong",
             "den_tl", "den_tr", "den_br", "den_bl", "den_min",
             "khop_net", "lech_toan_trang_mm", "lech_toan_trang_dx_mm", "lech_toan_trang_dy_mm",
             "diem_tieu_de", "duy_nhat_tieu_de", "lech_trungvi_mm", "lech_max_mm",
@@ -498,7 +529,10 @@ def cmd_run(a) -> None:
     tu_choi = [r for r in rows if r["tra_anh"] == "khong"]
     print(f"Trả ảnh: {len(rows) - len(tu_choi)}/{len(rows)}; từ chối: {len(tu_choi)}"
           + (" (" + ", ".join(r["anh"] for r in tu_choi) + ")" if tu_choi else ""))
-    print("Chưa có ngưỡng: mọi ảnh là 'xem' – mở xem_bang_mat.html để kiểm tra bằng mắt.")
+    from collections import Counter
+    dem = Counter(r["ket_luan_tu_dong"] for r in rows if r["tra_anh"] == "co")
+    print(f"Kết luận tự động: dung {dem['dung']}, sai {dem['sai']}, xem {dem['xem']}; "
+          f"cờ giấy cong: {', '.join(r['anh'] for r in rows if r.get('giay_cong')) or 'không'}")
 
 
 # ============================================================================ lệnh tu-kiem (kiểm chứng phép 2)
@@ -580,60 +614,59 @@ CA_LAM_HONG = [
     ("xoay_180", lambda g: np.ascontiguousarray(g[::-1, ::-1]), False),
     ("nham_loai_trang", lambda g: g, True),
 ]
-# số đo dùng để xét "bị bắt": (tên, True nếu càng cao càng tốt)
-SO_DO_BAT = [("den_min", True), ("khop_net", True), ("diem_tieu_de", True), ("so_o_tin_cay", True),
-             ("ti_le_hang_duong", True), ("lech_toan_trang_mm", False), ("lech_trungvi_mm", False)]
-
-
 def tu_kiem_anh_that(a, layout, goc, mau, mask) -> None:
-    """Ảnh nắn đúng (kết luận bằng mắt) bị làm hỏng cố ý -> mỗi ca phải có ít nhất 1 số đo ra NGOÀI khoảng của
-    ảnh không-sai trong diem_dev.csv (chưa có ngưỡng chốt, nên dùng khoảng quan sát làm mốc)."""
+    """Kiểm chứng LUẬT kết luận (nguong.json) trên ảnh thật:
+    (a) mọi ảnh không bị kết luận 'sai' bằng mắt phải ra 'dung' (đọc ket_luan_tu_dong trong diem_dev.csv – cần chạy
+        run sau khi đổi nguong.json);
+    (b) ảnh 'dung' bằng mắt bị làm hỏng cố ý phải ra 'sai' hoặc 'xem' – không ca nào được 'dung'."""
     out = EVAL_DIR / a.phuong_phap
     mat = {r["anh"]: r["ket_luan_mat"] for r in csv.DictReader((out / "xem_bang_mat.csv").open(encoding="utf-8-sig"))}
-    tot = [r for r in csv.DictReader((out / "diem_dev.csv").open(encoding="utf-8-sig")) if mat[r["anh"]] != "sai"]
-    khoang = {}
-    for k, cao_tot in SO_DO_BAT:
-        v = [float(r[k]) for r in tot if r[k] != ""]
-        khoang[k] = (min(v), max(v))
-    print(f"\nKhoảng số đo của {len(tot)} ảnh không-sai (mốc 'bị bắt' = ra ngoài khoảng này):")
-    for k, cao_tot in SO_DO_BAT:
-        print(f"  {k:20s} {'≥' if cao_tot else '≤'} {khoang[k][0 if cao_tot else 1]:.3f}")
+    diem = list(csv.DictReader((out / "diem_dev.csv").open(encoding="utf-8-sig")))
+    tot = [r for r in diem if mat[r["anh"]] != "sai"]
+    hong_tot = [r for r in tot if r["ket_luan_tu_dong"] != "dung"]
+    sai_mat = [r for r in diem if mat[r["anh"]] == "sai"]
+    from collections import Counter
+    print(f"\n(a) {len(tot)} ảnh không-sai bằng mắt -> dung {len(tot) - len(hong_tot)}/{len(tot)}"
+          + ("" if not hong_tot else " – KHÔNG ĐẠT: " + ", ".join(f"{r['anh']} {r['ket_luan_tu_dong']} ({r['ly_do_tu_dong']})"
+                                                         for r in hong_tot)))
+    print(f"    (thêm) {len(sai_mat)} ảnh sai bằng mắt -> {dict(Counter(r['ket_luan_tu_dong'] for r in sai_mat))}"
+          + "".join(f"\n      {r['anh']}: {r['ket_luan_tu_dong']} ({r['ly_do_tu_dong']})" for r in sai_mat
+                    if r["ket_luan_tu_dong"] != "sai"))
     nhan = doc_nhan_o()
     f = PHUONG_PHAP[a.phuong_phap]
     rows = []
     images = anh_dung_bang_mat(a.phuong_phap)
-    print(f"\nẢnh 'dung' bằng mắt: {', '.join(x.ten for x in images)}")
-    print(f"{'ca':16s} {'ảnh':8s} {'den':>5s} {'khop':>5s} {'tđề':>5s} {'ô tc':>4s} {'hàng+':>5s} {'lệch tt':>7s} {'lệch tv':>7s}  bị bắt bởi")
+    print(f"\n(b) Ảnh 'dung' bằng mắt bị làm hỏng: {', '.join(x.ten for x in images)}")
+    print(f"{'ca':16s} {'ảnh':8s} {'den':>5s} {'tđề':>5s} {'ô tc':>4s} {'hàng+':>5s} {'lệch tt':>7s} {'lệch tv':>7s}  kết luận")
     for anh in images:
         aligned, _, _ = goi_phuong_phap(f, anh, layout["page_px"])
         for ten, ham, doi_trang in CA_LAM_HONG:
             g = ham(aligned)
             loai_mau = ("chu_so" if anh.loai == "phieu" else "phieu") if doi_trang else anh.loai
-            r = {"ca": ten, "anh": anh.ten, "dieu_kien": anh.dieu_kien, "loai_mau": loai_mau,
-                 "den_min": float(min(marker_fill(g, layout).values()))}
+            r = {"ca": ten, "anh": anh.ten, "loai": anh.loai, "dieu_kien": anh.dieu_kien, "loai_mau": loai_mau,
+                 "tra_anh": "co", "den_min": float(min(marker_fill(g, layout).values()))}
             d2, _, _ = p2_net(to_work(g, layout["page_px"]), mau[loai_mau], mask, layout)
             r.update({k: d2[k] for k in ("khop_net", "diem_tieu_de", "so_o_tin_cay", "lech_toan_trang_mm",
                                          "lech_trungvi_mm", "lech_max_mm")})
             r["ti_le_hang_duong"] = p3_nhan(g, layout, nhan[anh.ma])["ti_le_hang_duong"] if anh.loai == "phieu" else ""
-            bat = []
-            for k, cao_tot in SO_DO_BAT:
-                if r[k] == "" or not np.isfinite(r[k]):
-                    continue
-                if (cao_tot and r[k] < khoang[k][0]) or (not cao_tot and r[k] > khoang[k][1]):
-                    bat.append(k)
-            r["bi_bat_boi"] = " ".join(bat)
+            r["ket_luan_tu_dong"], r["ly_do_tu_dong"] = ket_luan_tu_dong(r)
             rows.append(r)
             hd = f"{r['ti_le_hang_duong']:5.2f}" if r["ti_le_hang_duong"] != "" else "    -"
-            print(f"{ten:16s} {anh.ten:8s} {r['den_min']:5.2f} {r['khop_net']:5.2f} {r['diem_tieu_de']:5.2f} "
+            print(f"{ten:16s} {anh.ten:8s} {r['den_min']:5.2f} {r['diem_tieu_de']:5.2f} "
                   f"{r['so_o_tin_cay']:4d} {hd} {r['lech_toan_trang_mm']:7.2f} {r['lech_trungvi_mm']:7.2f}  "
-                  f"{r['bi_bat_boi'] or ('(ảnh gốc)' if ten == 'goc' else 'KHÔNG BỊ BẮT')}")
+                  f"{r['ket_luan_tu_dong']:4s} ({r['ly_do_tu_dong']})")
     ghi_csv(out / "tu_kiem_anh_dev.csv", rows)
-    lot = [r for r in rows if r["ca"] != "goc" and not r["bi_bat_boi"]]
-    goc_bat = [r for r in rows if r["ca"] == "goc" and r["bi_bat_boi"]]
-    print(f"\nCa làm hỏng không bị bắt: {len(lot)}/{len(rows) - len(images)}"
-          + (" – " + ", ".join(f"{r['ca']}:{r['anh']}" for r in lot) if lot else ""))
-    if goc_bat:
-        print("CHÚ Ý – ảnh gốc (chưa làm hỏng) nằm ngoài khoảng: " + ", ".join(f"{r['anh']} ({r['bi_bat_boi']})" for r in goc_bat))
+    hong = [r for r in rows if r["ca"] != "goc"]
+    lot = [r for r in hong if r["ket_luan_tu_dong"] == "dung"]
+    goc_khong_dung = [r for r in rows if r["ca"] == "goc" and r["ket_luan_tu_dong"] != "dung"]
+    print(f"\n(b) {len(hong)} ca làm hỏng -> {dict(Counter(r['ket_luan_tu_dong'] for r in hong))}; "
+          f"ra 'dung' (LỌT): {len(lot)}" + (" – " + ", ".join(f"{r['ca']}:{r['anh']}" for r in lot) if lot else ""))
+    print("Bảng ca × kết luận (số ảnh):")
+    for ten, _, _ in CA_LAM_HONG:
+        c = Counter(r["ket_luan_tu_dong"] for r in rows if r["ca"] == ten)
+        print(f"  {ten:16s} dung {c['dung']}  xem {c['xem']}  sai {c['sai']}")
+    if goc_khong_dung:
+        print("CHÚ Ý – ảnh gốc chưa làm hỏng không ra 'dung': " + ", ".join(f"{r['anh']} ({r['ly_do_tu_dong']})" for r in goc_khong_dung))
     print(f"Đã ghi {out / 'tu_kiem_anh_dev.csv'}")
 
 
@@ -689,6 +722,61 @@ def cmd_dung_sai(a) -> None:
                     dung_sai = d
             print(f"  -> dung sai ({che_do}, {ten}): {dung_sai if dung_sai is not None else 'không đạt cả ở d = 0'} mm")
     print(f"\nĐã ghi {out / 'dung_sai_dev.csv'}")
+
+
+# ============================================================================ lệnh finalize / report
+def cmd_finalize(a) -> None:
+    """diem_dev.csv (kết luận tự động) + xem_bang_mat.csv (kết luận bằng mắt) -> truth_dev.csv.
+    Mắt ưu tiên hơn máy. Ảnh 'xem' chưa có kết luận bằng mắt -> dừng, không ghi file."""
+    out = EVAL_DIR / a.phuong_phap
+    mat = {r["anh"]: r for r in csv.DictReader((out / "xem_bang_mat.csv").open(encoding="utf-8-sig"))}
+    rows, thieu, lech = [], [], []
+    for r in csv.DictReader((out / "diem_dev.csv").open(encoding="utf-8-sig")):
+        m = mat[r["anh"]]
+        ghi_chu = [m["ghi_chu"]] if m["ghi_chu"] else []
+        if r["giay_cong"] == "1":
+            ghi_chu.append(f"giay_cong (lech_max {float(r['lech_max_mm']):.2f} mm)")
+        if r["tra_anh"] != "co":
+            ket_luan, nguon = "", "tu_dong"
+            ghi_chu.append(f"từ chối: {r['ly_do']}")
+        elif m["ket_luan_mat"]:
+            ket_luan, nguon = m["ket_luan_mat"], "mat"
+            if r["ket_luan_tu_dong"] in ("dung", "sai") and r["ket_luan_tu_dong"] != ket_luan:
+                lech.append(f"{r['anh']}: máy {r['ket_luan_tu_dong']}, mắt {ket_luan}")
+                ghi_chu.append(f"máy kết luận {r['ket_luan_tu_dong']} ({r['ly_do_tu_dong']})")
+        elif r["ket_luan_tu_dong"] in ("dung", "sai"):
+            ket_luan, nguon = r["ket_luan_tu_dong"], "tu_dong"
+        else:
+            thieu.append(f"{r['anh']} ({r['ly_do_tu_dong']})")
+            continue
+        phan_loai = "bi_tu_choi" if r["tra_anh"] != "co" else ("dung" if ket_luan == "dung" else "loi_im_lang")
+        rows.append({"phuong_phap": a.phuong_phap, "anh": r["anh"], "dieu_kien": r["dieu_kien"], "tra_anh": r["tra_anh"],
+                     "ket_luan": ket_luan, "nguon": nguon, "phan_loai": phan_loai, "ghi_chu": "; ".join(ghi_chu)})
+    if lech:
+        print("CHÚ Ý – máy và mắt kết luận khác nhau (giữ kết luận của mắt):\n  " + "\n  ".join(lech))
+    if thieu:
+        sys.exit(f"Còn {len(thieu)} ảnh 'xem' chưa có kết luận bằng mắt – chưa ghi truth_dev.csv:\n  " + "\n  ".join(thieu))
+    ghi_csv(out / "truth_dev.csv", rows)
+    from collections import Counter
+    print(f"Đã ghi {out / 'truth_dev.csv'}: {len(rows)} ảnh; nguồn {dict(Counter(r['nguon'] for r in rows))}; "
+          f"kết luận {dict(Counter(r['ket_luan'] or '(từ chối)' for r in rows))}")
+
+
+def cmd_report(a) -> None:
+    """Bảng đúng / lỗi im lặng / bị từ chối theo điều kiện chụp – đọc DUY NHẤT truth_dev.csv."""
+    path = EVAL_DIR / a.phuong_phap / "truth_dev.csv"
+    rows = list(csv.DictReader(path.open(encoding="utf-8-sig")))
+    print(f"Phương pháp {a.phuong_phap} – tập dev ({path})")
+    print(f"{'Điều kiện':10s} {'Số ảnh':>6s} {'Đúng':>10s} {'Lỗi im lặng':>13s} {'Bị từ chối':>12s} {'Giấy cong':>10s}")
+    for c in ["C1", "C2", "C3", "C4", "D", "Tổng"]:
+        s = rows if c == "Tổng" else [r for r in rows if r["dieu_kien"] == c]
+        n = len(s)
+        k = {p: sum(r["phan_loai"] == p for r in s) for p in ("dung", "loi_im_lang", "bi_tu_choi")}
+        gc = sum("giay_cong" in r["ghi_chu"] for r in s)
+        print(f"{c:10s} {n:6d} " + " ".join(f"{k[p]:4d} ({k[p] / n:4.0%})".rjust(w)
+                                           for p, w in (("dung", 10), ("loi_im_lang", 13), ("bi_tu_choi", 12)))
+              + f" {gc:10d}")
+    print("(D = 10 trang chữ số D001–D010)")
 
 
 # ============================================================================ lệnh tam-marker (kiểm tra B)
@@ -784,8 +872,12 @@ def main() -> None:
     t.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
     t = sub.add_parser("tam-marker", help="kiểm tra B: tâm marker trên ảnh nắn đúng so với layout (cần run + xem_bang_mat.csv)")
     t.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
+    for ten, h in (("finalize", "ghép kết luận máy + mắt -> truth_dev.csv"), ("report", "bảng C1–C4 + D từ truth_dev.csv")):
+        t = sub.add_parser(ten, help=h)
+        t.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
     a = ap.parse_args()
-    {"run": cmd_run, "tu-kiem": cmd_tu_kiem, "dung-sai": cmd_dung_sai, "tam-marker": cmd_tam_marker}[a.lenh](a)
+    {"run": cmd_run, "tu-kiem": cmd_tu_kiem, "dung-sai": cmd_dung_sai, "tam-marker": cmd_tam_marker,
+     "finalize": cmd_finalize, "report": cmd_report}[a.lenh](a)
 
 
 if __name__ == "__main__":

@@ -118,6 +118,11 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   như nhau ở C1/C2/C4/D. Ảnh hưởng:
   ~0,3 mm nằm sẵn trong mọi `lech_*` (cả trước và sau) – nhỏ so với dung sai ~1 mm, không đổi phân loại
   đúng/sai; khi so trước/sau ở Bước 7 phải nhớ đây là sàn chung, preprocessing không sửa được.
+- **Ngưỡng đã chốt (03/10/2026)**: `data/_eval/nguong.json` (giá trị + căn cứ từng con số; script chỉ đọc
+  file này). Lưu ý: ngưỡng được chọn **chủ yếu trên C1/C2/C4** – `align_cu` chỉ nắn đúng **2 ảnh C3**
+  (0002_C3, 0003_C3, là 2 ảnh C3 nghiêng ít nhất). Nếu preprocessing mới bị từ chối / kết luận sai nhiều ảnh
+  C3 với `lech_*` ở **1,0–1,5 mm**, thì xem lại các ảnh đó **bằng mắt trên dev** rồi mới quyết; **không nới
+  ngưỡng theo tập test**.
 - **Xong khi**: `align_cu/truth_dev.csv` có đủ 78 dòng dev; ngưỡng phép 2, 3 chốt (≤ dung sai OMR) và ghi
   lại kèm ảnh làm căn cứ; bảng "trước" theo C1–C4 tái tạo được từ file đó bằng một lệnh.
 
@@ -168,9 +173,11 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
 - **Cách đo**: bảng trước (bước 1) / sau (bước 7) cho dev và test. Đo lại cả độ chính xác của ảnh nắn
   đúng (`lech_trungvi_mm`, `lech_max_mm` trên ô lưới tin cậy) – xem mục tiêu dưới.
 - **Mục tiêu độ chính xác** (từ Bước 1, `align_cu`/dev 03/10/2026): ảnh nắn đúng vẫn có `lech_max` 1,4–1,6 mm
-  (0023_C4 1,56; D006 1,45; 0017_C1 1,44), không tính 0014_C2 (giấy cong, 4,2 mm) – sát dung sai ~1 mm của
-  OMR đọc toạ độ cố định. ⇒ preprocessing mới cần **tâm marker chính xác hơn** (tâm theo moment/khớp góc
-  thay vì contour thô, dưới pixel). Lưu ý: phép 2 hiện đo theo bước nguyên pixel 150 DPI (0,17 mm) – cần
-  tinh chỉnh dưới pixel trước khi so số trước/sau ở mức vài phần mười mm.
+  (0023_C4 1,56; D006 1,45; 0017_C1 1,44), không tính 0014_C2 (giấy cong, 4,2 mm) – sát dung sai đo được
+  của OMR đọc toạ độ cố định (1,75 mm với bubble SBD/mã đề). ⇒ preprocessing mới cần **tâm marker chính xác
+  hơn** (tâm theo moment/khớp góc thay vì contour thô, dưới pixel). Phép 2 đã đo dưới pixel (nội suy parabol)
+  nên so trước/sau được ở mức vài phần mười mm; nhớ sàn chung ~0,3 mm (máy in, Bước 1).
+- **Xem bằng mắt TOÀN BỘ ảnh máy kết luận `sai`** (và mọi ảnh `xem`) ở lần đánh giá cuối, cả dev lẫn test,
+  trước khi ghi `truth_*.csv` – không để số "lỗi im lặng" của báo cáo dựa hoàn toàn vào máy.
 - **Xong khi**: số liệu tái tạo được bằng một lệnh, đưa vào báo cáo; lỗi im lặng trên test được nêu
   trung thực dù bằng bao nhiêu.
