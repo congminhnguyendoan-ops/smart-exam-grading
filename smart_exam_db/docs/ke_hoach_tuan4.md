@@ -103,6 +103,21 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   vậy – nên phép 2 dùng 1 mẫu cho mỗi loại trang, che vùng mã. Sai tên ảnh do `prepare_photos.py
   verify-ids` lo.) Thí nghiệm dung sai OMR: dịch ảnh
   đúng 0–4 mm, đo khi nào ô `filled` không còn tách khỏi ô `blank`.
+- **Phát hiện: nội dung lệch xuống có hệ thống ~+0,3 mm** (`align_cu`/dev, 58 ảnh không sai, bỏ 0014_C2;
+  ô lưới tin cậy, dưới pixel). dy trung bình theo hàng lưới (y = 36 → 261 mm): 0,13 / 0,23 / 0,32 / **0,49** /
+  0,31 / 0,27 / 0,39 / 0,33; cùng hình dạng ở C1, C2, C4 và cả trang chữ số D (nội dung khác hẳn);
+  58/58 ảnh có dy tb > 0; dx ≈ −0,1 mm. Ba giả thuyết và cách kiểm tra (giới hạn thời gian: làm A, B rồi
+  chuyển tiếp, không đào sâu):
+  | Giả thuyết | Kiểm tra | Kết quả 03/10/2026 |
+  |---|---|---|
+  | A. Do phép đo (phép 2) | `tu-kiem`: trang mẫu render, không dịch → phải ra 0; dịch 0,5 mm → 0,5 | **Loại cho thuật toán**: 0,000 / 0,494–0,503 mm, sai số ≤ 0,03 mm (cả phiếu và trang chữ số). *Chưa loại* phần sai lệch chỉ có trên ảnh chụp (nhoè, mực, ánh sáng) – trang render không có |
+  | B. Tâm marker do `align()` lệch | `tam-marker`: tâm dưới pixel của 4 ô đen trên ảnh nắn so với `layout.json` | **Loại**: dy marker tb −0,013 mm (đối chứng trang render −0,04 do quy ước tâm pixel), mọi góc, mọi điều kiện |±0,05| mm; tương quan dy marker ↔ dy nội dung giữa các ảnh r = −0,22. Marker nằm đúng chỗ mà nội dung vẫn lệch |
+  | C. Máy in kéo giấy không đều (méo phi tuyến theo chiều dọc, chung mọi tờ) | Scan phẳng 1 tờ phiếu trắng, chạy phép 2 trên ảnh scan (không có phối cảnh/ống kính) | *Tuỳ chọn – chờ người dùng có máy scan.* Phù hợp với dữ liệu: hình dạng theo hàng giống nhau ở mọi điều kiện và mọi loại trang |
+  **Kết luận** (người dùng chốt, không đào sâu thêm): không do `align()`. Lệch ~+0,3 mm theo hàng: nguyên
+  nhân khả dĩ nhất là **máy in (C), chưa kiểm chứng trực tiếp**; lệch đo riêng trên ảnh chụp khó xảy ra vì
+  như nhau ở C1/C2/C4/D. Ảnh hưởng:
+  ~0,3 mm nằm sẵn trong mọi `lech_*` (cả trước và sau) – nhỏ so với dung sai ~1 mm, không đổi phân loại
+  đúng/sai; khi so trước/sau ở Bước 7 phải nhớ đây là sàn chung, preprocessing không sửa được.
 - **Xong khi**: `align_cu/truth_dev.csv` có đủ 78 dòng dev; ngưỡng phép 2, 3 chốt (≤ dung sai OMR) và ghi
   lại kèm ảnh làm căn cứ; bảng "trước" theo C1–C4 tái tạo được từ file đó bằng một lệnh.
 

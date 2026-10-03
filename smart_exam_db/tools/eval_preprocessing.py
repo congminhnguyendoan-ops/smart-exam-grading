@@ -158,10 +158,22 @@ def mem(e: np.ndarray) -> np.ndarray:
     return cv2.GaussianBlur(e.astype(np.float32), (0, 0), 1.5)
 
 
+def dinh_duoi_pixel(R, bx, by) -> tuple[float, float]:
+    """Nội suy parabol 3 điểm quanh đỉnh (mỗi trục riêng) -> phần lẻ (-0,5..0,5 px).
+    Không nội suy được (đỉnh ở mép bản đồ / không lồi) -> 0."""
+    def off(a, b, c):
+        den = a - 2 * b + c
+        return float(np.clip(0.5 * (a - c) / den, -0.5, 0.5)) if den < 0 else 0.0
+    ox = off(R[by, bx - 1], R[by, bx], R[by, bx + 1]) if 0 < bx < R.shape[1] - 1 else 0.0
+    oy = off(R[by - 1, bx], R[by, bx], R[by + 1, bx]) if 0 < by < R.shape[0] - 1 else 0.0
+    return ox, oy
+
+
 def khop(anh_s, mau_s, box_px, goc, search_px) -> tuple:
     """So vùng box của mẫu với ảnh quanh độ lệch goc (dx, dy) trong ±search_px.
-    Trả (dx, dy, điểm, độ duy nhất) – dx, dy tuyệt đối (px)."""
+    Trả (dx, dy, điểm, độ duy nhất) – dx, dy tuyệt đối (px, dưới pixel nhờ nội suy parabol)."""
     x0, y0, x1, y1 = box_px
+    goc = (int(round(goc[0])), int(round(goc[1])))
     T = mau_s[y0:y1, x0:x1]
     H, W = anh_s.shape
     sx0, sy0 = x0 + goc[0] - search_px, y0 + goc[1] - search_px
@@ -175,7 +187,8 @@ def khop(anh_s, mau_s, box_px, goc, search_px) -> tuple:
     R2 = R.copy()
     R2[max(by - r, 0):by + r + 1, max(bx - r, 0):bx + r + 1] = -1
     second = float(R2.max()) if (R2 > -1).any() else -1.0
-    return cx0 + bx - x0, cy0 + by - y0, float(best), float(best - second)
+    ox, oy = dinh_duoi_pixel(R, bx, by)
+    return cx0 + bx + ox - x0, cy0 + by + oy - y0, float(best), float(best - second)
 
 
 def p2_net(anh_w, mau_e, mask, layout) -> tuple[dict, list]:
@@ -386,6 +399,12 @@ Ghi kết luận vào <code>xem_bang_mat.csv</code>, cột <code>ket_luan_mat</c
 
 
 # ============================================================================ lệnh run
+def nap_mau(layout) -> dict:
+    """Loại trang -> ảnh xám trang mẫu 300 DPI (trang 1 của PDF; các trang chỉ khác chữ số mã)."""
+    return {loai: render_pdf_page(ANSWER_SHEET / "output" / pdf, layout["dpi"])
+            for loai, pdf in (("phieu", "phieu_danh_so.pdf"), ("chu_so", "trang_chu_so.pdf"))}
+
+
 def cmd_run(a) -> None:
     if a.split == "test" and not a.xac_nhan_test:
         sys.exit("Tập test (0035–0040) chỉ chạy MỘT LẦN ở Bước 7 (docs/ke_hoach_tuan4.md). "
@@ -396,10 +415,7 @@ def cmd_run(a) -> None:
     out = EVAL_DIR / a.phuong_phap
     (out / "anh").mkdir(parents=True, exist_ok=True)
 
-    mau = {}                                   # loại trang -> nét mẫu ở WORK_DPI (trang 1; các trang chỉ khác mã)
-    for loai, pdf in (("phieu", "phieu_danh_so.pdf"), ("chu_so", "trang_chu_so.pdf")):
-        g = to_work(render_pdf_page(ANSWER_SHEET / "output" / pdf, layout["dpi"]), page_px)
-        mau[loai] = ban_do_net(g)
+    mau = {loai: ban_do_net(to_work(g, page_px)) for loai, g in nap_mau(layout).items()}
     mask = mat_na(layout, mau["phieu"].shape)
     nhan = doc_nhan_o()
 
@@ -472,6 +488,132 @@ def cmd_run(a) -> None:
     print("Chưa có ngưỡng: mọi ảnh là 'xem' – mở xem_bang_mat.html để kiểm tra bằng mắt.")
 
 
+# ============================================================================ lệnh tu-kiem (kiểm chứng phép 2)
+def dich(gray300, dx_mm, dy_mm) -> np.ndarray:
+    """Dịch ảnh 300 DPI một lượng (mm) dưới pixel; vùng lộ ra tô trắng như giấy."""
+    s = 300 / 25.4
+    M = np.float32([[1, 0, dx_mm * s], [0, 1, dy_mm * s]])
+    return cv2.warpAffine(gray300, M, (gray300.shape[1], gray300.shape[0]), flags=cv2.INTER_LINEAR, borderValue=255)
+
+
+TU_KIEM_MAU = [("mau_khong_dich", 0.0, 0.0), ("mau_dich_0_5mm_doc", 0.0, 0.5)]
+
+
+def cmd_tu_kiem(a) -> None:
+    """Phép 2 trên chính trang mẫu render (không qua ảnh chụp): độ lệch đo được phải bằng độ lệch đã dịch.
+    Sai lệch ở đây là sai lệch của PHÉP ĐO (không thể do marker hay máy in)."""
+    layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
+    page_px = layout["page_px"]
+    goc = nap_mau(layout)
+    mau = {loai: ban_do_net(to_work(g, page_px)) for loai, g in goc.items()}
+    mask = mat_na(layout, mau["phieu"].shape)
+    out_rows = []
+    print(f"{'ca':22s} {'trang':7s} {'đã dịch dx,dy':>14s} | {'tiêu đề dx,dy':>14s} | {'ô lưới tb dx,dy':>16s} | "
+          f"{'sai số tb':>9s} {'sai số max':>10s} {'ô tin cậy':>9s}")
+    for ten, dx, dy in TU_KIEM_MAU:
+        for loai, g in goc.items():
+            d, tiles, _ = p2_net(to_work(dich(g, dx, dy), page_px), mau[loai], mask, layout)
+            ok = [t for t in tiles if t["tin_cay"]]
+            tdx = np.array([t["dx"] / PX for t in ok]); tdy = np.array([t["dy"] / PX for t in ok])
+            err = np.hypot(tdx - dx, tdy - dy)
+            row = {"ca": ten, "trang": loai, "dich_dx_mm": dx, "dich_dy_mm": dy,
+                   "tieu_de_dx_mm": d["lech_toan_trang_dx_mm"], "tieu_de_dy_mm": d["lech_toan_trang_dy_mm"],
+                   "o_luoi_dx_tb_mm": float(tdx.mean()), "o_luoi_dy_tb_mm": float(tdy.mean()),
+                   "sai_so_tb_mm": float(err.mean()), "sai_so_max_mm": float(err.max()), "so_o_tin_cay": len(ok)}
+            out_rows.append(row)
+            print(f"{ten:22s} {loai:7s} {dx:6.2f},{dy:6.2f}  | {row['tieu_de_dx_mm']:6.3f},{row['tieu_de_dy_mm']:6.3f} | "
+                  f"{row['o_luoi_dx_tb_mm']:7.3f},{row['o_luoi_dy_tb_mm']:7.3f} | {row['sai_so_tb_mm']:9.3f} "
+                  f"{row['sai_so_max_mm']:10.3f} {len(ok):9d}")
+    path = EVAL_DIR / "_tu_kiem" / "mau.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8-sig", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(out_rows[0]))
+        w.writeheader()
+        for r in out_rows:
+            w.writerow({k: (f"{v:.4f}" if isinstance(v, float) else v) for k, v in r.items()})
+    print(f"\nĐã ghi {path}")
+
+
+# ============================================================================ lệnh tam-marker (kiểm tra B)
+MARKER_WIN_MM = 8.0          # cửa sổ ±8 mm quanh tâm marker chuẩn (marker cạnh 8 mm)
+
+
+def tam_marker(aligned, layout) -> dict:
+    """Tâm thật (dưới pixel) của 4 ô đen marker trên ảnh nắn, so với layout.json -> {góc: (dx, dy, cạnh) mm}.
+    Otsu trong cửa sổ, lấy thành phần đen chứa/gần tâm cửa sổ nhất, tâm = trọng tâm điểm ảnh."""
+    s = layout["dpi"] / 25.4
+    r = int(MARKER_WIN_MM * s)
+    out = {}
+    for c, (cx, cy) in layout["markers"]["centers"].items():
+        x0, y0 = int(round(cx)) - r, int(round(cy)) - r
+        win = aligned[y0:y0 + 2 * r + 1, x0:x0 + 2 * r + 1]
+        th = cv2.threshold(cv2.GaussianBlur(win, (5, 5), 0), 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+        n, lab, st, cen = cv2.connectedComponentsWithStats(th)
+        if n < 2:
+            out[c] = (np.nan, np.nan, np.nan)
+            continue
+        k = 1 + int(np.argmin(np.hypot(cen[1:, 0] - r, cen[1:, 1] - r) - st[1:, cv2.CC_STAT_AREA] / 1e4))
+        out[c] = ((x0 + cen[k, 0] - cx) / s, (y0 + cen[k, 1] - cy) / s,
+                  float(np.sqrt(st[k, cv2.CC_STAT_AREA]) / s))
+    return out
+
+
+def cmd_tam_marker(a) -> None:
+    """Kiểm tra B: ảnh nắn đúng (không 'sai' bằng mắt) – tâm marker có nằm đúng layout không, so với độ lệch
+    nội dung (ô lưới tin cậy, o_luoi_dev.csv). Kèm dòng đối chứng: trang mẫu render (phải ~0)."""
+    layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
+    out = EVAL_DIR / a.phuong_phap
+    mat = {r["anh"]: r["ket_luan_mat"] for r in csv.DictReader((out / "xem_bang_mat.csv").open(encoding="utf-8-sig"))}
+    noi_dung = {}
+    for r in csv.DictReader((out / "o_luoi_dev.csv").open(encoding="utf-8-sig")):
+        if r["tin_cay"] == "1":
+            noi_dung.setdefault(r["anh"], []).append((float(r["dx_mm"]), float(r["dy_mm"])))
+    rows = []
+    for loai, g in nap_mau(layout).items():
+        m = tam_marker(g, layout)
+        print(f"Đối chứng – mẫu render {loai}: " + ", ".join(f"{c} ({v[0]:+.3f}, {v[1]:+.3f}) cạnh {v[2]:.2f}"
+                                                            for c, v in m.items()))
+    f = PHUONG_PHAP[a.phuong_phap]
+    for anh in list_images("dev"):
+        if mat.get(anh.ten) == "sai" or anh.ten == "0014_C2":
+            continue
+        aligned, _, _ = goi_phuong_phap(f, anh, layout["page_px"])
+        m = tam_marker(aligned, layout)
+        nd = np.array(noi_dung[anh.ten])
+        r = {"anh": anh.ten, "dieu_kien": anh.dieu_kien,
+             "noi_dung_dx_mm": float(nd[:, 0].mean()), "noi_dung_dy_mm": float(nd[:, 1].mean())}
+        for c, (dx, dy, canh) in m.items():
+            r.update({f"{c}_dx_mm": dx, f"{c}_dy_mm": dy, f"{c}_canh_mm": canh})
+        r["marker_dx_tb_mm"] = float(np.mean([m[c][0] for c in m]))
+        r["marker_dy_tb_mm"] = float(np.mean([m[c][1] for c in m]))
+        rows.append(r)
+        print(f"{anh.ten:8s} marker dy tb {r['marker_dy_tb_mm']:+.3f} | nội dung dy tb {r['noi_dung_dy_mm']:+.3f}")
+    path = out / "tam_marker_dev.csv"
+    with path.open("w", encoding="utf-8-sig", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0]))
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: (f"{v:.4f}" if isinstance(v, float) else v) for k, v in r.items()})
+
+    def tb(key, sel=lambda r: True):
+        v = [r[key] for r in rows if sel(r)]
+        return f"{np.mean(v):+.3f}"
+    print(f"\n{len(rows)} ảnh (bỏ 0014_C2 giấy cong). Trung bình (mm):")
+    print(f"{'nhóm':6s} " + " ".join(f"{c + ' dx':>8s} {c + ' dy':>8s}" for c in ("tl", "tr", "br", "bl"))
+          + f" {'mk dy':>7s} {'nd dy':>7s}")
+    for cond in ("tất cả", "C1", "C2", "C3", "C4", "D"):
+        sel = (lambda r: True) if cond == "tất cả" else (lambda r, c=cond: r["dieu_kien"] == c)
+        if not any(sel(r) for r in rows):
+            continue
+        print(f"{cond:6s} " + " ".join(f"{tb(c + '_dx_mm', sel):>8s} {tb(c + '_dy_mm', sel):>8s}" for c in ("tl", "tr", "br", "bl"))
+              + f" {tb('marker_dy_tb_mm', sel):>7s} {tb('noi_dung_dy_mm', sel):>7s}")
+    canh = [r[f"{c}_canh_mm"] for r in rows for c in ("tl", "tr", "br", "bl")]
+    print(f"Cạnh marker đo được (căn diện tích): {np.min(canh):.2f}–{np.max(canh):.2f} mm (thiết kế 8,00)")
+    mk, nd = np.array([r["marker_dy_tb_mm"] for r in rows]), np.array([r["noi_dung_dy_mm"] for r in rows])
+    print(f"Tương quan dy marker ↔ dy nội dung giữa các ảnh: r = {np.corrcoef(mk, nd)[0, 1]:+.2f}")
+    print(f"Đã ghi {path}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Đánh giá phương pháp nắn phẳng ảnh (Tuần 4)")
     sub = ap.add_subparsers(dest="lenh", required=True)
@@ -479,9 +621,11 @@ def main() -> None:
     r.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
     r.add_argument("--split", default="dev", choices=sorted(SPLITS))
     r.add_argument("--xac-nhan-test", action="store_true", help="bắt buộc khi --split test (chỉ dùng ở Bước 7)")
+    sub.add_parser("tu-kiem", help="kiểm chứng phép 2 trên trang mẫu render (không dịch / dịch 0,5 mm)")
+    t = sub.add_parser("tam-marker", help="kiểm tra B: tâm marker trên ảnh nắn đúng so với layout (cần run + xem_bang_mat.csv)")
+    t.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
     a = ap.parse_args()
-    if a.lenh == "run":
-        cmd_run(a)
+    {"run": cmd_run, "tu-kiem": cmd_tu_kiem, "tam-marker": cmd_tam_marker}[a.lenh](a)
 
 
 if __name__ == "__main__":
