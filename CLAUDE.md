@@ -58,7 +58,10 @@ smart_exam_db/
 │   ├── 05_demo_workflow.sql      # Chạy thử: chấm → match → review → sửa đáp án → chấm lại
 │   ├── run_all.bat               # Chạy 00→05 trên Windows (cần psql trong PATH) – RESET toàn bộ DB
 │   └── run_all.sh                # Bản Linux/macOS
+├── cv_engine/                    # Lõi xử lý ảnh (Tuần 4+): preprocessing.py, sau này roi/omr/ocr.py
+│   └── __init__.py               #   (chốt 03/10/2026, theo HUONG_DAN.md Phần C; import từ smart_exam_db/)
 ├── docs/                         # Tài liệu cho báo cáo (Tuần 1–3)
+│   ├── ke_hoach_tuan4.md         # Kế hoạch 8 bước (0–7) của preprocessing: việc, cách đo, tiêu chí xong
 │   ├── ERD.mermaid, ERD.png      # ERD 20 bảng
 │   ├── diagrams/                 # *.mmd (Mermaid) + *.png: 01 use case, 02 kiến trúc,
 │   │                             #   03 DFD mức 0, 04 DFD mức 1, 05 seq chấm, 06 seq review, 07 seq import
@@ -142,6 +145,9 @@ Ghi chú:
 | SBD là số ngẫu nhiên, không dùng tên/MSSV thật | Dữ liệu có thể công khai (Kaggle/GitHub) |
 | PostgreSQL thay vì MySQL (kế hoạch ban đầu) | Đã chốt |
 | Ảnh lưu trên đĩa, database chỉ lưu đường dẫn | Tránh database phình to |
+| Code xử lý ảnh nằm trong `smart_exam_db/cv_engine/` (cạnh `answer_sheet/`, `tools/`), không tạo thư mục gốc `smart-exam/` như `HUONG_DAN.md` | Giữ một gốc dự án duy nhất; tên module theo `HUONG_DAN.md` Phần C |
+| Chỉnh tham số `preprocessing` **chỉ dùng ảnh phiếu 0001–0034**; ảnh 0035–0040 chỉ chạy **một lần** ở bước đánh giá cuối (`docs/ke_hoach_tuan4.md` bước 7) | Tránh chỉnh theo tập test → số liệu báo cáo lạc quan giả. Trùng ranh giới test của OMR |
+| Đánh giá nắn ảnh theo 3 loại: đúng / **lỗi im lặng** (nắn sai mà báo OK) / bị từ chối; mục tiêu lỗi im lặng = 0 | Nắn sai mà không báo = ghi nhầm điểm; từ chối thì còn giáo viên xem lại |
 | Thêm đề mới **không cần train lại** | Mô hình chỉ đọc ô/chữ số; đáp án nằm trong DB. Chỉ train lại khi đổi mẫu phiếu |
 
 ---
@@ -245,7 +251,9 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       "Độ phối cảnh" = min(trên/dưới, trái/phải và nghịch đảo) của tứ giác 4 tâm marker. Tham chiếu
       (`measure --ref`, bỏ ảnh nằm ngang): **C1 0,82–0,99** (trung vị 0,89, 20 ảnh), **C3 0,60–0,73**
       (trung vị 0,62, 19 ảnh). Như mọi ảnh C3, `align()` chọn nhầm marker trên IMG_4381 (lỗi mục 8).
-- [ ] Tuần 4: `preprocessing.py` (phát triển từ `align()` trong `check_layout.py`).
+- [ ] Tuần 4: `cv_engine/preprocessing.py` (phát triển từ `align()` trong `check_layout.py`), theo
+      `docs/ke_hoach_tuan4.md` (8 bước, làm từng bước, dừng chờ người dùng sau mỗi bước).
+      Bước 0 (thư mục, quy tắc dev/test, kế hoạch) xong 03/10/2026.
 - [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
 - [ ] Backend API, frontend, luồng review cho giáo viên.
 - [ ] (Hướng phát triển) Lưu các lần giáo viên sửa làm dữ liệu train thêm (human-in-the-loop).
@@ -264,7 +272,9 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - Không gửi ảnh qua Zalo/Messenger (bị nén) – chỉ chép bằng cáp hoặc Google Drive.
 - **`find_markers()`/`align()` trong `check_layout.py` chọn nhầm marker mà KHÔNG báo lỗi – phải xử lý ở
   Tuần 4 (`preprocessing.py`)** (phát hiện 02/10/2026 trên 90 ảnh thật): **23/90 ảnh** nắn sai
-  (20/40 ảnh C3 đều sai, cộng 0021_C2, 0028_C4, 0032_C4, D007). Hàm chỉ lấy "vết đen gần vuông gần
+  (20/40 ảnh C3 đều sai, cộng 0021_C2, 0028_C4, 0032_C4, D007).
+  **Con số này tự mâu thuẫn** (liệt kê ra là 24, chưa gồm 0013_C2, 0018_C2; 0014_C3 là ảnh C3) –
+  KHÔNG dùng cho báo cáo; số "trước" lấy từ `data/_eval/align_cu/truth_dev.csv` (Tuần 4 Bước 1). Hàm chỉ lấy "vết đen gần vuông gần
   góc ẢNH nhất", không kiểm tra kết quả, nên 4 điểm sai vẫn cho ra ảnh "đã nắn". Bốn nguyên nhân:
   1. **Ngưỡng tỉ lệ w/h `0.7–1.4` quá chặt**: ảnh C3 bị phối cảnh làm marker xa thành w/h 1,40–1,51
      → bị loại. Nới thành `0.5–2.0` thì 15/18 ảnh C3 hết sai (thí nghiệm chỉ đổi đúng ngưỡng này).
@@ -312,8 +322,8 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 2. **run_all.bat reset DB**: `00_create_database.sql` chạy `DROP DATABASE`, `04_seed.sql` ghi
    `layout_config` tạm (toạ độ cũ, không khớp `sheet_layout.py`). Chạy lại `run_all.bat` ⇒ **mất
    kết quả `update_template.sql`** (mục 6), phải chạy lại nó.
-3. **Cấu trúc thư mục**: `HUONG_DAN.md` đề xuất `smart-exam/cv_engine/preprocessing.py`; CLAUDE.md
-   mục 7 ghi `preprocessing.py` (chưa nói đặt ở đâu). Cần chốt vị trí trước Tuần 4.
+3. ~~**Cấu trúc thư mục**: chưa chốt vị trí `preprocessing.py`.~~ **ĐÃ CHỐT 03/10/2026**:
+   `smart_exam_db/cv_engine/preprocessing.py` (mục 3, mục 4).
 4. **Thư viện**: `answer_sheet/requirements.txt` chỉ có reportlab/opencv/numpy/pymupdf (ghi `>=4.0`,
    `>=4.8`, `>=1.24`…), không có `psycopg` (cần cho `tools/db_check.py`) hay `playwright`
    (cần cho `docs/wireframes/gen.py`). Phiên bản ở bảng mục 2 chưa đối chiếu với venv thực tế.

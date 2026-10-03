@@ -15,6 +15,9 @@ __pycache__/
 # Dữ liệu ảnh chụp thật – KHÔNG đưa lên GitHub (lưu Google Drive)
 data/
 
+# File nén (bản sao lưu data/ ...) – nặng, không đưa vào git
+*.zip
+
 # Ảnh do script sinh ra (check_layout.py, generate_sheets.py) – chạy lại là có
 smart_exam_db/answer_sheet/output/*.png
 smart_exam_db/answer_sheet/output/*.jpg
