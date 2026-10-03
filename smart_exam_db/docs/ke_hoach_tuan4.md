@@ -177,6 +177,34 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
 - **Xong khi**: phụ 100% (hoặc ảnh thiếu được giải thích từng cái); số ảnh đúng tăng rõ so với `align_cu`
   (nhất là C3, 2/17); lỗi im lặng không tăng; `lech_max` của ảnh đúng giảm so với 1,4–1,6 mm (mục tiêu độ chính
   xác, xem Bước 7).
+- **Chia nhỏ, dừng chờ người dùng sau mỗi phần** (duyệt 03/10/2026): 3a marker thật + số "trước" của khâu tìm;
+  3b bộ lọc ứng viên, báo **hạng lớn nhất của marker thật** trên toàn dev – số ứng viên đưa vào 3c phải lớn hơn
+  hạng đó có biên; 3c chọn bộ 4 theo hình học (H từ 4 tâm dự đoán cỡ/hướng từng marker), **≥ 2 bộ 4 cùng đạt →
+  từ chối `nhieu_phieu`**, không chọn bừa; tâm dưới pixel = giao hai đường chéo; homography từ **4 tâm**, 16 đỉnh
+  chỉ khi `lech_max` không giảm. Báo thời gian mỗi ảnh (trung vị, lớn nhất).
+- **3a – xong 03/10/2026** (`tools/marker_that.py`, chỉ ghi `data/_eval/marker_that/`):
+  - Marker thật `marker_that_dev.csv` (78 ảnh): 59 ảnh `align_cu` nắn đúng → 4 điểm của `find_markers()` cũ
+    (`nguon = align_cu_dung`); 19 ảnh nắn sai → người dùng xác nhận bằng mắt trên `xac_nhan.html` (`nguon = mat`;
+    19/19 đồng ý 4 ứng viên máy đoán, kể cả 0013_C2/0018_C2/0021_C2 có tờ khác lọt khung, 0006 nằm ngang).
+    Ứng viên để gán nhãn tìm bằng bộ lọc rất lỏng (chia nền giấy cục bộ, mực < 50% nền, độ vuông ≥ 0,70, độ đặc
+    ≥ 0,85) – không phải bộ lọc của v3. Cách đoán kiểm tra trước trên 59 ảnh đã biết: trúng **59/59**.
+  - Khảo sát (dùng cho 3b/3c): 236 marker thật ở 59 ảnh đúng có độ vuông (diện tích / `minAreaRect`) 0,83–1,01,
+    độ đặc 0,96–1,01; ứng viên khác lọt bộ lọc tối đa 0,885 (p95 0,81). Marker phía xa ở C3 chỉ ~3 600 px²
+    (~2,9e-4 ảnh, ngang ô tròn gần máy), cạnh ngắn/dài ~0,6 ⇒ **không lọc theo cỡ tuyệt đối**. 0034_C3: marker
+    dưới phải chỉ đứng hạng 5 theo độ vuông (sau ô mẫu "Đúng ●"). 0031_C3 có ô đen của tờ khác ở góc trên trái.
+  - **Số "trước" của khâu tìm** (`python tools/marker_that.py ung-vien --bo-loc cu`; bộ lọc của `find_markers()`
+    cũ, bản sao được kiểm tra khớp 4 điểm cũ trên mọi ảnh; khớp ≤ 10 px, thực tế xa nhất 0,61 px):
+    | Điều kiện | Ảnh | Đủ 4 marker thật trong ứng viên | Ứng viên/ảnh TB (min–max) | Đủ 4 mà vẫn nắn sai |
+    |---|---|---|---|---|
+    | C1 | 17 | 17 (100%) | 454 (389–490) | 0 |
+    | C2 | 18 | 18 (100%) | 462 (398–486) | 4 |
+    | C3 | 17 | **3 (17,6%)** | 301 (263–387) | 1 |
+    | C4 | 16 | 16 (100%) | 464 (396–484) | 0 |
+    | D | 10 | 10 (100%) | 142 (76–240) | 0 |
+    | **Tổng** | **78** | **64 (82,1%)** | **384** | **5** |
+  - ⇒ 19 ảnh `align_cu` sai = **14 "không tìm thấy"** (toàn C3, thiếu 1–2 marker: nguyên nhân 1, w/h quá chặt)
+    + **5 "chọn sai"** dù có đủ 4 (0013_C2, 0018_C2, 0021_C2: tờ khác lọt khung – nguyên nhân 2/3; 0006_C2,
+    0006_C3: chiều phiếu – nguyên nhân 4, để Bước 4). ~384 ứng viên/ảnh (lẽ ra 4) là gốc của nguyên nhân 2.
 
 ### Bước 4 – Warp + chiều phiếu bằng nội dung + `verify()` từ chối có lý do (nguyên nhân 4) – `v4_verify`
 - **Việc**: warp; thử 4 cách gán TL/TR/BR/BL (0/90/180/270°), chọn chiều bằng **dấu hiệu nội dung riêng của
