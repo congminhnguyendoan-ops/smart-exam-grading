@@ -65,8 +65,11 @@ smart_exam_db/
 │   └── wireframes/               # 6 wireframe PNG (login, dashboard, exam, upload, review, stats)
 │       └── gen.py                #   sinh bằng HTML + Playwright (playwright không có trong requirements)
 ├── tools/
-│   └── db_check.py               # Kiểm tra Python ↔ PostgreSQL (psycopg), đọc DATABASE_URL, in
-│                                 #   v_exam_summary và v_review_pending. Chạy từ smart_exam_db/
+│   ├── db_check.py               # Kiểm tra Python ↔ PostgreSQL (psycopg), đọc DATABASE_URL, in
+│   │                             #   v_exam_summary và v_review_pending. Chạy từ smart_exam_db/
+│   └── prepare_photos.py         # Ảnh HEIC/JPG điện thoại → data/raw: plan (đổi JPG, đề xuất tên theo
+│                                 #   EXIF), preview, apply (chép), replace (thay ảnh chụp lại), measure
+│                                 #   (đo marker/độ phối cảnh). Chạy từ smart_exam_db/
 ├── answer_sheet/                 # Code phiếu trả lời + thu dữ liệu
 │   ├── sheet_layout.py           # NGUỒN DUY NHẤT của mọi toạ độ/kích thước phiếu
 │   ├── generate_sheets.py        # Vẽ PDF phiếu + trang chữ số, xuất layout.json, update_template.sql
@@ -89,9 +92,12 @@ smart_exam_db/
 │       ├── ground_truth.csv      # Nhãn cấp phiếu (SBD, mã đề, 40 câu, bút, điều kiện chụp)
 │       ├── cell_labels.csv       # Nhãn cấp ô (blank/filled/faint) + question_state
 │       └── preview_phieu.png
-└── data/                         # CHƯA TẠO – không push lên GitHub
+└── data/                         # Không push lên GitHub (.gitignore) – chỉ có trên máy, cần sao lưu
+    ├── raw_heic/                 # Ảnh gốc từ điện thoại IMG_xxxx (.HEIC; ảnh chụp lại là .JPG) – không sửa
+    ├── _prepare/                 # jpg/ (ảnh đã chuyển), mapping.csv, preview.html, measure/
     ├── raw/                      # 80 ảnh gốc: 0001_C1.jpg … (KHÔNG BAO GIỜ sửa)
     ├── raw_digits/               # D001.jpg … D010.jpg
+    ├── raw_rejected/             # 4 ảnh bị thay (marker bị khung hình cắt) – giữ lại, không dùng
     ├── ground_truth.csv          # Bản copy đã sửa theo thực tế
     ├── cell_labels.csv
     └── split.csv                 # (Tuần 5)
@@ -171,13 +177,10 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 
 ## 7. Việc dang dở
 
-- [ ] **BỘ ẢNH – VIỆC CÒN LẠI DUY NHẤT: chụp lại `0014_C3`** (tiếp tục 03/10/2026). Yêu cầu ảnh mới:
-      **độ phối cảnh ≤ 0,73** (như các ảnh C3 khác, xem dòng `0014_C3` bên dưới) và **4 marker cách mép
-      khung hình rộng rãi** (lần chụp IMG_4361 marker BR chỉ cách mép 14 px). Quy trình: chép ảnh vào
-      `data/raw_heic/` → đọc mã phiếu + đo marker/độ phối cảnh → nếu đạt thì
-      `python tools/prepare_photos.py replace --src data/raw_heic/<ảnh> --name 0014_C3.jpg --reason "marker BR bị cắt (hụt 13%)"`
-      (ảnh cũ tự chuyển sang `data/raw_rejected/`, `mapping.csv` tự cập nhật) → cập nhật mục này → commit.
-      Phần còn lại của bộ ảnh đã xong: phát phiếu, tô, chụp 80 ảnh + 10 trang, đổi tên, chép, thay 3 ảnh lỗi.
+- [x] **BỘ ẢNH ĐÃ XONG (03/10/2026)**: 80 ảnh phiếu trong `data/raw/`, 10 trang trong `data/raw_digits/`,
+      4 ảnh bị loại trong `data/raw_rejected/` (`0014_C3`, `0028_C4`, `0032_C4`, `D007` – marker bị khung
+      hình cắt). Quá trình ghi đầy đủ trong `data/_prepare/mapping.csv` (94 dòng, 90 tên mới, không trùng).
+      Thay ảnh sau này: `prepare_photos.py measure <ảnh> --ref` → đọc mã ở `data/_prepare/measure/` → `replace`.
 - [ ] Việc thu dữ liệu KHÔNG thuộc bộ ảnh, chưa ghi nhận là đã làm: đối chiếu `ground_truth.csv` với
       cái thực sự có trên giấy (người tô sai → sửa CSV → `make_dataset_plan.py --from-csv`), sao lưu `data/`.
 - [x] Script đổi tên ảnh: `tools/prepare_photos.py` (`plan` → `preview` → `apply`). 02/10/2026 đã chép
@@ -192,12 +195,13 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       Ảnh mới: mã phiếu/trang đọc tay + SBD/mã đề khớp `ground_truth.csv`, 4 marker trong khung,
       `align()` nắn đúng. Ảnh chụp lại là JPG (iPhone "Most Compatible"), không phải HEIC – vẫn đủ
       4032×3024, EXIF đầy đủ. `0021_C2` giữ lại (4 marker nguyên vẹn, chỉ có tờ khác lọt vào góc).
-- [ ] **`0014_C3` – chi tiết** (việc còn lại ở dòng đầu mục 7): ảnh cũ trong `data/raw/` có marker BR bị cắt (hụt 13%).
-      Đã chụp lại 2 lần, đều đúng phiếu 0014, 4 marker trong khung, nhưng **chưa đủ nghiêng cho C3**.
-      "Độ phối cảnh" = min(trên/dưới, trái/phải và nghịch đảo) của tứ giác 4 marker, đo trên toàn bộ
-      ảnh: **C1 0,82–0,99** (trung vị 0,89, 20 ảnh), **C3 0,60–0,73** (trung vị 0,62, 19 ảnh, bỏ 0006_C3
-      nằm ngang). IMG_4356 = 0,85; IMG_4361 = 0,80 (trái/phải 1,00 → không nghiêng ngang). Cần ≤ ~0,73.
-      Khi có ảnh đạt: `replace --src <ảnh> --name 0014_C3.jpg --reason "marker BR bị cắt (hụt 13%)"`.
+- [x] **`0014_C3` ← IMG_4381** (03/10/2026). Ảnh cũ (IMG_4243) có marker BR bị cắt (hụt 13%). Chụp lại
+      4 lần, đo bằng `prepare_photos.py measure`: IMG_4356 = 0,85, IMG_4361 = 0,80, IMG_4379 = 0,83 (chưa đủ
+      nghiêng), **IMG_4381 = 0,63** (đạt; 4 marker trọn vẹn, gần mép nhất 90 px; mã phiếu 0014, SBD 897296,
+      mã đề 102 đọc tay khớp `ground_truth.csv`; 4 marker đo được đã kiểm tra bằng mắt là marker thật).
+      "Độ phối cảnh" = min(trên/dưới, trái/phải và nghịch đảo) của tứ giác 4 tâm marker. Tham chiếu
+      (`measure --ref`, bỏ ảnh nằm ngang): **C1 0,82–0,99** (trung vị 0,89, 20 ảnh), **C3 0,60–0,73**
+      (trung vị 0,62, 19 ảnh). Như mọi ảnh C3, `align()` chọn nhầm marker trên IMG_4381 (lỗi mục 8).
 - [ ] Tuần 4: `preprocessing.py` (phát triển từ `align()` trong `check_layout.py`).
 - [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
 - [ ] Backend API, frontend, luồng review cho giáo viên.

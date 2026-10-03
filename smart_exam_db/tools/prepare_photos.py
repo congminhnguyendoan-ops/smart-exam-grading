@@ -1,3 +1,5 @@
+
+
 """
 prepare_photos.py - Chuẩn bị bộ ảnh dữ liệu từ ảnh HEIC chụp bằng iPhone.
 
@@ -24,11 +26,18 @@ Preview tự kiểm tra kết quả align() (find_markers() có thể chọn nh�
   - So ảnh nắn với mẫu phiếu ở 4 chiều xoay (NCC); chiều khác 0° tốt hơn rõ -> ảnh nằm ngang.
   Ảnh không đạt: cắt 1/4 góc trên phải của ảnh GỐC (đã dựng đứng), không dùng align().
 
+Lệnh `measure`: đo ảnh chụp lại trước khi `replace` – align() đúng/sai, khoảng cách marker tới mép
+  ảnh, "độ phối cảnh" = min(trên/dưới, trái/phải và nghịch đảo) của tứ giác 4 tâm marker
+  (1,0 = chụp thẳng; ảnh C3 cần nhỏ như các ảnh C3 khác). `--ref` in khoảng C1/C3 của data/raw.
+  Marker được tìm độc lập với find_markers(): mỗi góc ảnh dò khối đen vuông gần góc nhất, nhiều ngưỡng
+  (nền bàn trắng làm 1 ngưỡng Otsu thất bại). Khối chạm mép vùng tìm -> coi như không có marker trọn vẹn.
+
 Chạy (từ thư mục smart_exam_db/):
   python tools/prepare_photos.py plan
   python tools/prepare_photos.py preview
   python tools/prepare_photos.py apply
   python tools/prepare_photos.py replace --src data/raw_heic/IMG_4357.JPG --name 0028_C4.jpg --reason "..."
+  python tools/prepare_photos.py measure data/raw_heic/IMG_4379.JPG --ref
 """
 import argparse
 import base64
@@ -448,6 +457,86 @@ def cmd_replace(a) -> None:
           f"{src.name} -> {dst.relative_to(ROOT).as_posix()} | mapping.csv đã cập nhật")
 
 
+# ---------------------------------------------------------------- lệnh measure (đo ảnh chụp lại)
+def marker_centers(gray) -> dict:
+    """Tâm + khung bao của marker ở mỗi góc ảnh, tìm độc lập với find_markers()."""
+    H, W = gray.shape
+    sx, sy = int(W * 0.35), int(H * 0.35)
+    out = {}
+    for c, (y0, x0) in {"tl": (0, 0), "tr": (0, W - sx), "bl": (H - sy, 0), "br": (H - sy, W - sx)}.items():
+        patch = gray[y0:y0 + sy, x0:x0 + sx]
+        for f in (0.5, 0.4, 0.3, 0.2):                 # ngưỡng = f × độ sáng trung vị của ảnh
+            n, _, st, ct = cv2.connectedComponentsWithStats((patch < np.median(gray) * f).astype(np.uint8))
+            best = None
+            for i in range(1, n):
+                x, y, w, h, a = st[i]
+                inside = x > 0 and y > 0 and x + w < sx and y + h < sy
+                if inside and 1500 < a < 60000 and a / (w * h) > 0.7 and 0.4 < w / h < 2.5:
+                    d = np.hypot(x + w / 2 - (0 if c[1] == "l" else sx), y + h / 2 - (0 if c[0] == "t" else sy))
+                    if best is None or d < best[0]:
+                        best = (d, ct[i], (x0 + x, y0 + y, w, h))
+            if best:
+                out[c] = {"center": np.array([x0 + best[1][0], y0 + best[1][1]]), "box": best[2]}
+                break
+    return out
+
+
+def perspective(m: dict) -> float:
+    """min(trên/dưới, trái/phải và nghịch đảo): 1,0 = thẳng; càng nhỏ càng nghiêng."""
+    d = lambda a, b: np.linalg.norm(m[a]["center"] - m[b]["center"])  # noqa: E731
+    tb, lr = d("tl", "tr") / d("bl", "br"), d("tl", "bl") / d("tr", "br")
+    return min(tb, 1 / tb, lr, 1 / lr)
+
+
+def measure_one(gray) -> dict:
+    m = marker_centers(gray)
+    H, W = gray.shape
+    res = {"found": len(m), "persp": perspective(m) if len(m) == 4 else None, "margins": {}}
+    for c, v in m.items():
+        x, y, w, h = v["box"]
+        res["margins"][c] = min(x, y, W - x - w, H - y - h)
+    res["min_margin"] = min(res["margins"].values()) if res["margins"] else None
+    return res
+
+
+def cmd_measure(a) -> None:
+    layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
+    templates = load_templates()
+    out_dir = Path(a.work) / "measure"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for s in a.photos:
+        src = Path(s)
+        jpg = Path(a.work) / "jpg" / f"{src.stem}.jpg"
+        if not jpg.exists():
+            convert(src, jpg)
+        gray = cv2.imdecode(np.fromfile(jpg, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+        r = measure_one(gray)
+        _, k, problem = check_align(gray, layout, templates["sheet"])
+        margins = " ".join(f"{CORNER_VI[c]}={r['margins'].get(c, '—')}" for c in CORNERS)
+        persp = f"{r['persp']:.2f}" if r["persp"] is not None else "—"
+        print(f"{src.name}: marker trọn vẹn {r['found']}/4 | cách mép (px) {margins} | "
+              f"độ phối cảnh {persp} | align(): {problem or 'OK'}")
+        # Vùng góc trên phải (đã dựng đứng) để đọc Mã phiếu bằng mắt
+        up = np.rot90(gray, k)
+        h, w = up.shape
+        cv2.imencode(".jpg", np.ascontiguousarray(up[: int(h * 0.4), int(w * 0.4):]))[1].tofile(
+            out_dir / f"{src.stem}_goc_tren_phai.jpg")
+    print(f"Ảnh vùng mã phiếu để đọc bằng mắt: {out_dir}")
+    if a.ref:
+        print("\nKhoảng tham chiếu trong data/raw (bỏ ảnh nằm ngang, ảnh thiếu marker):")
+        for cond in ("C1", "C3"):
+            vals = []
+            for p in sorted(Path(a.raw).glob(f"*_{cond}.jpg")):
+                g = cv2.imdecode(np.fromfile(p, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+                if g.shape[1] > g.shape[0]:
+                    continue
+                v = measure_one(g)["persp"]
+                if v is not None:
+                    vals.append(v)
+            print(f"  {cond}: {len(vals)} ảnh | độ phối cảnh min {min(vals):.2f}  "
+                  f"trung vị {np.median(vals):.2f}  max {max(vals):.2f}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Chuẩn bị ảnh dữ liệu từ HEIC")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -472,8 +561,14 @@ def main() -> None:
     p.add_argument("--raw", default=ROOT / "data" / "raw")
     p.add_argument("--raw-digits", default=ROOT / "data" / "raw_digits")
     p.add_argument("--rejected", default=ROOT / "data" / "raw_rejected")
+    p = sub.add_parser("measure", help="Đo marker/độ phối cảnh của ảnh chụp lại (không chép, không đổi tên)")
+    p.add_argument("photos", nargs="+", help="Ảnh trong data/raw_heic/ (HEIC hoặc JPG)")
+    p.add_argument("--ref", action="store_true", help="In thêm khoảng độ phối cảnh C1/C3 của data/raw")
+    p.add_argument("--work", default=ROOT / "data" / "_prepare")
+    p.add_argument("--raw", default=ROOT / "data" / "raw")
     a = ap.parse_args()
-    {"plan": cmd_plan, "preview": cmd_preview, "apply": cmd_apply, "replace": cmd_replace}[a.cmd](a)
+    {"plan": cmd_plan, "preview": cmd_preview, "apply": cmd_apply, "replace": cmd_replace,
+     "measure": cmd_measure}[a.cmd](a)
 
 
 if __name__ == "__main__":
