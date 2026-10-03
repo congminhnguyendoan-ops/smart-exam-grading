@@ -767,7 +767,8 @@ def kiem_ke_thua(out: Path, nguon: str) -> None:
 
 def cmd_finalize(a) -> None:
     """diem_dev.csv (kết luận tự động) + xem_bang_mat.csv (kết luận bằng mắt) -> truth_dev.csv.
-    Mắt ưu tiên hơn máy. Ảnh 'xem' chưa có kết luận bằng mắt -> dừng, không ghi file.
+    Mắt ưu tiên hơn máy. Chỉ ảnh máy kết luận 'dung' được lấy tự động; ảnh 'sai' hoặc 'xem' chưa có kết luận
+    bằng mắt -> dừng, không ghi file (lỗi im lặng không được dựa hoàn toàn vào máy).
     --ke-thua <pp>: lấy kết luận bằng mắt của <pp> (nguon = mat_<pp>), chỉ khi kiem_ke_thua() đạt."""
     out = EVAL_DIR / a.phuong_phap
     nguon_mat = "mat"
@@ -790,9 +791,9 @@ def cmd_finalize(a) -> None:
             if r["ket_luan_tu_dong"] in ("dung", "sai") and r["ket_luan_tu_dong"] != ket_luan:
                 lech.append(f"{r['anh']}: máy {r['ket_luan_tu_dong']}, mắt {ket_luan}")
                 ghi_chu.append(f"máy kết luận {r['ket_luan_tu_dong']} ({r['ly_do_tu_dong']})")
-        elif r["ket_luan_tu_dong"] in ("dung", "sai"):
-            ket_luan, nguon = r["ket_luan_tu_dong"], "tu_dong"
-        else:
+        elif r["ket_luan_tu_dong"] == "dung":
+            ket_luan, nguon = "dung", "tu_dong"
+        else:  # máy kết luận 'sai' hoặc 'xem' -> bắt buộc xem bằng mắt (Quy ước chung Bước 2–7)
             thieu.append(f"{r['anh']} ({r['ly_do_tu_dong']})")
             continue
         phan_loai = "bi_tu_choi" if r["tra_anh"] != "co" else ("dung" if ket_luan == "dung" else "loi_im_lang")
@@ -801,7 +802,8 @@ def cmd_finalize(a) -> None:
     if lech:
         print("CHÚ Ý – máy và mắt kết luận khác nhau (giữ kết luận của mắt):\n  " + "\n  ".join(lech))
     if thieu:
-        sys.exit(f"Còn {len(thieu)} ảnh 'xem' chưa có kết luận bằng mắt – chưa ghi truth_dev.csv:\n  " + "\n  ".join(thieu))
+        sys.exit(f"Còn {len(thieu)} ảnh 'sai'/'xem' chưa có kết luận bằng mắt – chưa ghi truth_dev.csv:\n  "
+                 + "\n  ".join(thieu))
     ghi_csv(out / "truth_dev.csv", rows)
     from collections import Counter
     print(f"Đã ghi {out / 'truth_dev.csv'}: {len(rows)} ảnh; nguồn {dict(Counter(r['nguon'] for r in rows))}; "

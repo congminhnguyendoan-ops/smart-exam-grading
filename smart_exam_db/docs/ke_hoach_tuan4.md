@@ -130,6 +130,13 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
 - **Mỗi bước = một phương pháp mới trong eval** (`v2_load`, `v3_hinh_hoc`, `v4_verify`, `v5_chuan_hoa`, …),
   đăng ký trong `PHUONG_PHAP` của `eval_preprocessing.py`, có thư mục `data/_eval/<ten>/` và `truth_dev.csv`
   riêng: `run` → xem bằng mắt mọi ảnh `sai`/`xem` → `finalize` → `report`. Ngưỡng giữ nguyên `nguong.json`.
+  **`finalize` ép quy tắc này** (sửa 03/10/2026, trước Bước 3): chỉ ảnh máy kết luận `dung` được lấy tự động
+  (`nguon = tu_dong`); còn ảnh `sai` hoặc `xem` nào chưa có `ket_luan_mat` (và không thừa kế hợp lệ qua
+  `--ke-thua`) thì dừng, không ghi `truth_dev.csv`. Trước đây máy kết luận `sai` được ghi thẳng – số "lỗi im
+  lặng" có thể dựa hoàn toàn vào máy. Kiểm tra: finalize lại `align_cu` và `v2_load --ke-thua align_cu` → chạy
+  được (19 ảnh sai đều đã có kết luận bằng mắt), `truth_dev.csv` **giống hệt từng byte** bản trước khi sửa;
+  phép thử chặn trên bản sao trong scratchpad: xoá `ket_luan_mat` của 1 ảnh `sai` (0006_C2), hoặc đổi 1 ảnh
+  `dung` chưa xem thành `xem` → đều dừng, không ghi file; bản không sửa → ghi bình thường.
 - **`preprocess(path)` trả một dataclass kết quả** (chốt từ Bước 2, điền dần):
   `anh_nan` (xám, đã nắn, chưa chuẩn hoá) · `anh_chuan_hoa` (Bước 5) · `ok` · `ly_do` (mã: `thieu_marker`,
   `marker_khong_dat`, `sai_huong`, `khong_khop_bo_cuc`, `anh_mo`, …) · `marker` (toạ độ 4 tâm trên ảnh gốc,
