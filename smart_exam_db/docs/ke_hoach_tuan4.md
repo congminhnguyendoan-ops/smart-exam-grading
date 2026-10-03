@@ -141,14 +141,24 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
 
 ### Bước 2 – Khung module + `load_image()`
 - **Việc**: tạo `cv_engine/preprocessing.py` với dataclass kết quả và `load_image(path)`: đường dẫn Unicode,
-  HEIC/JPG (pillow-heif), áp EXIF Orientation, trả ảnh xám. Thêm `pillow-heif`, `psycopg`, `playwright` vào
-  `answer_sheet/requirements.txt` (đang thiếu – CLAUDE.md mục 8, mâu thuẫn 4).
+  HEIC/JPG (pillow-heif), áp EXIF Orientation, trả ảnh xám. Thêm `pillow`, `psycopg[binary]`, `playwright` vào
+  `answer_sheet/requirements.txt` (`pillow-heif` đã có sẵn; CLAUDE.md mục 8, mâu thuẫn 4). Venv: `.venv` ở gốc.
 - **Lưu ý**: mọi ảnh `data/raw/` đã có Orientation = 1 (xoay đã áp vào điểm ảnh khi chuyển HEIC→JPG), và EXIF
   gốc của 0006 **sai** (3 thay vì 6) ⇒ `load_image()` không sửa được 0006; chiều phiếu quyết định bằng nội
   dung ở Bước 4. Phần EXIF chỉ kiểm được bằng ảnh thử tự tạo.
 - **Cách đo**: ảnh thử có EXIF 1/3/6/8 (tạo trong `data/_eval/_exif/`, không ghi `data/raw/`) → ra đúng chiều
   điểm ảnh; 78 ảnh dev đọc ra giống hệt `cv2.imdecode` (so từng điểm ảnh).
 - **Xong khi**: cả hai phép trên đạt; `pip install -r requirements.txt` chạy được trên venv đang dùng.
+  Kèm: eval `v2_load` (= `load_image()` + `align()` cũ) cho số đo trùng khớp `align_cu` thì mới được thừa kế
+  kết luận bằng mắt (`finalize --ke-thua align_cu`); `report --so-voi align_cu` = 0 ảnh đổi phân loại.
+- **Kết quả (xong 03/10/2026)**: (a) `tools/kiem_load_image.py exif` → 8/8 ca đạt: EXIF 1/3/6/8 ra đúng chiều
+  (MAD 0,04–0,49 mức xám; mọi chiều sai ≥ 31), HEIC thật `IMG_4214.HEIC` không xoay 2 lần (MAD 1,08), đường dẫn
+  có dấu, file không tồn tại / hỏng → `LoiDocAnh`. (b) `kiem_load_image.py so-pixel` → **78/78** ảnh dev giống
+  từng điểm ảnh `cv2.imdecode`. (c) `v2_load`: `finalize --ke-thua align_cu` đạt, bảng giống hệt `align_cu`
+  (59 đúng / 19 lỗi im lặng / 0 từ chối), 0 ảnh đổi phân loại; `pip install --dry-run -r` không cần cài thêm gì.
+  Phép thử chặn của `--ke-thua` (bản sao trong scratchpad): làm lệch 1 số đo ở `diem_dev.csv` hoặc
+  `o_luoi_dev.csv`, hoặc 1 ảnh khác điểm ảnh → đều bị từ chối, không ghi `truth_dev.csv`; nếu máy kết luận
+  `xem` thì `finalize` thường dừng đòi kết luận bằng mắt. Bước 6 đưa phép thử này vào kiểm thử tự động.
 
 ### Bước 3 – Lọc ứng viên + chọn 4 marker theo hình học (nguyên nhân 1, 2, 3) – `v3_hinh_hoc`
 - **Việc**: lọc ứng viên (nới w/h ≈ 0,5–2,0; xem lại độ đặc / số đỉnh cho marker méo; giữ *nhiều* ứng viên);

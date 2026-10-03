@@ -269,6 +269,16 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       Phát hiện kèm theo: OMR đọc toạ độ cố định chịu lệch 1,75 mm (bubble SBD) / 2,0 mm (ô đáp án), dò lại
       từng hàng 3,0 / 3,25 mm; 0014_C2 giấy cong (lệch cục bộ 4,2 mm) ⇒ **Tuần 5: OMR phải dò lại từng hàng**.
       Nội dung lệch xuống ~+0,3 mm có hệ thống, không do `align()` (khả dĩ nhất: máy in).
+      **Bước 2 xong 03/10/2026** – `cv_engine/preprocessing.py`: `KetQuaTienXuLy`, `doc_anh()`/`load_image()`
+      (đọc byte bằng `np.fromfile` cho đường dẫn Unicode; JPG: OpenCV + tự áp EXIF; HEIC: pillow-heif, ghi
+      Orientation gốc). Kiểm tra bằng `tools/kiem_load_image.py` (chỉ ghi `data/_eval/`):
+      (a) `exif` 8/8 ca đạt – EXIF 1/3/6/8 đúng chiều (MAD 0,04–0,49; chiều sai ≥ 31), HEIC thật IMG_4214 không
+      xoay 2 lần (MAD 1,08), đường dẫn có dấu, file không tồn tại/hỏng → `LoiDocAnh`;
+      (b) `so-pixel` **78/78** ảnh dev giống từng điểm ảnh `cv2.imdecode`;
+      (c) eval `v2_load` (`load_image` + `align()` cũ): `finalize --ke-thua align_cu` đạt (số đo trùng khớp),
+      `report --so-voi align_cu` = 0 ảnh đổi phân loại (59/19/0 như bảng trên). Phép thử chặn `--ke-thua`
+      (scratchpad, 6/6 ca): lệch 1 số đo / 1 ảnh khác điểm ảnh → bị từ chối, không ghi `truth_dev.csv`.
+      Lưu ý: luật hiện tại kết luận được cả 78 ảnh (26 ảnh xem bằng mắt ở Bước 1 đều trùng máy).
 - [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
 - [ ] Backend API, frontend, luồng review cho giáo viên.
 - [ ] (Hướng phát triển) Lưu các lần giáo viên sửa làm dữ liệu train thêm (human-in-the-loop).
@@ -280,8 +290,9 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
   nếu không, tạo venv riêng Python 3.12 cho phần ML.
 - Git: đã có `.gitignore` ở gốc (loại `.venv/`, `.idea/`, `data/`, `__pycache__/`, `.env`, ảnh
   `*.png/*.jpg` trong `answer_sheet/output/`). Chưa có remote GitHub.
-- Có 2 venv: `smart_exam_db_1/.venv` và `smart_exam_db/answer_sheet/.venv` – cần xác định PyCharm
-  đang dùng cái nào để tránh cài thư viện nhầm chỗ.
+- Có 2 venv: `smart_exam_db_1/.venv` và `smart_exam_db/answer_sheet/.venv`. **Chốt 03/10/2026: dùng
+  `.venv` ở gốc** (terminal xác nhận `sys.executable` = `smart_exam_db_1\.venv\Scripts\python.exe`).
+  `answer_sheet/.idea/misc.xml` còn trỏ tới đường dẫn cũ `~\Downloads\...` – không dùng.
 - Mật khẩu DB `smartexam123` bị ghi cứng trong `00_create_database.sql`, `run_all.bat/.sh`,
   `tools/db_check.py`, `HUONG_DAN.md` – chấp nhận được khi làm local, cần lưu ý nếu công khai repo.
 - Không gửi ảnh qua Zalo/Messenger (bị nén) – chỉ chép bằng cáp hoặc Google Drive.
@@ -339,9 +350,11 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
    kết quả `update_template.sql`** (mục 6), phải chạy lại nó.
 3. ~~**Cấu trúc thư mục**: chưa chốt vị trí `preprocessing.py`.~~ **ĐÃ CHỐT 03/10/2026**:
    `smart_exam_db/cv_engine/preprocessing.py` (mục 3, mục 4).
-4. **Thư viện**: `answer_sheet/requirements.txt` chỉ có reportlab/opencv/numpy/pymupdf (ghi `>=4.0`,
-   `>=4.8`, `>=1.24`…), không có `psycopg` (cần cho `tools/db_check.py`) hay `playwright`
-   (cần cho `docs/wireframes/gen.py`). Phiên bản ở bảng mục 2 chưa đối chiếu với venv thực tế.
+4. ~~**Thư viện**: `answer_sheet/requirements.txt` thiếu `psycopg`, `playwright`.~~ **ĐÃ XỬ LÝ 03/10/2026**:
+   thêm `pillow>=12`, `psycopg[binary]>=3.2`, `playwright>=1.50` (giữ mức phiên bản cũ của các gói khác);
+   cài vào **`.venv` ở gốc** (venv chốt dùng; `answer_sheet/.venv` không dùng nữa): pillow 12.3.0,
+   pillow-heif 1.8.0, psycopg 3.3.6, playwright 1.63.0. **Chưa chạy** `playwright install chromium`
+   (chỉ cần khi sinh lại wireframe).
 
 ---
 

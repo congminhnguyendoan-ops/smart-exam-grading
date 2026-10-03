@@ -3,3 +3,7 @@ opencv-python>=4.8
 numpy>=1.24
 pymupdf>=1.23
 pillow-heif>=0.18
+pillow>=12
+psycopg[binary]>=3.2
+# Sau khi cài cần thêm: playwright install chromium (chỉ cho docs/wireframes/gen.py)
+playwright>=1.50

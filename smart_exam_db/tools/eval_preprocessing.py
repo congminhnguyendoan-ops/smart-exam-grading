@@ -26,6 +26,8 @@ Chỉ ghi vào data/_eval/, không đụng data/raw/, data/raw_digits/.
 
 Chạy (từ thư mục smart_exam_db/):
   python tools/eval_preprocessing.py run --phuong-phap align_cu --split dev
+  python tools/eval_preprocessing.py finalize --phuong-phap v2_load --ke-thua align_cu
+  python tools/eval_preprocessing.py report --phuong-phap v2_load --so-voi align_cu
 """
 import argparse
 import csv
@@ -45,7 +47,9 @@ DATA = ROOT / "data"
 EVAL_DIR = DATA / "_eval"
 sys.path.insert(0, str(ANSWER_SHEET))
 sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(ROOT))
 from check_layout import align, render_pdf_page  # noqa: E402  (không sửa check_layout.py)
+from cv_engine.preprocessing import load_image  # noqa: E402
 from prepare_photos import marker_fill  # noqa: E402
 from check_labels import SEARCH_MM, item_box, local_darkness, register  # noqa: E402
 
@@ -110,7 +114,14 @@ def align_cu(duong_dan: Path):
     return align(gray, layout), ""
 
 
-PHUONG_PHAP = {"align_cu": align_cu}
+def v2_load(duong_dan: Path):
+    """Bước 2: load_image() của cv_engine + align() cũ. Kiểm tra hồi quy: phải cho kết quả giống hệt align_cu."""
+    gray = load_image(duong_dan)                    # ném LoiDocAnh -> goi_phuong_phap() ghi là từ chối
+    layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
+    return align(gray, layout), ""
+
+
+PHUONG_PHAP = {"align_cu": align_cu, "v2_load": v2_load}
 
 
 def goi_phuong_phap(f, anh: Anh, page_px) -> tuple:
@@ -725,11 +736,46 @@ def cmd_dung_sai(a) -> None:
 
 
 # ============================================================================ lệnh finalize / report
+def kiem_ke_thua(out: Path, nguon: str) -> None:
+    """Điều kiện để thừa kế kết luận bằng mắt của phương pháp `nguon` (dừng nếu không đạt):
+    (1) so_pixel_dev.csv (tools/kiem_load_image.py so-pixel): ảnh đọc vào giống từng điểm ảnh, đủ mọi ảnh dev;
+    (2) mọi số đo trong diem_dev.csv và o_luoi_dev.csv trùng khớp với `nguon` (trừ cột phuong_phap, giay)."""
+    p = out / "so_pixel_dev.csv"
+    if not p.exists():
+        sys.exit(f"--ke-thua: thiếu {p} – chạy trước: python tools/kiem_load_image.py so-pixel")
+    px = {r["anh"]: r for r in csv.DictReader(p.open(encoding="utf-8-sig"))}
+    dev = {x.ten for x in list_images("dev")}
+    khac = sorted(t for t in dev if t not in px or px[t]["so_diem_khac"] != "0")
+    if khac:
+        sys.exit(f"--ke-thua: {len(khac)} ảnh không giống từng điểm ảnh (hoặc chưa so): {', '.join(khac)}")
+    loi = []
+    for ten_file, bo in (("diem_dev.csv", {"phuong_phap", "giay"}), ("o_luoi_dev.csv", set())):
+        moi = list(csv.DictReader((out / ten_file).open(encoding="utf-8-sig")))
+        cu = list(csv.DictReader((EVAL_DIR / nguon / ten_file).open(encoding="utf-8-sig")))
+        if len(moi) != len(cu):
+            loi.append(f"{ten_file}: {len(moi)} dòng, {nguon} có {len(cu)}")
+            continue
+        for rm, rc in zip(moi, cu):
+            lech = [k for k in rc if k not in bo and rm.get(k) != rc[k]]
+            if lech:
+                loi.append(f"{ten_file} {rc.get('anh')}: khác ở {', '.join(lech[:5])}")
+    if loi:
+        sys.exit(f"--ke-thua: số đo KHÔNG trùng khớp với {nguon} ({len(loi)} chỗ) – phải xem bằng mắt:\n  "
+                 + "\n  ".join(loi[:20]))
+    print(f"--ke-thua {nguon}: {len(dev)} ảnh giống từng điểm ảnh, mọi số đo trùng khớp -> dùng kết luận bằng mắt của {nguon}.")
+
+
 def cmd_finalize(a) -> None:
     """diem_dev.csv (kết luận tự động) + xem_bang_mat.csv (kết luận bằng mắt) -> truth_dev.csv.
-    Mắt ưu tiên hơn máy. Ảnh 'xem' chưa có kết luận bằng mắt -> dừng, không ghi file."""
+    Mắt ưu tiên hơn máy. Ảnh 'xem' chưa có kết luận bằng mắt -> dừng, không ghi file.
+    --ke-thua <pp>: lấy kết luận bằng mắt của <pp> (nguon = mat_<pp>), chỉ khi kiem_ke_thua() đạt."""
     out = EVAL_DIR / a.phuong_phap
-    mat = {r["anh"]: r for r in csv.DictReader((out / "xem_bang_mat.csv").open(encoding="utf-8-sig"))}
+    nguon_mat = "mat"
+    xem = out / "xem_bang_mat.csv"
+    if a.ke_thua:
+        kiem_ke_thua(out, a.ke_thua)
+        nguon_mat, xem = f"mat_{a.ke_thua}", EVAL_DIR / a.ke_thua / "xem_bang_mat.csv"
+    mat = {r["anh"]: r for r in csv.DictReader(xem.open(encoding="utf-8-sig"))}
     rows, thieu, lech = [], [], []
     for r in csv.DictReader((out / "diem_dev.csv").open(encoding="utf-8-sig")):
         m = mat[r["anh"]]
@@ -740,7 +786,7 @@ def cmd_finalize(a) -> None:
             ket_luan, nguon = "", "tu_dong"
             ghi_chu.append(f"từ chối: {r['ly_do']}")
         elif m["ket_luan_mat"]:
-            ket_luan, nguon = m["ket_luan_mat"], "mat"
+            ket_luan, nguon = m["ket_luan_mat"], nguon_mat
             if r["ket_luan_tu_dong"] in ("dung", "sai") and r["ket_luan_tu_dong"] != ket_luan:
                 lech.append(f"{r['anh']}: máy {r['ket_luan_tu_dong']}, mắt {ket_luan}")
                 ghi_chu.append(f"máy kết luận {r['ket_luan_tu_dong']} ({r['ly_do_tu_dong']})")
@@ -777,6 +823,16 @@ def cmd_report(a) -> None:
                                            for p, w in (("dung", 10), ("loi_im_lang", 13), ("bi_tu_choi", 12)))
               + f" {gc:10d}")
     print("(D = 10 trang chữ số D001–D010)")
+    tap = {p: {r["anh"] for r in rows if r["phan_loai"] == p} for p in ("loi_im_lang", "bi_tu_choi")}
+    for p, ten in (("loi_im_lang", "Lỗi im lặng"), ("bi_tu_choi", "Bị từ chối")):
+        print(f"{ten} ({len(tap[p])}): {', '.join(sorted(tap[p])) or '-'}")
+    if a.so_voi:
+        cu = list(csv.DictReader((EVAL_DIR / a.so_voi / "truth_dev.csv").open(encoding="utf-8-sig")))
+        cu_pl = {r["anh"]: r["phan_loai"] for r in cu}
+        moi_pl = {r["anh"]: r["phan_loai"] for r in rows}
+        doi = sorted(t for t in cu_pl.keys() | moi_pl.keys() if cu_pl.get(t) != moi_pl.get(t))
+        print(f"\nSo với {a.so_voi}: {len(doi)} ảnh đổi phân loại"
+              + "".join(f"\n  {t}: {cu_pl.get(t, '(không có)')} -> {moi_pl.get(t, '(không có)')}" for t in doi))
 
 
 # ============================================================================ lệnh tam-marker (kiểm tra B)
@@ -875,6 +931,13 @@ def main() -> None:
     for ten, h in (("finalize", "ghép kết luận máy + mắt -> truth_dev.csv"), ("report", "bảng C1–C4 + D từ truth_dev.csv")):
         t = sub.add_parser(ten, help=h)
         t.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
+        if ten == "finalize":
+            t.add_argument("--ke-thua", choices=sorted(PHUONG_PHAP), default=None,
+                           help="dùng kết luận bằng mắt của phương pháp này (chỉ khi ảnh đọc vào giống từng điểm ảnh "
+                                "VÀ mọi số đo trùng khớp)")
+        else:
+            t.add_argument("--so-voi", choices=sorted(PHUONG_PHAP), default=None,
+                           help="liệt kê ảnh đổi phân loại so với phương pháp này")
     a = ap.parse_args()
     {"run": cmd_run, "tu-kiem": cmd_tu_kiem, "dung-sai": cmd_dung_sai, "tam-marker": cmd_tam_marker,
      "finalize": cmd_finalize, "report": cmd_report}[a.lenh](a)
