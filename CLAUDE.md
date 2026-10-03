@@ -67,9 +67,11 @@ smart_exam_db/
 ├── tools/
 │   ├── db_check.py               # Kiểm tra Python ↔ PostgreSQL (psycopg), đọc DATABASE_URL, in
 │   │                             #   v_exam_summary và v_review_pending. Chạy từ smart_exam_db/
-│   └── prepare_photos.py         # Ảnh HEIC/JPG điện thoại → data/raw: plan (đổi JPG, đề xuất tên theo
-│                                 #   EXIF), preview, apply (chép), replace (thay ảnh chụp lại), measure
-│                                 #   (đo marker/độ phối cảnh). Chạy từ smart_exam_db/
+│   ├── prepare_photos.py         # Ảnh HEIC/JPG điện thoại → data/raw: plan (đổi JPG, đề xuất tên theo
+│   │                             #   EXIF), preview, apply (chép), replace (thay ảnh chụp lại), measure
+│   │                             #   (đo marker/độ phối cảnh). Chạy từ smart_exam_db/
+│   └── check_labels.py           # Cắt + đo độ tối từng câu trên ảnh thật để kiểm tra nhãn trước khi sửa
+│                                 #   ground_truth.csv → data/_prepare/label_check.html (không sửa nhãn)
 ├── answer_sheet/                 # Code phiếu trả lời + thu dữ liệu
 │   ├── sheet_layout.py           # NGUỒN DUY NHẤT của mọi toạ độ/kích thước phiếu
 │   ├── generate_sheets.py        # Vẽ PDF phiếu + trang chữ số, xuất layout.json, update_template.sql
@@ -174,6 +176,17 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       3 phiếu A/B/C đúng mong đợi, in "KẾT LUẬN: ĐÃ SỬA". Đã cài vào DB qua pgAdmin.
       Cài lại riêng hàm này: trong pgAdmin bôi đen từ dòng `CREATE OR REPLACE FUNCTION fn_process_sheet`
       đến dòng `END $$;` ngay trước comment `-- 6. fn_suggest_students` rồi F5 (không chạy cả file).
+- [x] Sửa 7 nhãn theo ghi chú người tô trên phiếu giao việc (03/10/2026), người dùng đã so với giấy thật:
+      | Phiếu | Câu | Cũ (kịch bản) | Mới (trên giấy) |
+      |---|---|---|---|
+      | 0032 | 33 | `b` (B mờ) | `B` (tô đậm thay vì mờ) |
+      | 0008 | 18 | `B` | `D` |
+      | 0021 | 5 / 6 / 11 / 12 / 14 | `D` / `B` / `D` / `a` / `B` | `B` / `D` / `A` / `B` / `C` (tô nhầm ô; câu 12 còn tô rõ thay vì mờ) |
+      Bằng chứng: `python tools/check_labels.py 0032:33 0008:18 0021:5,6,11,12,14` (ảnh C1; ô được tô có
+      độ tối 0,79–0,85, các ô khác 0,27–0,33; ảnh 0021_C2 bị bỏ vì align() nắn sai). Sửa đúng 7 ô trong
+      `ground_truth.csv` → `make_dataset_plan.py --from-csv` → `cell_labels.csv` đổi 18 dòng, chỉ ở 7 câu đó.
+      Lớp ô `faint` 262 → **260** (vẫn 4,1% / 6 400 ô); `filled` 1 307 → 1 309. Bản trước khi sửa:
+      `data/_prepare/backup/*_truoc_sua_20261003.csv`. Đã chép 2 file sang `data/`.
 
 ## 7. Việc dang dở
 
@@ -181,8 +194,12 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       4 ảnh bị loại trong `data/raw_rejected/` (`0014_C3`, `0028_C4`, `0032_C4`, `D007` – marker bị khung
       hình cắt). Quá trình ghi đầy đủ trong `data/_prepare/mapping.csv` (94 dòng, 90 tên mới, không trùng).
       Thay ảnh sau này: `prepare_photos.py measure <ảnh> --ref` → đọc mã ở `data/_prepare/measure/` → `replace`.
-- [ ] Việc thu dữ liệu KHÔNG thuộc bộ ảnh, chưa ghi nhận là đã làm: đối chiếu `ground_truth.csv` với
-      cái thực sự có trên giấy (người tô sai → sửa CSV → `make_dataset_plan.py --from-csv`), sao lưu `data/`.
+- [ ] Việc thu dữ liệu còn lại (không thuộc bộ ảnh):
+      - Nhãn: đã sửa 7 câu **theo ghi chú của người tô** (mục 6). Chưa đối chiếu từng câu của cả 40 phiếu
+        với ảnh – lỗi người tô không tự ghi chú sẽ chưa được phát hiện (sẽ lộ ra khi train/đánh giá OMR).
+        Sửa thêm: `check_labels.py` → người dùng xác nhận → sửa `answer_sheet/output/ground_truth.csv` →
+        `make_dataset_plan.py --from-csv` → chép cả 2 CSV sang `data/`.
+      - **Sao lưu `data/`** (chưa làm – `data/` không có trong git).
 - [x] Script đổi tên ảnh: `tools/prepare_photos.py` (`plan` → `preview` → `apply`). 02/10/2026 đã chép
       80 ảnh → `data/raw/`, 10 trang → `data/raw_digits/` (khớp SHA-256 với nguồn; HEIC gốc giữ nguyên).
 - [ ] **`check_photos.py` CHƯA ĐÁNG TIN cho đến khi sửa `find_markers()` ở Tuần 4**: nó báo "OK" cho
@@ -237,6 +254,11 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
   Đã kiểm chứng tên ảnh không bị ảnh hưởng (đọc tay mã phiếu + đối chiếu SBD/mã đề với `ground_truth.csv`).
   Tái tạo danh sách 23 ảnh: `python tools/prepare_photos.py preview` (in các ảnh align() không tin cậy).
   Hệ quả: `check_photos.py` sẽ lưu ảnh nắn SAI vào `_aligned/` mà báo OK cho các ảnh này.
+- **Ô TRỐNG trên ảnh thật có độ tối ~0,27–0,38** (`darkness()` của `check_layout.py`, 03/10/2026, ảnh
+  0008_C1/0021_C1/0032_C1/0008_C4) vì viền tròn + chữ A–D in sẵn nằm trong ô. Ngưỡng của `read_sheet()`
+  (> 0,25 = mờ) sẽ coi mọi ô trống là "mờ" trên ảnh thật (ảnh giả của `check_layout.py` không lộ lỗi
+  này). Ô tô rõ đo được 0,79–0,91. Lưu ý khi làm baseline/đặc trưng ở Tuần 4–5: so tương đối trong
+  hàng hoặc trừ nền ô trống, không dùng ngưỡng tuyệt đối.
 
 ### Điểm đã được người dùng chốt (30/09/2026) – `HUONG_DAN.md` lỗi thời ở các điểm này, theo CLAUDE.md
 

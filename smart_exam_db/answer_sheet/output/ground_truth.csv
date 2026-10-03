@@ -6,7 +6,7 @@
 0005,823451,101,Bút bi xanh,C1+C2,d,b,C,C,A,-,B,CD,D,B,-,B,c,C,B,C,C,D,A,BD,B,a,B,A,A,AB,B,B,C,A,C,c,D,B,CD,A,a,c,B,D
 0006,601437,102,Bút bi đen,C2+C3,D,C,c,D,D,b,C,BC,BD,C,B,A,D,D,C,c,D,-,BD,C,D,a,C,D,BD,A,a,c,B,c,C,B,A,-,B,-,B,a,B,C
 0007,259887,103,Bút chì 2B,C3+C4,C,C,C,AC,A,C,D,C,D,A,a,c,-,C,C,A,-,BD,-,-,D,B,B,B,C,d,C,D,B,B,b,a,a,C,-,C,-,b,B,b
-0008,319542,104,Bút bi xanh,C4+C1,d,d,-,-,C,AB,d,C,A,A,C,A,B,AB,b,AB,D,B,D,d,BD,D,-,D,B,a,c,b,B,b,AD,B,c,C,D,C,AD,B,C,A
+0008,319542,104,Bút bi xanh,C4+C1,d,d,-,-,C,AB,d,C,A,A,C,A,B,AB,b,AB,D,D,D,d,BD,D,-,D,B,a,c,b,B,b,AD,B,c,C,D,C,AD,B,C,A
 0009,062617,101,Bút bi đen,C1+C2,c,A,D,D,d,A,C,A,B,C,A,a,a,c,c,-,D,d,C,D,B,A,D,A,B,A,B,C,D,AB,B,-,C,a,D,A,d,A,A,B
 0010,309458,102,Bút chì 2B,C2+C3,C,B,-,A,AB,-,-,a,-,-,-,d,A,A,A,A,C,B,B,A,B,D,A,D,D,b,B,C,B,A,B,-,B,CD,C,A,D,D,C,C
 0011,257638,103,Bút bi xanh,C3+C4,A,-,B,a,D,b,D,B,C,C,C,-,A,A,C,A,BC,c,D,C,a,A,C,d,C,A,B,D,C,-,D,c,AD,C,B,D,b,D,A,A
@@ -19,7 +19,7 @@
 0018,608397,102,Bút bi đen,C2+C3,b,B,A,b,A,CD,AD,A,A,-,-,-,d,BC,C,D,-,C,D,B,-,d,A,A,B,B,d,B,B,B,B,c,B,C,B,D,a,c,A,AC
 0019,423145,103,Bút chì 2B,C3+C4,-,A,B,B,C,CD,-,-,B,-,A,b,D,B,C,D,B,D,-,d,C,B,C,c,AD,C,A,D,-,d,A,C,C,C,A,D,-,A,B,A
 0020,620798,104,Bút bi xanh,C4+C1,A,C,A,B,A,B,C,BD,A,AB,-,A,AC,b,B,d,D,A,A,B,D,C,B,D,A,B,D,D,A,D,B,A,c,D,D,D,D,B,D,-
-0021,817053,101,Bút bi đen,C1+C2,C,C,a,AD,D,B,CD,-,D,D,D,a,B,B,B,a,D,C,D,A,D,A,B,A,AD,D,-,C,D,A,b,C,D,c,D,B,A,D,-,B
+0021,817053,101,Bút bi đen,C1+C2,C,C,a,AD,B,D,CD,-,D,D,A,B,B,C,B,a,D,C,D,A,D,A,B,A,AD,D,-,C,D,A,b,C,D,c,D,B,A,D,-,B
 0022,462903,102,Bút chì 2B,C2+C3,d,C,AC,-,B,A,D,d,-,B,A,B,-,C,d,A,BC,c,B,C,D,-,B,D,b,B,A,c,A,C,C,D,-,BC,a,C,c,C,A,B
 0023,867259,103,Bút bi xanh,C3+C4,C,C,a,B,AC,D,A,A,C,c,-,A,C,-,B,B,a,c,A,BC,AB,C,A,b,B,D,d,A,C,AC,C,A,C,-,D,C,-,b,b,C
 0024,413740,104,Bút bi đen,C4+C1,B,C,C,D,a,b,D,A,-,A,D,D,D,a,C,c,D,BC,-,D,C,B,C,C,-,a,D,-,D,D,C,d,B,AD,C,B,c,AD,d,d
@@ -30,7 +30,7 @@
 0029,159024,101,Bút bi xanh,C1+C2,C,BD,D,-,B,B,-,D,C,-,B,B,B,D,b,C,A,A,B,D,A,A,c,C,A,D,C,B,-,a,D,c,B,CD,C,D,D,D,D,AD
 0030,853167,102,Bút bi đen,C2+C3,B,B,D,D,d,-,A,-,D,a,A,C,-,B,d,D,D,BD,A,D,C,a,B,C,-,-,D,-,AC,-,A,A,B,D,C,A,A,D,-,BD
 0031,182397,103,Bút chì 2B,C3+C4,B,-,c,A,a,D,C,B,C,b,C,-,B,a,-,D,c,B,D,A,B,C,A,d,-,A,A,C,c,D,A,A,D,BD,D,A,a,A,B,B
-0032,640517,104,Bút bi xanh,C4+C1,BD,D,AB,c,AB,-,A,A,C,BD,A,A,-,A,d,AD,BC,-,B,b,A,A,D,D,D,B,A,A,D,b,B,c,b,d,B,B,A,A,C,b
+0032,640517,104,Bút bi xanh,C4+C1,BD,D,AB,c,AB,-,A,A,C,BD,A,A,-,A,d,AD,BC,-,B,b,A,A,D,D,D,B,A,A,D,b,B,c,B,d,B,B,A,A,C,b
 0033,943285,101,Bút bi đen,C1+C2,-,A,AB,c,-,b,B,BC,d,C,C,A,AD,d,B,C,A,d,A,AD,AC,D,C,C,C,B,A,B,c,C,-,A,D,C,C,B,C,CD,a,-
 0034,601764,102,Bút chì 2B,C2+C3,BD,A,C,C,B,D,A,C,D,B,C,A,A,D,B,A,a,a,B,A,D,D,D,C,c,A,B,B,b,A,B,C,A,C,D,D,AD,C,D,D
 0035,982350,103,Bút bi xanh,C3+C4,d,C,D,D,B,A,D,-,C,BC,-,A,B,B,C,C,D,-,D,C,A,C,a,D,A,C,-,C,B,AC,d,A,D,BC,B,c,d,B,A,A
