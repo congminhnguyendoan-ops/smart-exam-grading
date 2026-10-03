@@ -6,9 +6,17 @@ Chạy:  python make_dataset_plan.py              (mặc định 40 phiếu, kh�
        python make_dataset_plan.py --count 60 --seed 7
 
 Đầu ra (output/):
-  ground_truth.csv     1 dòng / phiếu: SBD, mã đề, 40 câu, bút, điều kiện chụp
-  cell_labels.csv      1 dòng / ô tròn (40 câu x 4 ô x N phiếu) + nhãn blank/filled/faint
+  ground_truth.csv     1 dòng / phiếu: SBD, mã đề (viết tay), sbd_bubble, exam_code_bubble (ô tô),
+                       40 câu, bút, điều kiện chụp
+  cell_labels.csv      1 dòng / ô tròn + nhãn blank/filled/faint:
+                       - ô đáp án: question = 1..40, option = A..D  (40 x 4 ô / phiếu)
+                       - ô SBD/mã đề: question = sbd1..sbd6 / exam_code1..exam_code3, option = 0..9
+                         (10 ô / chữ số); question_state = filled, hoặc blank nếu chữ số đó không tô
+                       Lọc ô đáp án cho OMR: question là số.
   phieu_giao_viec.pdf  in ra, đặt cạnh phiếu cùng mã khi tô (2 phiếu giao việc / trang A4)
+
+sbd_bubble / exam_code_bubble: chữ số được TÔ ở từng cột bubble; '-' = cột đó không tô ô nào (người tô
+quên, vd 0001 SBD chữ số 6, 0035 cả mã đề - 03/10/2026). Phiếu bình thường: giống số viết tay.
 
 Ký hiệu trong kịch bản:
   B   = tô KÍN ô B                     (filled)
@@ -82,6 +90,8 @@ def make_plan(n, seed):
             "sheet_id": f"{i:04d}",
             "sbd": sbd,
             "exam_code": code,
+            "sbd_bubble": sbd,              # kịch bản: tô đúng số viết tay
+            "exam_code_bubble": code,
             "pen": PENS[(i - 1) % len(PENS)],
             "conditions": f"{cond_keys[(i - 1) % 4]}+{cond_keys[i % 4]}",   # mỗi phiếu chụp 2 lần
             "answers": answers,
@@ -107,12 +117,26 @@ def cell_label(a, opt):
     return "faint" if a.islower() else "filled"
 
 
+def bubble_rows(p):
+    """Dòng cell_labels cho bubble SBD/mã đề: ô của chữ số được tô = filled, còn lại blank."""
+    for field in ("sbd", "exam_code"):
+        bubbles = p[f"{field}_bubble"]
+        if len(bubbles) != len(p[field]) or any(ch not in "0123456789-" for ch in bubbles):
+            raise ValueError(f"phiếu {p['sheet_id']}: {field}_bubble '{bubbles}' sai định dạng")
+        for i, ch in enumerate(bubbles, 1):
+            for digit in "0123456789":
+                yield [p["sheet_id"], f"{field}{i}", digit, "filled" if ch == digit else "blank",
+                       "blank" if ch == "-" else "filled"]
+
+
 def write_csvs(plan, out):
     with open(os.path.join(out, "ground_truth.csv"), "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
-        w.writerow(["sheet_id", "sbd", "exam_code", "pen", "conditions"] + [f"q{q}" for q in range(1, 41)])
+        w.writerow(["sheet_id", "sbd", "exam_code", "sbd_bubble", "exam_code_bubble", "pen", "conditions"]
+                   + [f"q{q}" for q in range(1, 41)])
         for p in plan:
-            w.writerow([p["sheet_id"], p["sbd"], p["exam_code"], p["pen"], p["conditions"]] + p["answers"])
+            w.writerow([p["sheet_id"], p["sbd"], p["exam_code"], p["sbd_bubble"], p["exam_code_bubble"],
+                        p["pen"], p["conditions"]] + p["answers"])
     with open(os.path.join(out, "cell_labels.csv"), "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
         w.writerow(["sheet_id", "question", "option", "cell_label", "question_state"])
@@ -120,6 +144,8 @@ def write_csvs(plan, out):
             for q, a in enumerate(p["answers"], 1):
                 for opt in L.OPTIONS:
                     w.writerow([p["sheet_id"], q, opt, cell_label(a, opt), answer_state(a)])
+        for p in plan:                      # sau toàn bộ ô đáp án: các dòng cũ giữ nguyên thứ tự
+            w.writerows(bubble_rows(p))
 
 
 def draw_task(c, p, top_mm):
@@ -178,7 +204,9 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     if a.from_csv:
         with open(os.path.join(a.out, "ground_truth.csv"), encoding="utf-8-sig") as f:
-            plan = [{**r, "answers": [r[f"q{q}"] for q in range(1, 41)]} for r in csv.DictReader(f)]
+            # ground_truth.csv cũ (trước 03/10/2026) chưa có cột *_bubble -> coi như tô đúng số viết tay
+            plan = [{"sbd_bubble": r["sbd"], "exam_code_bubble": r["exam_code"], **r,
+                     "answers": [r[f"q{q}"] for q in range(1, 41)]} for r in csv.DictReader(f)]
         write_csvs(plan, a.out)
         print(f"Đã sinh lại cell_labels.csv từ ground_truth.csv ({len(plan)} phiếu)")
         return

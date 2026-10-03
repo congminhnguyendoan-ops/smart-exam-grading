@@ -69,9 +69,13 @@ smart_exam_db/
 │   │                             #   v_exam_summary và v_review_pending. Chạy từ smart_exam_db/
 │   ├── prepare_photos.py         # Ảnh HEIC/JPG điện thoại → data/raw: plan (đổi JPG, đề xuất tên theo
 │   │                             #   EXIF), preview, apply (chép), replace (thay ảnh chụp lại), measure
-│   │                             #   (đo marker/độ phối cảnh). Chạy từ smart_exam_db/
-│   └── check_labels.py           # Cắt + đo độ tối từng câu trên ảnh thật để kiểm tra nhãn trước khi sửa
-│                                 #   ground_truth.csv → data/_prepare/label_check.html (không sửa nhãn)
+│   │                             #   (đo marker/độ phối cảnh), verify-ids (đọc "Mã phiếu" in sẵn trên 80
+│   │                             #   ảnh, không qua align() → verify_ids.html). Chạy từ smart_exam_db/
+│   ├── check_labels.py           # <câu...>: cắt + đo từng câu → label_check.html. `audit`: quét cả 40
+│   │                             #   phiếu (40 câu + bubble SBD/mã đề) so với nhãn → label_audit.html/.csv,
+│   │                             #   nhóm A (nhầm/thiếu/thừa ô, SBD lệch) / B (rõ↔mờ). Không sửa nhãn
+│   └── check_task_pdf.py         # Trích phieu_giao_viec.pdf, so với ground_truth.csv hiện tại, commit đầu
+│                                 #   399d48c và make_plan(seed 2026). Không sửa gì
 ├── answer_sheet/                 # Code phiếu trả lời + thu dữ liệu
 │   ├── sheet_layout.py           # NGUỒN DUY NHẤT của mọi toạ độ/kích thước phiếu
 │   ├── generate_sheets.py        # Vẽ PDF phiếu + trang chữ số, xuất layout.json, update_template.sql
@@ -91,8 +95,11 @@ smart_exam_db/
 │       ├── layout.json           # Toạ độ pixel @300 DPI của phiếu
 │       ├── digit_sheet_layout.json
 │       ├── update_template.sql   # Ghi layout vào bảng sheet_templates
-│       ├── ground_truth.csv      # Nhãn cấp phiếu (SBD, mã đề, 40 câu, bút, điều kiện chụp)
-│       ├── cell_labels.csv       # Nhãn cấp ô (blank/filled/faint) + question_state
+│       ├── ground_truth.csv      # Nhãn cấp phiếu: SBD, mã đề (viết tay), sbd_bubble, exam_code_bubble
+│       │                         #   (chữ số TÔ; '-' = cột không tô), bút, điều kiện chụp, 40 câu
+│       ├── cell_labels.csv       # Nhãn cấp ô (blank/filled/faint) + question_state. 6 400 dòng ô đáp án
+│       │                         #   (question 1–40, option A–D) rồi 3 600 dòng bubble (question sbd1–6 /
+│       │                         #   exam_code1–3, option 0–9). OMR: lọc question là số
 │       └── preview_phieu.png
 └── data/                         # Không push lên GitHub (.gitignore) – chỉ có trên máy, cần sao lưu
     ├── raw_heic/                 # Ảnh gốc từ điện thoại IMG_xxxx (.HEIC; ảnh chụp lại là .JPG) – không sửa
@@ -187,6 +194,24 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       `ground_truth.csv` → `make_dataset_plan.py --from-csv` → `cell_labels.csv` đổi 18 dòng, chỉ ở 7 câu đó.
       Lớp ô `faint` 262 → **260** (vẫn 4,1% / 6 400 ô); `filled` 1 307 → 1 309. Bản trước khi sửa:
       `data/_prepare/backup/*_truoc_sua_20261003.csv`. Đã chép 2 file sang `data/`.
+- [x] **Quét nhãn cả 40 phiếu + sửa lần 2 (03/10/2026)**:
+      - **Ảnh tráo tên**: `0002_C3` ↔ `0003_C3` (IMG_4219 / IMG_4218; người chụp chụp 0003 trước 0002) → đã
+        đổi tên, ghi `mapping.csv` (bản cũ `backup/mapping_truoc_doi_ten_20261003.csv`). `prepare_photos.py
+        verify-ids`: 51/80 ảnh tự động khớp chắc chắn, 29 ảnh còn lại (C2 tối, C3 chữ nhỏ, 0006 nằm ngang)
+        đọc bằng mắt → **80/80 khớp tên file**.
+      - **Phiếu giao việc** (`check_task_pdf.py`): PDF = `make_plan(seed 2026)` = `ground_truth.csv` commit đầu
+        (0 lệch). Lệch với bản hiện tại đúng 10 ô = các nhãn sửa có chủ đích (7 lần 1 + 3 lần 2).
+      - **Audit** (`check_labels.py audit`): độ tối so với nền giấy quanh từng ô, dò lại vị trí từng hàng ±4 mm,
+        thang tương đối theo từng ảnh. Ô trống p99 = 0,06, ô mờ p1 = 0,26 (tách rõ); mờ/rõ chồng lấn (mờ p95
+        0,85, rõ p5 0,88). Quét 38/40 phiếu (không quét được 0006, 0018 – xem mục 8).
+      - Người dùng so giấy rồi sửa: **0022 câu 20** `C`→`B` (người tô tô nhầm); **0011 câu 17** `BC`→`B` (quên tô
+        C, chỉ có 1 chấm); **0021 câu 3** `a`→`A` (tô rõ). **Thêm cột `sbd_bubble`, `exam_code_bubble`**:
+        0001 SBD viết `062384` nhưng chữ số 6 không tô → `06238-`; 0035 mã đề viết `103`, không tô ô nào → `---`.
+        `make_dataset_plan.py` ghi thêm 3 600 dòng bubble vào `cell_labels.csv` (356 filled, 4 cột không tô).
+      - Giữ nguyên (người dùng quyết): 0020 câu 33, 0033 câu 4 (sát ngưỡng) và toàn bộ 52 mục nhóm B (rõ↔mờ).
+      - Ô đáp án: `faint` 260 → **259** (4,0%), `filled` 1 309, `blank` 4 832; `cell_labels.csv` đổi 10 dòng ô
+        đáp án, chỉ ở 3 câu. Bản trước khi sửa: `backup/*_truoc_sua_20261003_lan2.csv`. Đã chép sang `data/`.
+        Sau khi sửa, audit chỉ còn 2 mục nhóm A (0020:33, 0033:4); `check_layout.py` vẫn KHỚP.
 
 ## 7. Việc dang dở
 
@@ -195,8 +220,9 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       hình cắt). Quá trình ghi đầy đủ trong `data/_prepare/mapping.csv` (94 dòng, 90 tên mới, không trùng).
       Thay ảnh sau này: `prepare_photos.py measure <ảnh> --ref` → đọc mã ở `data/_prepare/measure/` → `replace`.
 - [ ] Việc thu dữ liệu còn lại (không thuộc bộ ảnh):
-      - Nhãn: đã sửa 7 câu **theo ghi chú của người tô** (mục 6). Chưa đối chiếu từng câu của cả 40 phiếu
-        với ảnh – lỗi người tô không tự ghi chú sẽ chưa được phát hiện (sẽ lộ ra khi train/đánh giá OMR).
+      - Nhãn: đã quét 38/40 phiếu bằng `check_labels.py audit` và sửa (mục 6). **Chưa quét: 0006, 0018**
+        (không có ảnh nắn đúng) và nhóm B (rõ↔mờ) chưa đối chiếu từng mục – lỗi còn lại sẽ lộ ra khi
+        train/đánh giá OMR. Chạy lại audit khi Tuần 4 có `preprocessing.py` nắn được 0006/0018.
         Sửa thêm: `check_labels.py` → người dùng xác nhận → sửa `answer_sheet/output/ground_truth.csv` →
         `make_dataset_plan.py --from-csv` → chép cả 2 CSV sang `data/`.
       - **Sao lưu `data/`** (chưa làm – `data/` không có trong git).
@@ -254,6 +280,11 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
   Đã kiểm chứng tên ảnh không bị ảnh hưởng (đọc tay mã phiếu + đối chiếu SBD/mã đề với `ground_truth.csv`).
   Tái tạo danh sách 23 ảnh: `python tools/prepare_photos.py preview` (in các ảnh align() không tin cậy).
   Hệ quả: `check_photos.py` sẽ lưu ảnh nắn SAI vào `_aligned/` mà báo OK cho các ảnh này.
+  **Phép kiểm tra marker của `check_align()` (ngưỡng 0,5) cũng lọt ảnh sai** (phát hiện 03/10/2026):
+  `0013_C2` (đen 68%) và `0018_C2` (83%) nắn sai – góc trên trái bắt vào ô đã tô của tờ khác lọt vào khung.
+  Mọi ảnh nắn đúng đều đen 100% → `check_labels.py audit` dùng ngưỡng 0,95 và loại thêm ảnh có thang S < 0,15
+  (ô "tô rõ" theo nhãn lại trống = ảnh sai tên/nắn sai). Tuần 4 nên dùng ngưỡng chặt như vậy.
+  `marker_centers()` (lệnh measure/verify-ids) cũng bắt nhầm marker ở vài ảnh C2 tối – không thay được align().
 - **Ô TRỐNG trên ảnh thật có độ tối ~0,27–0,38** (`darkness()` của `check_layout.py`, 03/10/2026, ảnh
   0008_C1/0021_C1/0032_C1/0008_C4) vì viền tròn + chữ A–D in sẵn nằm trong ô. Ngưỡng của `read_sheet()`
   (> 0,25 = mờ) sẽ coi mọi ô trống là "mờ" trên ảnh thật (ảnh giả của `check_layout.py` không lộ lỗi

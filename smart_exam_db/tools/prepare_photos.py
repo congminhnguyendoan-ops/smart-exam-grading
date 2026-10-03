@@ -38,6 +38,11 @@ Chạy (từ thư mục smart_exam_db/):
   python tools/prepare_photos.py apply
   python tools/prepare_photos.py replace --src data/raw_heic/IMG_4357.JPG --name 0028_C4.jpg --reason "..."
   python tools/prepare_photos.py measure data/raw_heic/IMG_4379.JPG --ref
+  python tools/prepare_photos.py verify-ids
+
+Lệnh `verify-ids`: đọc "Mã phiếu" in sẵn trên cả 80 ảnh data/raw, so với tên file (phát hiện ảnh tráo tên,
+  vd 0002_C3 <-> 0003_C3 phát hiện 03/10/2026). Nắn bằng marker_centers() (không qua align()), thử 4
+  chiều, so vùng 2 chữ số cuối với 40 trang phieu_danh_so.pdf -> data/_prepare/verify_ids.html.
 """
 import argparse
 import base64
@@ -537,6 +542,143 @@ def cmd_measure(a) -> None:
                   f"trung vị {np.median(vals):.2f}  max {max(vals):.2f}")
 
 
+# ---------------------------------------------------------------- lệnh verify-ids (đọc mã phiếu in sẵn)
+ID_SEARCH_MM = 6.0          # giấy cong / marker_centers lệch -> tìm mã phiếu trong ±6 mm
+# Kết quả tự động chỉ tin khi: chữ 'Mã phiếu: 00' khớp tốt (nắn đúng chỗ) VÀ mỗi chữ số hơn hẳn chữ số thứ
+# hai. Ngược lại (marker_centers bắt nhầm marker ở ảnh tối C2; ảnh C3 chữ quá nhỏ, nhầm 4/5) -> đọc bằng mắt.
+ID_MIN_ANCHOR, ID_MIN_MARGIN = 0.70, 0.10
+
+
+def id_templates(layout) -> dict:
+    """Mẫu từ 40 trang phieu_danh_so.pdf (@ dpi của layout):
+    - anchor: phần chữ chung 'Mã phiếu: 00' (giống nhau mọi trang) để định vị;
+    - tens/units: ảnh chữ số hàng chục (0-4) và hàng đơn vị (0-9), tách đôi vùng các trang khác nhau.
+    Nhận diện TỪNG chữ số: so cả cụm '0001' với '0011' chỉ chênh 0,02 (thử 03/10/2026), không phân biệt được."""
+    doc = pymupdf.open(ANSWER_SHEET / "output" / "phieu_danh_so.pdf")
+    px_mm = layout["dpi"] / 25.4
+    x0, y0, x1, y1 = (round(v * px_mm) for v in CODE_BOX_MM)
+    pages = []
+    for page in doc:
+        pix = page.get_pixmap(dpi=layout["dpi"], colorspace=pymupdf.csGRAY)
+        pages.append(np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width)[y0:y1, x0:x1].copy())
+    diff = np.zeros_like(pages[0], dtype=bool)
+    for p in pages[1:]:
+        diff |= np.abs(p.astype(int) - pages[0]) > 60
+    ys, xs = np.nonzero(diff)
+    pad = round(0.3 * px_mm)
+    dy0, dy1, dx0, dx1 = ys.min() - pad, ys.max() + pad, xs.min() - pad, xs.max() + pad
+    mid = (dx0 + dx1) // 2                                   # chữ số DejaVu Bold rộng bằng nhau
+    ink = np.nonzero((pages[0] < 128).any(axis=0))[0]         # cột có mực: từ chữ 'M' tới hết số
+    anchor = (int(ink.min()) - pad, dy0, dx0, dy1)            # 'Mã phiếu: 00'
+    blur = lambda im: cv2.GaussianBlur(im, (5, 5), 0)         # noqa: E731  ảnh chụp luôn hơi mờ
+    return {
+        "page_box": (x0, y0),
+        "anchor_box": anchor,
+        "anchor": blur(pages[0][anchor[1]:anchor[3], anchor[0]:anchor[2]]),
+        "tens_box": (dx0, dy0, mid, dy1), "units_box": (mid, dy0, dx1, dy1),
+        "tens": {t: blur(pages[max(t * 10, 1) - 1][dy0:dy1, dx0:mid]) for t in range(5)},
+        "units": {u: blur(pages[(u or 10) - 1][dy0:dy1, mid:dx1]) for u in range(10)},
+    }
+
+
+def best_digit(win, temps: dict) -> tuple:
+    """(chữ số khớp nhất, điểm, điểm chữ số thứ hai) – so trong cửa sổ nhỏ quanh vị trí chữ số."""
+    sc = {d: float(cv2.matchTemplate(win, t, cv2.TM_CCOEFF_NORMED).max()) for d, t in temps.items()}
+    order = sorted(sc, key=sc.get, reverse=True)
+    return order[0], sc[order[0]], sc[order[1]]
+
+
+def read_sheet_id(gray, layout, tp, sheet_template) -> dict:
+    """Nắn bằng marker_centers() (KHÔNG dùng align()); chiều xoay chọn bằng NCC cả trang với mẫu phiếu
+    (ảnh có thể nằm ngang/ngược); định vị bằng chữ 'Mã phiếu: 00' rồi đọc từng chữ số."""
+    m = marker_centers(gray)
+    if len(m) < 4:
+        return {"error": f"chỉ tìm thấy {len(m)}/4 marker"}
+    dst = np.float32([layout["markers"]["centers"][c] for c in CORNERS])
+    best = None
+    for k in range(4):
+        src = np.float32([m[CORNERS[(i + k) % 4]]["center"] for i in range(4)])
+        page = cv2.warpPerspective(gray, cv2.getPerspectiveTransform(src, dst), tuple(layout["page_px"]))
+        score = float((ncc_prep(page) * sheet_template).sum())
+        if best is None or score > best[0]:
+            best = (score, k, page)
+    _, k, page = best
+    px0, py0 = tp["page_box"]
+    s = round(ID_SEARCH_MM * layout["dpi"] / 25.4)
+    ax0, ay0, ax1, ay1 = tp["anchor_box"]
+    wx0, wy0 = px0 + ax0 - s, py0 + ay0 - s
+    win = page[wy0:py0 + ay1 + s, wx0:px0 + ax1 + s]
+    res = cv2.matchTemplate(win, tp["anchor"], cv2.TM_CCOEFF_NORMED)
+    _, anchor_score, _, (bx, by) = cv2.minMaxLoc(res)
+    dx, dy = wx0 + bx - (px0 + ax0), wy0 + by - (py0 + ay0)     # độ lệch so với vị trí lý thuyết
+    out = {"k": k, "anchor": anchor_score}
+    e = 4                                                        # px tìm thêm quanh từng chữ số
+    for key in ("tens", "units"):
+        x0, y0, x1, y1 = tp[f"{key}_box"]
+        sub = page[py0 + y0 + dy - e:py0 + y1 + dy + e, px0 + x0 + dx - e:px0 + x1 + dx + e]
+        out[key] = best_digit(sub, tp[key])
+    out["id"] = f"00{out['tens'][0]}{out['units'][0]}"
+    out["margin"] = min(out["tens"][1] - out["tens"][2], out["units"][1] - out["units"][2])
+    out["crop"] = page[py0 + ay0 + dy - s:py0 + ay1 + dy + s, px0 + ax0 + dx - s:px0 + tp["units_box"][2] + dx + s]
+    return out
+
+
+def cmd_verify_ids(a) -> None:
+    layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
+    tp = id_templates(layout)
+    sheet_template = load_templates()["sheet"]
+    out_dir = Path(a.work) / "verify_ids"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for old in out_dir.glob("*.jpg"):
+        old.unlink()
+    rows = []                                   # (tên, mã theo tên file, trạng thái, mô tả)
+    for p in sorted(Path(a.raw).glob("*.jpg")):
+        mt = SHEET_NAME_RE.match(p.name)
+        if not mt:
+            continue
+        gray = cv2.imdecode(np.fromfile(p, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+        r = read_sheet_id(gray, layout, tp, sheet_template)
+        if "error" not in r and r["anchor"] >= ID_MIN_ANCHOR and r["margin"] >= ID_MIN_MARGIN:
+            status = "khop" if r["id"] == mt.group(1) else "LECH"
+            cv2.imencode(".jpg", r["crop"])[1].tofile(out_dir / p.name)
+            info = (f"đọc {r['id']} (neo {r['anchor']:.2f}; chục {r['tens'][1]:.2f}, đơn vị {r['units'][1]:.2f}; "
+                    f"hơn chữ số thứ hai ≥ {r['margin']:.2f})")
+        else:
+            status = "mat"
+            why = r.get("error") or (f"tự động đọc {r['id']} nhưng không chắc (neo {r['anchor']:.2f}, "
+                                     f"hơn chữ số thứ hai {r['margin']:.2f})")
+            # Ảnh GỐC, không nắn: phần trên để đọc "Mã phiếu" bằng mắt. Ảnh nằm ngang (0006_C2/C3) không
+            # biết dựng theo chiều nào -> ghép cả 2 chiều xoay 90° cạnh nhau.
+            ups = [gray] if gray.shape[0] >= gray.shape[1] else [np.rot90(gray, 1), np.rot90(gray, -1)]
+            crops = [u[: int(u.shape[0] * 0.3), int(u.shape[1] * 0.35):] for u in ups]
+            cv2.imencode(".jpg", np.ascontiguousarray(np.hstack(crops)))[1].tofile(out_dir / p.name)
+            info = f"CẦN ĐỌC BẰNG MẮT – {why}"
+        print(f"{p.name}: {info}" + ("  -> LỆCH – NGHI TRÁO TÊN" if status == "LECH" else ""))
+        rows.append((p.name, mt.group(1), status, info))
+
+    count = {s: sum(r[2] == s for r in rows) for s in ("khop", "LECH", "mat")}
+    print(f"\nTự động chắc chắn: {count['khop']} ảnh khớp tên file, {count['LECH']} ảnh LỆCH "
+          f"({', '.join(r[0] for r in rows if r[2] == 'LECH') or 'không có'}); "
+          f"{count['mat']} ảnh cần đọc bằng mắt: {', '.join(r[0] for r in rows if r[2] == 'mat')}")
+    title = {"LECH": "LỆCH tên file – nghi tráo tên", "mat": "Cần đọc bằng mắt (ảnh gốc, không nắn)",
+             "khop": "Tự động: khớp tên file"}
+    parts = []
+    for s in ("LECH", "mat", "khop"):
+        cells = "".join(f"<div class='c {s}'><b>{n}</b><br><small>{html.escape(info)}</small>"
+                        f"<img src='verify_ids/{n}'></div>" for n, _, st, info in rows if st == s)
+        parts.append(f"<h3>{title[s]} ({count[s]} ảnh)</h3>{cells or '<p>Không có.</p>'}")
+    page = Path(a.work) / "verify_ids.html"
+    page.write_text(f"""<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Mã phiếu 80 ảnh</title>
+<style>body{{font-family:Segoe UI,Arial,sans-serif;margin:16px}} .c{{display:inline-block;margin:6px;padding:4px;
+border:1px solid #ccc;vertical-align:top;max-width:440px}} .LECH{{border:3px solid #c00}} .mat{{border:2px solid #d80}}
+img{{max-width:430px;display:block}}</style>
+</head><body><h2>Mã phiếu in trên 80 ảnh so với tên file (không qua align())</h2>
+<p>Tự động: nắn bằng marker_centers(), đọc từng chữ số. Chỉ tin khi neo 'Mã phiếu' ≥ {ID_MIN_ANCHOR} và mỗi
+chữ số hơn chữ số thứ hai ≥ {ID_MIN_MARGIN}; còn lại cắt từ ảnh gốc để đọc bằng mắt.</p>
+{''.join(parts)}</body></html>""", encoding="utf-8")
+    print(f"Trang xem bằng mắt: {page}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Chuẩn bị ảnh dữ liệu từ HEIC")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -566,9 +708,12 @@ def main() -> None:
     p.add_argument("--ref", action="store_true", help="In thêm khoảng độ phối cảnh C1/C3 của data/raw")
     p.add_argument("--work", default=ROOT / "data" / "_prepare")
     p.add_argument("--raw", default=ROOT / "data" / "raw")
+    p = sub.add_parser("verify-ids", help="Đọc 'Mã phiếu' in sẵn trên mọi ảnh data/raw, so với tên file")
+    p.add_argument("--work", default=ROOT / "data" / "_prepare")
+    p.add_argument("--raw", default=ROOT / "data" / "raw")
     a = ap.parse_args()
     {"plan": cmd_plan, "preview": cmd_preview, "apply": cmd_apply, "replace": cmd_replace,
-     "measure": cmd_measure}[a.cmd](a)
+     "measure": cmd_measure, "verify-ids": cmd_verify_ids}[a.cmd](a)
 
 
 if __name__ == "__main__":
