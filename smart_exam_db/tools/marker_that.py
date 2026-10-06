@@ -549,6 +549,256 @@ def cmd_khao_sat(a) -> None:
     print(f"\nĐã ghi {OUT / 'dac_trung_moi_dev.csv'} ({len(rows)} vết mực)")
 
 
+# ============================================================================ Bước 3c: bộ 4 theo hình học
+def nap_layout() -> dict:
+    import json
+    from eval_preprocessing import ANSWER_SHEET
+    return json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
+
+
+def cmd_khao_sat_bo_4(a) -> None:
+    """Căn cứ ngưỡng K2–K4: mọi bộ 4 trong top-K ứng viên của 78 ảnh dev; bộ 'thật' = đúng 4 marker của
+    marker_that_dev.csv. Báo xấu nhất / biên / loại riêng, cách gán (xoay) được chọn, K4 cách gán tốt nhất vs cặp
+    vuông góc. Ghi data/_eval/marker_that/bo_4_dev.csv."""
+    import cv_engine.preprocessing as pp
+    from collections import Counter, defaultdict
+    layout, that = nap_layout(), doc_marker_that()
+    rows, lech_tam = [], []
+    for anh in list_images("dev"):
+        g = load_image(anh.duong_dan)
+        uv = pp.tim_ung_vien_marker(g)[:pp.K_UNG_VIEN]
+        idx = ghep(np.array([(u.x, u.y) for u in uv]).reshape(-1, 2), that[anh.ten])
+        bo_that = set(idx) if None not in idx else None
+        for j in idx:
+            if j is not None:
+                lech_tam.append(np.hypot(uv[j].x - uv[j].tam[0], uv[j].y - uv[j].tam[1]))
+        for bo in itertools.combinations(range(len(uv)), 4):
+            ket = pp.do_bo_4([uv[i] for i in bo], layout)
+            gan, vg = pp.chon_cach_gan(ket)
+            cg = ket["cach_gan"]
+            rows.append({"anh": anh.ten, "dieu_kien": anh.dieu_kien, "bo": " ".join(map(str, bo)),
+                         "that": int(bo_that == set(bo)), "loi": int(ket["loi"]), "phoi_canh": ket["phoi_canh"],
+                         "xoay": gan["xoay"], "co_min": gan["co_min"], "co_max": gan["co_max"], "dinh_mm": gan["dinh_mm"],
+                         "dinh_mm_vuong_goc": vg,
+                         "lech_doi_xung_mm": abs(cg[gan["xoay"]]["dinh_mm"] - cg[(gan["xoay"] + 2) % 4]["dinh_mm"]),
+                         "cham_mep": int(any(uv[i].cham_mep for i in bo))})
+        print(f"{anh.ten:8s} {len(uv)} ứng viên, {sum(r['anh'] == anh.ten for r in rows)} bộ 4", flush=True)
+    ghi_csv_moi(OUT / "bo_4_dev.csv", rows)
+
+    T = [r for r in rows if r["that"]]
+    O = [r for r in rows if not r["that"]]
+    print(f"\n=== {len(T)} bộ thật / {len(set(r['anh'] for r in rows))} ảnh; {len(O)} bộ khác")
+    print(f"Tâm chéo vs centroid (marker thật): trung vị {np.median(lech_tam):.2f} px, max {max(lech_tam):.2f} px")
+    print(f"K1 lồi: bộ thật {sum(r['loi'] for r in T)}/{len(T)}; bộ khác lồi {sum(r['loi'] for r in O)}/{len(O)}")
+    print(f"Cách gán chọn cho bộ thật: {dict(Counter(r['xoay'] for r in T))} – xoay ≠ 0: "
+          + ", ".join(f"{r['anh']} ({r['xoay']})" for r in T if r["xoay"] != 0))
+    print(f"Lệch K4 giữa cách gán r và r+2 (đối xứng 180°) của bộ thật: max {max(r['lech_doi_xung_mm'] for r in T):.3f} mm")
+
+    tieu_chi = [("phoi_canh", "min", pp.PHOI_CANH_MIN), ("co_min", "min", pp.CO_MIN), ("co_max", "max", pp.CO_MAX),
+                ("dinh_mm", "max", pp.DINH_MAX_MM)]
+    qua = lambda r, k, h, v: (r[k] >= v) if h == "min" else (r[k] <= v)
+    print("\n=== Ngưỡng (xấu nhất của bộ thật, biên, bộ khác (lồi) bị loại nhờ RIÊNG tiêu chí này)")
+    for k, h, v in tieu_chi:
+        xs = [r[k] for r in T]
+        xau = (min if h == "min" else max)(T, key=lambda r: r[k])
+        con = [r for r in O if r["loi"] and all(qua(r, k2, h2, v2) for k2, h2, v2 in tieu_chi if k2 != k)]
+        loai = sum(not qua(r, k, h, v) for r in con)
+        lo = [r for r in O if r["loi"]]
+        mot_minh = sum(not qua(r, k, h, v) for r in lo)
+        tot_nhat_khac = (max if h == "min" else min)(lo, key=lambda r: r[k])
+        bien = (xau[k] - v) if h == "min" else (v - xau[k])
+        ti = f" (×{xau[k] / v:.2f})" if h == "min" else f" (×{v / xau[k]:.2f})"
+        print(f"{k:10s} {'≥' if h == 'min' else '≤'} {v:.3f}: xấu nhất {xau[k]:.3f} ({xau['anh']}), biên {bien:+.3f}{ti}"
+              f" | p50 thật {np.median(xs):.3f} | loại riêng {loai}/{len(con)} | loại một mình {mot_minh}/{len(lo)}"
+              f" (bộ khác tốt nhất {tot_nhat_khac[k]:.3f}, {tot_nhat_khac['anh']})")
+    dat = [r for r in O if r["loi"] and all(qua(r, k, h, v) for k, h, v in tieu_chi)]
+    print(f"\nBộ KHÁC đạt mọi tiêu chí: {len(dat)}" + "".join(
+        f"\n  {r['anh']} bộ [{r['bo']}] pc {r['phoi_canh']:.3f} cỡ {r['co_min']:.3f}–{r['co_max']:.3f} "
+        f"K4 {r['dinh_mm']:.2f} mm (vuông góc {r['dinh_mm_vuong_goc']:.2f})" for r in dat))
+    # bộ khác gần đạt nhất theo K4 (để thấy biên phía bộ khác)
+    gan = sorted([r for r in O if r["loi"] and all(qua(r, k, h, v) for k, h, v in tieu_chi[:3])], key=lambda r: r["dinh_mm"])[:5]
+    print("Bộ khác qua K1–K3, K4 nhỏ nhất: " + "; ".join(f"{r['anh']} [{r['bo']}] {r['dinh_mm']:.2f} mm" for r in gan))
+    theo_anh = defaultdict(int)
+    for r in T + dat:
+        theo_anh[r["anh"]] += int(r["loi"] and all(qua(r, k, h, v) for k, h, v in tieu_chi))
+    print("Ảnh có số bộ đạt ≠ 1: " + (", ".join(f"{k} ({v})" for k, v in sorted(theo_anh.items()) if v != 1) or "không")
+          + f"; ảnh có 0 bộ đạt: {', '.join(sorted({r['anh'] for r in T} - set(theo_anh))) or 'không'}")
+    print("\n=== K4 (mm) từng ảnh: cách gán tốt nhất / cặp vuông góc tốt nhất (tỉ số)")
+    print("  ".join(f"{r['anh']} {r['dinh_mm']:.2f}/{r['dinh_mm_vuong_goc']:.1f}" + (f"[x{r['xoay']}]" if r["xoay"] else "")
+                    for r in T))
+    ts = [r["dinh_mm_vuong_goc"] - r["dinh_mm"] for r in T]
+    print(f"Khoảng cách vuông góc − tốt nhất: min {min(ts):.2f} mm ({T[int(np.argmin(ts))]['anh']}), trung vị {np.median(ts):.2f} mm")
+
+
+def ghi_csv_moi(path: Path, rows: list[dict]) -> None:
+    with path.open("w", encoding="utf-8-sig", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0]))
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: (f"{v:.4f}" if isinstance(v, float) else v) for k, v in r.items()})
+
+
+def anh_gia(trang: np.ndarray, khung: tuple, cac_to: list, seed: int) -> tuple[np.ndarray, list]:
+    """Ảnh giả: dán từng trang mẫu (300 DPI) vào khung (W, H) theo 4 đỉnh đích (TL, TR, BR, BL của trang),
+    nền xám bàn 95, làm mờ + nhiễu như check_layout.py. Trả (ảnh, [H thật của từng tờ])."""
+    W, H = khung
+    rng = np.random.default_rng(seed)
+    anh = np.full((H, W), 95, np.float32)
+    h, w = trang.shape
+    Hs = []
+    for dich in cac_to:
+        Ht = cv2.getPerspectiveTransform(np.float32([[0, 0], [w, 0], [w, h], [0, h]]), np.float32(dich))
+        anh_to = cv2.warpPerspective(trang, Ht, (W, H), flags=cv2.INTER_LINEAR)
+        mat = cv2.warpPerspective(np.full_like(trang, 255), Ht, (W, H))
+        anh = np.where(mat > 0, anh_to, anh)
+        Hs.append(Ht)
+    anh = cv2.GaussianBlur(anh, (5, 5), 1.2) + rng.normal(0, 4, anh.shape)
+    return np.clip(anh, 0, 255).astype(np.uint8), Hs
+
+
+def dinh_dich(trang_shape, khung, s, goc_do, tam=None, thu_tren=1.0) -> list:
+    """4 đỉnh đích (TL, TR, BR, BL của trang) khi thu nhỏ s, xoay goc_do (chiều kim đồng hồ trên ảnh), đặt tại tam;
+    thu_tren < 1: cạnh TRÊN của trang ngắn lại (phối cảnh kiểu C3)."""
+    h, w = trang_shape
+    p = np.array([[-w / 2 * thu_tren, -h / 2], [w / 2 * thu_tren, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]) * s
+    t = np.deg2rad(goc_do)
+    R = np.array([[np.cos(t), -np.sin(t)], [np.sin(t), np.cos(t)]])
+    c = np.array(tam if tam is not None else (khung[0] / 2, khung[1] / 2))
+    return (p @ R.T + c).tolist()
+
+
+def cmd_tu_kiem_tam(a) -> None:
+    """Kiểm chứng 3c trên ảnh giả có H biết trước (trang mẫu phieu_danh_so.pdf, ghi data/_eval/_gia/):
+    (1) tâm dưới pixel: giao đường chéo vs centroid, so với H · tâm layout; (2) cách gán góc được chọn: 0° / 180° /
+    sai dọc-ngang; (3) ảnh hai tờ -> phải 'nhieu_phieu'."""
+    import cv_engine.preprocessing as pp
+    from eval_preprocessing import ANSWER_SHEET, EVAL_DIR as ED, render_pdf_page
+    layout = nap_layout()
+    trang = render_pdf_page(ANSWER_SHEET / "output" / "phieu_danh_so.pdf", layout["dpi"])
+    gia = ED / "_gia"
+    gia.mkdir(parents=True, exist_ok=True)
+    doc, ngang = (3024, 4032), (4032, 3024)
+    sh = trang.shape
+    ca = [("thang", doc, [dinh_dich(sh, doc, 1.1, 0)], "dung"),
+          ("c1", doc, [[[250, 300], [2750, 260], [2850, 3800], [180, 3850]]], "dung"),
+          ("c3_pc06", doc, [dinh_dich(sh, doc, 1.08, 0, (1512, 2150), thu_tren=0.6)], "dung"),
+          ("xoay15", doc, [dinh_dich(sh, doc, 0.85, 15)], "dung"),
+          ("xoay90_ngang", ngang, [dinh_dich(sh, ngang, 0.8, 90)], "dung"),
+          ("xoay90_ngang_c3", ngang, [dinh_dich(sh, ngang, 0.8, 90, thu_tren=0.65)], "dung"),
+          ("xoay180", doc, [dinh_dich(sh, doc, 0.85, 180)], "dung"),
+          ("xoay270_ngang", ngang, [dinh_dich(sh, ngang, 0.8, 270)], "dung"),
+          ("hai_to", ngang, [dinh_dich(sh, ngang, 0.75, 3, (1000, 1512)), dinh_dich(sh, ngang, 0.75, -2, (3030, 1512))],
+           "nhieu_phieu")]
+    tam_L = np.array([layout["markers"]["centers"][g] for g in pp.GOC], np.float32)
+    # tâm đúng = trọng tâm ô đen trên chính trang render (ô vuông thẳng -> trọng tâm chính xác), tránh lệch quy ước
+    # tâm pixel giữa layout.json và ảnh render (Bước 1: đối chứng tam-marker −0,04 mm)
+    tam_R = []
+    for cx, cy in tam_L:
+        x0, y0 = int(cx) - 70, int(cy) - 70
+        cua_so = (trang[y0:y0 + 141, x0:x0 + 141] < 128).astype(np.float64)
+        ys, xs = np.nonzero(cua_so)
+        tam_R.append((x0 + xs.mean(), y0 + ys.mean()))
+    tam_R = np.array(tam_R, np.float32)
+    print("Tâm marker trên trang render − layout.json (px): "
+          + ", ".join(f"{g} ({d[0]:+.2f}, {d[1]:+.2f})" for g, d in zip(pp.GOC, tam_R - tam_L)))
+    rows = []
+    for i, (ten, khung, cac_to, mong) in enumerate(ca):
+        img, Hs = anh_gia(trang, khung, cac_to, seed=i)
+        ghi_jpg(gia / f"{ten}.jpg", img, q=92)
+        uv = pp.tim_ung_vien_marker(img)
+        e_cen, e_cheo, e_pc = [], [], []
+        for Ht in Hs:
+            for e in cv2.perspectiveTransform(tam_R[None], Ht)[0]:
+                u = min(uv, key=lambda u: np.hypot(u.x - e[0], u.y - e[1]))
+                e_cen.append(np.hypot(u.x - e[0], u.y - e[1]))
+                c = pp.tam_cheo(u.dinh)
+                e_cheo.append(np.hypot(c[0] - e[0], c[1] - e[1]))
+                e_pc.append(np.hypot(u.tam[0] - e[0], u.tam[1] - e[1]))
+        tam, ly_do, ct = pp.find_markers(img, layout, uv)
+        ket = ly_do or "chon"
+        if tam is not None:
+            e = cv2.perspectiveTransform(tam_R[None], Hs[0])[0]
+            goc_tl = pp.GOC[int(np.argmin(np.hypot(*(e - tam[0]).T)))]
+            chieu = {"tl": "0°", "br": "180°"}.get(goc_tl, f"SAI dọc/ngang (TL ↦ {goc_tl})")
+            xoay = {"tl": 0, "tr": 1, "br": 2, "bl": 3}[goc_tl]
+            sai_so = float(np.max(np.hypot(*(np.roll(e, -xoay, axis=0) - tam).T)))
+            g = ct["bo_dat"][0]
+            ket += f", chiều {chieu}, sai số tâm {sai_so:.2f} px, K4 {g['gan']['dinh_mm']:.2f} mm (vuông góc {g['dinh_mm_vuong_goc']:.1f})"
+        dat = "ĐẠT" if (mong == "dung" and tam is not None and "SAI" not in ket) or (mong == ly_do) else "KHÔNG ĐẠT"
+        print(f"{ten:16s} tâm max (px): centroid {max(e_cen):.2f} | chéo {max(e_cheo):.2f} | phối cảnh {max(e_pc):.2f} "
+              f"|| {ket} | mong đợi {mong}: {dat}")
+        rows.append({"ca": ten, "centroid_max_px": max(e_cen), "centroid_tb_px": float(np.mean(e_cen)),
+                     "cheo_max_px": max(e_cheo), "cheo_tb_px": float(np.mean(e_cheo)),
+                     "phoi_canh_max_px": max(e_pc), "phoi_canh_tb_px": float(np.mean(e_pc)),
+                     "ket_qua": ket, "mong_doi": mong, "dat": dat})
+    ghi_csv_moi(gia / "tu_kiem_tam.csv", rows)
+    print(f"Đã ghi {gia} (ảnh giả + tu_kiem_tam.csv)")
+
+
+def cmd_chon_bo_4(a) -> None:
+    """Khâu CHỌN: find_markers() trên 78 ảnh dev so với marker_that_dev.csv (trúng ≤ KHOP_PX). Bảng theo điều kiện,
+    thời gian, ảnh ghép tứ giác của cả 78 ảnh (khao_sat/bo_4_ghep_*.jpg), ảnh nắn thử 0006_C2/C3."""
+    import cv_engine.preprocessing as pp
+    from collections import defaultdict
+    from time import perf_counter
+    layout, that = nap_layout(), doc_marker_that()
+    rows, o = [], []
+    for anh in list_images("dev"):
+        g = load_image(anh.duong_dan)
+        t0 = perf_counter()
+        tam, ly_do, ct = pp.find_markers(g, layout)
+        ms = 1000 * (perf_counter() - t0)
+        if tam is not None:
+            d = [float(np.min(np.hypot(*(that[anh.ten] - p).T))) for p in tam]
+            kq = "chon_dung" if max(d) <= KHOP_PX else "chon_sai"
+            gan = ct["bo_dat"][0]
+        else:
+            d, kq, gan = [], "tu_choi", None
+        rows.append({"anh": anh.ten, "dieu_kien": anh.dieu_kien, "ket_qua": kq, "ly_do": ly_do,
+                     "so_bo_dat": len(ct["bo_dat"]), "kc_max_px": max(d) if d else "",
+                     "xoay": gan["gan"]["xoay"] if gan else "", "dinh_mm": gan["gan"]["dinh_mm"] if gan else "",
+                     "dinh_mm_vuong_goc": gan["dinh_mm_vuong_goc"] if gan else "", "thoi_gian_ms": ms})
+        # ảnh nhỏ: ứng viên (xanh), tứ giác chọn (xanh lá), TL (đỏ)
+        f = 380 / max(g.shape)
+        v = cv2.cvtColor(cv2.resize(g, None, fx=f, fy=f, interpolation=cv2.INTER_AREA), cv2.COLOR_GRAY2BGR)
+        for u in ct["ung_vien"]:
+            cv2.circle(v, (int(u.x * f), int(u.y * f)), 6, (230, 120, 0), 1)
+        if tam is not None:
+            cv2.polylines(v, [np.int32(tam * f)], True, (0, 190, 0), 2)
+            cv2.circle(v, (int(tam[0][0] * f), int(tam[0][1] * f)), 7, (0, 0, 230), -1)
+        o_anh = np.full((410, 390, 3), 255, np.uint8)
+        o_anh[:v.shape[0], :v.shape[1]] = v
+        cv2.putText(o_anh, f"{anh.ten} {kq if kq != 'chon_dung' else ''}{ly_do}", (4, 404), 0, 0.5, (200, 0, 0), 1, cv2.LINE_AA)
+        o.append(o_anh)
+        if anh.ten.startswith("0006") and tam is not None:
+            M = cv2.getPerspectiveTransform(tam, np.float32([layout["markers"]["centers"][k] for k in pp.GOC]))
+            ghi_jpg(OUT / "khao_sat" / f"{anh.ten}_nan_v3.jpg", cv2.warpPerspective(g, M, tuple(layout["page_px"])),
+                    max_w=600, q=85)
+        print(f"{anh.ten:8s} {kq:9s} {ly_do:15s} bộ đạt {len(ct['bo_dat'])} {ms:5.0f} ms", flush=True)
+    ghi_csv_moi(OUT / "chon_bo_4_dev.csv", rows)
+    while len(o) % 8:
+        o.append(np.full((410, 390, 3), 255, np.uint8))
+    hang = [np.hstack(o[i:i + 8]) for i in range(0, len(o), 8)]
+    for k in range(0, len(hang), 5):
+        ghi_jpg(OUT / "khao_sat" / f"bo_4_ghep_{k // 5 + 1}.jpg", np.vstack(hang[k:k + 5]), q=85)
+    nhom = defaultdict(list)
+    for r in rows:
+        nhom[r["dieu_kien"]].append(r)
+    print("\nĐiều kiện | ảnh | chọn đúng | chọn sai | từ chối (lý do)")
+    for k in sorted(nhom) + ["Tổng"]:
+        rs = rows if k == "Tổng" else nhom[k]
+        tc = [r for r in rs if r["ket_qua"] == "tu_choi"]
+        print(f"{k:5s} | {len(rs):3d} | {sum(r['ket_qua'] == 'chon_dung' for r in rs):3d} | "
+              f"{sum(r['ket_qua'] == 'chon_sai' for r in rs):3d} | {len(tc):3d} "
+              + ", ".join(f"{r['anh']}:{r['ly_do']}" for r in tc))
+    kc = [r["kc_max_px"] for r in rows if r["kc_max_px"] != ""]
+    ms = np.array([r["thoi_gian_ms"] for r in rows])
+    print(f"Tâm chọn vs marker_that: max {max(kc):.2f} px. Thời gian find_markers (gồm lọc 3b): trung vị "
+          f"{np.median(ms):.0f} ms, max {ms.max():.0f} ms. Xoay ≠ 0: "
+          + ", ".join(f"{r['anh']} ({r['xoay']})" for r in rows if r["xoay"] not in ("", 0)))
+    print(f"Đã ghi {OUT / 'chon_bo_4_dev.csv'}, khao_sat/bo_4_ghep_*.jpg")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="lenh", required=True)
@@ -557,8 +807,12 @@ def main() -> None:
     t = sub.add_parser("ung-vien", help="đo khâu TÌM của một bộ lọc ứng viên so với marker_that_dev.csv")
     t.add_argument("--bo-loc", default="cu", choices=sorted(BO_LOC))
     sub.add_parser("khao-sat", help="phân bố đặc trưng marker thật vs vết khác -> căn cứ ngưỡng Bước 3b")
+    sub.add_parser("khao-sat-bo-4", help="K2–K4 của bộ 4 thật vs bộ 4 khác -> căn cứ ngưỡng Bước 3c")
+    sub.add_parser("tu-kiem-tam", help="ảnh giả có H biết trước: tâm dưới pixel, cách gán góc, hai tờ")
+    sub.add_parser("chon-bo-4", help="find_markers() trên dev so với marker_that_dev.csv + ảnh ghép tứ giác")
     a = ap.parse_args()
-    {"de-xuat": cmd_de_xuat, "chot": cmd_chot, "ung-vien": cmd_ung_vien, "khao-sat": cmd_khao_sat}[a.lenh](a)
+    {"de-xuat": cmd_de_xuat, "chot": cmd_chot, "ung-vien": cmd_ung_vien, "khao-sat": cmd_khao_sat,
+     "khao-sat-bo-4": cmd_khao_sat_bo_4, "tu-kiem-tam": cmd_tu_kiem_tam, "chon-bo-4": cmd_chon_bo_4}[a.lenh](a)
 
 
 if __name__ == "__main__":

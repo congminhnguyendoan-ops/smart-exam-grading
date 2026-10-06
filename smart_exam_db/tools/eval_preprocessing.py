@@ -49,7 +49,7 @@ sys.path.insert(0, str(ANSWER_SHEET))
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT))
 from check_layout import align, render_pdf_page  # noqa: E402  (không sửa check_layout.py)
-from cv_engine.preprocessing import load_image  # noqa: E402
+from cv_engine.preprocessing import find_markers, load_image  # noqa: E402
 from prepare_photos import marker_fill  # noqa: E402
 from check_labels import SEARCH_MM, item_box, local_darkness, register  # noqa: E402
 
@@ -121,14 +121,32 @@ def v2_load(duong_dan: Path):
     return align(gray, layout), ""
 
 
-PHUONG_PHAP = {"align_cu": align_cu, "v2_load": v2_load}
+def v3_hinh_hoc(duong_dan: Path):
+    """Bước 3c: load_image() + find_markers() mới (bộ 4 theo hình học, tâm dưới pixel) + warpPerspective như align().
+    Chiều phiếu chỉ quyết dọc/ngang (0° hay 180° để Bước 4). Trả thêm chi tiết (4 tâm + ứng viên) để vẽ lên ảnh gốc."""
+    gray = load_image(duong_dan)
+    layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
+    tam, ly_do, ct = find_markers(gray, layout)
+    chi_tiet = {"marker": tam, "ung_vien": [(u.x, u.y) for u in ct["ung_vien"]], "so_bo_dat": len(ct["bo_dat"])}
+    if tam is None:
+        return None, ly_do, chi_tiet
+    m = layout["markers"]["centers"]
+    M = cv2.getPerspectiveTransform(tam, np.float32([m["tl"], m["tr"], m["br"], m["bl"]]))
+    return cv2.warpPerspective(gray, M, tuple(layout["page_px"])), "", chi_tiet
 
 
-def goi_phuong_phap(f, anh: Anh, page_px) -> tuple:
-    """(ảnh nắn | None, lý do, giây). Phương pháp ném lỗi = từ chối. Sai kích thước = lỗi giao diện -> dừng."""
+PHUONG_PHAP = {"align_cu": align_cu, "v2_load": v2_load, "v3_hinh_hoc": v3_hinh_hoc}
+
+
+def goi_phuong_phap(f, anh: Anh, page_px, chi_tiet: dict | None = None) -> tuple:
+    """(ảnh nắn | None, lý do, giây). Phương pháp ném lỗi = từ chối. Sai kích thước = lỗi giao diện -> dừng.
+    Phương pháp có thể trả thêm phần tử thứ 3 (dict chi tiết, vd 4 tâm marker) -> chép vào `chi_tiet` nếu được truyền."""
     t0 = time.perf_counter()
     try:
-        out, ly_do = f(anh.duong_dan)
+        kq = f(anh.duong_dan)
+        out, ly_do = kq[0], kq[1]
+        if chi_tiet is not None and len(kq) > 2:
+            chi_tiet.update(kq[2])
     except Exception as e:  # noqa: BLE001
         out, ly_do = None, f"lỗi: {e}"
     giay = time.perf_counter() - t0
@@ -416,6 +434,22 @@ def fmt(v, nd=3) -> str:
     return html.escape(str(v))
 
 
+def ve_tu_giac(gray: np.ndarray, ct: dict) -> np.ndarray:
+    """Ảnh gốc (màu) + ứng viên marker (vòng xanh dương) + tứ giác 4 marker được chọn (xanh lá) + TL (chấm đỏ).
+    Kiểm marker bằng mắt phải xem TỨ GIÁC có khớp 4 góc tờ chính không, không chỉ từng ô (bài học 3a, 0007_C3)."""
+    img = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    d = max(gray.shape) / 1400                       # nét vẽ theo cỡ ảnh để còn thấy khi thu nhỏ
+    for x, y in ct["ung_vien"]:
+        cv2.circle(img, (int(x), int(y)), int(40 * d), (230, 120, 0), max(1, int(3 * d)))
+    if ct.get("marker") is not None:
+        q = np.int32(ct["marker"])
+        cv2.polylines(img, [q], True, (0, 190, 0), max(2, int(4 * d)), cv2.LINE_AA)
+        cv2.circle(img, tuple(q[0]), int(22 * d), (0, 0, 230), -1)
+        cv2.putText(img, "TL", (int(q[0][0] + 30 * d), int(q[0][1] - 20 * d)), cv2.FONT_HERSHEY_SIMPLEX, 1.6 * d,
+                    (0, 0, 230), max(2, int(4 * d)), cv2.LINE_AA)
+    return img
+
+
 def viet_html(rows, path: Path, ten_pp: str, split: str):
     legend = " ".join(f'<span style="color:{c}">● {k}</span>' for k, c in COND_COLOR.items())
     strips = "".join(strip_svg(rows, k, t) for k, t in STRIP_METRICS)
@@ -432,9 +466,12 @@ def viet_html(rows, path: Path, ten_pp: str, split: str):
                   if r["tra_anh"] == "co" else f"<b>TỪ CHỐI</b>: {html.escape(r['ly_do'])}"
         al = (f'<a href="anh/{r["anh"]}_chong.jpg" target="_blank"><img src="anh/{r["anh"]}_chong_nho.jpg" width="420"></a>'
               if r["tra_anh"] == "co" else "")
+        goc = (f'<a href="anh/{r["anh"]}_goc_lon.jpg" target="_blank"><img src="anh/{r["anh"]}_goc.jpg" width="320"></a>'
+               f'<br><small>{r["so_ung_vien"]} ứng viên, {r.get("so_bo_dat", "")} bộ 4 đạt</small>'
+               if "so_ung_vien" in r else
+               f'<a href="anh/{r["anh"]}_goc.jpg" target="_blank"><img src="anh/{r["anh"]}_goc.jpg" width="200"></a>')
         body.append(f'<tr id="{r["anh"]}"><td><b>{r["anh"]}</b><br>{r["dieu_kien"]}<br>{r["giay"]:.1f} s</td>'
-                    f'<td class="m">{metrics}</td><td>{al}</td>'
-                    f'<td><a href="anh/{r["anh"]}_goc.jpg" target="_blank"><img src="anh/{r["anh"]}_goc.jpg" width="200"></a></td></tr>')
+                    f'<td class="m">{metrics}</td><td>{al}</td><td>{goc}</td></tr>')
     path.write_text(f"""<!doctype html><html lang="vi"><head><meta charset="utf-8">
 <title>Xem bằng mắt – {ten_pp} – {split}</title>
 <style>body{{font-family:sans-serif;margin:16px}} td{{vertical-align:top;border-bottom:1px solid #ddd;padding:6px}}
@@ -443,7 +480,10 @@ td.m{{font-size:12px;width:300px}} .strip{{margin:6px 0}} img{{border:1px solid 
 <p>Chưa có ngưỡng – mọi ảnh đang là <b>xem</b>. Ảnh giữa: ảnh nắn (xám) + <span style="color:#e00">nét phiếu mẫu (đỏ)</span>
 + <span style="color:#05c">mũi tên lệch từng ô lưới, phóng ×5, số = mm</span> (xám + "?" = đỉnh khớp không duy nhất,
 không tính vào lech_*); bấm để xem cỡ 150 DPI.
-Nắn đúng ⇒ nét đỏ nằm đè lên nét in trên ảnh. Ảnh phải: ảnh gốc (đúng như phương pháp đọc).
+Nắn đúng ⇒ nét đỏ nằm đè lên nét in trên ảnh. Ảnh phải: ảnh gốc (đúng như phương pháp đọc){
+"; nếu phương pháp báo marker: <span style='color:#0a0'>tứ giác xanh lá</span> = 4 marker được chọn, "
+"<span style='color:#e00'>chấm đỏ</span> = góc gán TL, <span style='color:#07e'>vòng xanh dương</span> = ứng viên – "
+"<b>kiểm tứ giác có khớp 4 góc tờ chính không</b> (bấm để xem cỡ lớn)" if any("so_ung_vien" in r for r in rows) else ""}.
 Sắp xếp: từ chối trước, rồi <code>khop_net</code> thấp → cao.<br>
 Ghi kết luận vào <code>xem_bang_mat.csv</code>, cột <code>ket_luan_mat</code> = <code>dung</code> / <code>sai</code> (để trống nếu chưa xem).</p>
 <p>{legend}</p>{strips}
@@ -475,10 +515,19 @@ def cmd_run(a) -> None:
     rows, tile_rows = [], []
     images = list_images(a.split)
     for n, anh in enumerate(images, 1):
-        aligned, ly_do, giay = goi_phuong_phap(f, anh, page_px)
+        ct = {}
+        aligned, ly_do, giay = goi_phuong_phap(f, anh, page_px, ct)
         r = {"phuong_phap": a.phuong_phap, "anh": anh.ten, "loai": anh.loai, "dieu_kien": anh.dieu_kien,
              "tra_anh": "co" if aligned is not None else "khong", "ly_do": ly_do, "giay": giay}
-        ghi_jpg(out / "anh" / f"{anh.ten}_goc.jpg", doc_xam(anh.duong_dan), max_w=400, q=80)
+        goc = doc_xam(anh.duong_dan)
+        if "ung_vien" in ct:        # phương pháp báo marker -> vẽ tứ giác + ứng viên lên ảnh gốc (bài học 3a)
+            goc = ve_tu_giac(goc, ct)
+            ghi_jpg(out / "anh" / f"{anh.ten}_goc_lon.jpg", goc, max_w=1400, q=85)
+            r["so_ung_vien"], r["so_bo_dat"] = len(ct["ung_vien"]), ct.get("so_bo_dat", "")
+            if ct.get("marker") is not None:
+                for g, (x, y) in zip(("tl", "tr", "br", "bl"), ct["marker"]):
+                    r[f"marker_{g}_x"], r[f"marker_{g}_y"] = float(x), float(y)
+        ghi_jpg(out / "anh" / f"{anh.ten}_goc.jpg", goc, max_w=400, q=80)
         if aligned is not None:
             fill = marker_fill(aligned, layout)
             r.update({f"den_{c}": float(v) for c, v in fill.items()})
@@ -513,6 +562,8 @@ def cmd_run(a) -> None:
             "lech_max_ca_o_khong_duy_nhat_mm", "so_o_luoi", "so_o_tin_cay",
             "diem_o_min", "diem_o_trungvi", "duy_nhat_o_min", "do_nhat_quan_mm",
             "so_hang", "ti_le_hang_duong", "hieu_min", "hieu_p10", "hieu_trungvi"]
+    if any("so_ung_vien" in r for r in rows):      # chỉ phương pháp báo marker – CSV của phương pháp cũ giữ nguyên cột
+        cols += ["so_ung_vien", "so_bo_dat"] + [f"marker_{g}_{c}" for g in ("tl", "tr", "br", "bl") for c in "xy"]
     with (out / f"diem_{a.split}.csv").open("w", encoding="utf-8-sig", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols)
         w.writeheader()

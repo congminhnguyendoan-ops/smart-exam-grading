@@ -15,7 +15,8 @@ Tiến độ:
 Quy tắc: file này KHÔNG import phép kiểm tra 2/3 của tools/eval_preprocessing.py (nếu dùng chung, lỗi của
 phép đo trùng lỗi của hàm được đo và lỗi im lặng bị che mất). Toạ độ phiếu luôn đọc từ layout.json.
 """
-from dataclasses import dataclass
+import itertools
+from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
 
@@ -159,6 +160,9 @@ class UngVienMarker:
     den_trong: float            # trung vị (xám / nền) ở lõi vết – càng nhỏ càng đen
     cham_mep: bool              # hộp bao chạm mép ảnh (marker có thể bị cắt, tâm lệch)
     diem: float = 0.0           # điểm xếp hạng = tu_giac × (1 − muc_vien)
+    contour: np.ndarray | None = field(default=None, repr=False)    # N×2 int, toạ độ ảnh
+    dinh: np.ndarray | None = field(default=None, repr=False)       # 4×2 float: đỉnh dưới pixel (Bước 3c)
+    tam: tuple | None = None    # tâm dưới pixel (Bước 3c, tam_phoi_canh) – tâm dùng để tính H
 
 
 def uoc_luong_nen(gray: np.ndarray, cua_so: int = NEN_CUA_SO) -> np.ndarray:
@@ -211,7 +215,8 @@ def do_vet_muc(gray: np.ndarray, cua_so: int = NEN_CUA_SO) -> list[UngVienMarker
             dac=a / max(cv2.contourArea(hull), 1.0), canh=min(rw, rh) / max(rw, rh, 1.0),
             tu_giac=a_c / max(cv2.contourArea(tg), 1.0), vuong=a / max(rw * rh, 1.0),
             muc_vien=muc_vien, den_trong=float(np.median(ti_le[y:y + h, x:x + w][loi > 0])),
-            cham_mep=bool(x == 0 or y == 0 or x + w == W or y + h == H)))
+            cham_mep=bool(x == 0 or y == 0 or x + w == W or y + h == H),
+            contour=c.reshape(-1, 2) + np.array([x, y])))
     for u in out:
         u.diem = u.tu_giac * (1.0 - u.muc_vien)
     return out
@@ -224,14 +229,168 @@ def qua_loc(u: UngVienMarker) -> bool:
 
 def tim_ung_vien_marker(gray: np.ndarray) -> list[UngVienMarker]:
     """Bước 3b: ứng viên marker, xếp theo điểm giảm dần. Giữ CẢ marker của tờ khác lọt khung –
-    phân biệt tờ chính là việc của bước chọn bộ 4 theo hình học (3c)."""
-    return sorted((u for u in do_vet_muc(gray) if qua_loc(u)), key=lambda u: -u.diem)
+    phân biệt tờ chính là việc của bước chọn bộ 4 theo hình học (3c). Mỗi ứng viên có đỉnh + tâm dưới pixel."""
+    out = sorted((u for u in do_vet_muc(gray) if qua_loc(u)), key=lambda u: -u.diem)
+    for u in out:
+        u.dinh = dinh_duoi_pixel(u.contour)
+        u.tam = tam_phoi_canh(u.contour, u.dinh)
+    return out
 
 
-# ============================================================================ Bước 3c–6 (chưa làm)
-def find_markers(gray: np.ndarray, layout: dict):
-    """Bước 3: lọc ứng viên, chọn 4 marker tạo tứ giác lồi tỉ lệ ~182:269 mm, cùng cỡ; tâm dưới pixel."""
-    raise NotImplementedError("Bước 3")
+# ============================================================================ Bước 3c: chọn bộ 4 theo hình học
+# Căn cứ ngưỡng: `python tools/marker_that.py khao-sat-bo-4` (bộ 4 thật của 78 ảnh dev vs mọi bộ 4 khác trong top-K).
+K_UNG_VIEN = 10             # chỉ xét K ứng viên điểm cao nhất; hạng lớn nhất của marker thật ở 3b = 5 -> max(2×5, 5+4)
+PHOI_CANH_MIN = 0.50        # K2 độ phối cảnh 4 tâm; bộ thật xấu nhất 0,597 (0015_C3), biên 0,097
+CO_MIN, CO_MAX = 0.61, 1.40     # K3 diện tích marker / ô 8 mm dự đoán từ H⁻¹; bộ thật 0,767 (0014_C2) – 1,117
+                                # (0033_C1), biên ×1,26 / ×1,25
+DINH_MAX_MM = 2.0           # K4 đỉnh marker chiếu qua H lệch đỉnh ô 8 mm layout (mm); bộ thật xấu nhất 1,28 (0014_C2,
+                            # giấy cong), biên 0,72; bộ khác tốt nhất (không xét K2/K3) 2,44 (0030_C3); cách gán
+                            # dọc/ngang sai của bộ thật ≥ 2,43 (0031_C3) -> bị loại
+CAT_DAU_CANH = 0.15         # bỏ 15% mỗi đầu cạnh (gần góc, bị bo tròn do mờ) khi khớp đường thẳng
+GOC = ("tl", "tr", "br", "bl")
+
+
+def theo_vong(pts: np.ndarray) -> np.ndarray:
+    """Chỉ số 4 điểm sắp theo góc quanh trọng tâm, bắt đầu từ góc −π (điểm trên-trái của ảnh đứng thẳng)."""
+    c = pts.mean(axis=0)
+    return np.argsort(np.arctan2(pts[:, 1] - c[1], pts[:, 0] - c[0]))
+
+
+def _giao(l1, l2):
+    """Giao hai đường thẳng dạng (vx, vy, x0, y0) của cv2.fitLine."""
+    (a1, b1, x1, y1), (a2, b2, x2, y2) = l1, l2
+    d = a1 * b2 - b1 * a2
+    if abs(d) < 1e-9:
+        return None
+    t = ((x2 - x1) * b2 - (y2 - y1) * a2) / d
+    return np.array([x1 + t * a1, y1 + t * b1])
+
+
+def dinh_duoi_pixel(contour: np.ndarray) -> np.ndarray:
+    """4 đỉnh dưới pixel của vết hình tứ giác: tứ giác thô (approxPolyN) -> gán điểm contour cho cạnh gần nhất, bỏ
+    CAT_DAU_CANH mỗi đầu -> fitLine từng cạnh -> giao các cạnh kề. Cạnh thiếu điểm thì giữ đỉnh thô."""
+    p = contour.astype(np.float32)
+    q = cv2.approxPolyN(cv2.convexHull(p), 4, epsilon_percentage=-1, ensure_convex=True).reshape(-1, 2)
+    a, b = q, np.roll(q, -1, axis=0)                       # cạnh i: q[i] -> q[i+1]
+    ab = b - a
+    L2 = np.maximum((ab ** 2).sum(1), 1e-9)
+    t = ((p[:, None, :] - a[None]) * ab[None]).sum(2) / L2[None]          # N×4: vị trí chiếu trên từng cạnh
+    hinh_chieu = a[None] + np.clip(t, 0, 1)[..., None] * ab[None]
+    kc = np.linalg.norm(p[:, None, :] - hinh_chieu, axis=2)
+    canh = kc.argmin(1)
+    duong = []
+    for i in range(4):
+        m = (canh == i) & (t[:, i] > CAT_DAU_CANH) & (t[:, i] < 1 - CAT_DAU_CANH)
+        duong.append(cv2.fitLine(p[m], cv2.DIST_HUBER, 0, 0.01, 0.01).ravel() if m.sum() >= 5 else None)
+    dinh = q.astype(np.float64).copy()
+    for i in range(4):                                     # đỉnh i = giao cạnh i−1 và cạnh i
+        l1, l2 = duong[i - 1], duong[i]
+        g = _giao(l1, l2) if l1 is not None and l2 is not None else None
+        if g is not None and np.linalg.norm(g - q[i]) < 0.25 * np.sqrt(L2.max()):
+            dinh[i] = g
+    return dinh
+
+
+def tam_cheo(dinh: np.ndarray) -> tuple:
+    """Giao hai đường chéo = ảnh đúng của tâm ô vuông qua phép chiếu (centroid bị kéo về phía gần máy)."""
+    g = _giao((*(dinh[2] - dinh[0]), *dinh[0]), (*(dinh[3] - dinh[1]), *dinh[1]))
+    return tuple(map(float, g if g is not None else dinh.mean(axis=0)))
+
+
+def tam_phoi_canh(contour: np.ndarray, dinh: np.ndarray) -> tuple:
+    """Centroid trong hệ đã nắn phẳng cục bộ: H_loc đưa 4 đỉnh về ô vuông đơn vị, lấy trọng tâm các điểm ảnh của vết
+    (trọng số = định thức Jacobi, tức diện tích thật trên mặt phiếu), rồi chiếu ngược. Đỉnh chỉ dùng để khử phối
+    cảnh (sai số đỉnh ảnh hưởng bậc hai); vị trí do mọi điểm ảnh quyết định (dưới pixel như centroid)."""
+    x, y, w, h = cv2.boundingRect(contour.astype(np.int32))
+    m = np.zeros((h, w), np.uint8)
+    cv2.drawContours(m, [(contour - [x, y]).astype(np.int32).reshape(-1, 1, 2)], -1, 1, -1)
+    ys, xs = np.nonzero(m)
+    P = np.stack([xs + x, ys + y], 1).astype(np.float64)
+    Hl = cv2.getPerspectiveTransform(dinh.astype(np.float32), np.float32([[0, 0], [1, 0], [1, 1], [0, 1]]))
+    Q = cv2.perspectiveTransform(P[None], Hl)[0]
+    wz = Hl[2, 0] * P[:, 0] + Hl[2, 1] * P[:, 1] + Hl[2, 2]
+    J = np.abs(np.linalg.det(Hl) / wz ** 3)
+    c = (Q * J[:, None]).sum(0) / J.sum()
+    return tuple(map(float, cv2.perspectiveTransform(c[None, None], np.linalg.inv(Hl))[0, 0]))
+
+
+def _o_layout(layout: dict) -> tuple[np.ndarray, np.ndarray]:
+    """(tâm 4×2 theo GOC, đỉnh 4×4×2 của ô marker) trên trang layout (px @ dpi)."""
+    tam = np.array([layout["markers"]["centers"][g] for g in GOC], np.float64)
+    h = layout["markers"]["size"] / 2
+    o = np.array([[-h, -h], [h, -h], [h, h], [-h, h]])
+    return tam, tam[:, None, :] + o[None]
+
+
+def do_bo_4(bo: list, layout: dict) -> dict:
+    """Đo một bộ 4 ứng viên với CẢ 4 cách gán góc xoay vòng (theo thứ tự quanh trọng tâm).
+    K1 lồi, K2 độ phối cảnh (không phụ thuộc cách gán); mỗi cách gán: H (4 tâm -> layout), K3 cỡ, K4 đỉnh (mm)."""
+    tam = np.array([u.tam for u in bo], np.float64)
+    o = theo_vong(tam)
+    q = tam[o]
+    d = lambda i, j: float(np.hypot(*(q[i] - q[j])))
+    tl = [d(0, 1) / d(3, 2), d(0, 3) / d(1, 2)]
+    ket = {"loi": bool(cv2.isContourConvex(q.reshape(-1, 1, 2).astype(np.float32))),
+           "phoi_canh": min(min(r, 1 / r) for r in tl), "cach_gan": []}
+    tam_L, o_L = _o_layout(layout)
+    mm = 25.4 / layout["dpi"]
+    for r in range(4):
+        idx = [int(o[(k + r) % 4]) for k in range(4)]     # idx[k] = ứng viên gán cho góc GOC[k]
+        H = cv2.getPerspectiveTransform(tam[idx].astype(np.float32), tam_L.astype(np.float32))
+        Hi = np.linalg.inv(H)
+        co, dinh = [], []
+        for k, j in enumerate(idx):
+            du_doan = cv2.perspectiveTransform(o_L[k][None].astype(np.float64), Hi)[0]
+            co.append(bo[j].dien_tich / max(cv2.contourArea(du_doan.astype(np.float32)), 1.0))
+            m = cv2.perspectiveTransform(bo[j].dinh[None].astype(np.float64), H)[0]
+            kc = np.linalg.norm(m[:, None, :] - o_L[k][None], axis=2)
+            dinh.append(kc.min(1).max() * mm)               # mỗi đỉnh đo được -> đỉnh layout gần nhất
+        ket["cach_gan"].append({"xoay": r, "idx": idx, "H": H, "co_min": min(co), "co_max": max(co),
+                                "dinh_mm": max(dinh)})
+    return ket
+
+
+def chon_cach_gan(ket: dict) -> tuple[dict, float]:
+    """Cách gán có sai số K4 nhỏ nhất. Layout đối xứng qua 180° nên cách gán r và r+2 cho sai số gần như nhau:
+    3c chỉ quyết DỌC/NGANG (cặp {0,2} hay {1,3}); trong cặp lấy r = 0 hoặc 1 (TL gần điểm trên-trái của ảnh).
+    Phân biệt 0° với 180° là việc của Bước 4 (bằng nội dung). Trả (cách gán, sai số K4 của cặp vuông góc)."""
+    cg = ket["cach_gan"]
+    cap = [min(cg[p]["dinh_mm"], cg[p + 2]["dinh_mm"]) for p in (0, 1)]
+    p = int(np.argmin(cap))
+    return cg[p], cap[1 - p]
+
+
+def qua_bo_4(ket: dict, g: dict) -> bool:
+    return (ket["loi"] and ket["phoi_canh"] >= PHOI_CANH_MIN and g["co_min"] >= CO_MIN and g["co_max"] <= CO_MAX
+            and g["dinh_mm"] <= DINH_MAX_MM)
+
+
+def find_markers(gray: np.ndarray, layout: dict, uv: list | None = None):
+    """Bước 3c: chọn 4 marker -> (tâm 4×2 float32 theo TL, TR, BR, BL | None, ly_do, chi_tiet).
+    Đúng 1 bộ 4 đạt K1–K4 -> chọn. 0 bộ -> 'thieu_marker' (< 4 ứng viên) / 'marker_khong_dat'. ≥ 2 bộ -> từ chối,
+    không chọn bừa: 'nhieu_phieu' nếu có 2 bộ đạt không chung ứng viên nào, ngược lại 'marker_mo_ho'.
+    Chiều phiếu chỉ quyết dọc/ngang; 0° hay 180° để Bước 4."""
+    uv = (tim_ung_vien_marker(gray) if uv is None else uv)[:K_UNG_VIEN]
+    chi_tiet = {"ung_vien": uv, "bo_dat": []}
+    if len(uv) < 4:
+        return None, "thieu_marker", chi_tiet
+    for bo in itertools.combinations(range(len(uv)), 4):
+        ket = do_bo_4([uv[i] for i in bo], layout)
+        g, vuong_goc = chon_cach_gan(ket)
+        if qua_bo_4(ket, g):
+            chi_tiet["bo_dat"].append({"bo": bo, "ket": ket, "gan": g, "dinh_mm_vuong_goc": vuong_goc})
+    dat = chi_tiet["bo_dat"]
+    if not dat:
+        return None, "marker_khong_dat", chi_tiet
+    if len(dat) >= 2:
+        roi = any(not set(a["bo"]) & set(b["bo"]) for a, b in itertools.combinations(dat, 2))
+        return None, ("nhieu_phieu" if roi else "marker_mo_ho"), chi_tiet
+    bo, g = dat[0]["bo"], dat[0]["gan"]
+    tam = np.array([uv[bo[j]].tam for j in g["idx"]], np.float32)
+    return tam, "", chi_tiet
+
+
+# ============================================================================ Bước 4–6 (chưa làm)
 
 
 def warp(gray: np.ndarray, marker: np.ndarray, layout: dict) -> np.ndarray:

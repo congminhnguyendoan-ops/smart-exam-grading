@@ -273,6 +273,77 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   - **Ca thử cho `nhieu_phieu` / `marker_cham_mep`**: 0007_C3 (ô tờ khác bị khung cắt, hạng 4, trên marker thật), 0013_C2,
     0018_C2, 0021_C2 (tờ khác lọt khung), 0031_C3 (ô đen tờ khác ở góc TL, hạng 5).
   - HTML xem bằng mắt **vẽ tứ giác** của bộ 4 được chọn (bài học 3a).
+- **3c – dừng A xong 06/10/2026, người dùng đã duyệt** (`preprocessing.py`: `tim_ung_vien_marker()` thêm đỉnh/tâm dưới
+  pixel, `do_bo_4()`, `chon_cach_gan()`, `find_markers()`; đo bằng `marker_that.py khao-sat-bo-4`, `tu-kiem-tam`,
+  `chon-bo-4`; chỉ dev; ghi `data/_eval/marker_that/` và `data/_eval/_gia/`):
+  - **Không kiểm tỉ lệ 182:269 từ 4 tâm**: mọi tứ giác lồi đều là ảnh chiếu của một hình chữ nhật bất kỳ; ước lượng tỉ lệ
+    kiểu Zhang–He (điểm chính = giữa ảnh) trên bộ thật cho 0,56–2,00 (đúng 1,478), 30/78 ảnh không giải được tiêu cự.
+    Tỉ lệ được ép gián tiếp bằng **K4** (hình dạng 4 marker sau H).
+  - **Mỗi bộ 4 thử cả 4 cách gán góc xoay vòng**, giữ cách có K4 nhỏ nhất; nhiều cách gán của cùng bộ vẫn là 1 bộ khi
+    đếm `nhieu_phieu`/`marker_mo_ho`. Layout đối xứng qua 180° ⇒ cách gán r và r+2 cho K4 **giống hệt** (chênh 0,000 mm
+    trên 78 bộ thật): **3c chỉ quyết dọc/ngang** theo hình dạng marker (lấy r = 0 hoặc 1); **0° hay 180° là việc của
+    Bước 4 (bằng nội dung)**. 0006_C2/C3 (cách gán 1 = ngang) nắn ra 0° **là do tình cờ** (hướng xoay của hai ảnh
+    này trùng quy tắc r ∈ {0, 1}); ảnh giả `xoay270_ngang` ra 180°.
+  - **Ngưỡng** (78 bộ thật vs 142 bộ khác trong top-10 ứng viên; "loại một mình" = trên 94 bộ khác lồi):
+    | Tiêu chí | Bộ thật xấu nhất | Biên | Loại riêng | Loại một mình |
+    |---|---|---|---|---|
+    | K1 lồi | 78/78 lồi | – | – | 48/142 không lồi |
+    | K2 độ phối cảnh ≥ 0,50 | 0,597 (0015_C3) | 0,097 | 0 | 67/94 |
+    | K3 cỡ (diện tích / ô 8 mm dự đoán) 0,61–1,40 | 0,767 (0014_C2) / 1,117 (0033_C1) | ×1,26 / ×1,25 | 0 | 93/94 |
+    | K4 đỉnh ≤ 2,0 mm | 1,28 (0014_C2, giấy cong) | 0,72 mm | 1 | 94/94 |
+    Quy tắc "loại riêng < 5% thì bỏ" áp cho **bộ lọc ứng viên 3b**. Ở 3c, K2/K3 **giữ lại** làm lớp phòng thủ thứ hai
+    cho K4 (K4 phụ thuộc khâu tìm đỉnh): chỉ với K4, bộ khác tốt nhất lệch 2,44 mm (0030_C3) – sát ngưỡng 0,44 mm; trong
+    các bộ khác **đã qua K1–K3** trên toàn dev, K4 nhỏ nhất **7,58 mm (0013_C2)** – biên thật của tổ hợp. **K4 vượt
+    ngưỡng → từ chối, không chọn sai**; giấy cong mạnh hơn 0014_C2 sẽ bị từ chối – chấp nhận. Cách gán dọc/ngang sai
+    của bộ thật có K4 ≥ 2,43 mm (0031_C3) ⇒ tự bị loại; khoảng cách K4 vuông góc − tốt nhất ≥ 1,64 mm (D001), trung vị
+    2,16 mm (từng ảnh trong `bo_4_dev.csv`).
+  - **Khâu chọn** (`chon-bo-4`): **78/78 chọn đúng** (C1 17, C2 18, C3 17, C4 16, D 10), 0 chọn sai, 0 từ chối; mọi
+    ảnh đúng 1 bộ đạt (kể cả 0007_C3, 0013_C2, 0018_C2, 0021_C2, 0031_C3). `find_markers` (gồm lọc 3b) trung vị 143 ms,
+    max 198 ms. Ảnh ghép tứ giác 78 ảnh: `khao_sat/bo_4_ghep_1.jpg`, `_2.jpg` (đã xem: khớp 4 góc tờ chính).
+  - **Ảnh giả** (`tu-kiem-tam`, `data/_eval/_gia/`, H biết trước): thẳng, C1, C3 độ phối cảnh 0,6, xoay 15°, xoay 90°
+    ngang (thẳng và C3), xoay 180°, xoay 270° ngang → dọc/ngang đúng cả 8 ca (180° / 270° ra 180° như thiết kế); hai tờ
+    → `nhieu_phieu`.
+  - **Tâm dưới pixel** = `tam_phoi_canh()`: khử phối cảnh bằng 4 đỉnh (fitLine từng cạnh), lấy trọng tâm có trọng số
+    Jacobi trên mọi điểm ảnh của marker. Sai số max trên ảnh giả (so với tâm đo trên trang render): centroid 0,15–1,10 px
+    (kém ở phối cảnh mạnh: c3 1,10), giao đường chéo 0,17–0,69, **phối cảnh 0,19–0,72**. **Tiêu chí ≤ 1 px** (≈ 0,1 mm
+    trên mặt phiếu – nhỏ hơn nhiều sàn ~0,3 mm do máy in và dung sai OMR 1,75 mm) → **đạt**. Kiểm tra nhanh (dx, dy) có
+    dấu: ca thẳng hai cách cho sai số giống hệt (dy −0,3…−0,55, dx −0,44 bên trái / +0,09 bên phải) – khả năng do quy
+    ước tâm/biên pixel khi tạo ảnh giả, cùng loại với −0,45 px của tâm marker trang render so với `layout.json`; ca c1
+    cách phối cảnh lệch tới 0,71 px theo nhiều hướng (nhiễu tìm đỉnh, centroid chỉ 0,15). Dừng điều tra (giới hạn 15 phút).
+- **3c – dừng B (06/10/2026)**: eval `v3_hinh_hoc` (`eval_preprocessing.py run --phuong-phap v3_hinh_hoc`): trả ảnh
+  78/78, máy kết luận 71 `dung`, 0 `sai`, 7 `xem` – **cả 7 là C3** (0006, 0011, 0026, 0027, 0030, 0031, 0034), trượt vì
+  `lech_toan_trang`/`lech_trungvi` 1,0–1,5 mm, 45 ô lưới tin cậy, tỉ lệ hàng dương 1,00. Giao diện eval: phương pháp
+  được trả thêm phần tử thứ 3 (chi tiết marker) → HTML vẽ tứ giác lên ảnh gốc; hồi quy `run v2_load` + `finalize
+  --ke-thua align_cu` → `truth_dev.csv` **giống từng byte** (`diem_dev.csv` chỉ khác cột `giay`).
+  - **Mục tiêu độ chính xác Bước 3 KHÔNG đạt** (người dùng chấp nhận): `lech_max` trên 58 ảnh `align_cu` cũng đúng (bỏ
+    0014_C2) TB 0,900 → 0,908 mm, max 1,55 → 1,57 mm. `tam-marker`: tâm marker trên ảnh nắn đúng **±0,06 mm (TB)** ở mọi
+    góc/điều kiện (max 0,10 mm C1/C2/C4/D, 0,19 mm C3; `align_cu` TB 0,019 vs v3 0,024 mm) – phần lệch nằm **ở giữa
+    trang, không do tâm marker** (tương quan dy marker ↔ dy nội dung r = 0,03). **Không làm homography 16 đỉnh** (16 đỉnh
+    vẫn ở 4 góc).
+  - **Nội dung C3 lệch xuống TB +0,84 mm** (theo ảnh 0,37–1,30; C1/C2/C4/D ~+0,3 = sàn máy in). Kiểm tra nguồn gốc
+    (20 phút): phép 2 trên ảnh giả `_gia/` nắn bằng `find_markers` v3 – thang / c1 / **c3_pc06**: `lech_toan_trang` 0,11
+    / 0,10 / 0,10 mm, `lech_trungvi` 0,11 / 0,12 / 0,10, dy TB theo 8 hàng lưới ≤ +0,14 mm ở cả 3 ⇒ phép 2 **không** đo sai
+    ở vùng bị thu nhỏ mạnh; lệch C3 là **lệch thật** của ảnh (giấy không phẳng / méo ống kính khi chụp nghiêng – ảnh giả
+    là mặt phẳng hoàn hảo, không có hai thứ đó; homography 4 điểm không sửa được). ⇒ **Tuần 5: OMR bắt buộc dò lại từng
+    hàng cho ảnh nghiêng mạnh** (CLAUDE.md mục 7).
+- **3c – xong 06/10/2026 ⇒ BƯỚC 3 XONG.** Người dùng xem bằng mắt 7 ảnh `xem` (C3): **cả 7 `dung`** (0006_C3: ảnh nắn
+  đứng thẳng, tiêu đề ở trên; ảnh gốc chụp ngang). Ghi chú **`lech_c3`** trong `truth_dev.csv` cho ảnh `dung` có
+  `lech_trungvi` > 1,0 mm: 0026_C3 (1,17), 0027_C3 (1,03), 0030_C3 (1,19), 0031_C3 (1,06), 0034_C3 (1,03) – để Tuần 5
+  biết. `finalize v3_hinh_hoc` → nguồn 71 `tu_dong` + 7 `mat`; `report --so-voi align_cu`:
+  | Điều kiện | Ảnh | Đúng | Lỗi im lặng | Bị từ chối | `align_cu` đúng / lỗi im lặng |
+  |---|---|---|---|---|---|
+  | C1 | 17 | 17 | 0 | 0 | 17 / 0 |
+  | C2 | 18 | 18 | 0 | 0 | 14 / 4 |
+  | C3 | 17 | **17** | 0 | 0 | **2 / 15** |
+  | C4 | 16 | 16 | 0 | 0 | 16 / 0 |
+  | D | 10 | 10 | 0 | 0 | 10 / 0 |
+  | **Tổng** | **78** | **78** | **0** | **0** | 59 / 19 |
+  19 ảnh đổi phân loại, đều `loi_im_lang → dung`; không ảnh nào đổi từ đúng sang sai. Đối chiếu "Xong khi" của Bước 3:
+  phụ 100% (78/78 đủ 4 marker, 3b) – đạt; số ảnh đúng tăng rõ (59 → 78, C3 2 → 17) – đạt; lỗi im lặng không tăng (19 →
+  0) – đạt; `lech_max` của ảnh đúng giảm – **không đạt** (người dùng chấp nhận, xem dừng B).
+  **Lưu ý cho Bước 4**: 0006_C2/C3 đúng chiều là **tình cờ** (quy tắc r ∈ {0, 1}); ảnh chụp ngang theo hướng ngược lại
+  sẽ ra 180° (ảnh giả `xoay270_ngang`) ⇒ Bước 4 vẫn phải quyết 0°/180° bằng nội dung, và ảnh giả xoay 180° / 270° phải
+  được đưa vào eval Bước 4 (dev thật không có ca này).
 - **Câu hỏi mở cho 3c / Bước 4 (chưa quyết)**: marker **chạm mép ảnh** (`cham_mep`) thì **ước lượng tâm** (từ cạnh còn
   lại / hình học 3 marker kia) hay **từ chối** (lý do `marker_cham_mep`, yêu cầu chụp lại)? Trên dev không có marker thật
   nào chạm mép (4 ảnh như vậy – 0014_C3, 0028_C4, 0032_C4, D007 – đã chụp lại trước Tuần 4); ca thật hiện có chỉ là ô

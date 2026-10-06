@@ -283,7 +283,24 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       nhất 5, K = 10 (`tim_ung_vien_marker()`; số liệu + ngưỡng: `docs/ke_hoach_tuan4.md` mục 3b).
       Kèm theo: sửa nhãn marker thật **0007_C3** (ô TR cũ thuộc tờ khác lọt khung; người dùng xác nhận bằng mắt) –
       xem bằng mắt marker phải vẽ tứ giác 4 điểm, không chỉ xem từng ô.
+      **Bước 3 xong 06/10/2026** (3c: `find_markers()` – bộ 4 theo hình học K1 lồi / K2 phối cảnh / K3 cỡ / K4 hình dạng
+      marker sau H ≤ 2,0 mm, thử 4 cách gán góc, từ chối `nhieu_phieu` / `marker_mo_ho` / `marker_khong_dat`; tâm dưới
+      pixel `tam_phoi_canh()`). Eval `v3_hinh_hoc` (`report --so-voi align_cu`), 7 ảnh C3 kết luận bằng mắt:
+      | Điều kiện | Ảnh | Đúng | Lỗi im lặng | Bị từ chối |
+      |---|---|---|---|---|
+      | C1 | 17 | 17 | 0 | 0 |
+      | C2 | 18 | 18 | 0 | 0 |
+      | C3 | 17 | **17** | 0 | 0 |
+      | C4 | 16 | 16 | 0 | 0 |
+      | D | 10 | 10 | 0 | 0 |
+      | **Tổng dev** | **78** | **78** | **0** | **0** |
+      (trước: 59 / 19 / 0). Không đạt: `lech_max` của ảnh đúng không giảm (0,90 → 0,91 mm TB) – lệch nằm giữa trang, không
+      do tâm marker (±0,06 mm). 0006_C2/C3 đúng chiều là tình cờ – **Bước 4 phải quyết 0°/180° bằng nội dung**.
+      Chi tiết: `docs/ke_hoach_tuan4.md` mục 3c.
 - [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
+      **Yêu cầu Tuần 5 (06/10/2026): OMR bắt buộc dò lại từng hàng cho ảnh nghiêng mạnh** – sau khi nắn bằng 4 marker
+      (đúng ±0,06 mm ở marker), nội dung ảnh C3 vẫn lệch TB +0,84 mm (0,37–1,30) ở giữa trang; ảnh giả C3 chỉ 0,1 mm ⇒ lệch
+      thật (giấy/ống kính), homography 4 điểm không sửa được (`docs/ke_hoach_tuan4.md` 3c dừng B).
 - [ ] Backend API, frontend, luồng review cho giáo viên.
 - [ ] (Hướng phát triển) Lưu các lần giáo viên sửa làm dữ liệu train thêm (human-in-the-loop).
 
