@@ -279,6 +279,10 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       `report --so-voi align_cu` = 0 ảnh đổi phân loại (59/19/0 như bảng trên). Phép thử chặn `--ke-thua`
       (scratchpad, 6/6 ca): lệch 1 số đo / 1 ảnh khác điểm ảnh → bị từ chối, không ghi `truth_dev.csv`.
       Lưu ý: luật hiện tại kết luận được cả 78 ảnh (26 ảnh xem bằng mắt ở Bước 1 đều trùng máy).
+      **Bước 3b xong 06/10/2026**: 78/78 ảnh dev đủ 4 marker thật, 4,3 ứng viên/ảnh (bộ lọc cũ 384), hạng lớn
+      nhất 5, K = 10 (`tim_ung_vien_marker()`; số liệu + ngưỡng: `docs/ke_hoach_tuan4.md` mục 3b).
+      Kèm theo: sửa nhãn marker thật **0007_C3** (ô TR cũ thuộc tờ khác lọt khung; người dùng xác nhận bằng mắt) –
+      xem bằng mắt marker phải vẽ tứ giác 4 điểm, không chỉ xem từng ô.
 - [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
 - [ ] Backend API, frontend, luồng review cho giáo viên.
 - [ ] (Hướng phát triển) Lưu các lần giáo viên sửa làm dữ liệu train thêm (human-in-the-loop).

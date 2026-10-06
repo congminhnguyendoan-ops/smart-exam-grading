@@ -186,6 +186,14 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   - Marker thật `marker_that_dev.csv` (78 ảnh): 59 ảnh `align_cu` nắn đúng → 4 điểm của `find_markers()` cũ
     (`nguon = align_cu_dung`); 19 ảnh nắn sai → người dùng xác nhận bằng mắt trên `xac_nhan.html` (`nguon = mat`;
     19/19 đồng ý 4 ứng viên máy đoán, kể cả 0013_C2/0018_C2/0021_C2 có tờ khác lọt khung, 0006 nằm ngang).
+    **Sửa 06/10/2026 (phát hiện ở 3b): 0007_C3 nhãn sai** – máy đoán ô số 4 (2989, 1747) = ô đen của **tờ khác** ở mép
+    phải khung hình (bị khung cắt), marker TR thật là ô số 5 (2330, 858), ngay trên dòng "Mã phiếu: 0007". Người dùng
+    xem `khao_sat/0007_C3_so_nhan.jpg` (tứ giác đỏ = nhãn cũ, xanh = đề xuất) + 2 ảnh phóng to rồi xác nhận;
+    `xac_nhan.csv` → `chon = 1 2 3 5`, chạy lại `chot`: chỉ dòng 0007_C3 đổi, 77 dòng còn lại giống từng byte. Bản cũ:
+    `data/_eval/marker_that/backup/*_truoc_sua_0007_20261006.csv`. 18 ảnh `mat` còn lại xem lại bằng tứ giác: đúng.
+  - **Bài học**: kiểm marker bằng mắt phải xem **tứ giác 4 ô có khớp 4 góc tờ phiếu chính** không, không chỉ xem từng
+    ô (từng ô đều "là ô vuông đen" – ô của tờ khác cũng vậy). HTML xem bằng mắt của 3c (và mọi bước sau) **phải vẽ
+    tứ giác** 4 điểm được chọn lên ảnh.
     Ứng viên để gán nhãn tìm bằng bộ lọc rất lỏng (chia nền giấy cục bộ, mực < 50% nền, độ vuông ≥ 0,70, độ đặc
     ≥ 0,85) – không phải bộ lọc của v3. Cách đoán kiểm tra trước trên 59 ảnh đã biết: trúng **59/59**.
   - Khảo sát (dùng cho 3b/3c): 236 marker thật ở 59 ảnh đúng có độ vuông (diện tích / `minAreaRect`) 0,83–1,01,
@@ -205,6 +213,70 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   - ⇒ 19 ảnh `align_cu` sai = **14 "không tìm thấy"** (toàn C3, thiếu 1–2 marker: nguyên nhân 1, w/h quá chặt)
     + **5 "chọn sai"** dù có đủ 4 (0013_C2, 0018_C2, 0021_C2: tờ khác lọt khung – nguyên nhân 2/3; 0006_C2,
     0006_C3: chiều phiếu – nguyên nhân 4, để Bước 4). ~384 ứng viên/ảnh (lẽ ra 4) là gốc của nguyên nhân 2.
+  - **Đính chính (3b)**: "độ vuông 0,83–1,01" chỉ đúng trên 59 ảnh `align_cu` đúng. Trên đủ 78 ảnh, với mặt nạ của
+    bộ lọc lỏng 3a, marker thật thấp nhất **0,789** (0034_C3, marker gần máy bị thủng lõi – xem 3b) ⇒ độ vuông
+    không dùng làm ngưỡng.
+- **3b – xong 06/10/2026, người dùng đã duyệt** (`cv_engine/preprocessing.py`: `do_vet_muc()`, `tim_ung_vien_marker()`;
+  đo bằng `python tools/marker_that.py khao-sat` và `ung-vien --bo-loc moi`, chỉ dev, ghi `data/_eval/marker_that/`):
+  - **Mặt nạ mực**: xám / nền giấy < 0,5; nền = max cục bộ cửa sổ max(H, W)/12 (340 px) rồi làm mượt, tính trên ảnh
+    thu 1/4. Cửa sổ / cạnh hộp bao marker lớn nhất (145 px, 0031_C3) = **2,34** (bộ lọc 3a: 51 px → 0,35). Cửa sổ nhỏ
+    hơn marker làm lõi marker sáng không "thấy" giấy → **thủng lõi** (0034_C3 marker gần máy, mực xám `den_trong`
+    0,34 – cao nhất 312 marker, khả dĩ do loá: 3a vuông 0,789 / đặc 0,905 → mới 0,868 / 0,993; tâm chỉ lệch 0,2 px
+    vì lỗ nằm giữa). Ảnh `khao_sat/0034_C3_marker_gan_cu_moi.jpg`.
+  - **Đặc trưng mới `tu_giac`** = diện tích contour / tứ giác bao `cv2.approxPolyN(hull, 4)` (OpenCV 5.0.0). Thử trên
+    hình vẽ (vẽ ×8, thu nhỏ, làm mờ, ngưỡng): hình vuông độ phối cảnh 1,0 / 0,6 / 0,45, xoay 0 / 0,4 rad, cạnh 110 /
+    60 / 35 px → **0,944–1,000** (độ vuông `minAreaRect` chỉ 0,71–1,00); tròn Ø25–60 px, elip → **0,68–0,78**; tứ
+    giác luôn bao NGOÀI contour (khoảng cách có dấu nhỏ nhất của điểm contour = 0) ⇒ `tu_giac` ≤ 1.
+  - **Ngưỡng** (312 marker thật / 78 ảnh; "loại riêng" = ứng viên khác chỉ bị loại bởi ngưỡng đó khi đã áp các ngưỡng
+    còn lại): `dac` ≥ 0,80 – xấu nhất 0,969 (0014_C2), biên 0,169, loại riêng 99,5%; `canh` ≥ 0,30 – xấu nhất
+    **0,568 (0015_C3)**, biên 0,268, loại riêng 28,6% (10/35) – biên lớn hơn căn cứ dữ liệu **cố ý**, chừa cho marker
+    bị khung hình cắt (dẹt hơn) vẫn lọt tới 3c để 3c quyết định; `tu_giac` ≥ 0,83 – xấu nhất 0,938 (0014_C2), biên
+    0,108, loại riêng 99,1%; diện tích 1e-4–5e-3 ảnh – marker 2,33e-4–1,38e-3 (biên ×2,3 / ×3,6); ngưỡng mực 0,5 –
+    `den_trong` xấu nhất 0,338, biên 0,162. Không marker thật nào trong 0,05 trên ngưỡng. `muc_vien` ≤ 0,17 thử nhưng
+    **không áp** (chỉ loại 6/25; marker cạnh ngón tay / bóng sẽ mất) – chỉ dùng xếp hạng. `muc_vien` xấu nhất 0,070
+    (0014_C2 góc TR): nhiễu hạt của ảnh C2 tối lọt ngưỡng mực quanh marker, không phải vết in.
+  - **Xếp hạng** `diem = tu_giac × (1 − muc_vien)` (không trọng số khớp dữ liệu). Hạng lớn nhất như nhau với `vuong`,
+    `tu_giac`, `diem`, `diem × (1 − den_trong)` (đều 5) – ứng viên đã gần như chỉ còn marker.
+    | Điều kiện | Ảnh | Đủ 4 marker thật | Ứng viên/ảnh TB (min–max) | Hạng lớn nhất |
+    |---|---|---|---|---|
+    | C1 | 17 | 17 (100%) | 4,2 (4–6) | 4 |
+    | C2 | 18 | 18 (100%) | 4,3 (4–6) | 5 |
+    | C3 | 17 | 17 (100%) | 4,6 (4–6) | 5 |
+    | C4 | 16 | 16 (100%) | 4,0 (4–4) | 4 |
+    | D | 10 | 10 (100%) | 4,6 (4–6) | 4 |
+    | **Tổng** | **78** | **78 (100%)** | **4,3** (bộ lọc cũ 384) | **5** (0021_C2, 0030_C3) |
+    Khớp ≤ 10 px, thực tế xa nhất 1,75 px. Thời gian lọc (không tính đọc ảnh): trung vị **140 ms**, max 178 ms.
+  - **Chạy lại sau khi sửa nhãn 0007_C3** (06/10/2026) – số đổi so với lần trước: `canh` xấu nhất 0,475 (0007_C3) →
+    0,568 (0015_C3), biên 0,175 → 0,268; diện tích nhỏ nhất 2,07e-4 → 2,33e-4 (biên ×2,1 → ×2,3); hạng lớn nhất của
+    0007_C3 4 → 5 (C3 vẫn 5, tổng vẫn 5); hạng theo `vuong` (chỉ báo cáo) C3 4 → 5; thời gian 141/174 → 140/178 ms (dao
+    động đo). `ung_vien_moi_dev.csv`: chỉ dòng 0007_C3 đổi (bỏ cột thời gian). Bảng trên, ngưỡng, `dac`, `tu_giac`,
+    `muc_vien`, `den_trong` không đổi.
+  - Ca riêng: 0034_C3, 0031_C3, 0018_C2, 0006_C2 – 4 marker hạng 1–4; 0031_C3 ô đen tờ khác ở TL hạng 5
+    (`tu_giac` 0,870); 0013_C2 thêm 2 vết lớn ở góc dưới trái (15 559 / 24 189 px², `muc_vien` 0,24 / 0,31) hạng 5–6;
+    **0021_C2 marker TR hạng 5** sau một vết 33 801 px² chạm mép (52, 3874) hạng 2 – cỡ gấp ~3 marker cùng ảnh;
+    0006_C3 thêm 2 vết hạng 5–6; **0007_C3 marker TR thật hạng 5**, sau **ô đen tờ khác bị khung cắt** (2990, 1748;
+    2 522 px², `tu_giac` 0,957, `cham_mep`) – ô này **vẫn lọt bộ lọc mới, hạng 4**.
+  - **0007_C3 không có marker nào của tờ chính bị cắt** (đính chính: lần trình bày đầu của 3b gọi nhầm ô tờ khác là
+    "marker TR / marker dưới bị cắt", ước lượng mất 32–40%, tâm lệch 13–17 px ≈ 1,7–2,2 mm – các số đó là của ô tờ khác,
+    bỏ). Ảnh này thuộc nhóm **tờ khác lọt khung** như 0013_C2, 0018_C2, 0021_C2. Trên dev hiện **không có** marker thật
+    nào chạm mép ảnh.
+  - **Lưu ý cho 3c**: marker của tờ khác có mặt trong ứng viên khi nó lọt khung trọn vẹn, **và cả khi bị khung cắt**
+    (0007_C3) – `nhieu_phieu` / `marker_cham_mep` của 3c phải xử lý cả hai.
+- **3c – quy ước (chốt khi duyệt 3b)**:
+  - K (số ứng viên đưa vào chọn bộ 4) chọn **trên dev** theo hạng lớn nhất của 3b: K = max(2 × hạng, hạng + 4) = **10**
+    (dev hiện có tối đa 6 ứng viên/ảnh). Nếu không bộ 4 nào trong top-K đạt kiểm tra hình học → **từ chối có lý do**
+    (`thieu_marker` / `marker_khong_dat`), **không nới chuẩn** để cố tìm.
+  - **"4 marker cùng cỡ" so SAU khi tính phối cảnh**: dùng H từ 4 tâm để dự đoán hình (cỡ, hướng) của marker 8 mm ở
+    từng góc trên ảnh, rồi so với contour thật – **không** so diện tích px trực tiếp (ở C3 marker gần máy to gấp ~4–5
+    lần marker xa: tỉ lệ diện tích lớn nhất/nhỏ nhất của 4 marker cùng ảnh lên tới 5,4 – 0015_C3, mặt nạ 3a, nhãn đã sửa). Ca kiểm tra: **0021_C2** – vết
+    33 801 px² phải bị loại; **mọi ảnh C3 dev** không được bị loại nhầm vì điều kiện này.
+  - **Ca thử cho `nhieu_phieu` / `marker_cham_mep`**: 0007_C3 (ô tờ khác bị khung cắt, hạng 4, trên marker thật), 0013_C2,
+    0018_C2, 0021_C2 (tờ khác lọt khung), 0031_C3 (ô đen tờ khác ở góc TL, hạng 5).
+  - HTML xem bằng mắt **vẽ tứ giác** của bộ 4 được chọn (bài học 3a).
+- **Câu hỏi mở cho 3c / Bước 4 (chưa quyết)**: marker **chạm mép ảnh** (`cham_mep`) thì **ước lượng tâm** (từ cạnh còn
+  lại / hình học 3 marker kia) hay **từ chối** (lý do `marker_cham_mep`, yêu cầu chụp lại)? Trên dev không có marker thật
+  nào chạm mép (4 ảnh như vậy – 0014_C3, 0028_C4, 0032_C4, D007 – đã chụp lại trước Tuần 4); ca thật hiện có chỉ là ô
+  tờ khác bị cắt (0007_C3) – loại nó là đúng dù chọn cách nào. Có thể cần ảnh giả (che/cắt 1 marker) ở Bước 4.
 
 ### Bước 4 – Warp + chiều phiếu bằng nội dung + `verify()` từ chối có lý do (nguyên nhân 4) – `v4_verify`
 - **Việc**: warp; thử 4 cách gán TL/TR/BR/BL (0/90/180/270°), chọn chiều bằng **dấu hiệu nội dung riêng của

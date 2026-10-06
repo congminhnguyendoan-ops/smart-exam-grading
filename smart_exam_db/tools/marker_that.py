@@ -30,7 +30,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from eval_preprocessing import EVAL_DIR, ghi_jpg, list_images  # noqa: E402
 from check_layout import find_markers  # noqa: E402  (eval_preprocessing đã thêm answer_sheet/ vào sys.path)
-from cv_engine.preprocessing import load_image  # noqa: E402
+from cv_engine.preprocessing import load_image, tim_ung_vien_marker  # noqa: E402
 
 OUT = EVAL_DIR / "marker_that"
 # Bộ lọc ứng viên CHO VIỆC GÁN NHÃN – cố ý rất lỏng (để marker méo/xa vẫn lọt), không phải bộ lọc của v3.
@@ -50,14 +50,20 @@ GHI_CHU_ANH = {
 }
 
 
-def ung_vien(gray: np.ndarray) -> list[dict]:
-    """Mọi vết mực đặc, gần vuông (lỏng). Chuẩn hoá theo nền giấy cục bộ để ảnh tối (C2) / bóng không ảnh hưởng.
-    Trả về danh sách xếp theo độ vuông giảm dần; 'so' = số thứ tự (1, 2, ...) dùng trong HTML/CSV."""
+def mat_na_3a(gray: np.ndarray) -> np.ndarray:
+    """Mặt nạ mực của bộ lọc lỏng 3a: max cục bộ cửa sổ max(H, W)/80 (~51 px) rồi làm mượt max(H, W)/20."""
     H, W = gray.shape
     k = max(H, W) // 20 | 1
     nen = cv2.dilate(gray, cv2.getStructuringElement(cv2.MORPH_RECT, (k // 4 | 1, k // 4 | 1)))   # max cục bộ
     nen = cv2.GaussianBlur(nen, (k, k), 0)
-    muc = (gray.astype(np.float32) < NGUONG_MUC * np.maximum(nen, 1)).astype(np.uint8)
+    return (gray.astype(np.float32) < NGUONG_MUC * np.maximum(nen, 1)).astype(np.uint8)
+
+
+def ung_vien(gray: np.ndarray) -> list[dict]:
+    """Mọi vết mực đặc, gần vuông (lỏng). Chuẩn hoá theo nền giấy cục bộ để ảnh tối (C2) / bóng không ảnh hưởng.
+    Trả về danh sách xếp theo độ vuông giảm dần; 'so' = số thứ tự (1, 2, ...) dùng trong HTML/CSV."""
+    H, W = gray.shape
+    muc = mat_na_3a(gray)
     n, lab, st, ct = cv2.connectedComponentsWithStats(muc, 8)
     out = []
     for i in range(1, n):
@@ -275,22 +281,49 @@ def ung_vien_cu(gray: np.ndarray) -> list[tuple[float, float]]:
     return cands
 
 
-BO_LOC = {"cu": ung_vien_cu}
+def ung_vien_moi(gray: np.ndarray) -> list[tuple[float, float]]:
+    """Bộ lọc của Bước 3b (cv_engine.preprocessing.tim_ung_vien_marker), đã xếp theo điểm giảm dần."""
+    return [(u.x, u.y) for u in tim_ung_vien_marker(gray)]
+
+
+BO_LOC = {"cu": ung_vien_cu, "moi": ung_vien_moi}
+CA_RIENG = ["0034_C3", "0031_C3", "0013_C2", "0018_C2", "0021_C2", "0006_C2", "0006_C3", "0007_C3"]
+
+
+def doc_marker_that() -> dict[str, np.ndarray]:
+    return {r["anh"]: np.array([[float(r[f"x{i}"]), float(r[f"y{i}"])] for i in range(4)])
+            for r in csv.DictReader((OUT / "marker_that_dev.csv").open(encoding="utf-8-sig"))}
+
+
+def ghep(c: np.ndarray, pts: np.ndarray) -> list[int | None]:
+    """Với mỗi marker thật: chỉ số ứng viên gần nhất nếu cách ≤ KHOP_PX, không thì None."""
+    out = []
+    for p in pts:
+        d = np.hypot(*(c - p).T) if len(c) else np.array([np.inf])
+        j = int(np.argmin(d))
+        out.append(j if d[j] <= KHOP_PX else None)
+    return out
 
 
 def cmd_ung_vien(a) -> None:
     """Khâu TÌM: ảnh có đủ 4 marker thật trong danh sách ứng viên không, mỗi ảnh bao nhiêu ứng viên.
-    Tách lỗi 'không tìm thấy' (marker thật không có trong danh sách) với 'chọn sai' (có đủ mà vẫn nắn sai)."""
+    Tách lỗi 'không tìm thấy' (marker thật không có trong danh sách) với 'chọn sai' (có đủ mà vẫn nắn sai).
+    Bộ lọc trả danh sách đã xếp hạng ('moi') -> thêm hạng lớn nhất của marker thật (1 = đầu danh sách)."""
     from collections import defaultdict
-    that = {r["anh"]: np.array([[float(r[f"x{i}"]), float(r[f"y{i}"])] for i in range(4)])
-            for r in csv.DictReader((OUT / "marker_that_dev.csv").open(encoding="utf-8-sig"))}
+    from time import perf_counter
+    that = doc_marker_that()
     phan_loai = {r["anh"]: r["phan_loai"] for r in
                  csv.DictReader((EVAL_DIR / "align_cu" / "truth_dev.csv").open(encoding="utf-8-sig"))}
     f = BO_LOC[a.bo_loc]
-    rows = []
+    xep_hang = a.bo_loc != "cu"
+    rows, chi_tiet = [], {}
     for anh in list_images("dev"):
         g = load_image(anh.duong_dan)
+        t0 = perf_counter()
         c = np.array(f(g), np.float64).reshape(-1, 2)
+        ms = 1000 * (perf_counter() - t0)
+        hang = [None if j is None else j + 1 for j in ghep(c, that[anh.ten])]
+        chi_tiet[anh.ten] = hang
         if a.bo_loc == "cu" and len(c) >= 4:     # kiểm tra bản sao: 4 điểm find_markers() phải nằm trong danh sách
             fm = find_markers(g)
             if max(np.min(np.hypot(*(c - p).T)) for p in fm) > 1e-3:
@@ -299,7 +332,8 @@ def cmd_ung_vien(a) -> None:
         tim = sum(x <= KHOP_PX for x in d)
         rows.append({"anh": anh.ten, "dieu_kien": anh.dieu_kien, "so_ung_vien": len(c), "so_marker_tim_thay": tim,
                      "d_max_tim_thay_px": max([x for x in d if x <= KHOP_PX], default=float("nan")),
-                     "align_cu": phan_loai[anh.ten]})
+                     "hang_max": (max([h for h in hang if h], default=0) if xep_hang else ""),
+                     "thoi_gian_ms": ms, "align_cu": phan_loai[anh.ten]})
     out = OUT / f"ung_vien_{a.bo_loc}_dev.csv"
     with out.open("w", encoding="utf-8-sig", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0]))
@@ -311,8 +345,9 @@ def cmd_ung_vien(a) -> None:
         du = [r for r in rs if r["so_marker_tim_thay"] == 4]
         n = np.array([r["so_ung_vien"] for r in rs])
         chon_sai = [r for r in du if r["align_cu"] != "dung"]
+        hm = f" | hạng lớn nhất {max(r['hang_max'] for r in rs):3d}" if xep_hang else ""
         print(f"{nhan:6s} {len(rs):3d} ảnh | đủ 4 marker thật: {len(du):3d} ({100 * len(du) / len(rs):5.1f}%) | "
-              f"ứng viên/ảnh TB {n.mean():6.1f}, trung vị {np.median(n):5.0f}, min {n.min():4d}, max {n.max():4d} | "
+              f"ứng viên/ảnh TB {n.mean():6.1f}, trung vị {np.median(n):5.0f}, min {n.min():4d}, max {n.max():4d}{hm} | "
               f"đủ 4 mà align_cu vẫn sai: {len(chon_sai)}")
     nhom = defaultdict(list)
     for r in rows:
@@ -325,7 +360,193 @@ def cmd_ung_vien(a) -> None:
     thieu = [r for r in rows if r["so_marker_tim_thay"] < 4]
     print("Ảnh thiếu marker thật (số tìm thấy/4): "
           + (", ".join(f"{r['anh']} {r['so_marker_tim_thay']}/4" for r in thieu) or "không"))
+    ms = np.array([r["thoi_gian_ms"] for r in rows])
+    print(f"Thời gian lọc/ảnh (không tính đọc ảnh): trung vị {np.median(ms):.0f} ms, max {ms.max():.0f} ms "
+          f"({rows[int(ms.argmax())]['anh']})")
+    if xep_hang:
+        print("Hạng của 4 marker thật ở các ca nêu riêng (thứ tự góc như marker_that_dev.csv):")
+        for ten in CA_RIENG:
+            if ten in chi_tiet:
+                print(f"  {ten}: {chi_tiet[ten]}")
     print(f"Đã ghi {out}")
+
+
+# ============================================================================ lệnh khao-sat (căn cứ ngưỡng 3b)
+def cat_hai_anh(gray, muc, u, cao=300) -> np.ndarray:
+    """Ảnh gốc | mặt nạ mực quanh vết u (vùng = hộp bao nới 1 cạnh mỗi phía), ghép ngang."""
+    x, y, w, h = u.hop
+    s = max(w, h)
+    x0, y0 = max(0, x - s), max(0, y - s)
+    x1, y1 = min(gray.shape[1], x + w + s), min(gray.shape[0], y + h + s)
+    a, b = gray[y0:y1, x0:x1], (1 - muc[y0:y1, x0:x1]) * 255
+    f = cao / a.shape[0]
+    a, b = (cv2.resize(m.astype(np.uint8), None, fx=f, fy=f, interpolation=cv2.INTER_NEAREST) for m in (a, b))
+    return np.hstack([a, np.full((a.shape[0], 6), 128, np.uint8), b])
+
+
+def uoc_luong_bi_cat(r: dict, T: list[dict]) -> None:
+    """Marker r chạm mép: ước lượng % bị cắt từ tỉ lệ (diện tích, bề rộng) góc này / góc cùng hàng ở các ảnh
+    cùng điều kiện không chạm mép (bỏ 0006 nằm ngang). Giả sử phần mất là một dải dọc theo mép ảnh (theo x)."""
+    cung_hang = {0: 1, 1: 0, 2: 3, 3: 2}[r["goc"]]          # TL<->TR, BR<->BL (thứ tự theo_vong)
+    theo_anh = {}
+    for x in T:
+        theo_anh.setdefault(x["anh"], {})[x["goc"]] = x
+    ti_dt, ti_w = [], []
+    for anh, m in theo_anh.items():
+        if anh == r["anh"] or anh.startswith("0006") or m[r["goc"]]["dieu_kien"] != r["dieu_kien"] \
+                or any(v["cham_mep"] for v in m.values()):
+            continue
+        ti_dt.append(m[r["goc"]]["dien_tich"] / m[cung_hang]["dien_tich"])
+        ti_w.append(m[r["goc"]]["w"] / m[cung_hang]["w"])
+    ban = theo_anh[r["anh"]][cung_hang]
+    for ten, q in (("p10", 10), ("trung vị", 50), ("p90", 90)):
+        dt_mong = ban["dien_tich"] * np.percentile(ti_dt, q)
+        mat = 1 - r["dien_tich"] / dt_mong
+        w_mong = ban["w"] * np.percentile(ti_w, q)
+        # tâm thật lệch về phía mép: phần mất (tỉ lệ mat) có tâm cách tâm phần còn ~ (w_con + w_mat) / 2
+        lech = max(mat, 0) * (r["w"] + max(w_mong - r["w"], 0)) / 2
+        print(f"     ước lượng ({ten} của {len(ti_dt)} ảnh {r['dieu_kien']}): diện tích mong đợi {dt_mong:.0f} px² -> "
+              f"bị cắt {100 * mat:.0f}%; bề rộng mong đợi {w_mong:.0f} px (còn {r['w']}) -> tâm centroid lệch ~{lech:.0f} px")
+
+
+def cmd_khao_sat(a) -> None:
+    """Phân bố đặc trưng của marker thật vs ứng viên khác (mọi vết mực qua lọc diện tích), ngưỡng + biên,
+    số ứng viên khác bị loại nhờ RIÊNG từng ngưỡng, hạng theo các cách xếp. Chỉ dev. Ghi dac_trung_moi_dev.csv."""
+    import cv_engine.preprocessing as pp
+    from collections import defaultdict
+    that = doc_marker_that()
+    (OUT / "khao_sat").mkdir(parents=True, exist_ok=True)
+    rows, thieu, canh_max = [], [], (0, "")
+    luu = {}                                   # ảnh -> (đường dẫn, cỡ, vết mực) – đọc lại ảnh khi cần cắt
+    for anh in list_images("dev"):
+        g = load_image(anh.duong_dan)
+        vets = pp.do_vet_muc(g)
+        c = np.array([(u.x, u.y) for u in vets]).reshape(-1, 2)
+        idx = ghep(c, that[anh.ten])
+        if None in idx:
+            thieu.append(f"{anh.ten} {4 - idx.count(None)}/4")
+        goc = {j: k for k, j in enumerate(idx) if j is not None}
+        for j, u in enumerate(vets):
+            rows.append({"anh": anh.ten, "dieu_kien": anh.dieu_kien, "marker": int(j in goc), "goc": goc.get(j, ""),
+                         "x": u.x, "y": u.y, "dien_tich": u.dien_tich, "dt_ti_le": u.dien_tich / g.size,
+                         "w": u.hop[2], "h": u.hop[3], "dac": u.dac, "canh": u.canh, "tu_giac": u.tu_giac,
+                         "vuong": u.vuong, "muc_vien": u.muc_vien, "den_trong": u.den_trong,
+                         "cham_mep": int(u.cham_mep), "diem": u.diem})
+            if j in goc and max(u.hop[2:]) > canh_max[0]:
+                canh_max = (max(u.hop[2:]), anh.ten)
+        luu[anh.ten] = (anh.duong_dan, g.shape, vets)
+        print(f"{anh.ten:8s} {len(vets):4d} vết mực, marker thật ghép được {4 - idx.count(None)}/4", flush=True)
+    with (OUT / "dac_trung_moi_dev.csv").open("w", encoding="utf-8-sig", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0]))
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: (f"{v:.5f}" if isinstance(v, float) else v) for k, v in r.items()})
+
+    T = [r for r in rows if r["marker"]]
+    O = [r for r in rows if not r["marker"]]
+    print(f"\n=== Ghép marker thật (≤ {KHOP_PX:.0f} px) với vết mực: {len(T)}/{4 * len(that)}; thiếu: {', '.join(thieu) or 'không'}")
+
+    # --- 1. cửa sổ nền
+    Hmax = max(max(v[1]) for v in luu.values())
+    k_eff = (Hmax // pp.NEN_CUA_SO // pp.NEN_THU_NHO | 1) * pp.NEN_THU_NHO
+    print(f"\n=== Cửa sổ nền: cạnh hộp bao marker thật lớn nhất {canh_max[0]} px ({canh_max[1]}). "
+          f"Cửa sổ max mới {k_eff} px -> cửa sổ/marker = {k_eff / canh_max[0]:.2f}. "
+          f"(Bộ lọc lỏng 3a: max 51 px -> {51 / canh_max[0]:.2f}; làm mượt 201 px)")
+
+    # --- 2. phân bố
+    print("\n=== Phân bố đặc trưng (marker thật n = %d | ứng viên khác n = %d)" % (len(T), len(O)))
+    for k in ("dt_ti_le", "dac", "canh", "tu_giac", "vuong", "muc_vien", "den_trong"):
+        t = np.array([r[k] for r in T]); o = np.array([r[k] for r in O])
+        xau = (T[int(t.argmax())] if k in ("muc_vien", "den_trong") else T[int(t.argmin())])["anh"]
+        print(f"{k:9s} thật: min {t.min():.4g} p1 {np.percentile(t, 1):.4g} p50 {np.median(t):.4g} p99 "
+              f"{np.percentile(t, 99):.4g} max {t.max():.4g} (xấu nhất {xau}) | khác: p5 {np.percentile(o, 5):.4g} "
+              f"p50 {np.median(o):.4g} p95 {np.percentile(o, 95):.4g} max {o.max():.4g}")
+
+    # --- 3. ngưỡng: biên + loại riêng
+    nguong = [("dac", pp.DAC_MIN), ("canh", pp.CANH_MIN), ("tu_giac", pp.TU_GIAC_MIN)]
+    print("\n=== Ngưỡng lọc (≥): xấu nhất marker thật, biên, số marker thật trong 0,05 trên ngưỡng, "
+          "ứng viên khác bị loại nhờ RIÊNG ngưỡng này (đã áp các ngưỡng còn lại)")
+    for k, v in nguong:
+        t = np.array([r[k] for r in T])
+        xau = T[int(t.argmin())]["anh"]
+        con_lai = [r for r in O if all(r[k2] >= v2 for k2, v2 in nguong if k2 != k)]
+        loai = sum(r[k] < v for r in con_lai)
+        print(f"{k:8s} ≥ {v:.2f}: xấu nhất {t.min():.3f} ({xau}), biên {t.min() - v:+.3f}, sát (< ngưỡng + 0,05): "
+              f"{int((t < v + 0.05).sum())} | loại riêng {loai}/{len(con_lai)} ({100 * loai / max(len(con_lai), 1):.1f}%)")
+    t_v = max(r["muc_vien"] for r in T)
+    qua = [r for r in O if all(r[k] >= v for k, v in nguong)]
+    print(f"(thử, KHÔNG áp) muc_vien ≤ {t_v + 0.1:.2f}: xấu nhất {t_v:.3f} "
+          f"({max(T, key=lambda r: r['muc_vien'])['anh']}), biên 0,100 | loại riêng "
+          f"{sum(r['muc_vien'] > t_v + 0.1 for r in qua)}/{len(qua)}")
+    dt = np.array([r["dt_ti_le"] for r in T])
+    print(f"diện tích {pp.DT_MIN:g}–{pp.DT_MAX:g} ảnh: marker thật {dt.min():.3g}–{dt.max():.3g} -> biên "
+          f"×{dt.min() / pp.DT_MIN:.1f} dưới, ×{pp.DT_MAX / dt.max():.1f} trên (loại riêng: không đếm – vết vụn chưa tính đặc trưng)")
+    print(f"ngưỡng mực {pp.MUC_TI_LE}: den_trong marker thật xấu nhất {max(r['den_trong'] for r in T):.3f} -> biên "
+          f"{pp.MUC_TI_LE - max(r['den_trong'] for r in T):+.3f}")
+
+    # --- 4. xếp hạng: hạng lớn nhất của marker thật theo từng cách xếp, trong các vết qua lọc
+    cach = {"vuong (cũ)": lambda r: r["vuong"], "tu_giac": lambda r: r["tu_giac"],
+            "diem = tu_giac×(1−muc_vien)": lambda r: r["diem"],
+            "diem×(1−den_trong)": lambda r: r["diem"] * (1 - r["den_trong"])}
+    theo_anh = defaultdict(list)
+    for r in rows:
+        if all(r[k] >= v for k, v in nguong):
+            theo_anh[r["anh"]].append(r)
+    print("\n=== Hạng lớn nhất của marker thật (trong các vết qua lọc), theo điều kiện chụp")
+    dk_anh = {r["anh"]: r["dieu_kien"] for r in rows}
+    for ten, fn in cach.items():
+        hm = defaultdict(int); te = (0, "")
+        for anh, rs in theo_anh.items():
+            xs = sorted(rs, key=lambda r: -fn(r))
+            h = max(i + 1 for i, r in enumerate(xs) if r["marker"])
+            hm[dk_anh[anh]] = max(hm[dk_anh[anh]], h)
+            te = max(te, (h, anh))
+        print(f"{ten:30s} " + "  ".join(f"{d} {hm[d]}" for d in sorted(hm)) + f"  | tổng {te[0]} ({te[1]})")
+
+    # --- 5. ca riêng: marker thật + vết khác điểm cao nhất
+    print("\n=== Ca nêu riêng: (hạng theo diem) marker thật | 3 vết KHÁC điểm cao nhất")
+    for ten in CA_RIENG:
+        xs = sorted(theo_anh[ten], key=lambda r: -r["diem"])
+        mk = [f"#{i + 1} g{r['goc']} tg {r['tu_giac']:.3f} vien {r['muc_vien']:.3f} den {r['den_trong']:.2f}"
+              + (" CHẠM MÉP" if r["cham_mep"] else "") for i, r in enumerate(xs) if r["marker"]]
+        kh = [f"#{i + 1} ({r['x']:.0f},{r['y']:.0f}) tg {r['tu_giac']:.3f} vien {r['muc_vien']:.3f} "
+              f"den {r['den_trong']:.2f} {r['dien_tich']}px²" for i, r in enumerate(xs) if not r["marker"]][:3]
+        print(f"{ten}: {len(xs)} ứng viên\n   thật: " + " | ".join(mk) + "\n   khác: " + " | ".join(kh))
+
+    # --- 6. ảnh cắt: vuông kém nhất, vành nhiều mực nhất, marker chạm mép
+    def cat(r, ten_file, ghi):
+        duong_dan, _, vets = luu[r["anh"]]
+        g = load_image(duong_dan)
+        u = next(v for v in vets if abs(v.x - r["x"]) < 1e-3 and abs(v.y - r["y"]) < 1e-3)
+        muc = (g.astype(np.float32) / np.maximum(pp.uoc_luong_nen(g), 1) < pp.MUC_TI_LE).astype(np.uint8)
+        ghi_jpg(OUT / "khao_sat" / ten_file, cat_hai_anh(g, muc, u), q=92)
+        print(f"  {ghi}: {r['anh']} góc {r['goc']} hộp {u.hop} {u.dien_tich} px² vuong {u.vuong:.3f} "
+              f"tu_giac {u.tu_giac:.3f} dac {u.dac:.3f} vien {u.muc_vien:.3f} -> khao_sat/{ten_file}")
+    print("\n=== Ảnh cắt (trái: ảnh gốc, phải: mặt nạ mực đen) trong data/_eval/marker_that/khao_sat/")
+    r = min(T, key=lambda r: r["vuong"]); cat(r, f"{r['anh']}_vuong_kem_nhat.jpg", "vuông kém nhất")
+    r = max(T, key=lambda r: r["muc_vien"]); cat(r, f"{r['anh']}_vien_nhieu_muc_nhat.jpg", "vành nhiều mực nhất")
+    for r in [r for r in T if r["cham_mep"]]:
+        cat(r, f"{r['anh']}_cham_mep_g{r['goc']}.jpg", "chạm mép")
+        cung = [x for x in T if x["anh"] == r["anh"]]
+        print("     4 marker cùng ảnh: " + ", ".join(f"g{x['goc']} {x['dien_tich']}px² hộp {x['w']}×{x['h']} "
+                                                    f"tâm ({x['x']:.0f},{x['y']:.0f})" for x in cung))
+        uoc_luong_bi_cat(r, T)
+
+    # --- 7. 0034_C3: marker gần máy (lớn nhất) – mặt nạ cửa sổ cũ (3a) vs mới
+    r = max((x for x in T if x["anh"] == "0034_C3"), key=lambda x: x["dien_tich"])
+    duong_dan, _, vets = luu["0034_C3"]
+    g = load_image(duong_dan)
+    cu = min(ung_vien(g), key=lambda u: np.hypot(u["x"] - r["x"], u["y"] - r["y"]))
+    u = next(v for v in vets if abs(v.x - r["x"]) < 1e-3 and abs(v.y - r["y"]) < 1e-3)
+    moi = (g.astype(np.float32) / np.maximum(pp.uoc_luong_nen(g), 1) < pp.MUC_TI_LE).astype(np.uint8)
+    a_cu, a_moi = cat_hai_anh(g, mat_na_3a(g), u), cat_hai_anh(g, moi, u)
+    ghi_jpg(OUT / "khao_sat" / "0034_C3_marker_gan_cu_moi.jpg",
+            np.hstack([a_cu, np.full((a_cu.shape[0], 6), 128, np.uint8), a_moi[:, a_cu.shape[1] // 2 + 3:]]), q=92)
+    print(f"\n=== 0034_C3 marker gần máy g{r['goc']} (ảnh gốc | mặt nạ 3a | mặt nạ mới -> khao_sat/0034_C3_marker_gan_cu_moi.jpg)\n"
+          f"  cửa sổ 3a : {cu['dien_tich']} px², vuong {cu['vuong']:.3f}, dac {cu['dac']:.3f}, tâm ({cu['x']:.1f},{cu['y']:.1f})\n"
+          f"  cửa sổ mới: {u.dien_tich} px², vuong {u.vuong:.3f}, dac {u.dac:.3f}, tu_giac {u.tu_giac:.3f}, "
+          f"tâm ({u.x:.1f},{u.y:.1f}) -> tâm lệch {np.hypot(u.x - cu['x'], u.y - cu['y']):.1f} px")
+    print(f"\nĐã ghi {OUT / 'dac_trung_moi_dev.csv'} ({len(rows)} vết mực)")
 
 
 def main() -> None:
@@ -335,8 +556,9 @@ def main() -> None:
     sub.add_parser("chot", help="ghép xac_nhan.csv + align_cu đúng -> marker_that_dev.csv")
     t = sub.add_parser("ung-vien", help="đo khâu TÌM của một bộ lọc ứng viên so với marker_that_dev.csv")
     t.add_argument("--bo-loc", default="cu", choices=sorted(BO_LOC))
+    sub.add_parser("khao-sat", help="phân bố đặc trưng marker thật vs vết khác -> căn cứ ngưỡng Bước 3b")
     a = ap.parse_args()
-    {"de-xuat": cmd_de_xuat, "chot": cmd_chot, "ung-vien": cmd_ung_vien}[a.lenh](a)
+    {"de-xuat": cmd_de_xuat, "chot": cmd_chot, "ung-vien": cmd_ung_vien, "khao-sat": cmd_khao_sat}[a.lenh](a)
 
 
 if __name__ == "__main__":
