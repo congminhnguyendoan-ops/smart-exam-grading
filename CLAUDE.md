@@ -297,7 +297,22 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       (trước: 59 / 19 / 0). Không đạt: `lech_max` của ảnh đúng không giảm (0,90 → 0,91 mm TB) – lệch nằm giữa trang, không
       do tâm marker (±0,06 mm). 0006_C2/C3 đúng chiều là tình cờ – **Bước 4 phải quyết 0°/180° bằng nội dung**.
       Chi tiết: `docs/ke_hoach_tuan4.md` mục 3c.
+      **Bước 4 xong 06/10/2026** (`v4_verify`): `verify()`/`preprocess()` – chiều 0°/180° bằng nội dung (0006_C2/C3 đúng
+      nhờ nội dung), từ chối có mã (`anh_mo`, `khong_khop_bo_cuc`, `khong_ro_chieu`, `marker_cham_mep`, …; marker chạm mép
+      → từ chối). Dev 78/78 đúng, 0 lỗi im lặng, 0 từ chối nhầm, 0 ảnh đổi so với v3 (ảnh nắn giống từng điểm ảnh).
+      Ảnh giả `data/_eval/_gia_v4` (111, tái tạo bằng `tools/kiem_verify.py tao-gia`, không cần sao lưu): 0 lỗi im lặng,
+      4 "sai mã, đã biết" (mờ chéo / mờ + nhiễu bị chặn bởi `khong_khop_bo_cuc` thay vì `anh_mo`). Hồi quy align_cu/v2/v3
+      giống từng byte. Chi tiết + bảng: `docs/ke_hoach_tuan4.md` Bước 4. Ảnh nghiêng hơn K2 0,50 bị từ chối → đưa vào
+      "Hướng dẫn chụp cho giáo viên" (Bước 7/báo cáo).
 - [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
+      **Yêu cầu Tuần 6 (06/10/2026): đo độ chính xác CNN theo mức mờ (dùng ảnh giả `data/_eval/_gia_v4`, tái tạo bằng
+      `tools/kiem_verify.py tao-gia`), rồi chỉnh lại ngưỡng `anh_mo` theo hậu quả.** Ngưỡng hiện tại `MO_MIN = 0,012`
+      (`cv_engine/preprocessing.py`, `blur_score` cách `phan_tu_huong`, đo trên `anh_nan` thu 150 DPI) là ngưỡng TẠM, THẬN
+      TRỌNG: OMR chịu mờ tới Gauss σ ≈ 32 px / chuyển động 80 px (px ẢNH GỐC 4032×3024; ≈ 2,3 / 5,8 mm mặt phiếu ở C1),
+      ngưỡng đặt chặt hơn nhiều chỉ vì CNN chưa đo (`docs/ke_hoach_tuan4.md` Bước 4).
+      **Giới hạn đã biết**: `mo_huong` chỉ xét trục x/y; mờ chéo 45° và mờ có nhiễu lọt qua `anh_mo`, hiện bị chặn bởi
+      `khong_khop_bo_cuc` (sai mã, vẫn an toàn). **Tuần 6: đo blur 4 hướng + trừ nhiễu, chọn lại ngưỡng `anh_mo` cùng lúc
+      với đo CNN theo mức mờ** (gỡ `SAI_MA_DA_BIET` trong `tools/eval_preprocessing.py` khi sửa xong).
       **Yêu cầu Tuần 5 (06/10/2026): OMR bắt buộc dò lại từng hàng cho ảnh nghiêng mạnh** – sau khi nắn bằng 4 marker
       (đúng ±0,06 mm ở marker), nội dung ảnh C3 vẫn lệch TB +0,84 mm (0,37–1,30) ở giữa trang; ảnh giả C3 chỉ 0,1 mm ⇒ lệch
       thật (giấy/ống kính), homography 4 điểm không sửa được (`docs/ke_hoach_tuan4.md` 3c dừng B).

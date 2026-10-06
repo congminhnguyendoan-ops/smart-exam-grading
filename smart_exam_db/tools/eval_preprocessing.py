@@ -49,7 +49,7 @@ sys.path.insert(0, str(ANSWER_SHEET))
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT))
 from check_layout import align, render_pdf_page  # noqa: E402  (không sửa check_layout.py)
-from cv_engine.preprocessing import find_markers, load_image  # noqa: E402
+from cv_engine.preprocessing import find_markers, load_image, preprocess  # noqa: E402
 from prepare_photos import marker_fill  # noqa: E402
 from check_labels import SEARCH_MM, item_box, local_darkness, register  # noqa: E402
 
@@ -135,7 +135,39 @@ def v3_hinh_hoc(duong_dan: Path):
     return cv2.warpPerspective(gray, M, tuple(layout["page_px"])), "", chi_tiet
 
 
-PHUONG_PHAP = {"align_cu": align_cu, "v2_load": v2_load, "v3_hinh_hoc": v3_hinh_hoc}
+def nap_layout_loai(loai: str) -> dict:
+    ten = "layout.json" if loai == "phieu" else "digit_sheet_layout.json"
+    return json.loads((ANSWER_SHEET / "output" / ten).read_text(encoding="utf-8"))
+
+
+def v4_verify(duong_dan: Path, loai: str | None = None):
+    """Bước 4: preprocess() = find_markers v3 + warp + verify() (chiều 0°/180° bằng nội dung, từ chối có lý do).
+    Layout theo loại trang mong đợi: tên D* -> trang chữ số, còn lại phiếu (lúc chạy thật backend biết loại trang)."""
+    loai = loai or ("chu_so" if Path(duong_dan).stem.startswith("D") else "phieu")
+    kq = preprocess(duong_dan, nap_layout_loai(loai))
+    ct = {"marker": kq.marker, "ung_vien": kq.chi_tiet.get("ung_vien", []), "so_bo_dat": kq.chi_tiet.get("so_bo_dat", ""),
+          "huong_xoay": kq.huong_xoay if kq.huong_xoay is not None else "",
+          **{k: kq.chi_tiet[k] for k in V4_COT if k in kq.chi_tiet}}
+    return (kq.anh_nan if kq.ok else None), kq.ly_do, ct
+
+
+V4_COT = ["S0", "S180", "bien_chieu", "blur_score", "loi_marker"]
+PHUONG_PHAP = {"align_cu": align_cu, "v2_load": v2_load, "v3_hinh_hoc": v3_hinh_hoc, "v4_verify": v4_verify}
+
+
+def huong_tu_marker(m) -> int:
+    dx, dy = np.asarray(m[1], float) - np.asarray(m[0], float)
+    return int(round(np.degrees(np.arctan2(dy, dx)) / 90.0)) % 4 * 90
+
+
+def marker_v3() -> dict:
+    """4 tâm marker v3_hinh_hoc (TL, TR, BR, BL thật – 78/78 ảnh dev nắn đúng và đúng chiều, phép 2 + mắt)."""
+    out = {}
+    p = EVAL_DIR / "v3_hinh_hoc" / "diem_dev.csv"
+    for r in csv.DictReader(p.open(encoding="utf-8-sig")):
+        if r["tra_anh"] == "co":
+            out[r["anh"]] = np.array([[float(r[f"marker_{g}_{c}"]) for c in "xy"] for g in ("tl", "tr", "br", "bl")])
+    return out
 
 
 def goi_phuong_phap(f, anh: Anh, page_px, chi_tiet: dict | None = None) -> tuple:
@@ -464,6 +496,10 @@ def viet_html(rows, path: Path, ten_pp: str, split: str):
                   f"<br>lech_max kể cả ô không duy nhất: {fmt(r.get('lech_max_ca_o_khong_duy_nhat_mm'), 2)} mm" \
                   f"<br>tự động: <b>{r['ket_luan_tu_dong']}</b> ({html.escape(r['ly_do_tu_dong'])})" \
                   if r["tra_anh"] == "co" else f"<b>TỪ CHỐI</b>: {html.escape(r['ly_do'])}"
+        if "huong_xoay" in r:
+            metrics += (f"<br><b>verify</b>: hướng {r['huong_xoay']}° (đúng {r['huong_dung']}°), S0 {fmt(r.get('S0'))}, "
+                        f"S180 {fmt(r.get('S180'))}, biên chiều {fmt(r.get('bien_chieu'))}, blur {fmt(r.get('blur_score'), 4)}, "
+                        f"lõi marker {fmt(r.get('loi_marker'))}")
         al = (f'<a href="anh/{r["anh"]}_chong.jpg" target="_blank"><img src="anh/{r["anh"]}_chong_nho.jpg" width="420"></a>'
               if r["tra_anh"] == "co" else "")
         goc = (f'<a href="anh/{r["anh"]}_goc_lon.jpg" target="_blank"><img src="anh/{r["anh"]}_goc.jpg" width="320"></a>'
@@ -513,6 +549,7 @@ def cmd_run(a) -> None:
     nhan = doc_nhan_o()
 
     rows, tile_rows = [], []
+    mv3 = marker_v3() if a.phuong_phap not in ("align_cu", "v2_load", "v3_hinh_hoc") else {}
     images = list_images(a.split)
     for n, anh in enumerate(images, 1):
         ct = {}
@@ -527,6 +564,10 @@ def cmd_run(a) -> None:
             if ct.get("marker") is not None:
                 for g, (x, y) in zip(("tl", "tr", "br", "bl"), ct["marker"]):
                     r[f"marker_{g}_x"], r[f"marker_{g}_y"] = float(x), float(y)
+        if "huong_xoay" in ct:      # v4+: chiều phiếu + số đo của verify(); chiều đúng lấy từ v3_hinh_hoc
+            r["huong_xoay"] = ct["huong_xoay"]
+            r["huong_dung"] = huong_tu_marker(mv3[anh.ten]) if anh.ten in mv3 else ""
+            r.update({k: float(ct[k]) for k in V4_COT if k in ct})
         ghi_jpg(out / "anh" / f"{anh.ten}_goc.jpg", goc, max_w=400, q=80)
         if aligned is not None:
             fill = marker_fill(aligned, layout)
@@ -564,6 +605,8 @@ def cmd_run(a) -> None:
             "so_hang", "ti_le_hang_duong", "hieu_min", "hieu_p10", "hieu_trungvi"]
     if any("so_ung_vien" in r for r in rows):      # chỉ phương pháp báo marker – CSV của phương pháp cũ giữ nguyên cột
         cols += ["so_ung_vien", "so_bo_dat"] + [f"marker_{g}_{c}" for g in ("tl", "tr", "br", "bl") for c in "xy"]
+    if any("huong_xoay" in r for r in rows):        # chỉ v4+ – CSV của phương pháp cũ giữ nguyên cột
+        cols += ["huong_xoay", "huong_dung"] + V4_COT
     with (out / f"diem_{a.split}.csv").open("w", encoding="utf-8-sig", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols)
         w.writeheader()
@@ -576,6 +619,11 @@ def cmd_run(a) -> None:
             w.writerow({k: (f"{v:.4f}" if isinstance(v, float) else v) for k, v in t.items()})
 
     viet_html(rows, out / "xem_bang_mat.html", a.phuong_phap, a.split)
+    if "huong_xoay" in rows[0]:
+        can = [r for r in rows if r["tra_anh"] != "co" or r["ket_luan_tu_dong"] in ("sai", "xem")
+               or r["huong_xoay"] != r["huong_dung"]]
+        viet_html(can, out / "can_xem.html", a.phuong_phap, a.split)
+        print(f"can_xem.html: {len(can)} ảnh cần xem bằng mắt (từ chối / sai / xem / lệch chiều)")
     review = out / "xem_bang_mat.csv"
     if review.exists():
         print(f"\nGIỮ NGUYÊN {review} (đã có – có thể chứa kết luận bằng mắt).")
@@ -879,6 +927,13 @@ def cmd_report(a) -> None:
     tap = {p: {r["anh"] for r in rows if r["phan_loai"] == p} for p in ("loi_im_lang", "bi_tu_choi")}
     for p, ten in (("loi_im_lang", "Lỗi im lặng"), ("bi_tu_choi", "Bị từ chối")):
         print(f"{ten} ({len(tap[p])}): {', '.join(sorted(tap[p])) or '-'}")
+    print("  (ảnh dev thật đều hợp lệ ⇒ mọi ảnh 'bị từ chối' ở bảng này là TỪ CHỐI NHẦM; "
+          "từ chối đúng đo trên ảnh giả: lệnh run-gia)")
+    diem = EVAL_DIR / a.phuong_phap / "diem_dev.csv"
+    if diem.exists():
+        g = np.array([float(r["giay"]) for r in csv.DictReader(diem.open(encoding="utf-8-sig"))])
+        print(f"Thời gian phương pháp mỗi ảnh (gồm đọc file): trung vị {np.median(g) * 1000:.0f} ms, "
+              f"lớn nhất {g.max() * 1000:.0f} ms")
     if a.so_voi:
         cu = list(csv.DictReader((EVAL_DIR / a.so_voi / "truth_dev.csv").open(encoding="utf-8-sig")))
         cu_pl = {r["anh"]: r["phan_loai"] for r in cu}
@@ -968,6 +1023,108 @@ def cmd_tam_marker(a) -> None:
     print(f"Đã ghi {path}")
 
 
+# ============================================================================ lệnh run-gia (Bước 4)
+GIA_DIR = EVAL_DIR / "_gia_v4"
+NHOM_MA = {"khong_du_marker": {"thieu_marker", "marker_khong_dat"}}
+KHOP_MARKER_PX = 3.0         # ca 'ok': 4 tâm trả về cách H · (tâm v3 của ảnh nguồn) ≤ 3 px
+PHAN_LOAI_GIA = ["dung", "tu_choi_dung", "LOI_IM_LANG", "lot_qua_nan_dung", "sai_ma", "sai_ma_da_biet", "tu_choi_nham"]
+# Giới hạn ĐÃ BIẾT (người dùng duyệt dừng C, 06/10/2026): mo_huong chỉ xét trục x/y – mờ chéo 45° và mờ có nhiễu lọt qua
+# anh_mo, hiện bị chặn bởi khong_khop_bo_cuc (sai mã, vẫn an toàn). Sửa ở Tuần 6 (blur 4 hướng + trừ nhiễu). Chỉ áp khi
+# ca đó VẪN BỊ TỪ CHỐI với đúng mã này; nếu trả ảnh thì vẫn tính lỗi như thường.
+SAI_MA_DA_BIET = {t: "khong_khop_bo_cuc" for t in ("mo_cheo30_0001_C1", "mo_cheo15_0015_C3",
+                                                    "mo_toi_nhieu_0001_C1", "mo_toi_nhieu_0008_C4")}
+
+
+def cmd_run_gia(a) -> None:
+    """Chấm preprocess() trên ảnh giả data/_eval/_gia_v4/ (kiem_verify.py tao-gia) theo kết quả mong đợi chốt trước:
+      dung            – mong ok/ok_hoac, trả ảnh, 4 tâm khớp ≤ 3 px và huong_xoay đúng
+      tu_choi_dung    – mong tu_choi/ok_hoac, từ chối với mã thuộc tập mong đợi
+      LOI_IM_LANG     – trả ảnh mà 4 tâm / chiều KHÔNG khớp (lỗi nguy hiểm nhất)
+      lot_qua_nan_dung– mong từ chối nhưng trả ảnh (nắn khớp) – không nguy hiểm bằng, vẫn là KHÔNG ĐẠT
+      sai_ma          – từ chối nhưng mã ngoài tập mong đợi
+      sai_ma_da_biet  – như sai_ma nhưng là giới hạn đã biết (SAI_MA_DA_BIET) – vẫn an toàn, không phải từ chối nhầm
+      tu_choi_nham    – mong ok mà bị từ chối
+    Ảnh giả chỉ kiểm LOGIC (lấy từ ảnh dev); khả năng tổng quát hoá đo ở Bước 7."""
+    out = EVAL_DIR / a.phuong_phap
+    (out / "anh_gia").mkdir(parents=True, exist_ok=True)
+    mv3 = marker_v3()
+    rows = []
+    for d in csv.DictReader((GIA_DIR / "danh_sach.csv").open(encoding="utf-8-sig")):
+        t0 = time.perf_counter()
+        kq = preprocess(GIA_DIR / f"{d['ten']}.jpg", nap_layout_loai(d["layout"]))
+        giay = time.perf_counter() - t0
+        chap_nhan = set()
+        for m in filter(None, d["ly_do_mong_doi"].split("|")):
+            chap_nhan |= NHOM_MA.get(m, {m})
+        tam_md = None
+        if d["H"]:
+            tam_md = cv2.perspectiveTransform(mv3[d["nguon"].split("+")[0]][None], np.array(json.loads(d["H"])))[0]
+        lech = huong_md = None
+        if kq.ok and tam_md is not None:
+            lech = float(np.max(np.hypot(*(kq.marker - tam_md).T)))
+            huong_md = huong_tu_marker(tam_md)
+        khop = lech is not None and lech <= KHOP_MARKER_PX and kq.huong_xoay == huong_md
+        if kq.ok:
+            pl = ("dung" if d["mong_doi"] in ("ok", "ok_hoac") else "lot_qua_nan_dung") if khop else "LOI_IM_LANG"
+        elif d["mong_doi"] == "ok":
+            pl = "tu_choi_nham"
+        else:
+            pl = "tu_choi_dung" if kq.ly_do in chap_nhan else (
+                "sai_ma_da_biet" if SAI_MA_DA_BIET.get(d["ten"]) == kq.ly_do else "sai_ma")
+        r = {"ten": d["ten"], "nhom": d["nhom"], "nguon": d["nguon"], "bien_the": d["bien_the"], "mong_doi": d["mong_doi"],
+             "ly_do_mong_doi": d["ly_do_mong_doi"], "huong_mong_doi": huong_md if huong_md is not None else d["huong_mong_doi"],
+             "ok": int(kq.ok), "ly_do": kq.ly_do, "huong_xoay": kq.huong_xoay if kq.huong_xoay is not None else "",
+             "lech_marker_px": lech if lech is not None else "", "phan_loai": pl, "giay": giay,
+             **{k: kq.chi_tiet[k] for k in V4_COT if k in kq.chi_tiet}}
+        rows.append(r)
+        print(f"{d['ten']:30s} {pl:16s} {('ok ' + str(kq.huong_xoay) + '°') if kq.ok else kq.ly_do:20s} "
+              f"(mong {d['mong_doi']} {d['ly_do_mong_doi'] or d['huong_mong_doi']})")
+        # ảnh xem: ảnh giả thu nhỏ + tứ giác trả về (xanh lá) + tứ giác mong đợi (tím); ảnh nắn nếu có
+        g = cv2.imdecode(np.fromfile(GIA_DIR / f"{d['ten']}.jpg", np.uint8), cv2.IMREAD_GRAYSCALE)
+        img = ve_tu_giac(g, {"ung_vien": kq.chi_tiet.get("ung_vien", []), "marker": kq.marker})
+        if tam_md is not None:
+            cv2.polylines(img, [np.int32(tam_md)], True, (200, 0, 200), max(2, int(2 * max(g.shape) / 1400)), cv2.LINE_AA)
+        ghi_jpg(out / "anh_gia" / f"{d['ten']}_goc.jpg", img, max_w=700, q=80)
+        if kq.anh_nan is not None:
+            ghi_jpg(out / "anh_gia" / f"{d['ten']}_nan.jpg", kq.anh_nan, max_w=500, q=80)
+    ghi_csv(out / "gia.csv", rows)
+
+    from collections import Counter
+    print(f"\nẢnh giả ({len(rows)}) – phân loại theo nhóm:")
+    print(f"{'nhóm':12s} " + " ".join(f"{p:>16s}" for p in PHAN_LOAI_GIA))
+    for nh in list(dict.fromkeys(r["nhom"] for r in rows)) + ["Tổng"]:
+        s = rows if nh == "Tổng" else [r for r in rows if r["nhom"] == nh]
+        c = Counter(r["phan_loai"] for r in s)
+        print(f"{nh:12s} " + " ".join(f"{c[p]:16d}" for p in PHAN_LOAI_GIA))
+    hong = [r for r in rows if r["phan_loai"] not in ("dung", "tu_choi_dung")]
+    print("KHÔNG ĐẠT:" + ("".join(f"\n  {r['ten']}: {r['phan_loai']} – trả {('ok ' + str(r['huong_xoay'])) if r['ok'] else r['ly_do']}"
+                                  f", mong {r['mong_doi']} {r['ly_do_mong_doi'] or r['huong_mong_doi']}" for r in hong) or " không"))
+    g = np.array([r["giay"] for r in rows])
+    print(f"Thời gian mỗi ảnh giả: trung vị {np.median(g) * 1000:.0f} ms, lớn nhất {g.max() * 1000:.0f} ms")
+
+    # HTML: ca không đạt trước, rồi mọi ca theo nhóm
+    def dong(r):
+        nan = (f'<a href="anh_gia/{r["ten"]}_nan.jpg" target="_blank"><img src="anh_gia/{r["ten"]}_nan.jpg" width="240"></a>'
+               if (out / "anh_gia" / f"{r['ten']}_nan.jpg").exists() else "")
+        so = ", ".join(f"{k} {fmt(r[k], 4 if k == 'blur_score' else 3)}" for k in V4_COT if k in r)
+        mau = "#c00" if r["phan_loai"] not in ("dung", "tu_choi_dung") else "#080"
+        return (f'<tr><td><b>{r["ten"]}</b><br>{html.escape(r["bien_the"])}<br>mong: {r["mong_doi"]} '
+                f'{html.escape(r["ly_do_mong_doi"] or str(r["huong_mong_doi"]) + "°")}<br>trả: '
+                f'{("ok " + str(r["huong_xoay"]) + "°") if r["ok"] else html.escape(r["ly_do"])}'
+                f'<br><b style="color:{mau}">{r["phan_loai"]}</b><br><small>{so}<br>lệch marker {fmt(r["lech_marker_px"], 2)} px'
+                f'</small></td><td><a href="anh_gia/{r["ten"]}_goc.jpg" target="_blank"><img src="anh_gia/{r["ten"]}_goc.jpg" '
+                f'width="320"></a></td><td>{nan}</td></tr>')
+    sap = sorted(rows, key=lambda r: (r["phan_loai"] in ("dung", "tu_choi_dung"), r["nhom"]))
+    (out / "gia.html").write_text(f"""<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Ảnh giả {a.phuong_phap}</title>
+<style>body{{font-family:sans-serif;margin:16px}} td{{vertical-align:top;border-bottom:1px solid #ddd;padding:6px;font-size:13px}}
+img{{border:1px solid #ccc}}</style></head><body><h2>Ảnh giả lỗi cố ý – <code>{a.phuong_phap}</code> ({len(rows)} ảnh,
+không đạt: {len(hong)})</h2><p>Ảnh giữa: ảnh giả + <span style="color:#0a0">tứ giác 4 marker trả về</span> (chấm đỏ = TL),
+<span style="color:#c0c">tứ giác mong đợi</span> (H · tâm v3 của ảnh nguồn), vòng xanh dương = ứng viên. Ảnh phải: ảnh nắn
+(cả khi bị từ chối ở verify). Sắp xếp: không đạt trước.</p><table>{"".join(dong(r) for r in sap)}</table></body></html>""",
+                                  encoding="utf-8")
+    print(f"Đã ghi {out / 'gia.csv'}, {out / 'gia.html'}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Đánh giá phương pháp nắn phẳng ảnh (Tuần 4)")
     sub = ap.add_subparsers(dest="lenh", required=True)
@@ -991,9 +1148,11 @@ def main() -> None:
         else:
             t.add_argument("--so-voi", choices=sorted(PHUONG_PHAP), default=None,
                            help="liệt kê ảnh đổi phân loại so với phương pháp này")
+    t = sub.add_parser("run-gia", help="chấm preprocess() trên ảnh giả lỗi cố ý (data/_eval/_gia_v4) theo kết quả mong đợi")
+    t.add_argument("--phuong-phap", default="v4_verify", choices=["v4_verify"])
     a = ap.parse_args()
     {"run": cmd_run, "tu-kiem": cmd_tu_kiem, "dung-sai": cmd_dung_sai, "tam-marker": cmd_tam_marker,
-     "finalize": cmd_finalize, "report": cmd_report}[a.lenh](a)
+     "finalize": cmd_finalize, "report": cmd_report, "run-gia": cmd_run_gia}[a.lenh](a)
 
 
 if __name__ == "__main__":

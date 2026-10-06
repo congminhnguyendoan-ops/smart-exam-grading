@@ -7,8 +7,8 @@ báo OK – ảnh không nắn được phải bị từ chối có lý do (KetQ
 Tiến độ:
     Bước 2  load_image()                         – xong
     Bước 3b tim_ung_vien_marker()                – lọc + xếp hạng ứng viên marker
-    Bước 3c find_markers()  (chọn 4 marker theo hình học)
-    Bước 4  warp(), verify() (chiều phiếu bằng nội dung, từ chối có lý do)
+    Bước 3c find_markers()  (chọn 4 marker theo hình học) – xong
+    Bước 4  warp(), verify(), preprocess() (chiều phiếu bằng nội dung, từ chối có lý do) – dừng C
     Bước 5  normalize()     (khử bóng / cân bằng sáng)
     Bước 6  preprocess()    (API cho backend + thay align() trong các công cụ)
 
@@ -39,8 +39,9 @@ class LoiDocAnh(Exception):
 class KetQuaTienXuLy:
     """Kết quả preprocess(path). Các trường được điền dần theo từng bước của kế hoạch Tuần 4.
 
-    ly_do (mã lỗi khi ok = False): 'khong_doc_duoc', 'thieu_marker', 'marker_khong_dat', 'sai_huong',
-    'khong_khop_bo_cuc', 'anh_mo', …
+    ly_do (mã lỗi khi ok = False): 'khong_doc_duoc', 'thieu_marker', 'marker_khong_dat', 'nhieu_phieu',
+    'marker_mo_ho', 'marker_cham_mep', 'anh_mo', 'khong_khop_bo_cuc', 'khong_ro_chieu'. Xoay sai không phải lỗi:
+    chiều 0°/180° quyết bằng nội dung rồi tự xoay lại (huong_xoay).
     """
     ok: bool = False
     ly_do: str = ""
@@ -52,6 +53,7 @@ class KetQuaTienXuLy:
     # Hướng xoay ĐÃ ÁP khi đọc (1–8, truy vết ca như 0006). JPG: thẻ EXIF Orientation của file.
     # HEIC: giá trị GỐC lấy từ info["original_orientation"], vì pillow-heif tự xoay rồi đặt thẻ về 1.
     exif_orientation: int = 1
+    chi_tiet: dict = field(default_factory=dict)    # số đo để truy vết (S0/S180, biên chiều, ứng viên, …)
 
 
 # ============================================================================ Bước 2: đọc ảnh
@@ -390,17 +392,204 @@ def find_markers(gray: np.ndarray, layout: dict, uv: list | None = None):
     return tam, "", chi_tiet
 
 
-# ============================================================================ Bước 4–6 (chưa làm)
+# ============================================================================ Bước 4: nắn + số đo cho verify()
+# Dừng B: các hàm ĐO (điểm bố cục S, blur_score, lõi marker) – ngưỡng chọn bằng `tools/kiem_verify.py khao-sat`.
+# Chỉ dùng toạ độ layout.json; KHÔNG render PDF / so bản đồ cạnh (phép 2 eval), KHÔNG dùng nhãn (phép 3 eval).
+DO_DICH_MM = 2.0            # dò lệch từng phần tử ±2 mm (ảnh C3 dev còn lệch thật tới 1,30 mm giữa trang)
+VIEN_NET_PX = 3.0           # nửa bề rộng dải viền in sẵn (px @300 DPI) khi đo tương phản
+VANH_NGOAI_PX = (6.0, 12.0) # dải giấy so sánh: cách viền 6–12 px (khe giữa 2 ô tròn liền nhau ≥ 16 px)
+MO_DPI = 150                # blur_score đo ở 150 DPI (giảm nhiễu hạt của ảnh C2 tối)
+MO_VUNG_PX = 15             # vùng đo blur: phần tử nới 15 px (@300 DPI) – chịu được lệch ~1,3 mm
 
 
 def warp(gray: np.ndarray, marker: np.ndarray, layout: dict) -> np.ndarray:
-    """Bước 4: perspective transform 4 tâm marker về toạ độ layout.json."""
-    raise NotImplementedError("Bước 4")
+    """4 tâm marker (TL, TR, BR, BL trên ảnh gốc) -> trang layout (px @ dpi). Giống hệt cách nắn của v3_hinh_hoc."""
+    m = layout["markers"]["centers"]
+    M = cv2.getPerspectiveTransform(np.float32(marker), np.float32([m[g] for g in GOC]))
+    return cv2.warpPerspective(gray, M, tuple(layout["page_px"]))
 
 
-def verify(anh_nan: np.ndarray, layout: dict) -> tuple[bool, str, int]:
-    """Bước 4: kiểm tra ảnh nắn + xác định chiều phiếu bằng nội dung -> (ok, ly_do, huong_xoay)."""
-    raise NotImplementedError("Bước 4")
+def loai_trang(layout: dict) -> str:
+    return "phieu" if "answers" in layout else "chu_so"
+
+
+def phan_tu_bo_cuc(layout: dict) -> list[tuple[str, np.ndarray]]:
+    """[(khoá nhân, tâm N×2)] các phần tử in sẵn dùng đo bố cục. Phiếu: ô tròn đáp án (r 29,5) + bubble SBD/mã đề
+    (r 26) – có trên cả phiếu thu dữ liệu lẫn phiếu thi thật. Trang D: 400 ô viết (cùng cỡ)."""
+    if loai_trang(layout) == "phieu":
+        a = layout["answers"]
+        dap_an = np.array([a["centers"][q][o] for q in a["centers"] for o in a["options"]], np.float64)
+        bub = np.array([p for f in ("sbd", "exam_code") for col in layout[f]["bubbles"] for p in col], np.float64)
+        return [(f"tron_{a['bubble_radius']}", dap_an), (f"tron_{layout['sbd']['bubble_radius']}", bub)]
+    R = np.array([b["rect"] for b in layout["boxes"]], np.float64)
+    w, h = R[0, 2], R[0, 3]
+    return [(f"chu_nhat_{w}_{h}", R[:, :2] + R[:, 2:] / 2)]
+
+
+def nhan_tuong_phan(khoa: str, phan: str = "ca") -> np.ndarray:
+    """Nhân đối xứng tâm: +1/n trên dải viền, −1/n trên dải giấy ngoài (tròn) hoặc trong+ngoài (chữ nhật).
+    Tương quan với ảnh độ tối d = 1 − xám/nền ⇒ phản hồi = độ tối viền − độ tối giấy quanh viền.
+    phan (chỉ chữ nhật): 'ca' = 4 cạnh cùng một độ dịch, 'doc' / 'ngang' = chỉ cạnh dọc / cạnh ngang."""
+    a, b = VANH_NGOAI_PX
+    if khoa.startswith("tron_"):
+        r = float(khoa.split("_")[1])
+        n = int(np.ceil(r + b)) + 1
+        yy, xx = np.mgrid[-n:n + 1, -n:n + 1]
+        rho = np.hypot(xx, yy)
+        vien, giay = np.abs(rho - r) <= VIEN_NET_PX, (rho >= r + a) & (rho <= r + b)
+    else:
+        w, h = (float(v) / 2 for v in khoa.split("_")[2:])
+        n = int(np.ceil(max(w, h) + b)) + 1
+        yy, xx = np.mgrid[-n:n + 1, -n:n + 1]
+        dx, dy = np.abs(xx) - w, np.abs(yy) - h           # khoảng cách có dấu tới cạnh dọc / cạnh ngang
+        canh_doc = (np.abs(dx) <= VIEN_NET_PX) & (np.abs(yy) <= h - VIEN_NET_PX)
+        canh_ngang = (np.abs(dy) <= VIEN_NET_PX) & (np.abs(xx) <= w - VIEN_NET_PX)
+        giay_doc = (np.abs(dx) >= a) & (np.abs(dx) <= b) & (np.abs(yy) <= h - VIEN_NET_PX)
+        giay_ngang = (np.abs(dy) >= a) & (np.abs(dy) <= b) & (np.abs(xx) <= w - VIEN_NET_PX)
+        vien = {"ca": canh_doc | canh_ngang, "doc": canh_doc, "ngang": canh_ngang}[phan]
+        giay = {"ca": giay_doc | giay_ngang, "doc": giay_doc, "ngang": giay_ngang}[phan]
+    k = vien / vien.sum() - giay / giay.sum()
+    return k.astype(np.float32)
+
+
+def anh_do_toi(anh_nan: np.ndarray) -> np.ndarray:
+    """d = 1 − xám / nền giấy cục bộ (float32): khử khác biệt chiếu sáng C1–C4 (C2 tối, C4 đèn vàng)."""
+    return 1.0 - anh_nan.astype(np.float32) / np.maximum(uoc_luong_nen(anh_nan), 1.0)
+
+
+def phan_hoi_phan_tu(d: np.ndarray, layout: dict, phan: str = "ca") -> list[tuple[np.ndarray, np.ndarray]]:
+    """[(bản đồ phản hồi đã lấy max trong cửa sổ ±DO_DICH_MM, tâm phần tử)] cho từng loại phần tử."""
+    k_dich = 2 * round(DO_DICH_MM * layout["dpi"] / 25.4) + 1
+    out = []
+    for khoa, tam in phan_tu_bo_cuc(layout):
+        R = cv2.filter2D(d, cv2.CV_32F, nhan_tuong_phan(khoa, phan), borderType=cv2.BORDER_REPLICATE)
+        out.append((cv2.dilate(R, cv2.getStructuringElement(cv2.MORPH_RECT, (k_dich, k_dich))), tam))
+    return out
+
+
+def lay_mau(Rmax: np.ndarray, tam: np.ndarray, xoay180: bool) -> np.ndarray:
+    """Giá trị Rmax tại tâm phần tử; xoay180: tại vị trí phần tử khi trang bị lật 180° (W−1−x, H−1−y).
+    Nhân đối xứng tâm ⇒ phản hồi của ảnh xoay 180° = phản hồi ảnh gốc lấy ở điểm đối xứng (không cần xoay ảnh)."""
+    H, W = Rmax.shape
+    p = (np.array([W - 1, H - 1]) - tam) if xoay180 else tam
+    x = np.clip(np.round(p[:, 0]).astype(int), 0, W - 1)
+    y = np.clip(np.round(p[:, 1]).astype(int), 0, H - 1)
+    return Rmax[y, x]
+
+
+def diem_bo_cuc(anh_nan: np.ndarray, layout: dict, phan: str = "ca", d: np.ndarray | None = None) -> dict:
+    """S0 / S180 = trung vị tương phản viền trên mọi phần tử, khi trang đúng chiều / lật 180°. Kèm mảng từng phần tử."""
+    d = anh_do_toi(anh_nan) if d is None else d
+    ph = phan_hoi_phan_tu(d, layout, phan)
+    v0 = np.concatenate([lay_mau(R, t, False) for R, t in ph])
+    v180 = np.concatenate([lay_mau(R, t, True) for R, t in ph])
+    return {"S0": float(np.median(v0)), "S180": float(np.median(v180)), "v0": v0, "v180": v180}
+
+
+def mat_na_mo(layout: dict, xoay180: bool = False) -> np.ndarray:
+    """Vùng đo blur @MO_DPI: phần tử in sẵn nới MO_VUNG_PX (tròn: đĩa r + nới; chữ nhật: hộp nới)."""
+    W, H = layout["page_px"]
+    s = MO_DPI / layout["dpi"]
+    m = np.zeros((round(H * s), round(W * s)), np.uint8)
+    for khoa, tam in phan_tu_bo_cuc(layout):
+        p = (np.array([W - 1, H - 1]) - tam) if xoay180 else tam
+        if khoa.startswith("tron_"):
+            r = (float(khoa.split("_")[1]) + MO_VUNG_PX) * s
+            for x, y in p * s:
+                cv2.circle(m, (round(x), round(y)), round(r), 1, -1)
+        else:
+            w, h = (float(v) / 2 for v in khoa.split("_")[2:])
+            for x, y in p:
+                cv2.rectangle(m, (round((x - w - MO_VUNG_PX) * s), round((y - h - MO_VUNG_PX) * s)),
+                              (round((x + w + MO_VUNG_PX) * s), round((y + h + MO_VUNG_PX) * s)), 1, -1)
+    return m
+
+
+def blur_score(anh_nan: np.ndarray, layout: dict, cach: str = "phan_tu", xoay180: bool = False) -> float:
+    """Phương sai Laplacian ở MO_DPI. 'phan_tu_huong': như phan_tu nhưng min(var ∂²/∂x², var ∂²/∂y²) – bắt mờ một hướng.
+    'phan_tu' (chính): trên ảnh xám/nền (khử chiếu sáng), trong vùng phần tử in sẵn.
+    'toan_trang' (đối chứng): trên ảnh xám thô /255, toàn vùng trong 4 marker (bỏ ô 20 mm quanh marker).
+    KHÔNG chia cho tương phản mực: mờ làm nét mảnh nhạt đi, chia cho tương phản sẽ triệt tiêu chính tín hiệu mờ."""
+    s = MO_DPI / layout["dpi"]
+    nho = cv2.resize(anh_nan, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
+    if cach in ("phan_tu", "phan_tu_huong"):
+        x = nho.astype(np.float32) / np.maximum(uoc_luong_nen(nho), 1.0)
+        m = mat_na_mo(layout, xoay180)[:x.shape[0], :x.shape[1]]
+    else:
+        x = nho.astype(np.float32) / 255.0
+        m = np.zeros(x.shape, np.uint8)
+        mm = MO_DPI / 25.4
+        m[round(20 * mm):round(277 * mm), round(20 * mm):round(190 * mm)] = 1
+        for c in layout["markers"]["centers"].values():
+            cx, cy = c[0] * s, c[1] * s
+            m[max(0, round(cy - 10 * mm)):round(cy + 10 * mm), max(0, round(cx - 10 * mm)):round(cx + 10 * mm)] = 0
+    if cach == "phan_tu_huong":     # mờ chuyển động chỉ làm nhoè MỘT hướng: lấy hướng nhoè nhất
+        dxx = cv2.Sobel(x, cv2.CV_32F, 2, 0, ksize=3)
+        dyy = cv2.Sobel(x, cv2.CV_32F, 0, 2, ksize=3)
+        return float(min(dxx[m > 0].var(), dyy[m > 0].var()))
+    L = cv2.Laplacian(x, cv2.CV_32F, ksize=3)
+    return float(L[m > 0].var())
+
+
+def den_loi_marker(anh_nan: np.ndarray, layout: dict) -> list[float]:
+    """Mỗi marker (TL, TR, BR, BL): trung bình xám lõi 6×6 mm / trung vị xám vành giấy 6–10 mm quanh tâm.
+    Marker thật ≈ 0,1–0,3 (đen trên giấy); vết khác / giấy ≈ 1. (Gần giống phép 1 của eval – phép phụ.)"""
+    mm = layout["dpi"] / 25.4
+    out = []
+    for g in GOC:
+        cx, cy = layout["markers"]["centers"][g]
+        x0, y0 = round(cx - 10 * mm), round(cy - 10 * mm)
+        o = anh_nan[max(0, y0):round(cy + 10 * mm), max(0, x0):round(cx + 10 * mm)].astype(np.float32)
+        yy, xx = np.mgrid[:o.shape[0], :o.shape[1]]
+        ax, ay = np.abs(xx + max(0, x0) - cx), np.abs(yy + max(0, y0) - cy)
+        loi = (ax <= 3 * mm) & (ay <= 3 * mm)
+        vanh = (np.maximum(ax, ay) >= 6 * mm) & (np.maximum(ax, ay) <= 10 * mm)
+        out.append(float(o[loi].mean() / max(np.median(o[vanh]), 1.0)))
+    return out
+
+
+# Ngưỡng verify() – chốt ở dừng B (06/10/2026), căn cứ: `python tools/kiem_verify.py khao-sat`
+# (data/_eval/v4_verify/khao_sat_dev.csv: 78 ảnh dev thật; khao_sat_mo.csv: hậu quả mờ). "Dev xấu nhất" = ảnh đúng.
+BIEN_CHIEU_MIN = 0.20       # khong_ro_chieu: (S_tốt − S_kia) / S_tốt; dev xấu nhất phiếu 0,805 (0018_C2) ×4,0,
+                            # trang D 0,429 (D006) ×2,1
+S_MIN = {"phieu": 0.23,     # khong_khop_bo_cuc: S_tốt; phiếu dev xấu nhất 0,365 (0010_C2), trang D chấm theo layout
+         "chu_so": 0.18}    # phiếu tốt nhất 0,144 (D006) – biên ×1,6 / ×1,6. Trang D: 0,451 (D001) vs phiếu chấm theo
+                            # layout D 0,072 (0026_C2) – ×2,5 / ×2,5. Hai phép đo khác nhau -> hai ngưỡng
+MO_MIN = 0.012              # anh_mo: blur_score 'phan_tu_huong'. NGƯỠNG TẠM, THẬN TRỌNG. Dev xấu nhất 0,221 (0034_C3),
+                            # trang D 0,416 (D002). OMR (độ tối trung bình ô Ø5 mm, dò lại ±4 mm) còn tách filled/faint
+                            # khỏi blank tới Gauss σ ≈ 32 px / chuyển động 80 px (px ẢNH GỐC 4032×3024) – mức gãy đầu
+                            # tiên có blur_score ≤ 0,00063. Ngưỡng đặt ở trung bình nhân 0,221 và 0,00063 (×18,7 mỗi
+                            # phía), CHẶT HƠN NHIỀU so với OMR cần, vì CNN chữ số viết tay (Tuần 6) chưa đo theo mức mờ.
+                            # Tuần 6: đo CNN trên ảnh giả data/_eval/_gia_v4 rồi chỉnh lại theo hậu quả.
+LOI_MARKER_MAX = 0.60       # marker_khong_dat: lõi 6×6 mm / vành giấy; dev xấu nhất 0,357 (0034_C3, marker loá), D 0,246
+
+
+def verify(anh_nan: np.ndarray, layout: dict) -> tuple[bool, str, bool, dict]:
+    """Bước 4: kiểm tra ảnh đã nắn (theo cách gán marker r ∈ {0, 1} của find_markers) + quyết chiều 0°/180° bằng
+    NỘI DUNG -> (ok, ly_do, lat_180, chi_tiet). lat_180 = trang đang lộn ngược (đầu trang ở dưới).
+    Thứ tự kết luận: anh_mo -> khong_khop_bo_cuc -> khong_ro_chieu -> marker_khong_dat (lõi marker).
+    Mọi số đo chỉ dựa layout.json; không dùng phép 2/3 của eval (không render PDF, không nhãn)."""
+    S = diem_bo_cuc(anh_nan, layout)
+    lat = S["S180"] > S["S0"]
+    s_tot, s_kia = (S["S180"], S["S0"]) if lat else (S["S0"], S["S180"])
+    ct = {"S0": S["S0"], "S180": S["S180"], "bien_chieu": (s_tot - s_kia) / s_tot if s_tot > 0 else 0.0,
+          "blur_score": blur_score(anh_nan, layout, "phan_tu_huong", lat),
+          "loi_marker": max(den_loi_marker(anh_nan, layout))}
+    if ct["blur_score"] < MO_MIN:
+        return False, "anh_mo", lat, ct
+    if s_tot < S_MIN[loai_trang(layout)]:
+        return False, "khong_khop_bo_cuc", lat, ct
+    if ct["bien_chieu"] < BIEN_CHIEU_MIN:
+        return False, "khong_ro_chieu", lat, ct
+    if ct["loi_marker"] > LOI_MARKER_MAX:
+        return False, "marker_khong_dat", lat, ct
+    return True, "", lat, ct
+
+
+def huong_xoay(marker: np.ndarray) -> int:
+    """Góc phiếu bị xoay trong ảnh gốc (chiều kim đồng hồ, bội 90°) từ vectơ TL -> TR: 0 = đầu trang ở trên."""
+    dx, dy = np.asarray(marker[1], float) - np.asarray(marker[0], float)
+    return int(round(np.degrees(np.arctan2(dy, dx)) / 90.0)) % 4 * 90
 
 
 def normalize(anh_nan: np.ndarray) -> np.ndarray:
@@ -409,5 +598,36 @@ def normalize(anh_nan: np.ndarray) -> np.ndarray:
 
 
 def preprocess(path, layout: dict) -> KetQuaTienXuLy:
-    """Bước 6: đọc ảnh -> tìm marker -> nắn -> kiểm tra -> chuẩn hoá. Không bao giờ ném lỗi: lỗi -> ok=False."""
-    raise NotImplementedError("Bước 6")
+    """Đọc ảnh -> tìm 4 marker -> nắn -> verify (chiều bằng nội dung, từ chối có lý do). Bước 4: điền mọi trường trừ
+    anh_chuan_hoa (Bước 5). layout = layout của loại trang mong đợi (phiếu / trang chữ số).
+    Lỗi đọc file -> ok=False, 'khong_doc_duoc'; lỗi lập trình khác vẫn ném ra (Bước 6 quyết có bọc hay không).
+    marker_cham_mep (chốt 06/10/2026: TỪ CHỐI, không ước lượng tâm): (1) một marker của bộ được chọn chạm mép ảnh;
+    (2) không chọn được bộ 4 mà có ứng viên chạm mép -> báo marker_cham_mep (lời nhắc 'đưa cả tờ vào khung')."""
+    kq = KetQuaTienXuLy()
+    try:
+        gray, kq.exif_orientation = doc_anh(path)
+    except LoiDocAnh:
+        kq.ly_do = "khong_doc_duoc"
+        return kq
+    tam, ly_do, ct = find_markers(gray, layout)
+    kq.chi_tiet = {"ung_vien": [(u.x, u.y) for u in ct["ung_vien"]], "so_bo_dat": len(ct["bo_dat"])}
+    if tam is None:
+        if ly_do in ("thieu_marker", "marker_khong_dat") and any(u.cham_mep for u in ct["ung_vien"]):
+            ly_do = "marker_cham_mep"
+        kq.ly_do = ly_do
+        return kq
+    bo = ct["bo_dat"][0]
+    if any(ct["ung_vien"][bo["bo"][j]].cham_mep for j in bo["gan"]["idx"]):
+        kq.ly_do, kq.marker = "marker_cham_mep", tam
+        return kq
+    anh_nan = warp(gray, tam, layout)
+    ok, ly_do, lat, ct_v = verify(anh_nan, layout)
+    kq.chi_tiet.update(ct_v)
+    kq.blur_score = ct_v["blur_score"]
+    if lat:                                     # trang lộn ngược: gán lại góc (r + 2) và nắn lại – chính xác hơn rot90
+        tam = np.roll(tam, -2, axis=0)
+        anh_nan = warp(gray, tam, layout)
+    kq.marker, kq.huong_xoay = tam, huong_xoay(tam)
+    kq.ok, kq.ly_do = ok, ly_do
+    kq.anh_nan = anh_nan                        # giữ cả khi bị từ chối (để xem lại); dùng được chỉ khi ok
+    return kq

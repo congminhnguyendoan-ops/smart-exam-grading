@@ -139,7 +139,8 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   `dung` chưa xem thành `xem` → đều dừng, không ghi file; bản không sửa → ghi bình thường.
 - **`preprocess(path)` trả một dataclass kết quả** (chốt từ Bước 2, điền dần):
   `anh_nan` (xám, đã nắn, chưa chuẩn hoá) · `anh_chuan_hoa` (Bước 5) · `ok` · `ly_do` (mã: `thieu_marker`,
-  `marker_khong_dat`, `sai_huong`, `khong_khop_bo_cuc`, `anh_mo`, …) · `marker` (toạ độ 4 tâm trên ảnh gốc,
+  `marker_khong_dat`, `nhieu_phieu`, `marker_mo_ho`, `marker_cham_mep`, `anh_mo`, `khong_khop_bo_cuc`,
+  `khong_ro_chieu` – chốt ở Bước 4; không có mã "sai hướng": xoay sai thì tự xoay lại) · `marker` (toạ độ 4 tâm trên ảnh gốc,
   dưới pixel) · `huong_xoay` (0/90/180/270) · `blur_score`. Hàm bọc cho eval: `ok` → `anh_nan`, không thì
   `(None, ly_do)`.
 - Tuần 5 chọn `anh_nan` hay `anh_chuan_hoa` để train OMR **bằng thí nghiệm** (so F1 lớp `faint` theo C1–C4),
@@ -344,7 +345,7 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   **Lưu ý cho Bước 4**: 0006_C2/C3 đúng chiều là **tình cờ** (quy tắc r ∈ {0, 1}); ảnh chụp ngang theo hướng ngược lại
   sẽ ra 180° (ảnh giả `xoay270_ngang`) ⇒ Bước 4 vẫn phải quyết 0°/180° bằng nội dung, và ảnh giả xoay 180° / 270° phải
   được đưa vào eval Bước 4 (dev thật không có ca này).
-- **Câu hỏi mở cho 3c / Bước 4 (chưa quyết)**: marker **chạm mép ảnh** (`cham_mep`) thì **ước lượng tâm** (từ cạnh còn
+- **Câu hỏi mở cho 3c / Bước 4 – ĐÃ ĐÓNG 06/10/2026: TỪ CHỐI `marker_cham_mep`** (xem Bước 4). Nội dung câu hỏi cũ: marker **chạm mép ảnh** (`cham_mep`) thì **ước lượng tâm** (từ cạnh còn
   lại / hình học 3 marker kia) hay **từ chối** (lý do `marker_cham_mep`, yêu cầu chụp lại)? Trên dev không có marker thật
   nào chạm mép (4 ảnh như vậy – 0014_C3, 0028_C4, 0032_C4, D007 – đã chụp lại trước Tuần 4); ca thật hiện có chỉ là ô
   tờ khác bị cắt (0007_C3) – loại nó là đúng dù chọn cách nào. Có thể cần ảnh giả (che/cắt 1 marker) ở Bước 4.
@@ -362,6 +363,175 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   làm mờ) – tạo trong `data/_eval/`.
 - **Xong khi**: 0006_C2, 0006_C3 đúng; **lỗi im lặng = 0 trên dev** và trên ảnh giả; mỗi ảnh bị từ chối có
   lý do đúng; không ảnh nào đổi từ đúng sang sai so với Bước 3.
+- **Kế hoạch chi tiết (người dùng duyệt 06/10/2026)**:
+  - **Chiều 0°/180°**: 4 tâm marker layout đối xứng qua tâm trang ⇒ ảnh nắn theo cách gán r + 2 = `np.rot90(anh_nan, 2)`
+    (không warp lại). Điểm bố cục **S(θ)** = trung vị trên mọi phần tử in sẵn của layout (phiếu: 250 ô tròn – vành tròn
+    so với vòng giấy ngoài, ô trống lẫn ô tô đều dương; trang D: 400 ô viết – cạnh dọc + ngang **cùng một độ dịch**)
+    của tương phản cục bộ, dò lệch ±2 mm (C3 còn lệch thật tới 1,30 mm). Chọn θ có S lớn hơn. Bỏ vùng 20×20 mm quanh
+    marker; không EXIF; không render PDF/không so bản đồ cạnh (phép 2); không nhãn (phép 3). Tính bất đối xứng (đo trên
+    hai file layout, `doi_xung.py` scratchpad): phiếu – 16/250 ô tròn sau xoay 180° rơi trong 15 px một ô tròn khác
+    (32 trong 30 px), trung vị cách 82,6 px ≈ 7 mm (khối đáp án ở y 1795–2965, xoay sẽ rơi vào vùng tiêu đề/SBD); trang D
+    – 0/400 ô viết trùng, lưới dời (142, 246) px vì lề trái/phải 378/236, trên/dưới 567/321 px: cạnh dọc lệch ~4 mm
+    (> cửa sổ dò) nhưng cạnh ngang chỉ ~1,35 mm ⇒ phải ép chung độ dịch cho cả ô. Dọc/ngang vẫn do K4 (3c) quyết;
+    sai dọc/ngang thì nội dung lệch hoàn toàn → `khong_khop_bo_cuc`. Tự kiểm: 78 ảnh nắn dev đưa vào ở **cả hai chiều**.
+  - **`huong_xoay`** = góc phiếu bị xoay trong ảnh gốc (chiều kim đồng hồ, bội 90°) từ vectơ TL→TR cuối cùng; `marker`
+    sắp theo TL/TR/BR/BL thật của trang. Chiều đúng của dev lấy từ `v3_hinh_hoc` (78/78 đúng qua phép 2 – bắt được xoay
+    180° – và mắt), **không** từ `marker_that_dev.csv` (thứ tự góc 0006 ghi "không quan trọng").
+  - **Bộ mã** (kết luận theo thứ tự): `khong_doc_duoc` · `thieu_marker` / `marker_khong_dat` / `nhieu_phieu` /
+    `marker_mo_ho` (3c, `find_markers()` **không sửa** để v3 tái tạo từng byte) · `marker_khong_dat` thêm phép lõi 6×6 mm
+    4 marker trên `anh_nan` (tự viết, không import `marker_fill`) · `marker_cham_mep`: (1) marker của bộ được chọn chạm
+    mép ảnh → từ chối; (2) `find_markers` thất bại mà có ứng viên chạm mép → đổi mã thành `marker_cham_mep` · `anh_mo`:
+    `blur_score` < ngưỡng · `khong_khop_bo_cuc`: S(θ\*) < ngưỡng tuyệt đối · `khong_ro_chieu`: biên tương đối
+    (S(θ\*) − S(θ khác)) / S(θ\*) < ngưỡng.
+  - **Marker chạm mép → TỪ CHỐI** (chốt 06/10/2026): marker bị cắt có trọng tâm lệch tới nửa cạnh (~4 mm); dev không có
+    ca thật để kiểm chứng một cách ước lượng tâm; chụp lại rẻ (4 ảnh như vậy đã chụp lại trước Tuần 4); "thà từ chối còn
+    hơn lỗi im lặng". Quy tắc (1) không đổi 0007_C3 (ô bị cắt ở đó thuộc tờ khác, không nằm trong bộ được chọn).
+  - **`blur_score`**: chính – phương sai Laplacian trên `anh_nan` thu 150 DPI, trong dải quanh phần tử in theo layout,
+    chia bình phương tương phản (giấy − mực); đối chứng – Laplacian toàn vùng trong 4 marker. **Ngưỡng gắn với hậu quả**:
+    với mỗi mức mờ của ảnh giả (Gauss σ, chuyển động), đo trên ảnh nắn hiệu nhỏ nhất (filled − blank) và (faint − blank)
+    theo nhãn như phép 3 / `dung-sai` – **chỉ để CHỌN ngưỡng, `verify()` không gọi phép 3**; báo σ nhỏ nhất làm
+    faint/blank không còn tách. Ngưỡng đặt giữa ảnh dev thật xấu nhất và mức đó, có biên; tập "chấp nhận được" của nhóm
+    mờ chốt theo số liệu này (ngoại lệ duy nhất của quy tắc "ảnh giả chỉ để kiểm").
+  - **Độ độc lập giữa `verify()` và eval** (ghi rõ để báo cáo không nói quá): phép lõi marker của `verify()` **gần giống
+    phép 1 của eval** (vốn chỉ là phép phụ, không độc lập với `align()`); điểm bố cục S và **phép 3** của eval **cùng dựa
+    `layout.json`** (sai `layout.json` thì cả hai cùng sai). **Giám khảo độc lập thật của eval là phép 2** (so nét với PDF
+    render) – cùng với xem bằng mắt.
+  - **Ảnh giả** (`tools/kiem_verify.py tao-gia`, chỉ từ ảnh dev, ghi `data/_eval/_gia_v4/` + `danh_sach.csv` có H biến
+    đổi và kết quả mong đợi chốt TRƯỚC khi chạy verify; nhóm `khong_du_marker` = {`thieu_marker`, `marker_khong_dat`}):
+    xoay 90/180/270 (gồm **0006_C2 xoay 180°**), che 1 marker, khung cắt qua marker (2 px – hết), đối chứng cắt lề, hai
+    tờ, tờ khác lọt khung, mờ Gauss / chuyển động, nhầm loại trang, tối + nhiễu, **quá nghiêng** (độ phối cảnh ~0,40 /
+    ~0,45 → `khong_du_marker`), **không có phiếu** (mặt bàn / giấy trắng cắt từ nền ảnh dev → `thieu_marker` /
+    `khong_du_marker`). Chấm tự động: ca ok – 4 tâm khớp H · tâm v3 của ảnh nguồn ≤ 3 px và `huong_xoay` đúng; ca từ chối
+    – mã thuộc tập mong đợi.
+  - **Ngưỡng chọn trên dev thật**; ảnh giả chỉ để kiểm (trừ ngưỡng `anh_mo` như trên). Ảnh giả trượt → báo người dùng,
+    không lặng lẽ chỉnh ngưỡng. Ảnh giả lấy từ ảnh dev **chỉ kiểm logic** (mỗi lỗi cố ý ra đúng mã); khả năng tổng quát
+    hoá chỉ đo ở Bước 7 (tập test).
+  - **Dừng A xong 06/10/2026, người dùng duyệt**: 100 ảnh giả (`kiem_verify.py tao-gia`; 28 phải ok, 19 ok-hoặc-đúng-mã,
+    53 phải từ chối; 30 ca nhóm mờ "tạm", chốt ở dừng B), ảnh ghép `_gia_v4/ghep_1..3.jpg`. Nguồn 0001_C1, 0005_C2,
+    0015_C3, **0008_C4** (không có 0010_C4), D003, 0006_C2 (vốn ở hướng 90° ⇒ `xoay180_0006_C2` = 270°). Cắt qua marker:
+    xoay nguồn 5° + thu 0,88 trước khi cắt (tờ gần thẳng trục, cắt thẳng sẽ sượt marker cùng cạnh); script tự kiểm 3
+    marker còn lại nguyên vẹn. **`_gia_v4/` tái tạo được bằng `tao-gia`, không cần sao lưu**: mọi ngẫu nhiên có seed cố
+    định, chạy lại ra 104 file (100 ảnh + 3 ảnh ghép + `danh_sach.csv`) **giống từng byte** (SHA-256, 06/10/2026).
+  - **Dừng B (06/10/2026) – khảo sát, ngưỡng ĐỀ XUẤT, chờ duyệt** (`python tools/kiem_verify.py khao-sat` →
+    `data/_eval/v4_verify/khao_sat_dev.csv` 78 ảnh dev thật, `khao_sat_mo.csv` 8 ảnh phiếu + D003 × 25 mức mờ; nắn bằng
+    4 tâm `find_markers` = v3, script tự kiểm khớp v3 ≤ 0,01 px). Số đo hàm trong `preprocessing.py`: `warp`,
+    `diem_bo_cuc`, `blur_score`, `den_loi_marker` (chưa có `verify`).
+    | Ngưỡng đề xuất | Dev thật xấu nhất | Phía "sai" tốt nhất | Biên |
+    |---|---|---|---|
+    | `khong_ro_chieu`: biên (S_tốt − S_kia)/S_tốt < 0,20 | phiếu 0,805 (0018_C2); D 0,429 (D006) | – | ×4,0 / ×2,1 |
+    | `khong_khop_bo_cuc` phiếu: S_tốt < 0,23 | 0,365 (0010_C2) | trang D chấm theo layout phiếu 0,144 (D006) | ×1,59 / ×1,60 |
+    | `khong_khop_bo_cuc` D: S_tốt < 0,18 | 0,451 (D001) | phiếu chấm theo layout D 0,072 (0026_C2) | ×2,5 / ×2,5 |
+    | `anh_mo`: `mo_huong` < 0,012 | phiếu 0,221 (0034_C3), D 0,416 (D002) | mờ gãy đầu tiên (chuyển động 80 px) ≤ 0,00063 | ×18,7 / ×18,7 |
+    | `marker_khong_dat` (lõi marker): lõi/vành > 0,60 | 0,357 (0034_C3, marker loá); D 0,246 | – (chưa có mẫu sai; đo ở dừng C) | 0,24 |
+    - **Chiều**: 0006_C2 biên 0,808, 0006_C3 0,835 (quyết bằng nội dung, rõ ràng). Phiếu: S0 0,365–0,474, S180 0,059–0,089
+      (≈ mức "ngẫu nhiên": layout D chấm trên phiếu 0,048–0,072). Bỏ 32 ô trùng sau xoay: biên min 0,805 → 0,825 (S180 max
+      0,089 → 0,076); S180 của ô đáp án (rơi vào vùng tiêu đề/SBD có chữ in) max 0,094 vs bubble SBD/mã đề (rơi vào khối đáp
+      án) 0,072 ⇒ chữ in vùng tiêu đề kéo S_nguoc lên nhiều hơn 32 ô trùng, cả hai nhỏ. Đề xuất giữ đủ 250 ô. Trang D: ép
+      chung độ dịch biên min 0,429 vs dò riêng từng hướng 0,385; S180 cạnh ngang 0,32–0,37 > cạnh dọc 0,22–0,26 (đúng dự
+      đoán: lưới D lật 180° chỉ lệch ~1,35 mm theo dọc).
+    - **Hậu quả mờ (mục 3, chỉ để chọn ngưỡng)**: 8 ảnh phiếu (mỗi C: ảnh nguồn ảnh giả + ảnh nhiều ô faint nhất), 78 ô
+      faint; dò lại ±4 mm như OMR Tuần 5. **Faint/blank tách ở mọi hàng tới Gauss σ = 32 px** (hiệu min +0,216 → +0,014) và
+      chuyển động 80 px; **gãy đầu tiên: chuyển động 80 px – filled/blank 0,91** (ô tô rõ lem sang ô trống cạnh), Gauss
+      σ = 32 filled 0,88; faint gãy ở chuyển động 120 px (0,67). ⇒ OMR (đo độ tối trung bình ô Ø5 mm) chịu mờ rất tốt; giới
+      hạn thật sẽ là đọc chữ số viết tay (Tuần 6) – chưa đo được ở đây.
+    - **Đổi cách đo blur so với kế hoạch**: (1) **không chia bình phương tương phản mực** – mờ làm nét mảnh nhạt đi, chia
+      cho tương phản sẽ triệt tiêu chính tín hiệu mờ; chỉ chia nền giấy (khử chiếu sáng). (2) Laplacian đẳng hướng
+      (`phan_tu`) **hỏng với mờ chuyển động trên trang D**: cạnh ngang lưới ô vẫn sắc ⇒ điểm ≥ 0,31 kể cả ở 120 px (dev D
+      min 1,09) – trang D mờ chuyển động chỉ bị chặn muộn bởi S/biên. ⇒ đề xuất **`phan_tu_huong`** = min(var ∂²/∂x²,
+      var ∂²/∂y²) trong vùng phần tử: D003 chuyển động 20 px đã 0,011 < 0,012. `toan_trang` (đối chứng) phụ thuộc mật độ
+      nội dung (dev D min 0,72 vs phiếu 0,16) và chiếu sáng (C2 thấp) – loại.
+    - **Kiểm chéo**: mọi ảnh mờ qua được `anh_mo` (Gauss ≤ 3, chuyển động ≤ 15) có S ≥ 0,265 (phiếu) / 0,276 (D) và biên
+      ≥ 0,788 / 0,362 ⇒ không bị từ chối nhầm sang `khong_khop_bo_cuc` / `khong_ro_chieu`.
+    - **Tập "chấp nhận được" nhóm mờ (đề xuất theo số liệu trên)**: σ 1–2 → ok; σ 3 → ok hoặc `anh_mo`; σ 5–8 → `anh_mo` /
+      `khong_du_marker`; chuyển động 15 → ok hoặc `anh_mo`; 30 → `anh_mo` (kể cả D003).
+    - Thời gian đo (S hai chiều + 3 cách blur + lõi + S nhầm loại, chỉ để khảo sát): ~370 ms/ảnh phiếu, ~300 ms/trang D.
+      Chạy lại khảo sát cho cùng số (so bảng tóm tắt dev của lần chạy 1 và 3).
+  - **Người dùng duyệt dừng B (06/10/2026)**: ngưỡng như bảng trên – `khong_khop_bo_cuc` **hai ngưỡng riêng** (phiếu 0,23,
+    trang D 0,18: hai phép đo khác nhau); `anh_mo` dùng **`mo_huong`**, không chia tương phản mực. **`anh_mo` < 0,012 là
+    NGƯỠNG TẠM, THẬN TRỌNG**: OMR chịu mờ tới Gauss σ ≈ 32 px / chuyển động 80 px, ngưỡng đặt chặt hơn nhiều vì CNN chữ số
+    viết tay (Tuần 6) chưa đo – Tuần 6 đo CNN theo mức mờ trên `_gia_v4` rồi chỉnh lại theo hậu quả (CLAUDE.md mục 7).
+    **Đơn vị**: σ / độ dài chuyển động tính bằng **px của ẢNH GỐC** (4032×3024; ở C1 ~13,7 px/mm mặt phiếu ⇒ σ 32 px ≈
+    2,3 mm, 80 px ≈ 5,8 mm; C3 phía xa thưa hơn); `blur_score` đo trên **`anh_nan` thu về 150 DPI**.
+  - **Ý cho báo cáo – "OMR chịu mờ tốt"**: đặc trưng OMR (độ tối trung bình lõi ô Ø5 mm so với vành giấy quanh ô, dò lại
+    hàng ±4 mm) vẫn tách `faint` khỏi `blank` ở **mọi hàng** tới Gauss σ = 32 px (hiệu nhỏ nhất +0,216 → +0,014) và chuyển
+    động 80 px; lớp gãy trước tiên lại là `filled`/`blank` (chuyển động 80 px: 0,91 số hàng; Gauss σ 32: 0,88) vì ô tô đậm
+    lem sang ô trống bên cạnh (khoảng cách tâm 7 mm). Lý do: ô Ø5 mm lớn gấp nhiều lần độ nhoè; mờ chỉ làm trơn biên ô,
+    không đổi độ tối trung bình. Hệ quả thiết kế: ô to, thưa (CLAUDE.md mục 4) đổi được lấy sức chịu mờ; giới hạn độ nét
+    thật của hệ thống nằm ở khâu đọc chữ số viết tay. (Mờ là mờ tổng hợp trên ảnh dev, chưa phải mờ quang học thật.)
+  - **Dừng C (06/10/2026) – chờ người dùng xem bằng mắt**. `preprocessing.py`: `verify()` (thứ tự `anh_mo` →
+    `khong_khop_bo_cuc` → `khong_ro_chieu` → lõi marker), `preprocess(path, layout)` (điền mọi trường trừ `anh_chuan_hoa`;
+    `marker_cham_mep` theo 2 quy tắc; trang lộn ngược → gán lại góc r + 2 và nắn lại). Eval: phương pháp `v4_verify`
+    (cột thêm `huong_xoay`, `huong_dung` (từ marker v3), S0, S180, `bien_chieu`, `blur_score`, `loi_marker` – CSV phương
+    pháp cũ giữ nguyên cột), `can_xem.html`, lệnh `run-gia`, `report` ghi rõ từ chối trên dev = từ chối nhầm + thời gian.
+    `tao-gia`: chốt tập mờ (σ ≤ 2 → ok), thêm mờ chéo 45° (15 / 30 px × 0001_C1, 0015_C3, D003) và mờ σ 5 + tối ×0,4 +
+    nhiễu σ 8 (× 0001_C1, 0008_C4) ⇒ 108 ảnh; **100 ảnh cũ giống từng byte** (SHA-256); chạy lại `tao-gia` lần nữa ra
+    112 file (108 ảnh + 3 ảnh ghép + `danh_sach.csv`) giống từng byte.
+    - **Dev `v4_verify`**: trả ảnh 78/78, **0 từ chối**, máy kết luận 71 `dung` / 0 `sai` / 7 `xem` (đúng 7 ảnh C3 đã
+      xem bằng mắt ở 3c). Mọi số đo phép 2/3 và `o_luoi_dev.csv` **trùng v3 từng giá trị** ⇒ ảnh nắn giống v3. Chiều:
+      76 ảnh 0°, 0006_C2/C3 = 90° = chiều đúng (biên chiều 0,808 / 0,835) – **quyết bằng nội dung**; 0 ảnh lệch chiều.
+      Xấu nhất: biên chiều 0,429 (D006), blur 0,221 (0034_C3), lõi marker 0,357 (0034_C3), S 0,365 (0010_C2) – đúng như
+      khảo sát. Thời gian `preprocess` (gồm đọc file): trung vị 532 ms, max 608 ms.
+    - **Ảnh giả `run-gia` (108)**: 44 `dung` + 59 `tu_choi_dung`, **0 lỗi im lặng**, 0 từ chối nhầm; **5 không đạt**:
+      (1) `cat_2px_tr_0015_C3` trả ok, tâm lệch 0,33 px: cắt 2 px qua ĐỈNH của marker xoay 5° chỉ gọt mũi nhọn, vết mực
+      không chạm mép ⇒ ảnh thật sự còn nguyên marker – lỗi thiết kế ca thử; (2) `mo_cheo30_0001_C1`, `mo_cheo15_0015_C3`
+      → `khong_khop_bo_cuc` thay vì `anh_mo`: `mo_huong` chỉ xét ∂²/∂x², ∂²/∂y² – mờ chéo 45° không làm nhoè hẳn hướng
+      nào trong hai (blur 0,028 / 0,020 > 0,012; mờ ngang cùng độ dài 0,004); (3) `mo_toi_nhieu_0001_C1`, `_0008_C4` →
+      `khong_khop_bo_cuc`: nhiễu đẩy blur từ 0,003 (σ 5 không nhiễu) lên 0,060 – **nhiễu làm ảnh mờ lọt qua `anh_mo`**,
+      lớp sau (S < 0,23) chặn lại. Cả 4 ca (2)(3) vẫn bị từ chối (không lỗi im lặng) nhưng sai mã. Thời gian trung vị
+      467 ms, max 578 ms.
+    - **Hồi quy**: `run v2_load` + `finalize --ke-thua align_cu`, `run v3_hinh_hoc` + `finalize` ⇒ `truth_dev.csv` của
+      `align_cu`, `v2_load`, `v3_hinh_hoc` **giống từng byte**; `o_luoi_dev.csv` giống từng byte; `diem_dev.csv` chỉ khác
+      cột `giay`.
+  - **Người dùng duyệt dừng C (06/10/2026) ⇒ BƯỚC 4 XONG**:
+    - **7 ảnh C3 `xem`**: `anh_nan` v4 so với v3 **từng điểm ảnh**: 0006_C3, 0011_C3, 0026_C3, 0027_C3, 0030_C3,
+      0031_C3, 0034_C3 đều **0 điểm khác** ⇒ `ket_luan_mat = dung`, ghi chú "ảnh nắn giống từng điểm ảnh v3_hinh_hoc, đã
+      xem bằng mắt 06/10" (người dùng đã xem bằng mắt ở 3c).
+    - **Sửa ca thử `cat_2px` – sửa ca thử THIẾT KẾ SAI, có bằng chứng, KHÔNG phải nới mong đợi để cho qua**. Mức "2 px"
+      cắt 2 px qua đỉnh ô 8 mm *dự đoán từ H*, không đo trên mực. Đo mặt nạ mực (cùng ngưỡng mực của preprocessing:
+      xám/nền < 0,5) của marker trên ảnh đã cắt: `cat_2px_br_0001_C1` **0 px** (chạm mép), `cat_2px_tr_0015_C3` **1 px**
+      (không chạm – chỉ gọt mũi nhọn của marker xoay 5°), `cat_2px_bl_D003` **0 px**. ⇒ chỉ đổi mong đợi của **ca có
+      bằng chứng** (`tr_0015_C3`: "ok hoặc `marker_cham_mep`"; nay trả ok, tâm lệch 0,33 px); 2 ca chạm mép giữ nghiêm
+      `marker_cham_mep` (người dùng duyệt điều kiện cho cả 3 – thực tế chỉ 1/3 đạt nên áp hẹp hơn). Quy tắc nằm trong
+      `tao-gia` (đo mực ≥ 1 px ⇒ ok_hoac), không dựa kết quả verify. **Thêm 3 ca `cat_muc_2px`** (0001_C1 BR, 0015_C3 TR,
+      D003 BL): cắt sao cho mép ảnh đi vào **mực** marker đúng 2 px (đo trên mặt nạ của ảnh đã xoay; `tao-gia` kiểm lại
+      trên ảnh đã cắt: mực chạm mép 0 px, không đạt thì dừng) → mong đợi `marker_cham_mep` → **3/3 đạt**.
+    - **Giới hạn đã biết (để Tuần 6)**: `mo_huong` chỉ xét trục x/y; **mờ chéo 45° và mờ có nhiễu lọt qua `anh_mo`**, hiện
+      bị chặn bởi `khong_khop_bo_cuc` (sai mã, vẫn an toàn). 4 ca `mo_cheo30_0001_C1`, `mo_cheo15_0015_C3`,
+      `mo_toi_nhieu_0001_C1`, `mo_toi_nhieu_0008_C4` ghi `sai_ma_da_biet` (`SAI_MA_DA_BIET` trong `eval_preprocessing.py`;
+      chỉ áp khi ca đó vẫn bị từ chối đúng mã `khong_khop_bo_cuc`), không tính là từ chối nhầm. Tuần 6: blur 4 hướng + trừ
+      nhiễu, chọn lại ngưỡng `anh_mo` cùng lúc với đo CNN theo mức mờ.
+    - **Bảng cuối – dev** (`report --phuong-phap v4_verify --so-voi v3_hinh_hoc`; nguồn 71 `tu_dong` + 7 `mat`):
+      | Điều kiện | Ảnh | Đúng | Lỗi im lặng | Bị từ chối (= từ chối nhầm) |
+      |---|---|---|---|---|
+      | C1 | 17 | 17 | 0 | 0 |
+      | C2 | 18 | 18 | 0 | 0 |
+      | C3 | 17 | 17 | 0 | 0 |
+      | C4 | 16 | 16 | 0 | 0 |
+      | D | 10 | 10 | 0 | 0 |
+      | **Tổng** | **78** | **78** | **0** | **0** |
+      So với `v3_hinh_hoc`: **0 ảnh đổi phân loại**. Chiều: 76 ảnh 0°, 0006_C2/C3 90° = chiều đúng. `preprocess` (gồm đọc
+      file): trung vị 523 ms, max 561 ms.
+    - **Bảng cuối – ảnh giả** (`run-gia`, 111 ảnh, `data/_eval/v4_verify/gia.csv`, `gia.html`): **45 `dung` + 62
+      `tu_choi_dung` + 4 `sai_ma_da_biet`; 0 lỗi im lặng, 0 lọt qua, 0 sai mã chưa biết, 0 từ chối nhầm**. Theo nhóm: xoay
+      18/18 đúng chiều (gồm `xoay180_0006_C2` → 270°); che marker 10, cắt qua marker 17 + 1 ok, hai tờ 3, quá nghiêng 4,
+      không có phiếu 4, nhầm loại trang 2 – đúng mã; cắt lề 3, tối + nhiễu 2 – ok; lọt khung 1 ok + 3 `marker_mo_ho`; mờ 20
+      ok + 19 đúng mã + 4 đã biết. Thời gian trung vị 462 ms, max 1 288 ms (cat_le_0001_C1; ảnh chậm thứ hai 683 ms).
+    - **Hồi quy lần cuối** (sau mọi thay đổi): `truth_dev.csv` + `o_luoi_dev.csv` của `align_cu`, `v2_load`, `v3_hinh_hoc`
+      **giống từng byte** bản trước Bước 4; `diem_dev.csv` v2/v3 chỉ khác cột `giay`. `tao-gia`: 108 ảnh của dừng C giống
+      từng byte; bộ cuối 116 file (111 ảnh + 4 ảnh ghép + `danh_sach.csv`) chạy lại giống từng byte.
+    - **Đối chiếu "Xong khi"**: 0006_C2, 0006_C3 đúng – **đạt, nhờ nội dung** (biên chiều 0,808 / 0,835; ảnh giả
+      `xoay180_0006_C2` ra 270° đúng) · lỗi im lặng = 0 trên dev và ảnh giả – **đạt** · mỗi ảnh bị từ chối có lý do đúng –
+      **đạt trừ 4 ca đã biết** (sai mã nhưng vẫn từ chối) · không ảnh nào đổi từ đúng sang sai so với Bước 3 – **đạt** (0
+      ảnh đổi) · từ chối nhầm trên dev = 0 – **đạt**.
+  - **Hệ quả cho người dùng cuối**: K2 (độ phối cảnh 4 tâm marker) ≥ 0,50 ⇒ ảnh chụp nghiêng hơn mức này bị từ chối
+    (ảnh dev nghiêng nhất 0,597 – 0015_C3). Đưa vào **"Hướng dẫn chụp cho giáo viên"** (Bước 7 / báo cáo), kèm ảnh minh
+    hoạ mức nghiêng chấp nhận được.
+  - **Dừng**: A – ảnh giả + bảng mong đợi + ảnh ghép (người dùng xem ảnh ghép + bảng); B – khảo sát + ngưỡng, báo
+    **riêng phiếu và trang D** (phân bố S_dung, S_nguoc, biên tương đối, ảnh xấu nhất; phiếu: S_nguoc có bị kéo lên bởi
+    32 ô trùng sau xoay hay chữ in vùng tiêu đề – thử bỏ 32 ô, so biên; D: biên khi ép chung độ dịch), hai cách
+    `blur_score`, ngưỡng `anh_mo` theo hậu quả, lõi marker; C – `verify`/`preprocess` + eval `v4_verify` (dev + `run-gia`),
+    xem bằng mắt, `finalize`, `report --so-voi v3_hinh_hoc`, hồi quy `v2_load`/`v3_hinh_hoc` giống từng byte; D – tài
+    liệu + commit.
 
 ### Bước 5 – `normalize()` khử bóng / cân bằng sáng – `v5_chuan_hoa`
 - **Việc**: điền `anh_chuan_hoa` (giữ nguyên `anh_nan`). Khử nền/bóng (vd chia cho nền ước lượng), cân bằng
