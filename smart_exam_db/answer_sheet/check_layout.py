@@ -8,7 +8,11 @@ Cách làm:
  3. "Tô giả" phiếu theo ground_truth.csv (phiếu 0001), làm nghiêng + mờ + nhiễu
     như ảnh chụp điện thoại -> synthetic_photo.jpg
  4. Đọc lại bằng OpenCV: tìm 4 marker -> nắn phối cảnh -> đo độ đậm từng ô
-    -> so với ground truth.
+    -> so với ground truth. Làm 2 lượt: align() bản đầu (giữ để tái tạo số liệu "trước" của Tuần 4) và
+    cv_engine.preprocessing.preprocess_anh() (bản dùng thật từ Tuần 4 Bước 6). Cả hai phải KHỚP.
+
+find_markers() / align() ở đây LỖI THỜI (chọn nhầm marker mà không báo lỗi – docs/ke_hoach_tuan4.md): chỉ giữ cho
+tools/eval_preprocessing.py (align_cu, v2_load) và tools/marker_that.py tái tạo số liệu. Công cụ mới dùng preprocess().
 
 Cài đặt:  pip install opencv-python numpy pdf2image   (Windows cần thêm Poppler, xem hướng dẫn)
           hoặc chỉ cần: pip install pymupdf opencv-python numpy
@@ -198,13 +202,37 @@ def main():
     photo = fake_photo(filled, rng)
     cv2.imwrite(os.path.join(OUT, "synthetic_photo.jpg"), photo, [cv2.IMWRITE_JPEG_QUALITY, 85])
 
-    # (4) đọc lại
+    # (4) đọc lại – lượt 1: align() bản đầu (giữ nguyên để so)
     aligned = align(photo, layout)
     cv2.imwrite(os.path.join(OUT, "synthetic_aligned.jpg"), aligned, [cv2.IMWRITE_JPEG_QUALITY, 85])
-    ans, digits = read_sheet(aligned, layout)
+    passed = kiem_layout(aligned, layout, gt, "align() bản đầu")
+    ans, _ = read_sheet(aligned, layout)
 
-    # (a) Kiểm tra LAYOUT: ô được tô đậm nhất có đúng là ô trong ground truth không?
-    #     (không phân biệt tô rõ / tô mờ -> chỉ kiểm vị trí toạ độ)
+    # (b) Tham khảo: phân loại 4 trạng thái bằng NGƯỠNG CỐ ĐỊNH (rule-based)
+    ok = sum(ans[q] == gt[f"q{q}"] for q in range(1, 41))
+    wrong = [(q, gt[f"q{q}"], ans[q]) for q in range(1, 41) if ans[q] != gt[f"q{q}"]]
+    print(f"[Tham khảo] rule-based đúng trạng thái {ok}/40; sai (câu, đúng, đoán): {wrong}")
+    print("            -> lỗi tập trung ở ô tô mờ khi ánh sáng không đều: lý do cần OMR classifier (Tuần 5)")
+
+    # (4) lượt 2: preprocess_anh() – bản dùng thật (Tuần 4 Bước 6) trên CÙNG ảnh chụp giả
+    sys.path.insert(0, os.path.dirname(HERE))
+    from cv_engine.preprocessing import MA_LY_DO, preprocess_anh
+    kq = preprocess_anh(photo, layout)
+    if not kq.ok:
+        print(f"[preprocess] TỪ CHỐI ảnh chụp giả – {kq.ly_do} ({MA_LY_DO[kq.ly_do]})")
+        passed_pp = False
+    else:
+        cv2.imwrite(os.path.join(OUT, "synthetic_aligned_preprocess.jpg"), kq.anh_nan, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        passed_pp = kiem_layout(kq.anh_nan, layout, gt, f"preprocess(), huong_xoay {kq.huong_xoay}°")
+    print("KẾT QUẢ LAYOUT:", "KHỚP - có thể in hàng loạt" if passed and passed_pp
+          else "CÓ SAI LỆCH - kiểm tra overlay_check.png và 2 dòng kết quả ở trên")
+    return 0 if passed and passed_pp else 1
+
+
+def kiem_layout(aligned, layout, gt, ten) -> bool:
+    """(a) Kiểm tra LAYOUT trên ảnh đã nắn: ô được tô đậm nhất có đúng là ô trong ground truth không?
+    (không phân biệt tô rõ / tô mờ -> chỉ kiểm vị trí toạ độ)."""
+    _, digits = read_sheet(aligned, layout)
     r = layout["answers"]["bubble_radius"]
     pos_ok = 0
     for q in range(1, 41):
@@ -216,18 +244,12 @@ def main():
             k = len(a)
             top = "".join(sorted(sorted(d, key=d.get, reverse=True)[:k]))
             pos_ok += top == a.upper()
-    print(f"[Layout] vị trí ô tô đúng: {pos_ok}/40")
-    print(f"[Layout] SBD tô đọc được: {digits['sbd']} (đúng: {gt['sbd']}) | "
+    print(f"[{ten}] vị trí ô tô đúng: {pos_ok}/40")
+    print(f"[{ten}] SBD tô đọc được: {digits['sbd']} (đúng: {gt['sbd']}) | "
           f"mã đề: {digits['exam_code']} (đúng: {gt['exam_code']})")
     passed = pos_ok == 40 and digits["sbd"] == gt["sbd"] and digits["exam_code"] == gt["exam_code"]
-    print("KẾT QUẢ LAYOUT:", "KHỚP - có thể in hàng loạt" if passed else "CÓ SAI LỆCH - kiểm tra overlay_check.png")
-
-    # (b) Tham khảo: phân loại 4 trạng thái bằng NGƯỠNG CỐ ĐỊNH (rule-based)
-    ok = sum(ans[q] == gt[f"q{q}"] for q in range(1, 41))
-    wrong = [(q, gt[f"q{q}"], ans[q]) for q in range(1, 41) if ans[q] != gt[f"q{q}"]]
-    print(f"[Tham khảo] rule-based đúng trạng thái {ok}/40; sai (câu, đúng, đoán): {wrong}")
-    print("            -> lỗi tập trung ở ô tô mờ khi ánh sáng không đều: lý do cần OMR classifier (Tuần 5)")
-    return 0 if passed else 1
+    print(f"  -> {ten}: {'KHỚP' if passed else 'CÓ SAI LỆCH'}")
+    return passed
 
 
 if __name__ == "__main__":

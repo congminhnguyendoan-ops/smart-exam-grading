@@ -717,6 +717,31 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
     ảnh 1 mức -> BỊ CHẶN; khác phiên bản: lệch ≤ 2 mức -> đạt + cảnh báo, 0,2% điểm ảnh lệch 3 mức -> BỊ CHẶN; `load_image`
     bỏ qua EXIF -> EXIF 3/6/8 BỊ CHẶN. (Lần thử đầu giả lập "bỏ qua EXIF" bằng `cv2.imdecode` thường – **không** chặn được vì
     OpenCV mặc định TỰ ÁP EXIF; giả lập đúng phải thêm `IMREAD_IGNORE_ORIENTATION`.)
+  - **Người dùng duyệt dừng A; commit `fc4946b`** (pytest sau commit: 35 đạt).
+- **Dừng B (07/10/2026) – thay `align()` trong 4 công cụ, chờ người dùng duyệt**. Số "trước" chạy trên code `fc4946b`
+  TRƯỚC khi sửa, chỉ ghi scratchpad (`check_photos` cũ chạy trên thư mục hardlink tới 78 ảnh dev – không chép, không ghi
+  `data/raw`). Bảng trước / sau:
+  | Công cụ | Trước (`align()` cũ) | Sau (`preprocess()`) |
+  |---|---|---|
+  | `check_photos.py` (78 ảnh dev) | 78/78 "OK", 0 lỗi – trong đó **19 ảnh nắn sai** (`align_cu/truth_dev.csv`) vẫn báo OK và lưu ảnh nắn sai; ghi `<dir>/_aligned` + `photo_report.csv` VÀO thư mục ảnh gốc | 78/78 OK, **SHA `anh_nan` trùng vân tay v4 78/78**; ghi `data/_aligned/raw/` (68), `raw_digits/` (10) JPEG q95 + `data/_aligned/photo_report_<thư mục>.csv` (cột `ly_do`, `thong_bao`, `huong_xoay`, `blur_score`, `sha256_anh_nan`); 0 file mới trong `data/raw*`; 12 ảnh test **BỎ QUA, không đọc**; từ chối -> `TỪ CHỐI – mã (thông báo)` + tổng theo mã; chặn `--out` nằm trong thư mục gốc |
+  | `prepare_photos.py preview` (78 dòng dev của `mapping.csv`) | `check_align()` báo không tin cậy **17**; lọt 2 ảnh nắn sai (0013_C2, 0018_C2) | **0 bị từ chối** -> `data/_prepare/preview_dev.html`; `preview.html` cũ không đổi (hash); `--split tat_ca` cần `--xac-nhan-test` (cả `plan`) |
+  | `prepare_photos.py measure` (IMG_4381 = 0014_C3, IMG_4357 = 0028_C4; `--work` scratchpad) | lỗi `FileNotFoundError` (không tự tạo `<work>/jpg` – lỗi có sẵn); tạo tay thư mục: IMG_4381 "align() chọn nhầm marker", IMG_4357 OK | cả hai **OK**; vùng mã cắt từ `anh_nan` đọc được "Mã phiếu: 0014"; tự tạo `jpg/`; `--ref` chỉ ảnh dev |
+  | `prepare_photos.py verify-ids` | đọc cả 80 ảnh | mặc định chỉ dev (không chạy lại ở bước này – không gọi align) |
+  | `check_labels.py` 0032:33, 0008:18, 0021:5,6, 0015:3 | 0021_C2 (2 câu), 0015_C3 BỎ QUA ("chọn nhầm marker") | đo được cả 3; ảnh vốn nắn đúng cho số **giống** (lệch ≤ 0,01 ở hiệu 0021_C1 câu 6); ô đúng nhãn nổi bật ở mọi ảnh; phiếu test cần `--xac-nhan-test` |
+  | `check_layout.py` (ảnh tô giả) | 40/40, SBD 062384, mã đề 101, KHỚP; rule-based 36/40 | lượt `align()` y hệt; thêm lượt `preprocess_anh` 40/40, 062384, 101 -> **"KẾT QUẢ LAYOUT: KHỚP"** (giữ câu kết luận cũ) |
+  - **Lỗi cũ của `prepare_photos.py measure` – ĐÃ SỬA ở dừng B**: bản cũ không tạo `<work>/jpg/` nên `measure --work <thư
+    mục mới>` ném `FileNotFoundError` khi chuyển ảnh (chỉ chạy được với `--work data/_prepare` vì thư mục đó có sẵn `jpg/`).
+    Bản mới `cmd_measure` tạo `<work>/jpg/` trước khi chuyển; đã kiểm bằng `measure ... --work <scratchpad mới>` chạy thông.
+  - `check_labels audit`: `--split dev` (mặc định, lọc nhãn phiếu test ngay khi đọc `ground_truth.csv`) / `tat_ca` (cần
+    `--xac-nhan-test`, `chan_test` trước khi đọc ảnh); ghi `data/_prepare/label_audit_<split>/` (bản 03/10 giữ nguyên). Chạy
+    audit ở dừng C. `check_align()`/`best_rotation()` bị xoá khỏi `prepare_photos.py` (không còn ai gọi); `marker_fill`,
+    `load_templates`, `marker_centers` giữ (eval phép 1, verify-ids).
+  - **pytest**: thêm `test_chot_chan_cong_cu.py` (6 test: audit `tat_ca` không cờ -> `ChamTapTest`; audit dev bắt đầu từ
+    0001; `check_labels 0035:1` -> dừng; `preview tat_ca` không cờ -> dừng; `check_photos` bỏ qua `0035_C1` không đọc; chặn
+    `--out` trong thư mục gốc) – mọi hàm đọc/nắn ảnh bị thay bằng hàm ném lỗi. **Thử chặn**: gỡ từng chốt chặn -> 4/4 test
+    TRƯỢT. Tổng **41 đạt**.
+  - **Eval không đổi**: chạy lại `run v6_api` sau khi sửa công cụ -> `diem_dev` (trừ `giay`) giống, `o_luoi_dev` giống từng
+    byte; `report --so-voi v5_chuan_hoa` 0 đổi. Import `kiem_verify`, `kiem_chuan_hoa`, `marker_that`, `tao_tham_chieu` OK.
 
 ### Bước 7 – Đánh giá cuối (một lần)
 - **Việc**: chốt code (commit), rồi chạy `eval_preprocessing.py run --split test --xac-nhan-test` trên

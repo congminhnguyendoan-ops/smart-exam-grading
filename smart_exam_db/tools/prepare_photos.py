@@ -21,12 +21,11 @@ Bước 2 (lệnh `apply`): chép data/_prepare/jpg/<old_name> -> data/raw/<new_
 Lệnh `replace`: thay 1 ảnh đã chép bằng ảnh chụp lại. Ảnh cũ được DI CHUYỂN sang data/raw_rejected/
   (không xoá), ảnh mới chép vào đúng chỗ, mapping.csv ghi lại cả hai.
 
-Preview tự kiểm tra kết quả align() (find_markers() có thể chọn nhầm marker mà không báo lỗi):
-  - Sau khi nắn, tâm 6x6 mm của mỗi marker phải gần như đen kín; nếu không -> chọn nhầm marker.
-  - So ảnh nắn với mẫu phiếu ở 4 chiều xoay (NCC); chiều khác 0° tốt hơn rõ -> ảnh nằm ngang.
-  Ảnh không đạt: cắt 1/4 góc trên phải của ảnh GỐC (đã dựng đứng), không dùng align().
+Preview nắn bằng cv_engine.preprocessing.preprocess() (Tuần 4 Bước 6 – thay align() cũ, vốn chọn nhầm marker mà không
+  báo lỗi): ảnh bị từ chối ghi rõ mã lý do + thông báo (MA_LY_DO) và hiện 1/4 góc trên phải của ảnh GỐC (không nắn).
+  Mặc định chỉ ảnh dev (`--split dev` -> preview_dev.html); cả 94 ảnh cần `--split tat_ca --xac-nhan-test` (-> preview.html).
 
-Lệnh `measure`: đo ảnh chụp lại trước khi `replace` – align() đúng/sai, khoảng cách marker tới mép
+Lệnh `measure`: đo ảnh chụp lại trước khi `replace` – preprocess() OK / từ chối, khoảng cách marker tới mép
   ảnh, "độ phối cảnh" = min(trên/dưới, trái/phải và nghịch đảo) của tứ giác 4 tâm marker
   (1,0 = chụp thẳng; ảnh C3 cần nhỏ như các ảnh C3 khác). `--ref` in khoảng C1/C3 của data/raw.
   Marker được tìm độc lập với find_markers(): mỗi góc ảnh dò khối đen vuông gần góc nhất, nhiều ngưỡng
@@ -34,7 +33,7 @@ Lệnh `measure`: đo ảnh chụp lại trước khi `replace` – align() đú
 
 Chạy (từ thư mục smart_exam_db/):
   python tools/prepare_photos.py plan
-  python tools/prepare_photos.py preview
+  python tools/prepare_photos.py preview                 # chỉ dev -> preview_dev.html
   python tools/prepare_photos.py apply
   python tools/prepare_photos.py replace --src data/raw_heic/IMG_4357.JPG --name 0028_C4.jpg --reason "..."
   python tools/prepare_photos.py measure data/raw_heic/IMG_4379.JPG --ref
@@ -43,6 +42,7 @@ Chạy (từ thư mục smart_exam_db/):
 Lệnh `verify-ids`: đọc "Mã phiếu" in sẵn trên cả 80 ảnh data/raw, so với tên file (phát hiện ảnh tráo tên,
   vd 0002_C3 <-> 0003_C3 phát hiện 03/10/2026). Nắn bằng marker_centers() (không qua align()), thử 4
   chiều, so vùng 2 chữ số cuối với 40 trang phieu_danh_so.pdf -> data/_prepare/verify_ids.html.
+  Mặc định chỉ ảnh dev; ảnh test 0035–0040 cần --xac-nhan-test (cv_engine/tap_du_lieu.py).
 """
 import argparse
 import base64
@@ -63,8 +63,9 @@ from pillow_heif import register_heif_opener
 
 ROOT = Path(__file__).resolve().parent.parent          # smart_exam_db/
 ANSWER_SHEET = ROOT / "answer_sheet"
-sys.path.insert(0, str(ANSWER_SHEET))
-from check_layout import align  # noqa: E402  (dùng lại hàm nắn phẳng, KHÔNG sửa ở đây)
+sys.path.insert(0, str(ROOT))
+from cv_engine.preprocessing import MA_LY_DO, nap_layout, preprocess  # noqa: E402
+from cv_engine.tap_du_lieu import chan_test, la_test, tap_cua  # noqa: E402
 
 register_heif_opener()                                  # cho phép Image.open() đọc HEIC
 
@@ -83,9 +84,7 @@ TAG_ORIENTATION = 274
 
 # Vùng chữ "Mã phiếu"/"Mã trang" trên ảnh đã nắn (mm, gốc góc trên trái) - xem generate_sheets.py
 CODE_BOX_MM = (120.0, 20.0, 200.0, 32.0)               # x0, y0, x1, y1
-MARKER_CHECK_MM = 3.0       # nửa cạnh ô kiểm tra ở tâm marker (marker 8 mm)
-MIN_MARKER_FILL = 0.5       # marker thật ~1.0; ô tròn / chữ số bị chọn nhầm 0.03-0.43 (đo trên 90 ảnh)
-MIN_ROTATE_GAIN = 0.10      # NCC chiều xoay khác phải hơn chiều 0° ít nhất bấy nhiêu
+MARKER_CHECK_MM = 3.0       # nửa cạnh ô kiểm tra ở tâm marker (marker 8 mm) – marker_fill (eval phép 1)
 NCC_SIZE = (124, 175)       # ảnh thu nhỏ để so với mẫu
 CORNERS = ("tl", "tr", "br", "bl")
 CORNER_VI = {"tl": "trên trái", "tr": "trên phải", "br": "dưới phải", "bl": "dưới trái"}
@@ -185,51 +184,31 @@ def marker_fill(aligned, layout) -> dict:
     return out
 
 
-def check_align(gray, layout, template) -> tuple:
-    """Trả về (ảnh đã nắn hoặc None, số lần xoay 90° để dựng đứng ảnh gốc, lý do nếu align() sai)."""
-    try:
-        aligned = align(gray, layout)
-    except Exception as e:  # noqa: BLE001
-        return None, 0, f"align() lỗi: {e}"
-    fill = marker_fill(aligned, layout)
-    bad = [c for c in CORNERS if fill[c] < MIN_MARKER_FILL]
-    if bad:
-        detail = ", ".join(f"{CORNER_VI[c]} (đen {fill[c]:.0%})" for c in bad)
-        k = 0 if gray.shape[0] >= gray.shape[1] else best_rotation(gray, layout, template)[0]
-        return None, k, f"align() chọn nhầm marker góc {detail}"
-    k, gain = best_rotation(gray, layout, template, aligned)
-    if k and gain >= MIN_ROTATE_GAIN:
-        return None, k, f"đủ 4 marker nhưng ảnh bị xoay {k * 90}° – align() gán sai góc"
-    return aligned, 0, ""
+def nan_anh(path: Path, loai: str) -> tuple:
+    """preprocess() (Bước 6, thay check_align()/align() cũ) -> (anh_nan hoặc None, lý do – rỗng nếu OK).
+    Lý do = mã + thông báo (MA_LY_DO); preprocess đã tự quyết chiều phiếu bằng nội dung, không cần thử 4 chiều."""
+    kq = preprocess(path, nap_layout(loai))
+    return (kq.anh_nan, "") if kq.ok else (None, f"TỪ CHỐI – {kq.ly_do} ({MA_LY_DO[kq.ly_do]})")
 
 
-def best_rotation(gray, layout, template, aligned0=None) -> tuple[int, float]:
-    """Chiều xoay (k lần 90° ngược kim đồng hồ) cho ảnh nắn giống mẫu nhất, và mức hơn chiều 0°."""
-    scores = []
-    for k in range(4):
-        try:
-            al = aligned0 if (k == 0 and aligned0 is not None) else align(np.ascontiguousarray(np.rot90(gray, k)), layout)
-            scores.append(float((ncc_prep(al) * template).sum()))
-        except Exception:  # noqa: BLE001
-            scores.append(-1.0)
-    k = int(np.argmax(scores))
-    return k, scores[k] - scores[0]
+def cat_vung_ma(anh_nan, layout=None) -> np.ndarray:
+    """Vùng chữ 'Mã phiếu'/'Mã trang' trên ảnh đã nắn."""
+    px_per_mm = (layout or nap_layout())["dpi"] / 25.4
+    x0, y0, x1, y1 = (round(v * px_per_mm) for v in CODE_BOX_MM)
+    return anh_nan[y0:y1, x0:x1]
 
 
-def preview_images(jpg: Path, layout: dict, template) -> tuple[str, str, str]:
-    """(ảnh vùng mã đã cắt, ảnh thu nhỏ toàn trang, lý do nếu align() sai – rỗng nếu OK)."""
+def preview_images(jpg: Path, loai: str) -> tuple[str, str, str]:
+    """(ảnh vùng mã đã cắt, ảnh thu nhỏ toàn trang, lý do nếu bị từ chối – rỗng nếu OK)."""
     bgr = cv2.imdecode(np.fromfile(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)   # fromfile: an toàn với đường dẫn Unicode
-    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     thumb = to_b64(bgr, 320)
-    aligned, k, problem = check_align(gray, layout, template)
+    aligned, problem = nan_anh(jpg, loai)
     if aligned is not None:
-        px_per_mm = layout["dpi"] / 25.4
-        x0, y0, x1, y1 = (round(v * px_per_mm) for v in CODE_BOX_MM)
-        return to_b64(aligned[y0:y1, x0:x1], 640), thumb, ""
-    # Không tin align(): dựng đứng ảnh gốc rồi cắt 1/4 góc trên phải (nửa phải x nửa trên)
-    up = np.rot90(gray, k)
-    h, w = up.shape
-    return to_b64(np.ascontiguousarray(up[: h // 2, w // 2:]), 480), thumb, problem
+        return to_b64(cat_vung_ma(aligned), 640), thumb, ""
+    # Bị từ chối: cắt 1/4 góc trên phải của ảnh GỐC (không nắn, không dựng đứng) để đọc mã bằng mắt
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+    return to_b64(np.ascontiguousarray(gray[: h // 2, w // 2:]), 480), thumb, problem
 
 
 def write_preview(rows: list[dict], images: dict, out: Path) -> None:
@@ -320,31 +299,39 @@ def cmd_plan(a) -> None:
     n_swap = sum(1 for r in rows if r["note"])
     print(f"\n{len(rows)} ảnh | thiếu EXIF: {n_missing} | lệch thứ tự IMG: {n_swap}")
     print(f"  Mapping : {mapping}")
-    build_preview(work)
+    build_preview(work, "tat_ca", a.xac_nhan_test)     # nhận ảnh mới gồm cả phiếu test -> cần --xac-nhan-test
 
 
-def build_preview(work: Path) -> None:
-    """Đọc mapping.csv (kể cả bản đã sửa tay) và tạo preview.html."""
+def build_preview(work: Path, split: str = "tat_ca", xac_nhan_test: bool = False) -> None:
+    """Đọc mapping.csv (kể cả bản đã sửa tay) và tạo preview.html (tat_ca) / preview_dev.html (dev).
+    split 'dev': chỉ dòng có tên mới thuộc dev (0001–0034, D001–D010); dòng ảnh đã bị thay (tên rỗng) bỏ qua.
+    split 'tat_ca' đọc cả ảnh test -> bắt buộc xac_nhan_test (chặn TRƯỚC khi đọc ảnh)."""
     with (work / "mapping.csv").open(encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
-    print("Đang tạo ảnh preview (nắn phẳng + kiểm tra marker từng ảnh)...")
-    layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
-    templates = load_templates()
+    if split == "dev":
+        n0 = len(rows)
+        rows = [r for r in rows if r["new_name"] and tap_cua(r["new_name"]) == "dev"]
+        print(f"Chỉ ảnh dev: {len(rows)}/{n0} dòng mapping (bỏ ảnh test và ảnh đã bị thay).")
+        out = work / "preview_dev.html"
+    else:
+        chan_test([r["new_name"] for r in rows], xac_nhan_test, "preview --split tat_ca")
+        out = work / "preview.html"
+    print("Đang tạo ảnh preview (preprocess() từng ảnh)...")
     images = {}
     for r in rows:
-        tpl = templates["digit" if r["new_name"].upper().startswith("D") else "sheet"]
-        images[r["old_name"]] = preview_images(work / "jpg" / r["old_name"], layout, tpl)
+        loai = "chu_so" if r["new_name"].upper().startswith("D") else "phieu"
+        images[r["old_name"]] = preview_images(work / "jpg" / r["old_name"], loai)
         if images[r["old_name"]][2]:
             print(f"  #{r['order']:>2} {r['old_name']} ({r['new_name']}): {images[r['old_name']][2]}")
-    write_preview(rows, images, work / "preview.html")
+    write_preview(rows, images, out)
     n_bad = sum(1 for v in images.values() if v[2])
-    print(f"\nXong. {len(rows)} ảnh | align() không tin cậy: {n_bad} (đã cắt từ ảnh gốc)")
-    print(f"  Preview : {work / 'preview.html'}  (mở bằng trình duyệt)")
+    print(f"\nXong. {len(rows)} ảnh | bị preprocess() từ chối: {n_bad} (đã cắt từ ảnh gốc)")
+    print(f"  Preview : {out}  (mở bằng trình duyệt)")
     print("Chưa đổi tên/chép ảnh nào. Kiểm tra preview, sửa cột new_name trong mapping.csv nếu cần.")
 
 
 def cmd_preview(a) -> None:
-    build_preview(Path(a.work))
+    build_preview(Path(a.work), a.split, a.xac_nhan_test)
 
 
 # ---------------------------------------------------------------- lệnh apply (Bước 2)
@@ -505,10 +492,9 @@ def measure_one(gray) -> dict:
 
 
 def cmd_measure(a) -> None:
-    layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
-    templates = load_templates()
     out_dir = Path(a.work) / "measure"
     out_dir.mkdir(parents=True, exist_ok=True)
+    (Path(a.work) / "jpg").mkdir(parents=True, exist_ok=True)
     for s in a.photos:
         src = Path(s)
         jpg = Path(a.work) / "jpg" / f"{src.stem}.jpg"
@@ -516,22 +502,26 @@ def cmd_measure(a) -> None:
             convert(src, jpg)
         gray = cv2.imdecode(np.fromfile(jpg, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
         r = measure_one(gray)
-        _, k, problem = check_align(gray, layout, templates["sheet"])
+        aligned, problem = nan_anh(jpg, "phieu")
         margins = " ".join(f"{CORNER_VI[c]}={r['margins'].get(c, '—')}" for c in CORNERS)
         persp = f"{r['persp']:.2f}" if r["persp"] is not None else "—"
         print(f"{src.name}: marker trọn vẹn {r['found']}/4 | cách mép (px) {margins} | "
-              f"độ phối cảnh {persp} | align(): {problem or 'OK'}")
-        # Vùng góc trên phải (đã dựng đứng) để đọc Mã phiếu bằng mắt
-        up = np.rot90(gray, k)
-        h, w = up.shape
-        cv2.imencode(".jpg", np.ascontiguousarray(up[: int(h * 0.4), int(w * 0.4):]))[1].tofile(
-            out_dir / f"{src.stem}_goc_tren_phai.jpg")
+              f"độ phối cảnh {persp} | preprocess(): {problem or 'OK'}")
+        # Vùng mã phiếu để đọc bằng mắt: cắt từ ảnh đã nắn nếu OK, không thì 40% góc trên phải ảnh GỐC (không nắn)
+        if aligned is not None:
+            crop = cat_vung_ma(aligned)
+        else:
+            h, w = gray.shape
+            crop = np.ascontiguousarray(gray[: int(h * 0.4), int(w * 0.4):])
+        cv2.imencode(".jpg", crop)[1].tofile(out_dir / f"{src.stem}_vung_ma.jpg")
     print(f"Ảnh vùng mã phiếu để đọc bằng mắt: {out_dir}")
     if a.ref:
-        print("\nKhoảng tham chiếu trong data/raw (bỏ ảnh nằm ngang, ảnh thiếu marker):")
+        print("\nKhoảng tham chiếu trong data/raw – CHỈ ảnh dev (bỏ ảnh nằm ngang, ảnh thiếu marker):")
         for cond in ("C1", "C3"):
             vals = []
             for p in sorted(Path(a.raw).glob(f"*_{cond}.jpg")):
+                if la_test(p):
+                    continue
                 g = cv2.imdecode(np.fromfile(p, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
                 if g.shape[1] > g.shape[0]:
                     continue
@@ -632,10 +622,13 @@ def cmd_verify_ids(a) -> None:
     for old in out_dir.glob("*.jpg"):
         old.unlink()
     rows = []                                   # (tên, mã theo tên file, trạng thái, mô tả)
-    for p in sorted(Path(a.raw).glob("*.jpg")):
+    anh = [p for p in sorted(Path(a.raw).glob("*.jpg")) if SHEET_NAME_RE.match(p.name)]
+    if not a.xac_nhan_test:
+        n_test = sum(la_test(p) for p in anh)
+        anh = [p for p in anh if not la_test(p)]
+        print(f"Chỉ ảnh dev: {len(anh)} ảnh (bỏ {n_test} ảnh test 0035–0040 – cần --xac-nhan-test).")
+    for p in anh:
         mt = SHEET_NAME_RE.match(p.name)
-        if not mt:
-            continue
         gray = cv2.imdecode(np.fromfile(p, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
         r = read_sheet_id(gray, layout, tp, sheet_template)
         if "error" not in r and r["anchor"] >= ID_MIN_ANCHOR and r["margin"] >= ID_MIN_MARGIN:
@@ -672,7 +665,7 @@ def cmd_verify_ids(a) -> None:
 <style>body{{font-family:Segoe UI,Arial,sans-serif;margin:16px}} .c{{display:inline-block;margin:6px;padding:4px;
 border:1px solid #ccc;vertical-align:top;max-width:440px}} .LECH{{border:3px solid #c00}} .mat{{border:2px solid #d80}}
 img{{max-width:430px;display:block}}</style>
-</head><body><h2>Mã phiếu in trên 80 ảnh so với tên file (không qua align())</h2>
+</head><body><h2>Mã phiếu in trên {len(rows)} ảnh so với tên file (không qua preprocess)</h2>
 <p>Tự động: nắn bằng marker_centers(), đọc từng chữ số. Chỉ tin khi neo 'Mã phiếu' ≥ {ID_MIN_ANCHOR} và mỗi
 chữ số hơn chữ số thứ hai ≥ {ID_MIN_MARGIN}; còn lại cắt từ ảnh gốc để đọc bằng mắt.</p>
 {''.join(parts)}</body></html>""", encoding="utf-8")
@@ -688,8 +681,11 @@ def main() -> None:
     p.add_argument("--ground-truth", default=ANSWER_SHEET / "output" / "ground_truth.csv")
     p.add_argument("--force", action="store_true", help="Chuyển lại JPG kể cả khi đã có")
     p.add_argument("--overwrite-mapping", action="store_true", help="Ghi đè mapping.csv đã có")
-    p = sub.add_parser("preview", help="Chỉ tạo lại preview.html từ mapping.csv hiện có")
+    p.add_argument("--xac-nhan-test", action="store_true", help="preview đọc cả ảnh test 0035–0040")
+    p = sub.add_parser("preview", help="Tạo lại preview từ mapping.csv hiện có (mặc định chỉ dev -> preview_dev.html)")
     p.add_argument("--work", default=ROOT / "data" / "_prepare")
+    p.add_argument("--split", default="dev", choices=["dev", "tat_ca"])
+    p.add_argument("--xac-nhan-test", action="store_true", help="bắt buộc với --split tat_ca (đọc ảnh test)")
     p = sub.add_parser("apply", help="Bước 2: chép ảnh sang data/raw và data/raw_digits theo mapping.csv")
     p.add_argument("--work", default=ROOT / "data" / "_prepare")
     p.add_argument("--raw", default=ROOT / "data" / "raw")
@@ -708,9 +704,10 @@ def main() -> None:
     p.add_argument("--ref", action="store_true", help="In thêm khoảng độ phối cảnh C1/C3 của data/raw")
     p.add_argument("--work", default=ROOT / "data" / "_prepare")
     p.add_argument("--raw", default=ROOT / "data" / "raw")
-    p = sub.add_parser("verify-ids", help="Đọc 'Mã phiếu' in sẵn trên mọi ảnh data/raw, so với tên file")
+    p = sub.add_parser("verify-ids", help="Đọc 'Mã phiếu' in sẵn trên ảnh data/raw (mặc định dev), so với tên file")
     p.add_argument("--work", default=ROOT / "data" / "_prepare")
     p.add_argument("--raw", default=ROOT / "data" / "raw")
+    p.add_argument("--xac-nhan-test", action="store_true", help="đọc cả ảnh test 0035–0040")
     a = ap.parse_args()
     {"plan": cmd_plan, "preview": cmd_preview, "apply": cmd_apply, "replace": cmd_replace,
      "measure": cmd_measure, "verify-ids": cmd_verify_ids}[a.cmd](a)

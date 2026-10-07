@@ -15,6 +15,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent           # smart_exam_db/
 sys.path.insert(0, str(ROOT))
 
+ANSWER_SHEET_DIR = ROOT / "answer_sheet"
 DATA = ROOT / "data"
 EVAL = DATA / "_eval"
 THAM_CHIEU = EVAL / "tham_chieu_kiem_thu"               # tools/tao_tham_chieu.py

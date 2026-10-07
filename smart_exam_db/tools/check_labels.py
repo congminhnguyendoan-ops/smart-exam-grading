@@ -2,8 +2,9 @@
 check_labels.py - Kiểm tra nhãn từng câu trên ảnh thật trước khi sửa ground_truth.csv.
 
 Với mỗi câu cần kiểm tra (vd 0032:33): đọc kịch bản trong ground_truth.csv, lấy mọi ảnh của phiếu
-trong data/raw/, nắn phẳng bằng align() (bỏ ảnh mà check_align() báo nắn sai), cắt hàng câu đó,
-đo độ tối từng ô A-D bằng darkness() của check_layout.py, xuất trang HTML để so với tờ giấy thật.
+trong data/raw/, nắn phẳng bằng cv_engine.preprocessing.preprocess() (Tuần 4 Bước 6 – thay align()/check_align() cũ;
+ảnh bị từ chối in rõ mã lý do), cắt hàng câu đó trên anh_nan, đo độ tối từng ô A-D bằng darkness() của check_layout.py,
+xuất trang HTML để so với tờ giấy thật. Phiếu test 0035–0040 cần --xac-nhan-test (cv_engine/tap_du_lieu.py).
 
 Gợi ý chỉ so độ tối trong cùng hàng (ô nào nổi bật) - CHỈ ĐỂ THAM KHẢO; rõ hay mờ phải xem bằng
 mắt (ngưỡng cố định từng sai toàn bộ ở ô tô mờ). Không sửa ground_truth.csv.
@@ -11,10 +12,13 @@ mắt (ngưỡng cố định từng sai toàn bộ ở ô tô mờ). Không s�
 Chạy (từ thư mục smart_exam_db/):
   python tools/check_labels.py 0032:33 0008:18 0021:5,6,11,12,14
 
-Lệnh audit: quét cả 40 phiếu (40 câu + bubble SBD + mã đề), so với ground_truth.csv, xuất
-data/_prepare/label_audit.html + label_audit.csv. Chỉ dùng ảnh mà check_align() xác nhận nắn đúng;
-phiếu có 2 ảnh tốt thì đọc cả 2 để đối chiếu chéo.
-  python tools/check_labels.py audit
+Lệnh audit: quét các phiếu (40 câu + bubble SBD + mã đề), so với ground_truth.csv, xuất
+data/_prepare/label_audit_<split>/label_audit.html + label_audit.csv. Chỉ dùng ảnh preprocess() trả ok (đo trên anh_nan
+– cùng loại ảnh mà MARK_MIN / FILLED_MIN được chọn) và qua thêm STRICT_MARKER / MIN_SCALE; phiếu có 2 ảnh tốt thì đọc
+cả 2 để đối chiếu chéo. Mặc định CHỈ DEV 0001–0034; phiếu test chỉ quét SAU đánh giá cuối (Bước 7):
+  python tools/check_labels.py audit                                 # dev -> data/_prepare/label_audit_dev/
+  python tools/check_labels.py audit --split tat_ca --xac-nhan-test  # sau Bước 7 -> label_audit_tat_ca/
+Chốt chặn nằm TRƯỚC khi đọc bất kỳ ảnh nào: dòng nhãn của phiếu test bị lọc bỏ ngay khi đọc ground_truth.csv.
 
   Đo tương đối, không dùng ngưỡng tuyệt đối của độ tối:
   - Mỗi ô: v = độ tối - độ tối nhỏ nhất trong cùng hàng (ô trống của hàng đó; mỗi câu tô tối đa 2 ô).
@@ -38,8 +42,10 @@ ROOT = Path(__file__).resolve().parent.parent          # smart_exam_db/
 ANSWER_SHEET = ROOT / "answer_sheet"
 sys.path.insert(0, str(ANSWER_SHEET))
 sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(ROOT))
 from check_layout import darkness, render_pdf_page  # noqa: E402
-from prepare_photos import check_align, load_templates, marker_fill  # noqa: E402
+from prepare_photos import marker_fill, nan_anh  # noqa: E402
+from cv_engine.tap_du_lieu import PHIEU_DEV, ChamTapTest, chan_test  # noqa: E402
 
 GAP = 0.15                        # ô nổi bật phải tối hơn ô thứ hai ít nhất bấy nhiêu
 SCALE = 3                         # phóng to ảnh cắt
@@ -79,12 +85,17 @@ def main() -> None:
     ap.add_argument("--ground-truth", default=ANSWER_SHEET / "output" / "ground_truth.csv")
     ap.add_argument("--raw", default=ROOT / "data" / "raw")
     ap.add_argument("--out", default=ROOT / "data" / "_prepare")
+    ap.add_argument("--xac-nhan-test", action="store_true", help="cho phép phiếu test 0035–0040 (chỉ sau Bước 7)")
     a = ap.parse_args()
+    items = parse_items(a.items)
+    try:
+        chan_test([sid for sid, _ in items], a.xac_nhan_test, "check_labels")
+    except ChamTapTest as e:
+        sys.exit(str(e))
 
     with Path(a.ground_truth).open(encoding="utf-8-sig", newline="") as f:
         gt = {r["sheet_id"]: r for r in csv.DictReader(f)}
     layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
-    template = load_templates()["sheet"]
     ans = layout["answers"]
     r = ans["bubble_radius"]
     px_mm = layout["dpi"] / 25.4
@@ -92,7 +103,7 @@ def main() -> None:
     img_dir.mkdir(parents=True, exist_ok=True)
 
     aligned_cache, blocks = {}, []
-    for sid, q in parse_items(a.items):
+    for sid, q in items:
         row = gt[sid]
         scen = row[f"q{q}"]
         conds = [c.strip() for c in row["conditions"].split("+")]
@@ -102,9 +113,8 @@ def main() -> None:
         for c in conds:
             photo = Path(a.raw) / f"{sid}_{c}.jpg"
             if photo not in aligned_cache:
-                gray = cv2.imdecode(np.fromfile(photo, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
-                aligned_cache[photo] = check_align(gray, layout, template)
-            aligned, _, problem = aligned_cache[photo]
+                aligned_cache[photo] = nan_anh(photo, "phieu")
+            aligned, problem = aligned_cache[photo]
             if aligned is None:
                 print(f"   {photo.name}: BỎ QUA – {problem}")
                 shots.append((photo.name, None, None, problem))
@@ -156,7 +166,7 @@ table{{border-collapse:collapse;margin:4px 0}} td{{border:1px solid #ccc;padding
 # ô trống p99 = 0,06, ô mờ p1 = 0,26 -> MARK_MIN 0,25. Mờ/rõ chồng lấn (mờ p95 0,85, rõ p5 0,88);
 # 0,80 là điểm cân bằng: 34/367 ô mờ đo >= 0,80 và 34/1848 ô rõ đo < 0,80.
 MARK_MIN, FILLED_MIN = 0.25, 0.80
-# Kiểm tra cấp ảnh, chặt hơn check_align() (đo 03/10/2026 trên 62 ảnh qua check_align):
+# Kiểm tra cấp ảnh – chốt chặn PHỤ sau preprocess() (chọn 03/10/2026 trên 62 ảnh qua check_align() cũ; giữ ở Bước 6):
 STRICT_MARKER = 0.95   # ảnh nắn đúng: độ đen tâm marker đều = 1,00; 0013_C2/0018_C2 nắn sai: 0,68/0,83
 MIN_SCALE = 0.15       # S của ảnh đúng 0,30-0,62; ảnh sai tên/nắn sai 0,01-0,05 (ô "tô rõ" theo nhãn lại trống)
 SEARCH_MM = 4.0        # dò lại vị trí từng hàng trong ±4 mm (< nửa khoảng cách hàng 11 mm)
@@ -349,21 +359,29 @@ def values_table(item, n, raw=None) -> str:
 
 def cmd_audit(argv: list[str]) -> None:
     ap = argparse.ArgumentParser(prog="check_labels.py audit",
-                                 description="Quét nhãn cả 40 phiếu so với ảnh (không sửa nhãn)")
+                                 description="Quét nhãn các phiếu so với ảnh (không sửa nhãn); mặc định chỉ dev")
     ap.add_argument("--ground-truth", default=ANSWER_SHEET / "output" / "ground_truth.csv")
     ap.add_argument("--raw", default=ROOT / "data" / "raw")
-    ap.add_argument("--out", default=ROOT / "data" / "_prepare")
+    ap.add_argument("--split", default="dev", choices=["dev", "tat_ca"],
+                    help="dev = 0001–0034; tat_ca = cả 40 phiếu (chỉ SAU đánh giá cuối Bước 7, cần --xac-nhan-test)")
+    ap.add_argument("--xac-nhan-test", action="store_true")
+    ap.add_argument("--out", default=None, help="mặc định data/_prepare/label_audit_<split>/")
     a = ap.parse_args(argv)
+    out_dir = Path(a.out) if a.out else ROOT / "data" / "_prepare" / f"label_audit_{a.split}"
 
+    # Chốt chặn tập test – TRƯỚC khi đọc bất kỳ ảnh nào; dòng nhãn phiếu test bị bỏ ngay (dev) hoặc phải có cờ (tat_ca)
     with Path(a.ground_truth).open(encoding="utf-8-sig", newline="") as f:
         gt = {r["sheet_id"]: r for r in csv.DictReader(f)}
+    if a.split == "dev":
+        gt = {sid: r for sid, r in gt.items() if int(sid) in PHIEU_DEV}
+    chan_test(gt, a.xac_nhan_test, f"check_labels.py audit --split {a.split}")
+    print(f"Quét {len(gt)} phiếu ({a.split}): {min(gt)}–{max(gt)} -> {out_dir}")
     layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
-    template = load_templates()["sheet"]
     options = layout["answers"]["options"]
     blank = render_pdf_page(ANSWER_SHEET / "output" / "phieu_trang.pdf", layout["dpi"])
-    img_dir = Path(a.out) / "label_audit"
+    img_dir = out_dir / "label_audit"
     img_dir.mkdir(parents=True, exist_ok=True)
-    for old in img_dir.glob("*.png"):
+    for old in img_dir.glob("*.png"):       # chỉ xoá ảnh cắt của CHÍNH thư mục audit này (bản cũ ở chỗ khác giữ nguyên)
         old.unlink()
 
     skipped, suspect, unscannable, coverage, scales = [], [], [], {}, []
@@ -374,15 +392,14 @@ def cmd_audit(argv: list[str]) -> None:
         good = []
         for c in conds:
             photo = Path(a.raw) / f"{sid}_{c}.jpg"
-            gray = cv2.imdecode(np.fromfile(photo, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
-            aligned, _, problem = check_align(gray, layout, template)
+            aligned, problem = nan_anh(photo, "phieu")
             if aligned is None:
                 skipped.append((photo.name, problem))
+                print(f"  {photo.name}: BỎ QUA – {problem}")
                 continue
             fill = min(marker_fill(aligned, layout).values())
             if fill < STRICT_MARKER:
-                suspect.append((photo.name, f"nắn sai: tâm marker chỉ đen {fill:.0%} "
-                                            f"(check_align() cho qua vì > 50%)"))
+                suspect.append((photo.name, f"nghi nắn sai: tâm marker chỉ đen {fill:.0%} (preprocess() cho qua)"))
                 continue
             m = measure_image(aligned, layout, row, blank)
             if m["scale"] < MIN_SCALE:
@@ -439,7 +456,7 @@ def cmd_audit(argv: list[str]) -> None:
 
     findings.sort(key=lambda f: (f["group"], -f["score"]))
     # ---- ảnh cắt + CSV + HTML
-    csv_path = Path(a.out) / "label_audit.csv"
+    csv_path = out_dir / "label_audit.csv"
     with csv_path.open("w", encoding="utf-8-sig", newline="") as fcsv:
         w = csv.writer(fcsv)
         w.writerow(["group", "score", "sheet_id", "item", "label", "kind", "agree", "reads"])
@@ -469,16 +486,17 @@ def cmd_audit(argv: list[str]) -> None:
     one = [s for s, v in coverage.items() if len(v) == 1]
     skip_li = "".join(f"<li>{html.escape(n)}: {html.escape(p)}</li>" for n, p in skipped)
     sus_li = "".join(f"<li><b>{html.escape(n)}</b>: {html.escape(p)}</li>" for n, p in suspect)
-    page = Path(a.out) / "label_audit.html"
+    page = out_dir / "label_audit.html"
     page.write_text(f"""<!doctype html><html lang="vi"><head><meta charset="utf-8">
-<title>Quét nhãn 40 phiếu</title><style>
+<title>Quét nhãn {len(coverage)} phiếu</title><style>
 body{{font-family:Segoe UI,Arial,sans-serif;margin:16px;background:#fafafa;color:#222}}
 section{{background:#fff;border:1px solid #ccc;padding:10px 14px;margin-bottom:14px}}
 .shot{{display:inline-block;vertical-align:top;margin-right:24px}} img{{border:1px solid #888;display:block}}
 table{{border-collapse:collapse;margin:4px 0}} td{{border:1px solid #ccc;padding:2px 7px;text-align:center}}
 .sc{{font-weight:normal;color:#666;font-size:14px}} .warn{{color:#a40}} code{{font-size:16px}}
 summary{{font-size:20px;font-weight:bold;cursor:pointer;margin:10px 0}}
-</style></head><body><h2>Quét nhãn cả 40 phiếu so với ảnh (không sửa nhãn)</h2>
+</style></head><body><h2>Quét nhãn {len(coverage)} phiếu ({a.split}: {min(gt)}–{max(gt)}) so với ảnh
+(không sửa nhãn) – nắn bằng preprocess(), đo trên anh_nan</h2>
 <p><b>Cách đọc:</b> khung <span style="color:#005adc">xanh dương</span> = ô theo NHÃN trong ground_truth.csv.
 Số in đậm = độ tối tương đối n (0 = như ô trống cùng hàng, 1 = như ô tô rõ điển hình trên cùng ảnh);
 số nhỏ = độ tối thô. n &lt; {MARK_MIN}: coi là không tô; {MARK_MIN}–{FILLED_MIN}: mờ; ≥ {FILLED_MIN}: rõ.
@@ -487,9 +505,9 @@ Mục sắp theo điểm nghi giảm dần (cao = càng chắc là nhãn sai); "
 <p>Quét được {len(coverage) - len(unscannable)}/{len(coverage)} phiếu: {two} phiếu đối chiếu 2 ảnh,
 {len(one)} phiếu chỉ 1 ảnh ({', '.join(one)}).
 <span class="warn">Không quét được: {', '.join(unscannable) or 'không có'}</span>.</p>
-<h2 class="warn">Ảnh đáng ngờ – qua check_align() nhưng bị loại ({len(suspect)} ảnh)</h2>
+<h2 class="warn">Ảnh đáng ngờ – preprocess() trả ok nhưng bị loại ở kiểm tra phụ ({len(suspect)} ảnh)</h2>
 <ul>{sus_li or '<li>Không có.</li>'}</ul>
-<details><summary style="font-size:15px">{len(skipped)} ảnh bị check_align() loại vì nắn sai</summary><ul>{skip_li}</ul></details>
+<details><summary style="font-size:15px">{len(skipped)} ảnh bị preprocess() từ chối</summary><ul>{skip_li or '<li>Không có.</li>'}</ul></details>
 <h2>Nhóm A – nghi tô nhầm / thiếu / thừa ô, SBD hoặc mã đề lệch ({len(grp_a)} mục)</h2>
 {''.join(section(f) for f in grp_a) or '<p>Không có.</p>'}
 <details><summary>Nhóm B – chỉ lệch rõ/mờ ({len(grp_b)} mục, dễ báo nhầm)</summary>
@@ -506,7 +524,10 @@ Mục sắp theo điểm nghi giảm dần (cao = càng chắc là nhãn sai); "
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "audit":
-        cmd_audit(sys.argv[2:])
-    else:
-        main()
+    try:
+        if len(sys.argv) > 1 and sys.argv[1] == "audit":
+            cmd_audit(sys.argv[2:])
+        else:
+            main()
+    except ChamTapTest as e:
+        sys.exit(str(e))
