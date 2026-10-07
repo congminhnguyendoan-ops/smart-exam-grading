@@ -839,3 +839,41 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   ảnh + nhãn cả 40 phiếu, nhãn mã đề bubble của 0035 sửa theo ảnh + giấy thật – **sửa nhãn cho khớp giấy thật, không phải
   rò rỉ tham số**. **`preprocess()` (v3–v6) chưa từng chạy trên 0035–0040 cho tới Bước 7** (kiểm 07/10: `data/_eval/` không
   có file / ảnh / CSV nào của 0035–0040). Ngưỡng eval (`nguong.json`) chọn chủ yếu trên C1/C2/C4 của dev (Bước 1).
+- **Commit Y = `d4aa953`** (đăng ký trước). Người dùng nói "chạy" ⇒ dừng C, D.
+
+#### KẾT QUẢ (07/10/2026) – chạy MỘT lần theo đăng ký trước
+- **Kiểm trước khi chạy: ĐẠT** – HEAD `d4aa953`, `git diff d9e56d5 HEAD -- '*.py'` rỗng, working tree sạch, SHA
+  `nguong.json` = giá trị đăng ký. `run --split test --xac-nhan-test` mỗi phương pháp một lần (log
+  `data/_eval/buoc7_run_test.log`): cả hai trả ảnh 12/12, 0 từ chối. HTML mù kiểm tự động: không chứa kết luận máy / số đo.
+- **Xem mù**: người dùng kết luận 24 ảnh trước khi thấy kết luận máy. Lần gửi đầu ghi nhầm `0035_C1`/`0035_C2` (gõ từ
+  mẫu – không thuộc tập test) ⇒ Claude KHÔNG tự gán, hỏi lại; người dùng xem lại `align_cu` 0035_C3 = `sai` (lệch vùng đáp
+  án), 0035_C4 = `dung`. `finalize --split test` (không `--ke-thua`): nguồn 12/12 `mat` cho cả hai phương pháp (log
+  `data/_eval/buoc7_finalize_test.log`).
+- **Bảng test** (`report --split test`, `report-cuoi` -> `data/_eval/bao_cao_cuoi_tuan4.md`):
+  | Điều kiện | n | `align_cu` đúng / lỗi im lặng / từ chối | `v6_api` đúng / lỗi im lặng / từ chối | Cận trên 95% lỗi im lặng `v6_api` (Clopper–Pearson) |
+  |---|---|---|---|---|
+  | C1 | 3 | 3 / 0 / 0 | 3 / 0 / 0 | 71% |
+  | C2 | 2 | 2 / 0 / 0 | 2 / 0 / 0 | 84% |
+  | C3 | 3 | **0 / 3 / 0** (0035_C3, 0038_C3, 0039_C3) | **3 / 0 / 0** | 71% |
+  | C4 | 4 | 4 / 0 / 0 | 4 / 0 / 0 | 60% |
+  | **Tổng** | **12** | **9 / 3 / 0** | **12 / 0 / 0** | **26%** (quy tắc số 3: 25%) |
+  ⇒ **`v6_api` ĐẠT tiêu chí đăng ký trước (0 lỗi im lặng, 0 từ chối nhầm trên test).** Cỡ mẫu nhỏ: chỉ kết luận "không thấy
+  lỗi im lặng trên 12 ảnh test"; theo điều kiện (n = 2–4) cận trên 60–84%.
+  **Quy tắc số 3 chỉ dùng khi n đủ lớn; với từng điều kiện (n = 2–4) chỉ báo Clopper–Pearson; các số > 100% (vd n = 2:
+  "150%") trong log `report-cuoi` là LỖI HIỂN THỊ ĐÃ BIẾT** – không sửa code sau khi thấy kết quả (cam kết đăng ký trước);
+  việc treo: sửa hiển thị trong commit riêng SAU Bước 7 (không đổi số liệu nào).
+- **Máy so với mắt**: `align_cu` 12/12 trùng (3 ảnh C3 máy `sai` = mắt `sai`). `v6_api` 11/12 trùng; **0035_C3: máy `xem`
+  (trượt `lech_trungvi_mm` = 1,08) → mắt `dung`** – máy chưa quyết, không phải mâu thuẫn. 0 ảnh máy/mắt ngược nhau.
+- **Gộp dev + test** (90 ảnh: 80 phiếu + 10 trang chữ số; **dev là tập đã dùng để chỉnh tham số / ngưỡng ⇒ số gộp lạc
+  quan, số khách quan là bảng test**): `align_cu` 68 đúng / 22 lỗi im lặng / 0 từ chối (C3 2/20 đúng); `v6_api` **90 / 0 /
+  0** (cận trên 95% CP 4%).
+- **Độ chính xác ảnh nắn đúng** (phép 2, ô lưới tin cậy; bỏ cờ giấy cong): trên CÙNG 9 ảnh test đúng ở cả hai –
+  `lech_trungvi` TB 0,33 (align_cu) / 0,35 (v6_api) mm, `lech_max` lớn nhất 1,00 / 1,05 mm (0037_C1) ⇒ như nhau. Trên cả 12
+  ảnh test `v6_api`: `lech_max` lớn nhất **2,06 mm (0035_C3)** – vượt dung sai 2,0 mm của OMR đọc toạ độ cố định ô đáp án
+  (Bước 1) ⇒ xác nhận yêu cầu Tuần 5: **OMR dò lại từng hàng**. (Dev: 2,31 mm – 0030_C3.)
+- **Thời gian** (gồm đọc file): `v6_api` test trung vị 594 ms, lớn nhất 635 ms (dev 574 / 650); `align_cu` 90 / 99 ms.
+- **Độ phối cảnh K2** (4 tâm marker `v6_api`): test nhỏ nhất **0,618 (0039_C3)**, trung vị C3 0,620; dev nhỏ nhất 0,597
+  (0015_C3); ngưỡng từ chối 0,50 ⇒ **Hướng dẫn chụp cho giáo viên**: mọi ảnh chụp nghiêng như C3 của bộ dữ liệu (độ phối
+  cảnh ≥ ~0,6) đều nắn đúng; nghiêng hơn 0,50 bị từ chối (yêu cầu chụp lại) – kèm ảnh minh hoạ 0015_C3 / 0039_C3.
+- **Đối chiếu "Xong khi"**: số liệu tái tạo được bằng một lệnh (`report-cuoi`) – **đạt**; lỗi im lặng trên test nêu trung
+  thực (0 cho `v6_api`, 3 cho `align_cu`) – **đạt**. Còn: audit nhãn 0035–0040 (dừng E).

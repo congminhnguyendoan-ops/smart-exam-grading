@@ -285,6 +285,7 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       "Độ phối cảnh" = min(trên/dưới, trái/phải và nghịch đảo) của tứ giác 4 tâm marker. Tham chiếu
       (`measure --ref`, bỏ ảnh nằm ngang): **C1 0,82–0,99** (trung vị 0,89, 20 ảnh), **C3 0,60–0,73**
       (trung vị 0,62, 19 ảnh). Như mọi ảnh C3, `align()` cũ chọn nhầm marker trên IMG_4381; `preprocess()` nắn đúng.
+- [ ] Việc treo sau Bước 7: sửa hiển thị `report-cuoi` (không in "quy tắc số 3" khi n nhỏ) – commit riêng, không đổi số liệu.
 - [ ] Tuần 4: `cv_engine/preprocessing.py` (phát triển từ `align()` trong `check_layout.py`), theo
       `docs/ke_hoach_tuan4.md` (8 bước, làm từng bước, dừng chờ người dùng sau mỗi bước).
       Bước 0 (thư mục, quy tắc dev/test, kế hoạch) xong 03/10/2026.
@@ -351,7 +352,15 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       (`check_photos`, `prepare_photos`, `check_labels`, `check_layout`), từ chối in mã + thông báo, chốt chặn tập test,
       không ghi `data/raw*` (trước/sau: `check_photos` 19 ảnh nắn sai báo OK → 78/78 đúng; `preview` 17 không tin cậy → 0).
       **Audit nhãn 34/34 phiếu dev** (0006, 0018 lần đầu quét được). **pytest 41/41** (~8 s). Chi tiết:
-      `docs/ke_hoach_tuan4.md` Bước 6. Còn: **Bước 7** – đánh giá cuối trên 0035–0040 (một lần), rồi audit nhãn test.
+      `docs/ke_hoach_tuan4.md` Bước 6.
+      **Bước 7 xong 07/10/2026** – đánh giá cuối trên test 0035–0040, chạy MỘT lần theo đăng ký trước (commit X `d9e56d5` I/O,
+      commit Y `d4aa953` đăng ký; ngưỡng `nguong.json` SHA `DF99086…A91780`), xem bằng mắt MÙ (người dùng kết luận 24 ảnh
+      trước khi thấy máy). **`v6_api` ĐẠT: 12/12 đúng, 0 lỗi im lặng, 0 từ chối** (cận trên 95% Clopper–Pearson 26%; theo
+      điều kiện n = 2–4 chỉ báo CP 60–84%); `align_cu` 9/12 (lỗi im lặng 0035_C3, 0038_C3, 0039_C3 – cả 3 ảnh C3). Gộp 90 ảnh
+      (dev đã dùng để chỉnh): v6_api 90/90, align_cu 68/90. Máy/mắt: 0 ngược nhau; 0035_C3 v6 máy `xem` → mắt `dung`. Độ chính
+      xác như nhau trên ảnh đúng ở cả hai (lech_trungvi 0,33 / 0,35 mm); thời gian 594 ms; độ phối cảnh test nhỏ nhất 0,618
+      (0039_C3). Lỗi hiển thị đã biết: "quy tắc số 3" > 100% khi n < 3 trong `report-cuoi` (chưa sửa – commit riêng sau Bước 7).
+      Báo cáo: `data/_eval/bao_cao_cuoi_tuan4.md`; chi tiết `docs/ke_hoach_tuan4.md` Bước 7. Còn: audit nhãn 0035–0040.
 - [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
       **Yêu cầu Tuần 5 (07/10/2026): `split.csv` dùng lại `cv_engine/tap_du_lieu.py`** (`PHIEU_TRAIN/VAL/TEST`), không
       định nghĩa lại ranh giới.
@@ -373,7 +382,8 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       C1–C4** (chuẩn hoá giúp đặc trưng tuyệt đối, nhưng ở mép bóng sắc 0032_C4 làm hiệu theo hàng giảm tới −0,044).
       **Yêu cầu Tuần 5 (06/10/2026): OMR bắt buộc dò lại từng hàng cho ảnh nghiêng mạnh** – sau khi nắn bằng 4 marker
       (đúng ±0,06 mm ở marker), nội dung ảnh C3 vẫn lệch TB +0,84 mm (0,37–1,30) ở giữa trang; ảnh giả C3 chỉ 0,1 mm ⇒ lệch
-      thật (giấy/ống kính), homography 4 điểm không sửa được (`docs/ke_hoach_tuan4.md` 3c dừng B).
+      thật (giấy/ống kính), homography 4 điểm không sửa được (`docs/ke_hoach_tuan4.md` 3c dừng B). **Xác nhận trên test
+      (Bước 7)**: 0035_C3 `lech_max` **2,06 mm** (dev: 0030_C3 2,31 mm) > dung sai 2,0 mm của ô đáp án khi đọc toạ độ cố định.
 - [ ] Backend API, frontend, luồng review cho giáo viên.
       **Việc Tuần 7 (07/10/2026): `system_settings.min_blur_score` = 100 trong DB là thang Laplacian thô cũ** (của
       `check_photos.py` bản đầu) ≠ `blur_score` của `preprocess()` (`phan_tu_huong`, ngưỡng `MO_MIN` 0,012) – đổi sang thang
