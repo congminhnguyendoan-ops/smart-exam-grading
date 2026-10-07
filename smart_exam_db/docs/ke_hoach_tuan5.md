@@ -408,3 +408,41 @@ Cập nhật dần trong khi làm Phần A; mỗi khoản: chỗ làm tạm → 
    trước test (đăng ký trước).
 8. **Phiếu gần như bỏ trống** (thang `S_anh` theo ảnh không dùng nhãn có sàn) – không có ảnh thật → pytest dữ liệu tạo ra; Phần B
    xem lại.
+
+## 10. KẾT QUẢ PHẦN A
+
+### A1 – định vị 2 tầng (07/10/2026)
+- **PNG mẫu**: `answer_sheet/generate_sheets.py --chi-mau-png` → `answer_sheet/output/phieu_trang_300dpi.png` (+ `.json`: SHA-256
+  điểm ảnh `a8ac9f44…0d42`, PyMuPDF 1.28.2). Render từ `phieu_trang.pdf` hiện có (không ghi lại PDF); chạy 2 lần → cùng SHA;
+  giống từng điểm ảnh `check_layout.render_pdf_page` (cắt 2481 → 2480 px). `.gitignore` thêm ngoại lệ cho đúng file PNG này.
+  `omr.nap_mau()` kiểm SHA mỗi lần nạp.
+- **`data/split.csv`** (`tools/tao_split.py`, `--kiem` so từng byte): train 56 ảnh (7 fold × 4 phiếu × 2 ảnh, mỗi fold mỗi điều
+  kiện 2 ảnh), val 12, test 12 (chỉ tên file; cột `but` trống – không đọc nhãn test).
+- **`omr.dinh_vi()`**: tầng 1 khối ±4 mm ở 75 DPI + kiểm đỉnh duy nhất trên ±14 mm; tầng 2 hàng / cột ±1,5 mm ở 300 DPI,
+  **bám theo lân cận** (xem Quyết định tự đưa ra #1); cờ: khối khớp yếu / đỉnh không duy nhất / chạm biên; hàng khớp yếu / chạm
+  biên / lệch đường thẳng lân cận > 0,8 mm.
+- **56 ảnh train thật** (`tools/kiem_dinh_vi.py thong-ke` → `data/_eval/omr/dinh_vi/`): **0 cờ** (2 240 lượt hàng câu, 504 lượt
+  cột chữ số). Điểm khối nhỏ nhất 0,224 (0014_C2), biên duy nhất nhỏ nhất 0,056 (0025_C2 mã đề); điểm hàng nhỏ nhất 0,315;
+  lệch lân cận lớn nhất 0,44 mm (0014_C2 q20); |dịch| lớn nhất 3,37 mm (0014_C2 hàng câu), 2,27 mm (cột chữ số). Thời gian
+  `dinh_vi` trung vị 75–106 ms.
+- **0014_C2 (giấy cong)**: mọi hàng định vị, không cờ; khớp với tìm rộng ±5 mm từng hàng sai ≤ 0,1 mm (q10 ≈ (−2,65; 3,37) mm).
+  Bản đầu (cửa sổ tầng 2 đặt quanh độ dịch khối) gắn cờ 0014_C2 q3–q10, q18–q20 (chạm biên, khớp yếu tới 0,03) → sửa bằng bám
+  theo lân cận.
+- **Ảnh dịch giả** (`kiem_dinh_vi.py dich-gia`, 56 ảnh × 20 độ dịch = 54 880 lượt phần tử): **KHỚP NHẦM KHÔNG CỜ = 0**. Dịch đúng
+  1 khoảng cách ô (±7 mm ngang, ±11 mm dọc, +5,8 mm dọc): 100% gắn cờ; −5,8 mm: 2 171 đúng + 573 cờ; 2 / 3,5 / 4 mm: đúng, trừ
+  vài ca chạm biên (cờ). Điểm khối của ảnh dịch 1 ô tới 0,56 (chồng lên ảnh thật 0,22–0,78) – chặn được nhờ biên duy nhất
+  (≤ −0,016) và chạm biên, không nhờ điểm.
+- pytest: 63 đạt (51 cũ + 12 mới `tests/test_omr_dinh_vi.py`).
+
+## 11. Quyết định tự đưa ra trong Phần A (theo ★ "lựa chọn nhỏ – hướng an toàn hơn")
+
+1. **Tầng 2 bám theo lân cận** thay vì cửa sổ ±1,5 mm quanh độ dịch khối: 0014_C2 lệch trong khối tới ~4,5 mm, cửa sổ quanh
+   khối không với tới (cờ cả cột). Cửa sổ vẫn ±1,5 mm (< nửa khoảng cách ô) nhưng quanh độ dịch **ngoại suy từ 1–2 hàng vừa
+   định vị**, bắt đầu từ hàng khớp tốt nhất. Không mở rộng cửa sổ – giữ đúng tinh thần "< nửa khoảng cách ô".
+2. **Ngưỡng điểm khối hạ 0,30 → 0,15** (0014_C2 = 0,224): điểm không phân biệt được dịch 1 ô (tới 0,56); bảo vệ chống dịch 1 ô là
+   biên duy nhất ≥ 0,03 và chạm biên. Lệch lân cận so với **đường thẳng** khớp các hàng ±3 (không phải trung vị) – giấy cong đổi
+   đều ~0,4 mm / hàng, trung vị sẽ báo nhầm ở hàng đầu / cuối cột.
+3. **PNG mẫu vào git** bằng ngoại lệ `.gitignore` (520 KB) – `omr.py` cần lúc chạy; SHA điểm ảnh (không phải SHA file) để không phụ
+   thuộc bộ nén PNG.
+4. **Đệm ảnh đã nắn** `data/_omr/anh/` (PNG không mất mát) cho công cụ huấn luyện; mỗi lần đọc kiểm `anh_nan` = vân tay v4 từng
+   byte. `tools/omr_du_lieu.py` chặn val (Phần A) và test trước khi đọc file.

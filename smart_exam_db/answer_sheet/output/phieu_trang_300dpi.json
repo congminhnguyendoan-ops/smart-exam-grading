@@ -1,0 +1,10 @@
+{
+ "nguon": "phieu_trang.pdf",
+ "dpi": 300,
+ "cao_rong": [
+  3508,
+  2480
+ ],
+ "sha256_diem_anh": "a8ac9f44d71f3afb7c6bdc06162c586330d54122652868a5d6f15dbb1fe40d42",
+ "pymupdf": "1.28.2"
+}

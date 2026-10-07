@@ -11,6 +11,11 @@ Chạy:      python generate_sheets.py              # 40 phiếu đánh số + 1
   trang_chu_so.pdf         trang thu chữ số viết tay (D001, D002...)
   layout.json              toạ độ pixel mọi ô (300 DPI) -> sheet_templates.layout_config
   digit_sheet_layout.json  toạ độ ô trên trang thu chữ số
+  phieu_trang_300dpi.png   phieu_trang.pdf render 300 DPI, xám, cắt đúng page_px – MẪU ĐỊNH VỊ của cv_engine/omr.py
+  phieu_trang_300dpi.json  SHA-256 điểm ảnh của PNG trên + phiên bản PyMuPDF (omr.py / pytest kiểm khi nạp)
+
+Chỉ sinh lại PNG mẫu từ phieu_trang.pdf hiện có (không ghi lại PDF – PDF reportlab mỗi lần sinh khác byte do ngày giờ):
+           python generate_sheets.py --chi-mau-png
 """
 import argparse
 import os
@@ -200,13 +205,47 @@ def write_update_sql(path):
                 f"WHERE template_name = '{lay['template_name']}';\n")
 
 
+def write_template_png(pdf_path, png_path):
+    """Mẫu phiếu trắng cho định vị OMR (Tuần 5): render 300 DPI xám, cắt về page_px (PyMuPDF làm tròn ra 2481 px rộng).
+    Ghi kèm <png>.json: SHA-256 điểm ảnh (không phải SHA file PNG – nén PNG có thể khác giữa các phiên bản OpenCV)."""
+    import hashlib
+    import json
+
+    import cv2
+    import numpy as np
+    import pymupdf
+
+    page = pymupdf.open(pdf_path)[0]
+    pix = page.get_pixmap(dpi=L.DPI, colorspace=pymupdf.csGRAY)
+    img = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.stride)[:, :pix.width]
+    img = np.ascontiguousarray(img[:L.PAGE_H_PX, :L.PAGE_W_PX])
+    if img.shape != (L.PAGE_H_PX, L.PAGE_W_PX):
+        raise RuntimeError(f"PNG mẫu sai cỡ {img.shape}, cần {(L.PAGE_H_PX, L.PAGE_W_PX)}")
+    ok, buf = cv2.imencode(".png", img)
+    if not ok:
+        raise RuntimeError("không mã hoá được PNG mẫu")
+    buf.tofile(png_path)
+    meta = {"nguon": os.path.basename(pdf_path), "dpi": L.DPI, "cao_rong": list(img.shape),
+            "sha256_diem_anh": hashlib.sha256(img.tobytes()).hexdigest(), "pymupdf": pymupdf.__version__}
+    with open(os.path.splitext(png_path)[0] + ".json", "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=1)
+    return meta
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--count", type=int, default=40, help="số phiếu đánh số để thu dữ liệu")
     ap.add_argument("--digit-pages", type=int, default=10, help="số trang thu chữ số")
     ap.add_argument("--out", default=os.path.join(HERE, "output"))
+    ap.add_argument("--chi-mau-png", action="store_true",
+                    help="chỉ sinh lại phieu_trang_300dpi.png (+ .json) từ phieu_trang.pdf hiện có, không ghi lại PDF")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
+    png = os.path.join(a.out, "phieu_trang_300dpi.png")
+    if a.chi_mau_png:
+        meta = write_template_png(os.path.join(a.out, "phieu_trang.pdf"), png)
+        print(f"Đã tạo {png} (SHA-256 điểm ảnh {meta['sha256_diem_anh'][:16]}…)")
+        return
 
     c = canvas.Canvas(os.path.join(a.out, "phieu_trang.pdf"), pagesize=A4)
     c.setTitle("Phiếu trả lời trắc nghiệm - mẫu trống")
@@ -227,8 +266,9 @@ def main():
 
     L.export_layout(os.path.join(a.out, "layout.json"), os.path.join(a.out, "digit_sheet_layout.json"))
     write_update_sql(os.path.join(a.out, "update_template.sql"))
+    write_template_png(os.path.join(a.out, "phieu_trang.pdf"), png)
     print(f"Đã tạo trong {a.out}: phieu_trang.pdf, phieu_danh_so.pdf ({a.count} phiếu), "
-          f"trang_chu_so.pdf ({a.digit_pages} trang), layout.json, digit_sheet_layout.json")
+          f"trang_chu_so.pdf ({a.digit_pages} trang), layout.json, digit_sheet_layout.json, phieu_trang_300dpi.png")
 
 
 if __name__ == "__main__":

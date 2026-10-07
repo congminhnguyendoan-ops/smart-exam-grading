@@ -22,3 +22,5 @@ data/
 smart_exam_db/answer_sheet/output/*.png
 smart_exam_db/answer_sheet/output/*.jpg
 smart_exam_db/answer_sheet/output/*.jpeg
+# Ngoại lệ: mẫu định vị của cv_engine/omr.py (Tuần 5) – cần lúc chạy, sinh bằng generate_sheets.py --chi-mau-png
+!smart_exam_db/answer_sheet/output/phieu_trang_300dpi.png
