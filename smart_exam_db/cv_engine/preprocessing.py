@@ -10,12 +10,15 @@ Tiến độ:
     Bước 3c find_markers()  (chọn 4 marker theo hình học) – xong
     Bước 4  warp(), verify(), preprocess() (chiều phiếu bằng nội dung, từ chối có lý do) – xong
     Bước 5  normalize()     (khử bóng / cân bằng sáng: chia nền, cửa sổ ≈ 15 mm) – xong
-    Bước 6  preprocess()    (API cho backend + thay align() trong các công cụ)
+    Bước 6  API: preprocess(path, layout) / preprocess_anh(gray, layout), nap_layout(), MA_LY_DO; thay align() trong
+            các công cụ; kiểm thử tests/ – đang làm
+Ranh giới dev/test: cv_engine/tap_du_lieu.py (nguồn duy nhất).
 
 Quy tắc: file này KHÔNG import phép kiểm tra 2/3 của tools/eval_preprocessing.py (nếu dùng chung, lỗi của
 phép đo trùng lỗi của hàm được đo và lỗi im lặng bị che mất). Toạ độ phiếu luôn đọc từ layout.json.
 """
 import itertools
+import json
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
@@ -37,19 +40,23 @@ class LoiDocAnh(Exception):
 
 @dataclass
 class KetQuaTienXuLy:
-    """Kết quả preprocess(path). Các trường được điền dần theo từng bước của kế hoạch Tuần 4.
+    """Kết quả preprocess(path, layout) / preprocess_anh(gray, layout) – API ổn định cho Tuần 5–10 (chốt Bước 6).
 
-    ly_do (mã lỗi khi ok = False): 'khong_doc_duoc', 'thieu_marker', 'marker_khong_dat', 'nhieu_phieu',
-    'marker_mo_ho', 'marker_cham_mep', 'anh_mo', 'khong_khop_bo_cuc', 'khong_ro_chieu'. Xoay sai không phải lỗi:
-    chiều 0°/180° quyết bằng nội dung rồi tự xoay lại (huong_xoay).
+    ok = True  ⇔ ảnh nắn đúng và dùng được: anh_nan, anh_chuan_hoa, marker, huong_xoay, blur_score đều có.
+    ok = False ⇒ ly_do = một mã trong MA_LY_DO (kèm thông báo cho giáo viên). anh_chuan_hoa luôn None; anh_nan có
+                 khi đã nắn được rồi mới bị verify() từ chối (CHỈ để xem lại, KHÔNG được chấm); marker có khi đã chọn
+                 được bộ 4 (vd marker_cham_mep).
+    Ảnh nắn: uint8 xám, cỡ layout["page_px"] (phiếu và trang chữ số đều 2480 × 3508 = A4 @300 DPI), toạ độ đúng
+    layout.json (gốc góc trên trái trang, đầu trang ở trên). Xoay sai không phải lỗi: chiều quyết bằng nội dung rồi
+    tự xoay lại (huong_xoay ghi phiếu đã bị xoay bao nhiêu trong ảnh gốc).
     """
     ok: bool = False
-    ly_do: str = ""
-    anh_nan: np.ndarray | None = None           # xám, đã nắn, chưa chuẩn hoá (Bước 3–4)
-    anh_chuan_hoa: np.ndarray | None = None     # Bước 5: normalize(anh_nan) – uint8 cùng cỡ, chỉ điền khi ok
-    marker: np.ndarray | None = None            # 4×2 float32: tâm TL, TR, BR, BL trên ảnh gốc, dưới pixel (Bước 3)
-    huong_xoay: int | None = None               # 0 / 90 / 180 / 270 (Bước 4)
-    blur_score: float | None = None
+    ly_do: str = ""                             # "" khi ok; mã trong MA_LY_DO khi bị từ chối
+    anh_nan: np.ndarray | None = None           # uint8 (H, W): xám, đã nắn, chưa chuẩn hoá – đặc trưng OMR hiện tại đo ở đây
+    anh_chuan_hoa: np.ndarray | None = None     # uint8 cùng cỡ: normalize(anh_nan) (chia nền, Bước 5) – chỉ khi ok
+    marker: np.ndarray | None = None            # float (4, 2): tâm TL, TR, BR, BL của TRANG trên ảnh gốc, dưới pixel
+    huong_xoay: int | None = None               # 0 / 90 / 180 / 270: phiếu bị xoay (chiều kim đồng hồ) trong ảnh gốc
+    blur_score: float | None = None             # 'phan_tu_huong' trên anh_nan @150 DPI; < MO_MIN -> 'anh_mo'
     # Hướng xoay ĐÃ ÁP khi đọc (1–8, truy vết ca như 0006). JPG: thẻ EXIF Orientation của file.
     # HEIC: giá trị GỐC lấy từ info["original_orientation"], vì pillow-heif tự xoay rồi đặt thẻ về 1.
     exif_orientation: int = 1
@@ -645,18 +652,49 @@ def normalize(anh_nan: np.ndarray, layout: dict, cach: str = CACH_MAC_DINH) -> n
     return np.clip(r * GIAY_DICH, 0, 255).round().astype(np.uint8)
 
 
+# ============================================================================ API (Bước 6)
+LAYOUT_DIR = Path(__file__).resolve().parent.parent / "answer_sheet" / "output"
+LAYOUT_FILE = {"phieu": "layout.json", "chu_so": "digit_sheet_layout.json"}
+
+# Mã lý do từ chối -> thông báo cho giáo viên (backend / công cụ in kèm mã). Thứ tự = thứ tự kết luận trong preprocess.
+MA_LY_DO = {
+    "khong_doc_duoc": "Không đọc được file ảnh (file hỏng hoặc không phải ảnh) – tải lại ảnh khác.",
+    "thieu_marker": "Không tìm thấy đủ 4 ô vuông đen ở 4 góc phiếu – chụp lại, đủ cả tờ trong khung hình.",
+    "marker_khong_dat": "Ô vuông đen ở góc phiếu bị che, bẩn, loá hoặc chụp quá nghiêng – chụp lại thẳng hơn.",
+    "nhieu_phieu": "Có nhiều hơn một tờ phiếu trong ảnh – mỗi ảnh chỉ chụp một tờ.",
+    "marker_mo_ho": "Không chắc 4 ô vuông đen nào là của tờ phiếu (có vật/tờ khác lọt vào khung) – chụp lại trên nền trống.",
+    "marker_cham_mep": "Ô vuông đen ở góc phiếu chạm mép ảnh – đưa trọn cả tờ vào khung hình rồi chụp lại.",
+    "anh_mo": "Ảnh bị mờ (rung tay hoặc lấy nét sai) – giữ yên máy, chạm để lấy nét rồi chụp lại.",
+    "khong_khop_bo_cuc": "Nội dung không khớp mẫu phiếu (sai loại phiếu, hoặc ảnh quá mờ/nhiễu) – kiểm tra lại tờ phiếu.",
+    "khong_ro_chieu": "Không xác định được chiều tờ phiếu – chụp lại rõ hơn.",
+}
+
+
+def nap_layout(loai: str = "phieu") -> dict:
+    """Layout của loại trang: 'phieu' (answer_sheet/output/layout.json) / 'chu_so' (digit_sheet_layout.json).
+    Toạ độ pixel @300 DPI, sinh từ sheet_layout.py – không sửa tay."""
+    return json.loads((LAYOUT_DIR / LAYOUT_FILE[loai]).read_text(encoding="utf-8"))
+
+
 def preprocess(path, layout: dict) -> KetQuaTienXuLy:
-    """Đọc ảnh -> tìm 4 marker -> nắn -> verify (chiều bằng nội dung, từ chối có lý do) -> normalize (chỉ khi ok).
-    layout = layout của loại trang mong đợi (phiếu / trang chữ số).
-    Lỗi đọc file -> ok=False, 'khong_doc_duoc'; lỗi lập trình khác vẫn ném ra (Bước 6 quyết có bọc hay không).
+    """API chính: đọc file ảnh (JPG/PNG/HEIC, đường dẫn Unicode, áp EXIF) rồi preprocess_anh().
+    layout = layout của loại trang mong đợi (nap_layout('phieu') / nap_layout('chu_so')).
+    File không đọc được -> KetQuaTienXuLy(ok=False, ly_do='khong_doc_duoc'). Lỗi lập trình (exception khác) VẪN NÉM RA
+    (chốt Bước 6): không biến lỗi code thành 'từ chối ảnh', để lỗi không bị che mất."""
+    try:
+        gray, exif = doc_anh(path)
+    except LoiDocAnh:
+        return KetQuaTienXuLy(ly_do="khong_doc_duoc")
+    return preprocess_anh(gray, layout, exif)
+
+
+def preprocess_anh(gray: np.ndarray, layout: dict, exif_orientation: int = 1) -> KetQuaTienXuLy:
+    """Như preprocess() nhưng nhận ảnh xám uint8 ĐÃ áp EXIF (vd backend nhận byte rồi tự giải mã bằng doc_anh/load_image).
+    exif_orientation chỉ để ghi lại (truy vết), không xoay ảnh.
+    Tìm 4 marker -> nắn -> verify (chiều bằng nội dung, từ chối có lý do) -> normalize (chỉ khi ok).
     marker_cham_mep (chốt 06/10/2026: TỪ CHỐI, không ước lượng tâm): (1) một marker của bộ được chọn chạm mép ảnh;
     (2) không chọn được bộ 4 mà có ứng viên chạm mép -> báo marker_cham_mep (lời nhắc 'đưa cả tờ vào khung')."""
-    kq = KetQuaTienXuLy()
-    try:
-        gray, kq.exif_orientation = doc_anh(path)
-    except LoiDocAnh:
-        kq.ly_do = "khong_doc_duoc"
-        return kq
+    kq = KetQuaTienXuLy(exif_orientation=exif_orientation)
     tam, ly_do, ct = find_markers(gray, layout)
     kq.chi_tiet = {"ung_vien": [(u.x, u.y) for u in ct["ung_vien"]], "so_bo_dat": len(ct["bo_dat"])}
     if tam is None:

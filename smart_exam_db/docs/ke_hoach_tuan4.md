@@ -137,6 +137,11 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   được (19 ảnh sai đều đã có kết luận bằng mắt), `truth_dev.csv` **giống hệt từng byte** bản trước khi sửa;
   phép thử chặn trên bản sao trong scratchpad: xoá `ket_luan_mat` của 1 ảnh `sai` (0006_C2), hoặc đổi 1 ảnh
   `dung` chưa xem thành `xem` → đều dừng, không ghi file; bản không sửa → ghi bình thường.
+- **`--ke-thua` luôn trỏ tới phương pháp GỐC có kết luận bằng mắt** (chốt 07/10/2026, Bước 6), không trỏ tới phương pháp
+  chỉ thừa kế lại – phương pháp thừa kế có `xem_bang_mat.csv` trống, `finalize` sẽ (đúng) từ chối. Hiện nguồn gốc là
+  **`v4_verify`** cho 7 ảnh C3 (0006/0011/0026/0027/0030/0031/0034_C3). Ví dụ: `v6_api --ke-thua v5_chuan_hoa` bị từ chối
+  ("còn 7 ảnh 'xem' chưa có kết luận bằng mắt") vì v5 chỉ thừa kế từ v4 ⇒ đúng là `finalize --phuong-phap v6_api --ke-thua
+  v4_verify` (`kiem_ke_thua` so số đo của v6 với chính file của v4). `report --so-voi` vẫn so với phương pháp liền trước.
 - **`preprocess(path)` trả một dataclass kết quả** (chốt từ Bước 2, điền dần):
   `anh_nan` (xám, đã nắn, chưa chuẩn hoá) · `anh_chuan_hoa` (Bước 5) · `ok` · `ly_do` (mã: `thieu_marker`,
   `marker_khong_dat`, `nhieu_phieu`, `marker_mo_ho`, `marker_cham_mep`, `anh_mo`, `khong_khop_bo_cuc`,
@@ -651,6 +656,67 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   phiếu test, làm trước sẽ mất tính khách quan của đánh giá cuối.
 - **Cách đo**: eval không đổi so với Bước 5; audit quét được 34/34 phiếu dev.
 - **Xong khi**: CLAUDE.md mục 7/8 cập nhật (gỡ cảnh báo `check_photos.py`, `align()`).
+- **Kế hoạch chi tiết (người dùng duyệt 07/10/2026)**:
+  - **Chỗ gọi `align()` cũ** (grep): `answer_sheet/check_photos.py` (nắn + lưu), `tools/prepare_photos.py` (`check_align()` /
+    `best_rotation()` trong `preview`, `measure`), `tools/check_labels.py` (`check_align` – kiểm từng câu + `audit`),
+    `answer_sheet/check_layout.py` (tự kiểm ảnh tô giả) ⇒ **thay bằng `preprocess()`** (check_layout: giữ `align()`, thêm
+    lượt `preprocess`). **Giữ nguyên** (tái tạo số "trước"): `eval_preprocessing.py` `align_cu`/`v2_load`, `marker_that.py`;
+    `prepare_photos.marker_centers()` (`verify-ids`, `measure`) – cố ý độc lập với preprocess. Ảnh bị từ chối: in
+    `tên: TỪ CHỐI – <ly_do> (<MA_LY_DO>)` + ghi CSV/HTML + tổng theo mã; lỗi lập trình vẫn ném ra.
+  - **API**: `preprocess(path, layout)` = `doc_anh` + `preprocess_anh(gray, layout, exif_orientation=1)` (backend nhận byte);
+    `MA_LY_DO` (mã -> thông báo cho giáo viên), `nap_layout()`, docstring `KetQuaTienXuLy`. **Không đổi hành vi**: SHA
+    `anh_nan` = vân tay v4, SHA `anh_chuan_hoa` = v5 (`kiem_chuan_hoa.py so-anh-nan --phuong-phap v6_api`), eval `v6_api`
+    `--ke-thua v5_chuan_hoa`, `run-gia` như v5.
+  - **`cv_engine/tap_du_lieu.py` = NGUỒN DUY NHẤT cho ranh giới dev/test** (`PHIEU_DEV/TEST/TRAIN/VAL`, `la_test`, `chan_test`
+    ném `ChamTapTest` TRƯỚC khi đọc file nếu thiếu `--xac-nhan-test`). `eval_preprocessing.SPLITS` dùng lại module này.
+    **Tuần 5 (`split.csv` OMR: train 0001–0028 / val 0029–0034 / test 0035–0040) phải dùng lại đúng module này, không định
+    nghĩa lại.**
+  - **Thư mục ghi**: `data/_aligned/raw/`, `data/_aligned/raw_digits/` (anh_nan, **JPEG q95, chỉ để xem**; Tuần 5 gọi
+    `preprocess()` trực tiếp, có lưu đệm hay không quyết ở Tuần 5), `data/_aligned/photo_report_*.csv`,
+    `data/_prepare/label_audit_dev/`, `data/_prepare/preview_dev.html`, `data/_eval/v6_api/`, `data/_eval/tham_chieu_kiem_thu/`.
+    **Không ghi** `data/raw*` (trước đây `check_photos.py` ghi `<dir>/_aligned` + `photo_report.csv` VÀO `data/raw` – sửa;
+    hiện không có thư mục `_aligned` nào, không có gì để sao lưu), `label_audit.*`/`preview.html`/`mapping.csv`/`measure/` cũ,
+    `ground_truth.csv`.
+  - **Kiểm thử** `smart_exam_db/tests/` (pytest ≥ 8, chỉ để kiểm thử): EXIF/Unicode/file lỗi (không cần `data/`); 7 ảnh dev
+    đại diện so tham chiếu; ảnh giả `_gia_v4` từ chối đúng mã (mong đợi đọc từ `danh_sach.csv`); ranh giới dev/test. Thiếu
+    `data/` -> SKIP. **Vân tay phụ thuộc phiên bản OpenCV/nền tảng**: tham chiếu ghi kèm `cv2`/`numpy`; cùng phiên bản -> so
+    từng byte; khác phiên bản -> |Δ| ≤ 2 mức xám ở ≥ 99,9% điểm ảnh + cảnh báo, không fail.
+  - **`min_blur_score` trong DB** (100, thang Laplacian thô) ≠ `blur_score`/`MO_MIN` (0,012) – chỉ ghi vào CLAUDE.md việc
+    Tuần 7 (đổi sang thang `mo_huong`); không sửa DB bây giờ.
+  - **Dừng**: A – API, chốt chặn, kiểm thử, eval `v6_api`; B – thay 3 công cụ + `check_layout`, trước/sau, sinh `_aligned/`,
+    `preview_dev.html`; C – audit 34 phiếu dev (nhóm A mới -> người dùng so giấy, không sửa `ground_truth.csv`); D – tài liệu
+    + commit.
+- **Ghi nhận trung thực về tập test (cho báo cáo Bước 7)**: lần `check_labels.py audit` ngày **03/10/2026** (trước khi có
+  quy tắc dev/test của Tuần 4) đã **mở ảnh và nhãn của cả 40 phiếu, gồm 0035–0040**, bằng `align()` cũ; nhãn **mã đề bubble
+  của phiếu 0035** (`---`, người tô không tô ô nào) được sửa dựa trên ảnh + giấy thật (CLAUDE.md mục 6). Phân biệt:
+  **sửa nhãn cho khớp tờ giấy thật ≠ rò rỉ tham số** – không có tham số / ngưỡng nào của preprocessing được chọn theo ảnh
+  test; ngưỡng audit (`MARK_MIN`, `FILLED_MIN`) chọn trên 56 ảnh lúc đó có lẫn ảnh test nhưng chỉ dùng để *tìm nhãn sai*,
+  không phải mô hình được đánh giá. **`preprocess()` (v3–v6) chưa từng chạy trên ảnh 0035–0040.** Bước 7 báo cáo mục này.
+  Kiểm 07/10/2026: `data/_eval/` không có file `*test*`, 0 ảnh đầu ra tên 0035–0040, 0 CSV nhắc tới 0035_Ck–0040_Ck.
+- **Dừng A (07/10/2026) – chờ người dùng duyệt**:
+  - **pytest**: `pip install --dry-run` (Python 3.14.7) -> pytest **9.1.1** + colorama, iniconfig, packaging, pluggy, pygments;
+    cài vào `.venv` gốc; `requirements.txt` thêm `pytest>=8` (ghi chú "chỉ để kiểm thử"). Môi trường: cv2 5.0.0, numpy 2.5.3.
+  - **Tham chiếu kiểm thử** (`tools/tao_tham_chieu.py`, chạy TRƯỚC khi sửa `preprocessing.py`, tự chặn nếu file đã sửa):
+    7 ảnh (0001_C1, 0005_C2, 0015_C3, 0032_C4, 0006_C2, 0014_C2, D003) – SHA `anh_nan` = vân tay v4, `anh_chuan_hoa` = v5,
+    lưu PNG (đọc lại giống từng byte) + `tham_chieu.json` (phiên bản python/cv2/numpy/nền tảng) -> `data/_eval/tham_chieu_kiem_thu/`
+    (64 MB); `v4_verify/anh_nan_sha256_moi_truong.json` (ghi bổ sung phiên bản cho vân tay v4).
+  - **API**: `preprocess(path, layout)` = `doc_anh` + `preprocess_anh(gray, layout, exif_orientation=1)`; `MA_LY_DO` (9 mã ->
+    thông báo cho giáo viên), `nap_layout()`, docstring `KetQuaTienXuLy` (kiểu, cỡ, toạ độ, trường nào có khi `ok=False`).
+    `cv_engine/tap_du_lieu.py`; `eval_preprocessing.SPLITS` dùng lại.
+  - **Không đổi hành vi**: `so-anh-nan --phuong-phap v6_api` **78/78** (`anh_nan` = vân tay v4 và `anh_chuan_hoa` = v5, từng
+    byte); `finalize --phuong-phap v6_api --ke-thua v4_verify` đạt -> `report --so-voi v5_chuan_hoa` **78/78 đúng, 0 đổi**;
+    `diem_dev` (trừ `giay`, `phuong_phap`), `o_luoi_dev` (từng byte), `truth_dev` (trừ `phuong_phap`), `gia.csv` (trừ `giay`:
+    45 + 62 + 4 đã biết, 0 lỗi im lặng) giống v5. truth/o_luoi của align_cu/v2/v3/v4 không đổi. `preprocess` trung vị 579 ms.
+    **Lệch kế hoạch (chốt chặn hoạt động đúng)**: `--ke-thua v5_chuan_hoa` bị `finalize` TỪ CHỐI ("còn 7 ảnh 'xem' chưa có kết
+    luận bằng mắt") – v5 không có kết luận bằng mắt của riêng nó (7 ảnh C3 thừa kế từ v4, `xem_bang_mat.csv` của v5 trống) ⇒
+    thừa kế từ **nguồn gốc `v4_verify`** (`kiem_ke_thua` so số đo v6 với chính file của v4).
+  - **pytest** (`python -m pytest tests`, từ `smart_exam_db/`): **35 đạt, 8,3 s** – `test_load_image` (EXIF 1/3/6/8, Unicode,
+    file thiếu/hỏng), `test_preprocess_dev` (7 ảnh + `preprocess_anh` ≡ `preprocess` + API), `test_tu_choi` (9 ảnh giả:
+    `marker_khong_dat`, `marker_cham_mep`, `nhieu_phieu`, `marker_mo_ho`, `anh_mo`, `khong_khop_bo_cuc`, `thieu_marker`,
+    quá nghiêng, xoay 180° 0006_C2 -> 270°), `test_tap_du_lieu`. **Phép thử chặn** (scratchpad): cùng phiên bản + lệch 1 điểm
+    ảnh 1 mức -> BỊ CHẶN; khác phiên bản: lệch ≤ 2 mức -> đạt + cảnh báo, 0,2% điểm ảnh lệch 3 mức -> BỊ CHẶN; `load_image`
+    bỏ qua EXIF -> EXIF 3/6/8 BỊ CHẶN. (Lần thử đầu giả lập "bỏ qua EXIF" bằng `cv2.imdecode` thường – **không** chặn được vì
+    OpenCV mặc định TỰ ÁP EXIF; giả lập đúng phải thêm `IMREAD_IGNORE_ORIENTATION`.)
 
 ### Bước 7 – Đánh giá cuối (một lần)
 - **Việc**: chốt code (commit), rồi chạy `eval_preprocessing.py run --split test --xac-nhan-test` trên

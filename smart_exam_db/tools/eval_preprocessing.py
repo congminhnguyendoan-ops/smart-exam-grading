@@ -52,8 +52,9 @@ from check_layout import align, render_pdf_page  # noqa: E402  (không sửa che
 from cv_engine.preprocessing import find_markers, load_image, preprocess  # noqa: E402
 from prepare_photos import marker_fill  # noqa: E402
 from check_labels import SEARCH_MM, item_box, local_darkness, register  # noqa: E402
+from cv_engine.tap_du_lieu import PHIEU_DEV, PHIEU_TEST  # noqa: E402
 
-SPLITS = {"dev": range(1, 35), "test": range(35, 41)}     # mã phiếu; trang chữ số D001–D010 thuộc dev
+SPLITS = {"dev": PHIEU_DEV, "test": PHIEU_TEST}     # mã phiếu (nguồn duy nhất: cv_engine/tap_du_lieu.py); D001–D010 thuộc dev
 WORK_DPI = 150                       # độ phân giải làm phép 2 (0,17 mm/px – đủ đo lệch cỡ 0,5 mm)
 PX = WORK_DPI / 25.4                 # px / mm ở WORK_DPI
 MARKER_MASK_MM = 10.0                # bỏ ô 20x20 mm quanh tâm mỗi marker
@@ -171,9 +172,15 @@ def v5_chuan_hoa(duong_dan: Path, loai: str | None = None):
     return (kq.anh_nan if kq.ok else None), kq.ly_do, ct
 
 
+def v6_api(duong_dan: Path, loai: str | None = None):
+    """Bước 6: API chốt – preprocess(path) = doc_anh + preprocess_anh(gray). Cùng hàm bọc với v5: hành vi phải giống v5
+    từng byte (anh_nan theo vân tay v4, anh_chuan_hoa theo v5: tools/kiem_chuan_hoa.py so-anh-nan --phuong-phap v6_api)."""
+    return v5_chuan_hoa(duong_dan, loai)
+
+
 V4_COT = ["S0", "S180", "bien_chieu", "blur_score", "loi_marker"]
 PHUONG_PHAP = {"align_cu": align_cu, "v2_load": v2_load, "v3_hinh_hoc": v3_hinh_hoc, "v4_verify": v4_verify,
-               "v5_chuan_hoa": v5_chuan_hoa}
+               "v5_chuan_hoa": v5_chuan_hoa, "v6_api": v6_api}
 
 
 def huong_tu_marker(m) -> int:
@@ -1172,7 +1179,7 @@ def main() -> None:
             t.add_argument("--so-voi", choices=sorted(PHUONG_PHAP), default=None,
                            help="liệt kê ảnh đổi phân loại so với phương pháp này")
     t = sub.add_parser("run-gia", help="chấm preprocess() trên ảnh giả lỗi cố ý (data/_eval/_gia_v4) theo kết quả mong đợi")
-    t.add_argument("--phuong-phap", default="v5_chuan_hoa", choices=["v4_verify", "v5_chuan_hoa"])
+    t.add_argument("--phuong-phap", default="v6_api", choices=["v4_verify", "v5_chuan_hoa", "v6_api"])
     a = ap.parse_args()
     {"run": cmd_run, "tu-kiem": cmd_tu_kiem, "dung-sai": cmd_dung_sai, "tam-marker": cmd_tam_marker,
      "finalize": cmd_finalize, "report": cmd_report, "run-gia": cmd_run_gia}[a.lenh](a)

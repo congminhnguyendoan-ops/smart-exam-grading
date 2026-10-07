@@ -7,3 +7,5 @@ pillow>=12
 psycopg[binary]>=3.2
 # Sau khi cài cần thêm: playwright install chromium (chỉ cho docs/wireframes/gen.py)
 playwright>=1.50
+# Chỉ để kiểm thử (smart_exam_db/tests/, chạy: python -m pytest tests) – không cần cho chương trình chính
+pytest>=8

@@ -129,28 +129,37 @@ def cmd_van_tay(a) -> None:
 
 # ============================================================================ lệnh so-anh-nan (dừng C)
 def cmd_so_anh_nan(a) -> None:
-    """anh_nan của preprocess() HIỆN TẠI (đã gọi normalize) so với vân tay v4 -> v5_chuan_hoa/so_pixel_dev.csv
-    (cột anh, so_diem_khac như kiem_load_image.py so-pixel – đầu vào của finalize --ke-thua). SHA trùng ⇒ 0 điểm khác;
-    SHA khác ⇒ ghi 'sha_khac' (≠ '0') -> --ke-thua tự từ chối."""
+    """anh_nan của preprocess() HIỆN TẠI so với vân tay v4 -> data/_eval/<phương pháp>/so_pixel_dev.csv (cột anh,
+    so_diem_khac như kiem_load_image.py so-pixel – đầu vào của finalize --ke-thua). SHA trùng ⇒ 0 điểm khác; SHA khác ⇒
+    'sha_khac' (≠ '0') -> --ke-thua tự từ chối. Phương pháp sau v5 (vd v6_api): anh_chuan_hoa cũng phải trùng SHA của v5
+    (v5_chuan_hoa/so_pixel_dev.csv), không thì cũng ghi 'sha_khac'."""
     if not VAN_TAY.exists():
         sys.exit(f"Thiếu {VAN_TAY} – vân tay v4 phải ghi trước khi sửa preprocessing.py (lệnh van-tay).")
     ref = {r["anh"]: r for r in csv.DictReader(VAN_TAY.open(encoding="utf-8-sig"))}
+    v5 = {}
+    if a.phuong_phap != "v5_chuan_hoa":
+        v5 = {r["anh"]: r["sha256_anh_chuan_hoa"] for r in csv.DictReader((OUT / "so_pixel_dev.csv").open(encoding="utf-8-sig"))}
+    out = EVAL_DIR / a.phuong_phap
     rows, khac = [], []
     for x in list_images("dev"):
         kq = pp.preprocess(x.duong_dan, nap_layout_loai(x.loai))
         a_n = np.ascontiguousarray(kq.anh_nan)
         sha = hashlib.sha256(a_n.tobytes()).hexdigest()
         r0 = ref[x.ten]
+        ch = kq.anh_chuan_hoa
+        sha_ch = hashlib.sha256(np.ascontiguousarray(ch).tobytes()).hexdigest() if ch is not None else ""
         giong = sha == r0["sha256"] and str(kq.ok and 1 or 0) == r0["ok"] and kq.ly_do == r0["ly_do"]
+        if v5:
+            giong = giong and sha_ch == v5[x.ten]
         if not giong:
             khac.append(x.ten)
-        ch = kq.anh_chuan_hoa
         rows.append({"anh": x.ten, "so_diem_khac": 0 if giong else "sha_khac", "sha256_anh_nan": sha,
-                     "sha256_v4": r0["sha256"], "ok": int(kq.ok), "ly_do": kq.ly_do,
-                     "sha256_anh_chuan_hoa": hashlib.sha256(np.ascontiguousarray(ch).tobytes()).hexdigest() if ch is not None else ""})
-    ghi_csv(OUT / "so_pixel_dev.csv", rows)
+                     "sha256_v4": r0["sha256"], "ok": int(kq.ok), "ly_do": kq.ly_do, "sha256_anh_chuan_hoa": sha_ch,
+                     **({"sha256_chuan_hoa_v5": v5[x.ten]} if v5 else {})})
+    ghi_csv(out / "so_pixel_dev.csv", rows)
     print(f"{len(rows) - len(khac)}/{len(rows)} ảnh dev: anh_nan giống vân tay v4 từng byte (kèm ok, ly_do)"
-          + (f"; KHÁC: {', '.join(khac)}" if khac else "") + f" -> {OUT / 'so_pixel_dev.csv'}")
+          + (", anh_chuan_hoa giống v5 từng byte" if v5 else "")
+          + (f"; KHÁC: {', '.join(khac)}" if khac else "") + f" -> {out / 'so_pixel_dev.csv'}")
 
 
 # ============================================================================ mặt nạ giấy trắng (chỉ eval)
@@ -928,7 +937,8 @@ def main() -> None:
     t.add_argument("--cach", nargs="+", default=list(CACH), choices=list(CACH))
     sub.add_parser("so-sanh")
     sub.add_parser("xem-b")
-    sub.add_parser("so-anh-nan")
+    t = sub.add_parser("so-anh-nan")
+    t.add_argument("--phuong-phap", default="v5_chuan_hoa", choices=["v5_chuan_hoa", "v6_api"])
     a = ap.parse_args()
     {"van-tay": cmd_van_tay, "mat-na": cmd_mat_na, "tu-kiem": cmd_tu_kiem, "khao-sat": cmd_khao_sat,
      "so-sanh": cmd_so_sanh, "xem-b": cmd_xem_b, "so-anh-nan": cmd_so_anh_nan}[a.lenh](a)
