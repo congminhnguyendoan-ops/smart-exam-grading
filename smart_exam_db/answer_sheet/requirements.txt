@@ -9,3 +9,5 @@ psycopg[binary]>=3.2
 playwright>=1.50
 # Chỉ để kiểm thử (smart_exam_db/tests/, chạy: python -m pytest tests) – không cần cho chương trình chính
 pytest>=8
+# Chỉ để HUẤN LUYỆN mô hình OMR (tools/huan_luyen_omr.py, Tuần 5) – cv_engine/omr.py lúc chạy chỉ cần NumPy + JSON
+scikit-learn>=1.5

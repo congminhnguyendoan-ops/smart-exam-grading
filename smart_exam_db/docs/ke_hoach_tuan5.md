@@ -446,3 +446,33 @@ Cập nhật dần trong khi làm Phần A; mỗi khoản: chỗ làm tạm → 
    thuộc bộ nén PNG.
 4. **Đệm ảnh đã nắn** `data/_omr/anh/` (PNG không mất mát) cho công cụ huấn luyện; mỗi lần đọc kiểm `anh_nan` = vân tay v4 từng
    byte. `tools/omr_du_lieu.py` chặn val (Phần A) và test trước khi đọc file.
+
+### A2 – đặc trưng + M0 + M1, chọn nguồn ảnh (07/10/2026)
+- **Đặc trưng** (`omr.dac_trung_o`, 9 cột `TEN_DAC_TRUNG`: `ld, ld_hang, ld_anh, tuyet_doi, phu_nhe, phu_dam, do_lech, hang, giay`),
+  định vị luôn trên `anh_nan`. `S_anh` (không dùng nhãn) trên 56 ảnh train: 0,400 (0022_C2) – 0,804 (0015_C4) ⇒ sàn
+  `S_SAN = 0,20` (≈ 0,5 × nhỏ nhất); phiếu trắng (mẫu PNG) → S = sàn, mọi ô `ld_anh` < 0,25 (pytest).
+  `tools/huan_luyen_omr.py dac-trung` → `data/_omr/dac_trung_{nan,chuan}.csv` (14 000 dòng mỗi nguồn).
+- **M0** = ngưỡng audit 0,25 / 0,80 trên `ld_anh`; **M1** = `StandardScaler` + `LogisticRegression(C=1, class_weight='balanced')`,
+  3 lớp (ô đáp án) / 2 lớp (bubble). `huan_luyen_omr.py cv` → `data/_omr/a2_so_sanh.md`, `chon_nguon.json`, OOF `oof_*.npy`.
+- **F1 lớp faint cấp ô (OOF 7-fold, argmax), [CI 95% bootstrap theo phiếu, 1000 lần, seed 2026], (n faint)**:
+
+  | Mô hình | Nguồn | C1 | C2 | C3 | C4 | maximin |
+  |---|---|---|---|---|---|---|
+  | M0 | anh_nan | 0,971 [0,940; 0,995] (89) | **0,844** [0,772; 0,907] (95) | 0,926 [0,833; 0,983] (94) | 0,971 [0,937; 0,995] (88) | 0,844 |
+  | M1 | anh_nan | 0,989 [0,972; 1,000] | 0,935 [0,888; 0,972] | 0,968 [0,934; 0,994] | 0,945 [0,880; 0,984] | **0,935** |
+  | M0 | anh_chuan_hoa | 0,971 | 0,844 | 0,926 | 0,966 | 0,844 |
+  | M1 | anh_chuan_hoa | 0,989 | 0,922 | 0,953 | 0,956 | 0,922 |
+
+  M1 `anh_nan`: **0 ô nhầm trống ↔ có tô** (8 210 → 6 720 ô trống OOF đều đúng; mọi ô có tô đúng là có tô); nhầm chỉ giữa faint /
+  filled: faint→filled 6 ô, filled→faint 25 ô (C2 12). Bubble (2 lớp) M0 và M1: 0 nhầm (4 538 trống, 502 tô).
+- **Chọn `anh_nan`** (quy tắc 4d): hiệu F1 faint M1 (chuẩn hoá − nan) C1 +0,000 · C2 −0,014 [−0,030; 0] · C3 −0,016 [−0,032; 0] ·
+  C4 +0,011 [0; +0,029]; maximin −0,014 [−0,030; +0,026] – CI chứa 0 ⇒ hoà → `anh_nan` (ít phụ thuộc hơn). Ở mức đơn giản này
+  chuẩn hoá không giúp vì đặc trưng chính (`ld`) đã so với giấy ngay quanh ô (Tuần 4 B5 dừng A dự báo đúng điều này).
+- **Biên xác suất M1 (OOF)**: ô trống: p(có tô) lớn nhất 0,057 (0014_C3 q30 B); ô có tô: p(có tô) nhỏ nhất 0,559 (0019_C3 q30 D
+  mờ), kế đến 0,574 (**0019_C3 q24 C – ca thử**). Bubble: trống ≤ 0,003, tô ≥ 0,832.
+- **Ca thử**: 0019 câu 24 ô C: C3 p = (trống 0,426 / mờ 0,574 / rõ 0), C4 (0,079 / 0,921 / 0) – đọc `faint` cả 2 ảnh (M0 bỏ sót C3:
+  n 0,235 < 0,25); 0020 câu 33 ô C: C1 0,994 mờ, C4 0,995 mờ (M0 bỏ sót C1). **0033 câu 4 thuộc val 0029–0034 – Phần A không
+  chạm, để Phần B.**
+- Tiêu chí ★Q2 "F1 faint ≥ 0,90 mỗi điều kiện" (cấp ô, argmax): **M1 `anh_nan` đạt** ở cả 4 điều kiện (thấp nhất C2 0,935), nhưng
+  **cận dưới CI của C2 (0,888) và C4 (0,880) < 0,90** – cỡ mẫu ~90 ô faint / điều kiện. M0 không đạt (C2 0,844).
+- pytest 65 đạt (2 mới `tests/test_omr_dac_trung.py`).

@@ -271,3 +271,76 @@ def dinh_vi(anh: np.ndarray, layout: dict, mau: np.ndarray | None = None) -> Ket
         ket = _bam_theo(anh, mau, layout, [hop_cot(layout, truong, i) for i in range(n)], khoi[kh].dich)
         ghi([f"{kh}{i + 1}" for i in range(n)], ket, kh, 3)
     return KetQuaDinhVi(khoi, dich, diem, co, lech)
+
+
+# ------------------------------------------------------------------------------------------------ đặc trưng ô
+# Thứ tự cột của ma trận đặc trưng (mô hình JSON ghi lại tên cột – nạp mô hình kiểm khớp):
+#   ld        local_darkness: 1 − trung bình lõi (0,75r) / giấy vành 1,15–1,45r (ngoài viền in) – gần bất biến với bóng
+#   ld_hang   ld − min(ld trong hàng 4 ô)    (bubble: ld − trung vị cột 10 ô) – khử viền + chữ A–D / 0–9 in sẵn trong ô
+#   ld_anh    ld_hang / S_anh – thang theo ẢNH, KHÔNG dùng nhãn (bút chì nhạt vs bi đen, ảnh C2 tối)
+#   tuyet_doi 1 − trung bình lõi / 255
+#   phu_nhe   tỉ lệ điểm lõi tối hơn 0,85 × giấy;   phu_dam: tối hơn 0,6 × giấy  (tô mờ thường loang, không phủ kín)
+#   do_lech   độ lệch chuẩn lõi / giấy
+#   hang      hạng trong hàng / cột (0 = ô tối nhất)
+#   giay      mức giấy vành / 255
+TEN_DAC_TRUNG = ("ld", "ld_hang", "ld_anh", "tuyet_doi", "phu_nhe", "phu_dam", "do_lech", "hang", "giay")
+S_PHAN_VI = 90              # S_anh: trung vị độ chênh (max − min) của các hàng có chênh ≥ 0,5 × phân vị 90 của 40 hàng
+S_SAN = 0.20                # sàn của S_anh (phiếu gần như bỏ trống: S nhỏ -> khuếch đại nhiễu); chọn A2 – xem kế hoạch
+
+
+def _do_o(anh: np.ndarray, cx: float, cy: float, r: float) -> tuple:
+    """(ld, tuyet_doi, phu_nhe, phu_dam, do_lech, giay) của 1 ô tròn tâm (cx, cy) bán kính r px."""
+    x0, y0 = int(round(cx - 1.5 * r)), int(round(cy - 1.5 * r))
+    n = int(round(3 * r)) + 1
+    patch = _cat(anh, x0, y0, x0 + n, y0 + n).astype(np.float32)
+    yy, xx = np.ogrid[:n, :n]
+    d2 = (xx + x0 - cx) ** 2 + (yy + y0 - cy) ** 2
+    loi = patch[d2 <= (0.75 * r) ** 2]
+    giay = max(float(np.median(patch[(d2 >= (1.15 * r) ** 2) & (d2 <= (1.45 * r) ** 2)])), 1.0)
+    m = float(loi.mean())
+    return (float(np.clip(1 - m / giay, 0, 1)), 1 - m / 255, float(np.mean(loi < 0.85 * giay)),
+            float(np.mean(loi < 0.6 * giay)), float(loi.std() / giay), giay / 255)
+
+
+def _hang_trong(v: np.ndarray) -> np.ndarray:
+    """Hạng theo hàng (trục cuối): 0 = lớn nhất."""
+    return np.argsort(np.argsort(-v, axis=-1, kind="stable"), axis=-1, kind="stable").astype(np.float32)
+
+
+def thang_anh(ld_hang_cau: np.ndarray) -> float:
+    """S_anh từ ma trận ld_hang 40×4 của ô đáp án – không dùng nhãn."""
+    chenh = ld_hang_cau.max(axis=1)
+    nguong = 0.5 * np.percentile(chenh, S_PHAN_VI)
+    return max(float(np.median(chenh[chenh >= nguong])), S_SAN)
+
+
+def dac_trung_o(anh: np.ndarray, layout: dict, dv: KetQuaDinhVi) -> tuple[np.ndarray, np.ndarray, float]:
+    """Ma trận đặc trưng (cột theo TEN_DAC_TRUNG): ô đáp án (40, 4, F) và bubble (9, 10, F) theo thứ tự sbd1..6, ma_de1..3.
+    Toạ độ ô = layout + độ dịch của hàng / cột (dv). Trả kèm S_anh. KHÔNG dùng nhãn."""
+    ans = layout["answers"]
+    nq, opts, r = ans["num_questions"], ans["options"], ans["bubble_radius"]
+    tho = np.zeros((nq, len(opts), 6), np.float32)
+    for q in range(1, nq + 1):
+        dx, dy = dv.dich[f"q{q}"]
+        for j, o in enumerate(opts):
+            cx, cy = ans["centers"][str(q)][o]
+            tho[q - 1, j] = _do_o(anh, cx + dx, cy + dy, r)
+    ld = tho[..., 0]
+    ld_hang = ld - ld.min(axis=1, keepdims=True)
+    S = thang_anh(ld_hang)
+    cau = np.concatenate([ld[..., None], ld_hang[..., None], (ld_hang / S)[..., None], tho[..., 1:5],
+                          _hang_trong(ld)[..., None], tho[..., 5:6]], axis=-1)
+    cot = []
+    for kh, truong in TRUONG_KHOI.items():
+        f = layout[truong]
+        for i, col in enumerate(f["bubbles"]):
+            dx, dy = dv.dich[f"{kh}{i + 1}"]
+            cot.append([_do_o(anh, cx + dx, cy + dy, f["bubble_radius"]) for cx, cy in col])
+    tho_b = np.array(cot, np.float32)
+    ld_b = tho_b[..., 0]
+    ld_cot = ld_b - np.median(ld_b, axis=1, keepdims=True)
+    # thang bubble: trung vị (ô tối nhất − nền) qua các cột, sàn 0,5 × S_anh (khối không tô ô nào – vd mã đề '---')
+    S_b = max(float(np.median(ld_cot.max(axis=1))), 0.5 * S)
+    bub = np.concatenate([ld_b[..., None], ld_cot[..., None], (ld_cot / S_b)[..., None], tho_b[..., 1:5],
+                          _hang_trong(ld_b)[..., None], tho_b[..., 5:6]], axis=-1)
+    return cau, bub, S
