@@ -877,3 +877,28 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   cảnh ≥ ~0,6) đều nắn đúng; nghiêng hơn 0,50 bị từ chối (yêu cầu chụp lại) – kèm ảnh minh hoạ 0015_C3 / 0039_C3.
 - **Đối chiếu "Xong khi"**: số liệu tái tạo được bằng một lệnh (`report-cuoi`) – **đạt**; lỗi im lặng trên test nêu trung
   thực (0 cho `v6_api`, 3 cho `align_cu`) – **đạt**. Còn: audit nhãn 0035–0040 (dừng E).
+- **Commit kết quả: `2774def`.**
+- **Dừng E (07/10/2026) – audit nhãn tập test** (`python tools/check_labels.py audit --split test --xac-nhan-test` ->
+  `data/_prepare/label_audit_test/`, log `data/_eval/buoc7_audit_test.log`; bản 03/10 giữ nguyên, so trên phiếu 0035–0040):
+  | | Audit cũ 03/10 (`align()`) | Audit mới (`preprocess()`) |
+  |---|---|---|
+  | Phiếu / ảnh quét được | 6/6 phiếu; 3 ảnh C3 nắn sai -> không dùng | **6/6 phiếu, 12/12 ảnh** (mọi phiếu đối chiếu 2 ảnh), 0 đáng ngờ |
+  | Nhóm A | 0 | **0** |
+  | Nhóm B | 17 | 17 (16 chung; mới 0038:16 – nhờ đọc được ảnh 0038_C3; hết 0037:14) |
+  - Phân bố n (12 ảnh): blank 1 454 ô p99 0,06 · faint 84 ô p1 0,34 · filled 382 ô p1 **0,50** (dev 0,78) – vài ô nhãn rõ
+    bị ảnh C2 tối của 0037 đọc mờ; ngưỡng 0,25 / 0,80 vẫn tách trống khỏi có tô.
+  - **Nhóm B 17 mục**: 11 ở phiếu 0037 (6 mục C2 đọc mờ nhãn rõ: câu 6, 7, 8, 9, 10, 19; 2 mục chỉ C2 đọc rõ nhãn mờ: 22,
+    33; 3 mục 2/2 – xem dưới); 0038:16 (C3 đọc mờ nhãn rõ). **8 mục CẢ 2 ảnh cùng lệch nhãn** (dễ là nhãn rõ/mờ sai thật):
+    nhãn mờ – 2 ảnh đọc rõ: **0036 câu 2, 10, 13; 0037 câu 1, 15, 31; 0040 câu 5**; nhãn rõ – 2 ảnh đọc mờ: **0040 câu 10**.
+  - **8 mục chờ người dùng so giấy thật** – trang `data/_prepare/label_audit_test/so_giay_8_muc.html` (mỗi mục: ảnh cắt
+    hàng câu từ 2 ảnh + nhãn hiện tại, KHÔNG số đo máy; tạo bằng `data/_prepare/label_audit_test/tao_so_giay_8_muc.py`).
+    **Quy tắc**: chỉ theo giấy thật; cùng tiêu chí rõ/mờ như lúc gán nhãn; **phân vân thì giữ nguyên**; mọi thay đổi ghi lại
+    (phiếu, câu, cũ -> mới, lý do). Vì là nhãn tập TEST: sửa nhãn cho khớp giấy là hợp lệ nhưng phải nêu trong báo cáo, và làm
+    **TRƯỚC khi chấm OMR trên test (Tuần 5)**. Bước 7 (nắn ảnh) không dùng nhãn rõ/mờ ⇒ kết quả Bước 7 không đổi dù sửa.
+  - `ground_truth.csv` không đổi.
+
+### TUẦN 4 XONG (07/10/2026) – Bước 0–7
+Kết quả chính: `preprocess()` (v6_api) nắn đúng **78/78 ảnh dev và 12/12 ảnh test, 0 lỗi im lặng, 0 từ chối nhầm** (trước:
+`align_cu` 59/78 dev, 9/12 test); ảnh giả 111: 0 lỗi im lặng. API ổn định (CLAUDE.md mục 4b), 4 công cụ dùng `preprocess()`,
+pytest 51/51. Việc treo: sửa hiển thị "quy tắc số 3" của `report-cuoi` (commit riêng); so giấy 8 mục rõ/mờ tập test (trước
+Tuần 5 chấm OMR trên test). Yêu cầu chuyển sang Tuần 5/6/7: CLAUDE.md mục 7.

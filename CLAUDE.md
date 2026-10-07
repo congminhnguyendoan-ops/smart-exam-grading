@@ -266,7 +266,8 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       - Nhãn: audit 03/10 (38/40 phiếu, `align()`) đã sửa (mục 6). **Audit lại 07/10 (Bước 6, `preprocess()`):
         34/34 phiếu dev, 68/68 ảnh, gồm 0006, 0018** -> nhóm A 3 mục, cả 3 nhãn ĐÚNG (người dùng so giấy; xem yêu
         cầu Tuần 5); nhóm B 45 mục chưa đối chiếu từng mục (người dùng quyết không xem thêm) – lỗi còn lại sẽ lộ ra khi
-        train/đánh giá OMR. **0035–0040 audit SAU Bước 7** (`audit --split tat_ca --xac-nhan-test`).
+        train/đánh giá OMR. **Audit test 0035–0040 xong 07/10 (sau Bước 7)**: 6/6 phiếu, 12/12 ảnh, nhóm A 0, nhóm B 17;
+        8 mục rõ/mờ cả 2 ảnh cùng lệch nhãn **chờ so giấy** (yêu cầu Tuần 5 bên dưới).
         Sửa thêm: `check_labels.py` → người dùng xác nhận → sửa `answer_sheet/output/ground_truth.csv` →
         `make_dataset_plan.py --from-csv` → chép cả 2 CSV sang `data/`.
       - **Sao lưu `data/`** (chưa làm – `data/` không có trong git).
@@ -286,7 +287,9 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       (`measure --ref`, bỏ ảnh nằm ngang): **C1 0,82–0,99** (trung vị 0,89, 20 ảnh), **C3 0,60–0,73**
       (trung vị 0,62, 19 ảnh). Như mọi ảnh C3, `align()` cũ chọn nhầm marker trên IMG_4381; `preprocess()` nắn đúng.
 - [ ] Việc treo sau Bước 7: sửa hiển thị `report-cuoi` (không in "quy tắc số 3" khi n nhỏ) – commit riêng, không đổi số liệu.
-- [ ] Tuần 4: `cv_engine/preprocessing.py` (phát triển từ `align()` trong `check_layout.py`), theo
+- [x] **TUẦN 4 XONG (07/10/2026) – Bước 0–7**: `preprocess()` (v6_api) nắn đúng 78/78 ảnh dev + 12/12 ảnh test, 0 lỗi im
+      lặng, 0 từ chối nhầm (`align_cu`: 59/78, 9/12). Chi tiết từng bước bên dưới và `docs/ke_hoach_tuan4.md`.
+      Tuần 4: `cv_engine/preprocessing.py` (phát triển từ `align()` trong `check_layout.py`), theo
       `docs/ke_hoach_tuan4.md` (8 bước, làm từng bước, dừng chờ người dùng sau mỗi bước).
       Bước 0 (thư mục, quy tắc dev/test, kế hoạch) xong 03/10/2026.
       **Bước 1 xong 03/10/2026** – `tools/eval_preprocessing.py` (lệnh `run`, `tu-kiem`, `dung-sai`,
@@ -360,8 +363,13 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       (dev đã dùng để chỉnh): v6_api 90/90, align_cu 68/90. Máy/mắt: 0 ngược nhau; 0035_C3 v6 máy `xem` → mắt `dung`. Độ chính
       xác như nhau trên ảnh đúng ở cả hai (lech_trungvi 0,33 / 0,35 mm); thời gian 594 ms; độ phối cảnh test nhỏ nhất 0,618
       (0039_C3). Lỗi hiển thị đã biết: "quy tắc số 3" > 100% khi n < 3 trong `report-cuoi` (chưa sửa – commit riêng sau Bước 7).
-      Báo cáo: `data/_eval/bao_cao_cuoi_tuan4.md`; chi tiết `docs/ke_hoach_tuan4.md` Bước 7. Còn: audit nhãn 0035–0040.
+      Báo cáo: `data/_eval/bao_cao_cuoi_tuan4.md`; chi tiết `docs/ke_hoach_tuan4.md` Bước 7. Audit nhãn 0035–0040 xong
+      (nhóm A 0). Commit: X `d9e56d5`, Y `d4aa953`, kết quả `2774def`.
 - [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
+      **Yêu cầu Tuần 5 (07/10/2026): so giấy 8 mục rõ/mờ của tập test TRƯỚC khi chấm OMR trên test** – 0036 câu 2, 10, 13;
+      0037 câu 1, 15, 31; 0040 câu 5 (nhãn mờ, cả 2 ảnh đọc rõ); 0040 câu 10 (nhãn rõ, cả 2 ảnh đọc mờ). Trang:
+      `data/_prepare/label_audit_test/so_giay_8_muc.html` (không số đo máy). Quy tắc: chỉ theo giấy thật, cùng tiêu chí rõ/mờ
+      như lúc gán nhãn, phân vân thì giữ nguyên, mọi thay đổi ghi lại và nêu trong báo cáo (nhãn tập test).
       **Yêu cầu Tuần 5 (07/10/2026): `split.csv` dùng lại `cv_engine/tap_du_lieu.py`** (`PHIEU_TRAIN/VAL/TEST`), không
       định nghĩa lại ranh giới.
       **Yêu cầu Tuần 5 (07/10/2026): ca thử cho classifier 3 lớp** – 3 ô `faint` có nhãn ĐÚNG (đã so giấy) nhưng độ tối
