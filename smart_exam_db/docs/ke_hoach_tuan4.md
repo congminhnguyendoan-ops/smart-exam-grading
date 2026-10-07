@@ -789,3 +789,53 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   sàn chung ~0,3 mm (máy in, Bước 1).
 - **Xong khi**: số liệu tái tạo được bằng một lệnh, đưa vào báo cáo; lỗi im lặng trên test được nêu trung thực
   dù bằng bao nhiêu.
+- **Dừng A (07/10/2026) – B7.0, sửa I/O, commit X = `d9e56d5`** (người dùng đã duyệt kế hoạch B7.0–B7.6): `run --split
+  test` ghi `xem_bang_mat_test.{html,csv}` ở chế độ MÙ, từ chối chạy lại nếu `diem_test.csv` đã có; `finalize`/`report
+  --split`, `finalize --split test` cấm `--ke-thua` và bắt buộc kết luận bằng mắt cho mọi ảnh trả về; `report-cuoi`;
+  `check_labels audit --split test`. Kiểm: pytest 51/51 (10 test mới, thử chặn HTML mù đạt); hồi quy dev `align_cu` +
+  `v6_api` (`diem_dev` trừ `giay`, `o_luoi_dev`, `truth_dev`, `xem_bang_mat.csv`) giống trước, không sinh file `*_test*`.
+  `report-cuoi` trên dev: so công bằng trên CÙNG 58 ảnh mà cả hai nắn đúng, `lech_trungvi` TB 0,38 (align_cu) / 0,40
+  (v6_api) mm, `lech_max` lớn nhất 1,55 / 1,57 mm (0023_C4) – độ chính xác gần như nhau; v6_api thêm 19 ảnh (C3, 0006_C2,
+  0013_C2, 0018_C2, 0021_C2), `lech_max` lớn nhất trên 77 ảnh là 2,31 mm (0030_C3, lệch thật của ảnh C3 – Tuần 5 dò lại
+  từng hàng).
+
+#### ĐĂNG KÝ TRƯỚC (chốt 07/10/2026, TRƯỚC khi chạy bất cứ gì trên 0035–0040; commit Y = commit chứa đoạn này)
+- **Sao lưu `data/`**: người dùng xác nhận đã xong (`data_20261007.zip`, trên máy + Google Drive).
+- **Code cố định**: commit X **`d9e56d5`**. Khi chạy: working tree sạch và `git diff d9e56d5 HEAD -- '*.py'` RỖNG
+  (commit Y chỉ sửa tài liệu). Không sửa code / ngưỡng / phương pháp sau khi thấy kết quả.
+- **Ngưỡng eval**: `data/_eval/nguong.json`, SHA-256
+  **`DF9908623638B392B31488C5F1AF00963541B1EADA0324B7B7A592E3AEA91780`** (kiểm 07/10 trước khi ghi). Kiểm lại ngay trước
+  khi chạy; khác thì DỪNG.
+- **Phương pháp**: CHỈ `align_cu` (số "trước") và `v6_api` (số "sau"). Không thêm phương pháp nào khác.
+- **Tập test**: phiếu 0035–0040 (`cv_engine/tap_du_lieu.PHIEU_TEST`), **12 ảnh: C1 3, C2 2, C3 3, C4 4** (không có trang
+  chữ số). Trước Bước 7 chỉ liệt kê TÊN file, chưa mở ảnh bằng preprocess / eval.
+- **Quy trình (mỗi lệnh chạy MỘT lần, log lưu lại)**:
+  1. Kiểm HEAD, `git diff` mã nguồn, SHA `nguong.json`.
+  2. `run --phuong-phap align_cu --split test --xac-nhan-test`, rồi `run --phuong-phap v6_api --split test --xac-nhan-test`.
+  3. **Xem bằng mắt MÙ**: người dùng mở `data/_eval/<pp>/xem_bang_mat_test.html` (chỉ ảnh gốc + tứ giác marker + ảnh nắn
+     chồng nét mẫu; KHÔNG kết luận máy, KHÔNG số đo, KHÔNG thời gian, sắp theo tên) và **kết luận CẢ 12 ảnh của MỖI phương
+     pháp** (24 lần xem) vào `xem_bang_mat_test.csv` (`ket_luan_mat` = `dung` / `sai`, lý do ở `ghi_chu`) **TRƯỚC khi
+     thấy kết luận máy**. Không mở `diem_test.csv` / `o_luoi_test.csv` trước khi ghi xong. Claude không báo kết luận máy
+     hay số đo cho tới khi người dùng ghi xong. Ảnh bị từ chối không có ảnh nắn: không cần kết luận (tự xếp `bi_tu_choi`).
+  4. `finalize --phuong-phap <pp> --split test` (cấm `--ke-thua`; dừng nếu thiếu kết luận bằng mắt) cho cả hai – lúc này
+     mới hiện chỗ máy và mắt khác nhau (ghi lại, giữ kết luận của mắt).
+  5. `report --phuong-phap v6_api --split test --so-voi align_cu`, rồi `report-cuoi`.
+- **Tiêu chí (đã chốt từ Bước 0)**: **ĐẠT ⇔ lỗi im lặng của `v6_api` trên test = 0.** Ảnh test thật đều hợp lệ ⇒ **mọi ảnh
+  bị từ chối = từ chối NHẦM** (báo riêng, không phải lỗi im lặng). Ảnh bị từ chối có độ phối cảnh K2 < 0,50 (đo độc lập
+  bằng `prepare_photos.measure_one`/`marker_centers`) ghi thêm "ngoài phạm vi hướng dẫn chụp" nhưng VẪN tính từ chối nhầm.
+- **Nếu có lỗi im lặng hoặc từ chối nhầm**: ghi nhận NGUYÊN TRẠNG vào bảng kết quả, phân tích nguyên nhân (ảnh, khâu), sửa
+  ở phiên bản sau và chỉ đánh giá lại trên **dev**. **KHÔNG chạy lại test** để lấy số đẹp hơn (`run --split test` tự chặn
+  khi `diem_test.csv` đã có; không xoá file để chạy lại).
+- **Cỡ mẫu nhỏ**: báo n theo từng điều kiện; tỉ lệ lỗi im lặng kèm **cận trên 95% Clopper–Pearson** (hai phía) và, khi
+  quan sát 0 lỗi, **quy tắc số 3 (≈ 3/n)** – với 12 ảnh: CP 26%, quy tắc số 3 25%; theo điều kiện (n = 2–4) cận trên rất
+  rộng (n = 2: CP 84%). Kết luận chỉ ở mức "không thấy lỗi im lặng trên 12 ảnh", không suy rộng. **Bảng gộp dev + test ghi
+  rõ: dev là tập đã dùng để chỉnh tham số** (số gộp lạc quan; số khách quan là bảng test).
+- **Báo kèm**: độ chính xác ảnh nắn đúng (`lech_trungvi_mm`, `lech_max_mm`; trên cùng tập ảnh đúng ở cả hai phương pháp),
+  thời gian mỗi ảnh, **độ phối cảnh K2 nhỏ nhất của ảnh test** (từ 4 tâm marker v6_api) cho "Hướng dẫn chụp cho giáo viên"
+  (dev nhỏ nhất 0,597 – 0015_C3; ngưỡng từ chối 0,50).
+- **Sau eval**: `check_labels.py audit --split test --xac-nhan-test` (-> `data/_prepare/label_audit_test/`); mục nhóm A đưa
+  người dùng so giấy; không sửa `ground_truth.csv` khi chưa xác nhận.
+- **Ghi trung thực**: tập test đã bị mở MỘT lần ở audit 03/10/2026 (bằng `align()` cũ, trước khi có quy tắc dev/test): mở
+  ảnh + nhãn cả 40 phiếu, nhãn mã đề bubble của 0035 sửa theo ảnh + giấy thật – **sửa nhãn cho khớp giấy thật, không phải
+  rò rỉ tham số**. **`preprocess()` (v3–v6) chưa từng chạy trên 0035–0040 cho tới Bước 7** (kiểm 07/10: `data/_eval/` không
+  có file / ảnh / CSV nào của 0035–0040). Ngưỡng eval (`nguong.json`) chọn chủ yếu trên C1/C2/C4 của dev (Bước 1).
