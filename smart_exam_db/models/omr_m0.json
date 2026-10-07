@@ -87,11 +87,8 @@
  },
  "sieu_du_lieu": {
   "ngay": "2026-10-07",
-  "git_head": "d0c9574",
-  "git_chua_commit": [
-   "smart_exam_db/cv_engine/omr.py",
-   "smart_exam_db/tools/huan_luyen_omr.py"
-  ],
+  "git_head": "3bcf190",
+  "git_chua_commit": [],
   "nguon_anh": "anh_nan",
   "tap_huan_luyen": "train 0001–0028 (data/split.csv)",
   "fold_huan_luyen": [],
