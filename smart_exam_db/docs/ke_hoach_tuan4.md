@@ -896,9 +896,17 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
     (phiếu, câu, cũ -> mới, lý do). Vì là nhãn tập TEST: sửa nhãn cho khớp giấy là hợp lệ nhưng phải nêu trong báo cáo, và làm
     **TRƯỚC khi chấm OMR trên test (Tuần 5)**. Bước 7 (nắn ảnh) không dùng nhãn rõ/mờ ⇒ kết quả Bước 7 không đổi dù sửa.
   - `ground_truth.csv` không đổi.
+  - **Người dùng so giấy thật 07/10/2026: 8/8 GIỮ NGUYÊN – nhãn đúng.** Cả 2 ảnh cùng đọc lệch mức rõ/mờ so với người nhìn
+    giấy ⇒ **ranh giới rõ/mờ của ngưỡng cố định 0,80 (`FILLED_MIN`) không khớp cách người phân biệt** – giới hạn của ngưỡng
+    cố định, không phải lỗi nhãn. Không sửa `ground_truth.csv` / `cell_labels.csv`. 8 mục thành ca thử lớp faint/filled cho
+    classifier 3 lớp (CLAUDE.md mục 7, yêu cầu Tuần 5).
+  - **Sửa hiển thị `report-cuoi` (việc treo sau Bước 7)**: "quy tắc số 3" chỉ in khi n ≥ 10 (`QUY_TAC_3_N_MIN`), n nhỏ hơn
+    in "–". Chạy lại -> `data/_eval/buoc7_report_cuoi_sau_sua_hien_thi.log`: so với `buoc7_report_cuoi.log`, 93/93 dòng giống
+    sau khi bỏ phần quy tắc số 3; đúng 7 dòng đổi (các dòng test n = 2–4: "100%/150%/75%" -> "–"), cận trên Clopper–Pearson
+    và mọi số khác không đổi. pytest 51/51. **Số liệu Bước 7 không đổi.**
 
 ### TUẦN 4 XONG (07/10/2026) – Bước 0–7
 Kết quả chính: `preprocess()` (v6_api) nắn đúng **78/78 ảnh dev và 12/12 ảnh test, 0 lỗi im lặng, 0 từ chối nhầm** (trước:
 `align_cu` 59/78 dev, 9/12 test); ảnh giả 111: 0 lỗi im lặng. API ổn định (CLAUDE.md mục 4b), 4 công cụ dùng `preprocess()`,
-pytest 51/51. Việc treo: sửa hiển thị "quy tắc số 3" của `report-cuoi` (commit riêng); so giấy 8 mục rõ/mờ tập test (trước
-Tuần 5 chấm OMR trên test). Yêu cầu chuyển sang Tuần 5/6/7: CLAUDE.md mục 7.
+pytest 51/51. Việc treo đã xong 07/10: sửa hiển thị "quy tắc số 3" của `report-cuoi` (commit riêng, không đổi số liệu); so giấy
+8 mục rõ/mờ tập test (8/8 giữ nguyên). Yêu cầu chuyển sang Tuần 5/6/7: CLAUDE.md mục 7.

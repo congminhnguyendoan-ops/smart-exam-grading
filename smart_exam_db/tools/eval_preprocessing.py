@@ -1031,6 +1031,7 @@ def cmd_report(a) -> None:
 # ============================================================================ lệnh report-cuoi (Bước 7)
 PP_CUOI = ("align_cu", "v6_api")            # trước / sau – đăng ký trước ở Bước 7, không thêm phương pháp khác
 PHAN_LOAI = ("dung", "loi_im_lang", "bi_tu_choi")
+QUY_TAC_3_N_MIN = 10                         # quy tắc số 3 chỉ in khi n ≥ 10 (sửa hiển thị sau Bước 7, không đổi số liệu)
 
 
 def cp_tren(k: int, n: int, alpha: float = 0.05) -> float:
@@ -1092,7 +1093,9 @@ def cmd_report_cuoi(a) -> None:
                     continue
                 k = {p: sum(r["phan_loai"] == p for r in s) for p in PHAN_LOAI}
                 cp = cp_tren(k["loi_im_lang"], n)
-                ba = f"; quy tắc số 3: {3 / n:.0%}" if k["loi_im_lang"] == 0 else ""
+                # Quy tắc số 3 (≈ 3/n) chỉ là xấp xỉ khi n đủ lớn – n < QUY_TAC_3_N_MIN in "–" (n = 2 từng in "150%")
+                ba = (f"; quy tắc số 3: {3 / n:.0%}" if n >= QUY_TAC_3_N_MIN else "; quy tắc số 3: –") \
+                    if k["loi_im_lang"] == 0 else ""
                 dong.append([pp, c, n, k["dung"], f"{k['loi_im_lang']} (cận trên 95% {cp:.0%}{ba})", k["bi_tu_choi"],
                              ", ".join(sorted(r["anh"] for r in s if r["phan_loai"] != "dung")) or "–"])
         md.append(bang_md_cuoi(["phương pháp", "ĐK", "n", "đúng", "lỗi im lặng", "bị từ chối (= nhầm)", "ảnh không đúng"], dong))
