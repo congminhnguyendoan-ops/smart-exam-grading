@@ -410,6 +410,15 @@ Cập nhật dần trong khi làm Phần A; mỗi khoản: chỗ làm tạm → 
    xem lại.
 9. **Bubble mờ đậm** (`ld_anh` ≥ 0,70) vẫn được đọc chắc chắn – không có mẫu thật; Phần B / Tuần 6 đối chiếu với SBD viết tay.
 10. **Mô hình JSON xuất trước khi commit code** (`git_chua_commit` ghi lại file đang sửa) – Phần B xuất lại từ commit sạch.
+11. **Cần xem thừa C2 = 3,79% > 3%** (tiêu chí theo từng điều kiện chưa đạt; gộp 2,25% đạt) – filled→faint 12 ô ở ảnh C2 tối.
+    Phần B: thêm đặc trưng / M2 cho ảnh tối, hoặc chỉnh `ro_min` theo điều kiện (không có nhãn điều kiện lúc chạy → cần đặc trưng
+    độ sáng ảnh).
+12. **F1 faint: cận dưới CI C2 / C4 < 0,90** (~90 ô faint / điều kiện) – cần thêm dữ liệu hoặc gộp val khi đánh giá (Phần B).
+13. **Đo vị trí độc lập của eval** (phaseCorrelate + tâm vòng tròn, bám hàng ±2,5 mm) mới kiểm trên 56 ảnh train (lệch ≤ 0,37 mm),
+    chưa có phép thử dịch giả riêng cho nó; nếu phaseCorrelate không tin được thì eval DỪNG (không đoán).
+14. **HTML chưa liệt kê 541 "cần xem cần thiết" đọc đúng** (chỉ ca lỗi / thừa / lưng chừng / vị trí / ca thử) – đủ cho xem lỗi,
+    không đủ để kiểm nhãn rõ / mờ toàn bộ.
+15. **Ca thử 0033 câu 4** (val) chưa chạy – Phần B.
 
 ## 10. KẾT QUẢ PHẦN A
 
@@ -466,6 +475,50 @@ Cập nhật dần trong khi làm Phần A; mỗi khoản: chỗ làm tạm → 
   **phiếu trắng vẽ giả** (câu 1 ABC, câu 2 A rõ + D mờ, câu 3 B, SBD cột 1 trống, cột 2 xám nhạt, mã đề 101); ảnh thật 0001_C1
   → SBD `06238?` (`khong_o_nao`), mã đề `101`. **Tổng pytest 94 đạt.**
 
+### A4 – đánh giá độc lập `tools/eval_omr.py` (07/10/2026)
+- **Độc lập**: chỉ gọi `omr.doc_phieu` / `omr.nap_mo_hinh` (pytest kiểm bằng AST: không dùng thuộc tính nào khác của `omr`, không
+  import `omr_du_lieu` / `huan_luyen_omr`); bộ đọc nhãn riêng (giải mã `ground_truth.csv`, đối chiếu chéo `cell_labels.csv` – 0
+  lệch trên 28 phiếu); **đo vị trí riêng**: `cv2.phaseCorrelate` trên bản đồ cạnh với trang render từ **PDF** (không dùng PNG mẫu
+  của omr) + tâm vòng tròn in sẵn bằng nhân vành ±2,5 mm, bám theo hàng. Bộ đếm riêng (`loai_cau`, `loai_cot`, pytest 17 ca).
+  M1 = **OOF**: ảnh fold k đọc bằng `data/_omr/mo_hinh_fold/omr_m1_fold{k}.json`.
+- Lệnh: `eval_omr.py run --phuong-phap m0`, `run --phuong-phap m1`, `report` → `data/_eval/omr/bao_cao_phan_a_train.{md,json}`,
+  `data/_eval/omr/<pp>/{cau,cot,o,anh}_train.csv`, `xem_bang_mat.html`.
+- **Bảng (56 ảnh train, 2 240 lượt câu + 504 lượt cột; CI bootstrap theo phiếu)**:
+
+  | | M0 (ngưỡng cố định) | **M1 (logistic, OOF)** |
+  |---|---|---|
+  | F1 faint cấp ô C1 / C2 / C3 / C4 | 0,971 / **0,844** / 0,926 / 0,971 | **0,989 / 0,935 / 0,968 / 0,945** |
+  | CI 95% F1 faint C1 / C2 / C3 / C4 | – | [0,972; 1] / [0,888; 0,972] / [0,934; 0,994] / [0,880; 0,984] |
+  | Độ đúng câu: tập ô / tập ô + mức | 99,91% / 97,81% | **100% / 98,30%** |
+  | **Lỗi nặng** (câu + cột) [cận trên CP 95%] | **2** (0019_C3 q24, 0020_C1 q33: vết mờ → trống) | **0** [0,13%] |
+  | Lỗi nhẹ (mờ → rõ, chắc chắn) | 33 | 5 (0007_C3/C4 q26, 0008_C1/C4 q1, 0022_C2 q15) |
+  | Cần xem cần thiết (mờ / nhiều ô) | 511 | 541 |
+  | **Cần xem thừa** câu rõ 1 ô: tổng (C1 / C2 / C3 / C4) | 0,95% (0 / 3,25 / 0 / 0,55%) | **2,25%** (0,54 / **3,79** / 1,93 / 2,74%) |
+  | Cần xem thừa câu trống | 0 / 226 | 0 / 226 |
+  | Cần xem mà đọc sai tập ô | 0 | 0 |
+  | Tổng câu cần xem | 23,4% | 25,6% |
+  | SBD đúng & chắc / cần xem / sai im lặng | 54 / 2 / 0 | 54 / 2 / 0 (2 = 0001 cột 6 không tô – đúng) |
+  | Mã đề đúng & chắc / cần xem / sai im lặng | 56 / 0 / 0 | 56 / 0 / 0 |
+  | Bubble ô (trống / tô) nhầm | 0 / 5 040 | 0 / 5 040 |
+  | Vị trí đáng ngờ (lệch đo độc lập > 0,5 mm) | 0 (max 0,37 mm – 0014_C2) | 0 (max 0,37 mm) |
+  | `doc_phieu` trung vị / max | 101 / 123 ms | 100 / 143 ms (+ preprocess ~0,6 s) |
+
+  Ma trận nhầm lẫn M1 (blank / faint / filled): C1 [[1683,0,0],[0,88,1],[0,1,467]] · C2 [[1686,0,0],[0,94,1],[0,12,447]] ·
+  C3 [[1700,0,0],[0,92,2],[0,4,442]] · C4 [[1697,0,0],[0,86,2],[0,8,447]].
+- **Ca thử**: 0019 câu 24 ô C – M1 đọc `faint` cả C3 (p mờ 0,574) và C4 (0,921) → câu `mo`, cần xem; M0 C3 đọc **trống chắc chắn
+  (lỗi nặng)**. 0020 câu 33 ô C – M1 `faint` cả C1 (0,994) và C4 (0,995); M0 C1 **trống chắc chắn (lỗi nặng)**. 0033 câu 4: val –
+  Phần B.
+- **Đối chiếu tiêu chí ★Q2 (M1, OOF train)**: lỗi nặng = 0 **ĐẠT**; F1 faint ≥ 0,90 mỗi C1–C4 **ĐẠT theo ước lượng điểm** (cận dưới
+  CI C2 0,888, C4 0,880 < 0,90); cần xem thừa ≤ 3% **ĐẠT gộp (2,25%)**, **KHÔNG ĐẠT riêng C2 (3,79%, 14 / 369)**.
+- **HTML xem bằng mắt (người dùng xem SAU)**: `data/_eval/omr/m1/xem_bang_mat.html` (44 mục: 5 lỗi nhẹ, 33 cần xem thừa, 2 cột
+  0001 sbd6, 4 ô ca thử) và `data/_eval/omr/m0/xem_bang_mat.html` (53 mục). Vòng tròn vẽ tại vị trí omr báo (đã xem thử
+  0007_C3 q26: khớp ô).
+- **Hồi quy Tuần 4 không đổi**: `git diff 09157e9 HEAD` rỗng với `preprocessing.py`, `tap_du_lieu.py`, `eval_preprocessing.py`,
+  `check_labels.py`, `check_layout.py`, `check_photos.py`, `prepare_photos.py`; `check_layout.py` → "KẾT QUẢ LAYOUT: KHỚP";
+  `eval_preprocessing.py report --phuong-phap v6_api` 78/78; pytest (gồm so tham chiếu preprocess từng byte) **116 đạt**.
+
+### PHẦN A XONG (07/10/2026)
+
 ## 11. Quyết định tự đưa ra trong Phần A (theo ★ "lựa chọn nhỏ – hướng an toàn hơn")
 
 1. **Tầng 2 bám theo lân cận** thay vì cửa sổ ±1,5 mm quanh độ dịch khối: 0014_C2 lệch trong khối tới ~4,5 mm, cửa sổ quanh
@@ -518,3 +571,7 @@ Cập nhật dần trong khi làm Phần A; mỗi khoản: chỗ làm tạm → 
    được → `chu_so = '?'` (không đoán), chuỗi `sbd` / `ma_de` mang `?` tại cột đó.
 8. **`do_tin_cay`** câu / cột = min trên các ô của max(p(trống), p(có tô)) – chỉ phản ánh quyết định có tô / không (mức rõ / mờ
    không tính, vì mờ đã luôn cần xem).
+9. **eval đo vị trí bằng `phaseCorrelate` trên bản đồ cạnh, không cửa sổ Hanning**: bản có Hanning trên ảnh xám cho 0004_C4 độ dịch
+   sai −127 px (đáp ứng 0,046); trên bản đồ cạnh không cửa sổ: đúng ở cả 56 ảnh. Đáp ứng < 0,05 hoặc |dịch| > 6 mm → eval DỪNG.
+10. **"Cần xem thừa"** báo riêng câu rõ 1 ô (tiêu chí ★Q2) và câu trống (0 / 226); tiêu chí 3% đối chiếu cả gộp lẫn từng điều kiện
+    (báo cả hai, không chọn cách có lợi).

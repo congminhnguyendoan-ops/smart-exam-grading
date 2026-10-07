@@ -62,12 +62,18 @@ smart_exam_db/
 │   ├── __init__.py               #   (chốt 03/10/2026, theo HUONG_DAN.md Phần C)
 │   ├── preprocessing.py          # preprocess()/preprocess_anh(): đọc ảnh → 4 marker → nắn → verify → chuẩn hoá
 │   │                             #   (API: mục 4b). find_markers, verify, normalize, MA_LY_DO, nap_layout
+│   ├── omr.py                    # Tuần 5: doc_phieu(kq, layout, mo_hinh) -> KetQuaOMR (API: mục 4c). dinh_vi (2 tầng),
+│   │                             #   dac_trung_o, du_doan (NumPy + JSON), ap_luat_cau/ap_luat_cot, MA_LY_DO_OMR
 │   └── tap_du_lieu.py            # NGUỒN DUY NHẤT ranh giới dev/test (+ train/val OMR), chan_test()
-├── tests/                        # pytest (41 test, ~8 s): python -m pytest tests (từ smart_exam_db/).
+├── models/                       # Tuần 5: omr_m1.json (logistic, train 0001–0028), omr_m0.json (ngưỡng) – trong git,
+│                                 #   kèm sieu_du_lieu (ngày, git, SHA dữ liệu, fold). Sinh: tools/huan_luyen_omr.py xuat
+├── tests/                        # pytest (116 test, ~13 s): python -m pytest tests (từ smart_exam_db/).
 │                                 #   Thiếu data/ → test cần dữ liệu tự SKIP
 ├── docs/                         # Tài liệu cho báo cáo (Tuần 1–3)
 │   ├── ke_hoach_tuan4.md         # Kế hoạch 8 bước (0–7) của preprocessing: việc, cách đo, tiêu chí xong,
 │   │                             #   kết quả + số liệu từng bước (nguồn chi tiết cho báo cáo Tuần 4)
+│   ├── ke_hoach_tuan5.md         # Kế hoạch OMR (đã duyệt 07/10): ★ quyết định, Phần A/B, mục 9 NỢ KỸ THUẬT,
+│   │                             #   mục 10 KẾT QUẢ PHẦN A (A1–A4), mục 11 quyết định tự đưa ra
 │   ├── ERD.mermaid, ERD.png      # ERD 20 bảng
 │   ├── diagrams/                 # *.mmd (Mermaid) + *.png: 01 use case, 02 kiến trúc,
 │   │                             #   03 DFD mức 0, 04 DFD mức 1, 05 seq chấm, 06 seq review, 07 seq import
@@ -88,11 +94,18 @@ smart_exam_db/
 │   ├── eval_preprocessing.py     # Eval nắn ảnh (Tuần 4): run / finalize / report / run-gia → data/_eval/<pp>/
 │   ├── kiem_*.py, marker_that.py # Khảo sát / kiểm từng bước Tuần 4 (load_image, verify, chuẩn hoá, marker)
 │   ├── tao_tham_chieu.py         # Ảnh tham chiếu cho tests/ (data/_eval/tham_chieu_kiem_thu/)
+│   ├── tao_split.py              # Tuần 5: data/split.csv (train 7 fold theo phiếu / val / test – từ tap_du_lieu), --kiem
+│   ├── omr_du_lieu.py            # Tuần 5: dữ liệu cho HUẤN LUYỆN (đệm ảnh nắn data/_omr/anh/, nhãn ô); chặn val (Phần A) + test
+│   ├── kiem_dinh_vi.py           # Tuần 5: thong-ke (56 ảnh train) / dich-gia (dịch 1 khoảng cách ô) -> data/_eval/omr/dinh_vi/
+│   ├── huan_luyen_omr.py         # Tuần 5: dac-trung -> cv (M0/M1 7-fold, chọn nguồn ảnh) -> luat -> xuat (models/*.json)
+│   ├── eval_omr.py               # Tuần 5: đánh giá ĐỘC LẬP (chỉ gọi doc_phieu): run --phuong-phap m0|m1, report
+│   │                             #   -> data/_eval/omr/bao_cao_phan_a_train.md + <pp>/xem_bang_mat.html
 │   └── check_task_pdf.py         # Trích phieu_giao_viec.pdf, so với ground_truth.csv hiện tại, commit đầu
 │                                 #   399d48c và make_plan(seed 2026). Không sửa gì
 ├── answer_sheet/                 # Code phiếu trả lời + thu dữ liệu
 │   ├── sheet_layout.py           # NGUỒN DUY NHẤT của mọi toạ độ/kích thước phiếu
-│   ├── generate_sheets.py        # Vẽ PDF phiếu + trang chữ số, xuất layout.json, update_template.sql
+│   ├── generate_sheets.py        # Vẽ PDF phiếu + trang chữ số, xuất layout.json, update_template.sql;
+│   │                             #   --chi-mau-png: phieu_trang_300dpi.png (+ .json SHA) = mẫu định vị của omr.py (trong git)
 │   ├── make_dataset_plan.py      # Sinh kịch bản tô: ground_truth.csv, cell_labels.csv, phieu_giao_viec.pdf
 │   │                             #   --from-csv: sinh lại cell_labels.csv từ ground_truth.csv đã sửa
 │   ├── check_layout.py           # Tô giả phiếu 0001, làm nghiêng/mờ, đọc lại bằng align() VÀ preprocess_anh()
@@ -128,7 +141,8 @@ smart_exam_db/
     ├── raw_rejected/             # 4 ảnh bị thay (marker bị khung hình cắt) – giữ lại, không dùng
     ├── ground_truth.csv          # Bản copy đã sửa theo thực tế
     ├── cell_labels.csv
-    └── split.csv                 # (Tuần 5)
+    ├── split.csv                 # Tuần 5 (tools/tao_split.py): anh, phieu, dieu_kien, but, tap, fold
+    └── _omr/                     # Tuần 5: đệm ảnh nắn, bảng đặc trưng, OOF, luat.json, mô hình từng fold (tái tạo được)
 ```
 
 Ghi chú:
@@ -182,7 +196,24 @@ else:       print(kq.ly_do, MA_LY_DO[kq.ly_do])                  # mã + thông 
 - `MA_LY_DO` (9 mã): `khong_doc_duoc`, `thieu_marker`, `marker_khong_dat`, `nhieu_phieu`, `marker_mo_ho`, `marker_cham_mep`,
   `anh_mo`, `khong_khop_bo_cuc`, `khong_ro_chieu`. Chiều phiếu sai không phải lỗi (tự xoay lại bằng nội dung).
 - File không đọc được → `ok=False, ly_do='khong_doc_duoc'`; lỗi lập trình khác **vẫn ném ra** (không che lỗi code).
-- Tuần 5 gọi `preprocess()` trực tiếp (~0,58 s/ảnh); `data/_aligned/` chỉ để xem. Lưu đệm hay không: quyết ở Tuần 5.
+- Tuần 5 gọi `preprocess()` trực tiếp (~0,58 s/ảnh); `data/_aligned/` chỉ để xem. Công cụ huấn luyện OMR đệm ảnh nắn ở
+  `data/_omr/anh/` (PNG không mất mát, kiểm vân tay v4 mỗi lần đọc); backend không đệm.
+
+### 4c. API `cv_engine.omr` (Tuần 5 Phần A, 07/10/2026 – ổn định cho Tuần 7+; chi tiết `docs/ke_hoach_tuan5.md` mục 6, 10)
+
+```python
+from cv_engine.omr import doc_phieu, nap_mo_hinh, MA_LY_DO_OMR, sang_bubble_state
+mo_hinh = nap_mo_hinh()                       # models/omr_m1.json – nạp 1 lần
+omr = doc_phieu(kq, nap_layout("phieu"), mo_hinh)   # kq = preprocess(...) với kq.ok = True (không thì ValueError)
+for c in omr.cau:  c.cau, c.trang_thai, c.dap_an, c.xac_suat, c.do_tin_cay, c.can_xem, c.ly_do
+omr.sbd, omr.sbd_can_xem, omr.sbd_cot, omr.ma_de, omr.ma_de_can_xem, omr.can_xem, omr.dich_chuyen_mm, omr.thoi_gian_ms
+```
+- `trang_thai` câu: `trong` / `ro` / `mo` / `nhieu` → DB `bubble_state` qua `sang_bubble_state` (blank/filled/faint/multiple);
+  `dap_an` = `selected_options` ('' / 'A' / 'AC'); `xac_suat` = `option_probs`. Cột chữ số không đọc được → `chu_so = '?'`.
+- `MA_LY_DO_OMR` (5 mã): `o_mo`, `nhieu_o`, `khong_o_nao`, `tin_cay_thap`, `vi_tri`. Câu **trống chắc chắn KHÔNG cần xem**
+  (chốt 07/10); trống mà có ô sát ngưỡng → `tin_cay_thap`. Câu mờ / nhiều ô luôn cần xem.
+- Lúc chạy chỉ cần NumPy + OpenCV + `models/*.json` + `answer_sheet/output/phieu_trang_300dpi.png` (scikit-learn chỉ để huấn luyện).
+  Định vị luôn trên `anh_nan`; nguồn đặc trưng theo mô hình (`anh_nan` – chọn bằng thí nghiệm A2). ~100 ms/ảnh.
 
 ---
 
@@ -199,8 +230,12 @@ python check_photos.py --dir ..\data\raw          # -> data/_aligned/raw/ + phot
 python check_photos.py --dir ..\data\raw_digits
 ```
 
-Kiểm thử (từ `smart_exam_db\`): `python -m pytest tests` – 41 test, ~8 s (`pytest` chỉ để kiểm thử, có trong
+Kiểm thử (từ `smart_exam_db\`): `python -m pytest tests` – 116 test, ~13 s (`pytest` chỉ để kiểm thử, có trong
 `requirements.txt`). Test so ảnh với tham chiếu: cùng phiên bản cv2/numpy lúc ghi → từng byte; khác → dung sai + cảnh báo.
+
+OMR Tuần 5 (từ `smart_exam_db\`): `python tools/tao_split.py --kiem` · `python tools/kiem_dinh_vi.py thong-ke|dich-gia` ·
+`python tools/huan_luyen_omr.py dac-trung` → `cv` → `luat` → `xuat` · `python tools/eval_omr.py run --phuong-phap m0` / `m1`
+→ `report`. Mẫu định vị: `python answer_sheet/generate_sheets.py --chi-mau-png` (không ghi lại PDF).
 
 Tạo/reset database (thư mục `smart_exam_db\database\`, **xoá sạch DB cũ**): `run_all.bat`
 (cần `psql` trong PATH – xem mục 8). Kiểm tra kết nối Python: `python tools/db_check.py` từ `smart_exam_db\`.
@@ -366,12 +401,20 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       (0039_C3). Lỗi hiển thị "quy tắc số 3" > 100% khi n nhỏ trong `report-cuoi`: đã sửa sau Bước 7 (commit riêng, số liệu không đổi).
       Báo cáo: `data/_eval/bao_cao_cuoi_tuan4.md`; chi tiết `docs/ke_hoach_tuan4.md` Bước 7. Audit nhãn 0035–0040 xong
       (nhóm A 0). Commit: X `d9e56d5`, Y `d4aa953`, kết quả `2774def`.
-- [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
+- [ ] **Tuần 5: OMR** (`docs/ke_hoach_tuan5.md`, duyệt 07/10/2026). **PHẦN A XONG (07/10/2026)**, 5 commit (kế hoạch, A1–A4):
+      A1 định vị 2 tầng (56 ảnh train 0 cờ, 0014_C2 đúng; dịch giả 54 880 lượt: 0 khớp nhầm không cờ) + PNG mẫu + `split.csv`;
+      A2 đặc trưng + M0/M1, chọn `anh_nan` (chuẩn hoá hoà); A3 luật + API + `models/*.json`; A4 `eval_omr.py` độc lập.
+      **M1 OOF 7-fold trên 56 ảnh train: 0 lỗi nặng / 2 744 lượt câu + cột (CP 95% ≤ 0,13%); F1 faint C1 0,989 · C2 0,935 ·
+      C3 0,968 · C4 0,945; cần xem thừa 2,25% (C2 riêng 3,79% > 3%); lỗi nhẹ 5; SBD / mã đề 0 sai im lặng; ~100 ms/ảnh.**
+      M0 (ngưỡng cố định): 2 lỗi nặng = đúng 2 ca thử 0019_C3 q24, 0020_C1 q33 (vết mờ đọc thành trống); F1 faint C2 0,844.
+      **Chờ người dùng**: xem `data/_eval/omr/m1/xem_bang_mat.html` (44 mục) bằng mắt. **Phần B** (sau báo cáo 13/10): M2–M4
+      nếu cần, chọn nguồn ảnh kỹ, trả Nợ kỹ thuật (mục 9), kiểm tra cuối val 0029–0034 (gồm ca thử 0033 câu 4), đăng ký trước
+      + đánh giá test 0035–0040 một lần + xem mù (8 mục rõ/mờ). Tuần 6: CNN chữ số + fine-tune.
       **Yêu cầu Tuần 5 (07/10/2026): dùng 8 mục rõ/mờ của tập test (nhãn ĐÃ XÁC NHẬN bằng giấy thật 07/10, 8/8 giữ nguyên)
       làm ca thử lớp faint/filled cho classifier 3 lớp** – 0036 câu 2, 10, 13; 0037 câu 1, 15, 31; 0040 câu 5 (nhãn mờ, cả 2
       ảnh vượt ngưỡng rõ 0,80 của audit); 0040 câu 10 (nhãn rõ, cả 2 ảnh dưới 0,80). Ranh giới rõ/mờ của ngưỡng cố định không
       khớp cách người phân biệt; đây là ca thuộc tập TEST – chỉ dùng ở đánh giá cuối, không dùng để chỉnh classifier.
-      **Yêu cầu Tuần 5 (07/10/2026): `split.csv` dùng lại `cv_engine/tap_du_lieu.py`** (`PHIEU_TRAIN/VAL/TEST`), không
+      **[XONG A1] Yêu cầu Tuần 5 (07/10/2026): `split.csv` dùng lại `cv_engine/tap_du_lieu.py`** (`PHIEU_TRAIN/VAL/TEST`), không
       định nghĩa lại ranh giới.
       **Yêu cầu Tuần 5 (07/10/2026): ca thử cho classifier 3 lớp** – 3 ô `faint` có nhãn ĐÚNG (đã so giấy) nhưng độ tối
       tương đối n 0,23–0,26 SÁT ngưỡng cố định `MARK_MIN` 0,25 nên audit đọc lệch giữa 2 ảnh: **0019 câu 24 ô C** (C3 n 0,23 /
