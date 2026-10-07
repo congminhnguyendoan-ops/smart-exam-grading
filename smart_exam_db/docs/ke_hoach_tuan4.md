@@ -742,6 +742,38 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
     TRƯỢT. Tổng **41 đạt**.
   - **Eval không đổi**: chạy lại `run v6_api` sau khi sửa công cụ -> `diem_dev` (trừ `giay`) giống, `o_luoi_dev` giống từng
     byte; `report --so-voi v5_chuan_hoa` 0 đổi. Import `kiem_verify`, `kiem_chuan_hoa`, `marker_that`, `tao_tham_chieu` OK.
+  - **Người dùng duyệt dừng B; commit `8cf334c`** (pytest sau commit: 41 đạt).
+- **Dừng C (07/10/2026) – audit nhãn 34 phiếu dev, chờ người dùng so giấy** (`python tools/check_labels.py audit` ->
+  `data/_prepare/label_audit_dev/`; bản 03/10 `data/_prepare/label_audit.*` giữ nguyên, so chỉ trên phiếu 0001–0034):
+  - **Quét được 34/34 phiếu, cả 68 ảnh** (mọi phiếu đối chiếu 2 ảnh; 0 ảnh bị từ chối, 0 ảnh đáng ngờ ở kiểm tra phụ, thang S
+    0,42–0,83). Audit cũ: 38/40 phiếu, 18 phiếu chỉ 1 ảnh, **không quét được 0006, 0018**. Nay: **0006 (C2+C3) – 0 mục**;
+    **0018 (C2+C3) – 1 mục nhóm B** (câu 4, nhãn `b` mờ, C2 đọc `b`, C3 đọc `B`).
+  - Phân bố n theo nhãn (68 ảnh): blank 8 210 ô p99 0,06 · faint 434 ô p1 0,26 / p95 0,81 · filled 2 236 ô p5 0,90 – ngưỡng
+    `MARK_MIN` 0,25 / `FILLED_MIN` 0,80 không đổi.
+  - **Nhóm A: 3 mục** (cũ trên dev: 2) – đều "thiếu ô", 1/2 ảnh, ô C nhãn mờ có n 0,23–0,26 SÁT NGƯỠNG 0,25:
+    | Phiếu:câu | Nhãn | Ảnh 1 (n A/B/C/D) | Ảnh 2 (n A/B/C/D) | Ghi chú |
+    |---|---|---|---|---|
+    | **0019:24 (MỚI)** | `c` (C mờ) | C3 đọc `-`: 0,00 / 0,03 / **0,23** / 0,02 | C4 đọc `c`: 0,00 / 0,04 / **0,26** / 0,02 | audit cũ chỉ có ảnh C4 (C3 bị `align()` nắn sai). Ảnh cắt: C có tô mờ ở cả 2 ảnh; chấm nhỏ ngoài vòng ô B |
+    | 0033:4 (cũ) | `c` | C1 đọc `c`: 0,00 / 0,01 / 0,26 / 0,00 | C2 đọc `-`: 0,00 / 0,00 / 0,24 / 0,02 | người dùng đã quyết giữ (03/10) |
+    | 0020:33 (cũ) | `c` | C1 đọc `-`: 0,00 / 0,02 / 0,25⁻ / 0,01 | C4 đọc `c`: 0,00 / 0,03 / 0,26 / 0,02 | người dùng đã quyết giữ (03/10) |
+    Ảnh cắt: `data/_prepare/label_audit_dev/label_audit/0019_q24_C3.png`, `_C4.png` (tương tự 0033_q04, 0020_q33).
+  - **Nhóm B: 45 mục** (cũ trên dev: 35; 35 chung, 0 mất, **10 mới**). 9/10 mục mới đến từ ảnh mà audit cũ không dùng được
+    (0013_C2 câu 2, 3; 0014_C3 câu 4; 0018 câu 4; 0021_C2 câu 31, 34; 0023_C3 câu 3, 38, 39). Ngoại lệ **0025:2** (nhãn `D` rõ,
+    C2 n 0,80 -> đọc mờ; C1 0,95): audit cũ cũng đọc C1+C2 – sát ngưỡng `FILLED_MIN` 0,80, khác biệt nắn dưới pixel đủ đổi bên.
+  - **Không sửa `ground_truth.csv`.** Chờ người dùng so giấy 0019 câu 24 (và quyết nhóm B như lần trước).
+  - **Người dùng so giấy thật (07/10/2026)**: 0019 câu 24 – ô C có vết tô mờ ⇒ nhãn `c` **ĐÚNG, giữ nguyên**. Không xem thêm
+    nhóm B. `ground_truth.csv` không đổi.
+  - **Kết luận nhóm A**: cả 3 mục (0019:24, 0033:4, 0020:33) **nhãn đúng**; đều là ô `faint` có độ tối tương đối n 0,23–0,26
+    SÁT NGƯỠNG cố định `MARK_MIN` 0,25 ⇒ **giới hạn của ngưỡng cố định, không phải lỗi nhãn**. Ghi làm **ca thử cho
+    classifier 3 lớp Tuần 5** (CLAUDE.md mục 7).
+- **Đối chiếu "Xong khi" Bước 6**:
+  - Eval không đổi so với Bước 5 – **đạt**: `v6_api` 78/78 đúng, 0 đổi so với `v5_chuan_hoa`; `anh_nan` (vân tay v4) và
+    `anh_chuan_hoa` (v5) giống từng byte 78/78; ảnh giả như v5; chạy lại sau khi sửa công cụ vẫn giống.
+  - Audit quét được 34/34 phiếu dev – **đạt** (68/68 ảnh, gồm 0006, 0018); 0035–0040 chưa audit (để sau Bước 7).
+  - CLAUDE.md mục 7/8 cập nhật (gỡ cảnh báo `check_photos.py`, `align()`) – **đạt** (dừng D).
+  - Kèm theo: API `preprocess` / `preprocess_anh` / `MA_LY_DO` / `nap_layout`; `cv_engine/tap_du_lieu.py` + chốt chặn tập
+    test ở mọi công cụ; 4 công cụ dùng `preprocess()`, không ghi vào `data/raw*`; pytest **41/41** (~8 s).
+  ⇒ **BƯỚC 6 XONG (07/10/2026).**
 
 ### Bước 7 – Đánh giá cuối (một lần)
 - **Việc**: chốt code (commit), rồi chạy `eval_preprocessing.py run --split test --xac-nhan-test` trên
