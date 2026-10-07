@@ -17,6 +17,7 @@ data/_prepare/label_audit_<split>/label_audit.html + label_audit.csv. Chỉ dùn
 – cùng loại ảnh mà MARK_MIN / FILLED_MIN được chọn) và qua thêm STRICT_MARKER / MIN_SCALE; phiếu có 2 ảnh tốt thì đọc
 cả 2 để đối chiếu chéo. Mặc định CHỈ DEV 0001–0034; phiếu test chỉ quét SAU đánh giá cuối (Bước 7):
   python tools/check_labels.py audit                                 # dev -> data/_prepare/label_audit_dev/
+  python tools/check_labels.py audit --split test --xac-nhan-test    # sau Bước 7 -> label_audit_test/
   python tools/check_labels.py audit --split tat_ca --xac-nhan-test  # sau Bước 7 -> label_audit_tat_ca/
 Chốt chặn nằm TRƯỚC khi đọc bất kỳ ảnh nào: dòng nhãn của phiếu test bị lọc bỏ ngay khi đọc ground_truth.csv.
 
@@ -45,7 +46,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT))
 from check_layout import darkness, render_pdf_page  # noqa: E402
 from prepare_photos import marker_fill, nan_anh  # noqa: E402
-from cv_engine.tap_du_lieu import PHIEU_DEV, ChamTapTest, chan_test  # noqa: E402
+from cv_engine.tap_du_lieu import PHIEU_DEV, PHIEU_TEST, ChamTapTest, chan_test  # noqa: E402
 
 GAP = 0.15                        # ô nổi bật phải tối hơn ô thứ hai ít nhất bấy nhiêu
 SCALE = 3                         # phóng to ảnh cắt
@@ -362,8 +363,9 @@ def cmd_audit(argv: list[str]) -> None:
                                  description="Quét nhãn các phiếu so với ảnh (không sửa nhãn); mặc định chỉ dev")
     ap.add_argument("--ground-truth", default=ANSWER_SHEET / "output" / "ground_truth.csv")
     ap.add_argument("--raw", default=ROOT / "data" / "raw")
-    ap.add_argument("--split", default="dev", choices=["dev", "tat_ca"],
-                    help="dev = 0001–0034; tat_ca = cả 40 phiếu (chỉ SAU đánh giá cuối Bước 7, cần --xac-nhan-test)")
+    ap.add_argument("--split", default="dev", choices=["dev", "test", "tat_ca"],
+                    help="dev = 0001–0034; test = 0035–0040; tat_ca = cả 40 phiếu (test / tat_ca chỉ SAU đánh giá cuối "
+                         "Bước 7, cần --xac-nhan-test)")
     ap.add_argument("--xac-nhan-test", action="store_true")
     ap.add_argument("--out", default=None, help="mặc định data/_prepare/label_audit_<split>/")
     a = ap.parse_args(argv)
@@ -374,6 +376,8 @@ def cmd_audit(argv: list[str]) -> None:
         gt = {r["sheet_id"]: r for r in csv.DictReader(f)}
     if a.split == "dev":
         gt = {sid: r for sid, r in gt.items() if int(sid) in PHIEU_DEV}
+    elif a.split == "test":
+        gt = {sid: r for sid, r in gt.items() if int(sid) in PHIEU_TEST}
     chan_test(gt, a.xac_nhan_test, f"check_labels.py audit --split {a.split}")
     print(f"Quét {len(gt)} phiếu ({a.split}): {min(gt)}–{max(gt)} -> {out_dir}")
     layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))

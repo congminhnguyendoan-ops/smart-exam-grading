@@ -28,6 +28,11 @@ Chạy (từ thư mục smart_exam_db/):
   python tools/eval_preprocessing.py run --phuong-phap align_cu --split dev
   python tools/eval_preprocessing.py finalize --phuong-phap v2_load --ke-thua align_cu
   python tools/eval_preprocessing.py report --phuong-phap v2_load --so-voi align_cu
+Bước 7 (tập test, MỘT LẦN, xem bằng mắt MÙ – docs/ke_hoach_tuan4.md Bước 7):
+  python tools/eval_preprocessing.py run --phuong-phap v6_api --split test --xac-nhan-test
+  python tools/eval_preprocessing.py finalize --phuong-phap v6_api --split test      # cấm --ke-thua
+  python tools/eval_preprocessing.py report --phuong-phap v6_api --split test --so-voi align_cu
+  python tools/eval_preprocessing.py report-cuoi
 """
 import argparse
 import csv
@@ -429,12 +434,12 @@ def co_giay_cong(r: dict) -> bool:
 
 
 # ============================================================================ xuất ảnh / HTML
-def anh_chong(anh_w, mau_e, tiles) -> np.ndarray:
+def anh_chong(anh_w, mau_e, tiles, mu: bool = False) -> np.ndarray:
     """Ảnh nắn (xám nhạt) + nét mẫu màu đỏ + mũi tên lệch từng ô lưới (phóng x5; xanh dương = ô tin cậy,
-    xám = đỉnh khớp không duy nhất, không tính vào lech_*)."""
+    xám = đỉnh khớp không duy nhất, không tính vào lech_*). mu = True (xem mù, Bước 7): KHÔNG vẽ lưới / mũi tên / số mm."""
     base = cv2.cvtColor(cv2.addWeighted(anh_w, 0.6, np.full_like(anh_w, 255), 0.4, 0), cv2.COLOR_GRAY2BGR)
     base[mau_e > 0] = (0, 0, 230)
-    for t in tiles:
+    for t in ([] if mu else tiles):
         x0, y0, x1, y1 = t["box"]
         cv2.rectangle(base, (x0, y0), (x1, y1), (200, 200, 200), 1)
         if t["dx"] is None:
@@ -510,7 +515,33 @@ def ve_tu_giac(gray: np.ndarray, ct: dict) -> np.ndarray:
     return img
 
 
-def viet_html(rows, path: Path, ten_pp: str, split: str):
+def viet_html_mu(rows, path: Path, ten_pp: str, split: str):
+    """Xem bằng mắt MÙ (Bước 7, đăng ký trước): CHỈ ảnh gốc + tứ giác 4 marker + ảnh nắn chồng nét mẫu (không lưới, không
+    mũi tên, không số mm). Không kết luận máy, không số đo, không thời gian; sắp theo tên ảnh (không theo số đo)."""
+    body = []
+    for r in sorted(rows, key=lambda r: r["anh"]):
+        al = (f'<a href="anh/{r["anh"]}_chong.jpg" target="_blank"><img src="anh/{r["anh"]}_chong_nho.jpg" width="420"></a>'
+              if r["tra_anh"] == "co" else "<b>Phương pháp KHÔNG trả ảnh nắn</b> (từ chối)")
+        lon = "_goc_lon" if "so_ung_vien" in r else "_goc"
+        goc = f'<a href="anh/{r["anh"]}{lon}.jpg" target="_blank"><img src="anh/{r["anh"]}_goc.jpg" width="320"></a>'
+        body.append(f'<tr id="{r["anh"]}"><td><b>{r["anh"]}</b><br>{r["dieu_kien"]}</td><td>{al}</td><td>{goc}</td></tr>')
+    path.write_text(f"""<!doctype html><html lang="vi"><head><meta charset="utf-8">
+<title>Xem mù – {ten_pp} – {split}</title>
+<style>body{{font-family:sans-serif;margin:16px}} td{{vertical-align:top;border-bottom:1px solid #ddd;padding:6px}}
+img{{border:1px solid #ccc}}</style></head><body>
+<h2>Xem bằng mắt MÙ: phương pháp <code>{ten_pp}</code>, tập {split} ({len(rows)} ảnh)</h2>
+<p>Không có kết luận máy và số đo (đăng ký trước, Bước 7). Ảnh giữa: ảnh nắn (xám) + <span style="color:#e00">nét phiếu
+mẫu (đỏ)</span> – nắn đúng ⇒ nét đỏ đè lên nét in ở MỌI vùng trang, đúng chiều (tiêu đề ở trên). Ảnh phải: ảnh gốc
+{"+ <span style='color:#0a0'>tứ giác 4 marker được chọn</span> (chấm đỏ = TL)" if any("so_ung_vien" in r for r in rows) else ""}.
+Bấm ảnh để xem cỡ lớn.<br>Ghi kết luận cho MỌI ảnh có ảnh nắn vào <code>{ten_xem(split)['csv']}</code>, cột
+<code>ket_luan_mat</code> = <code>dung</code> / <code>sai</code>, lý do vào <code>ghi_chu</code>.</p>
+<table><tr><th>Ảnh</th><th>Ảnh nắn + nét mẫu</th><th>Ảnh gốc</th></tr>{"".join(body)}</table></body></html>""",
+                    encoding="utf-8")
+
+
+def viet_html(rows, path: Path, ten_pp: str, split: str, mu: bool = False):
+    if mu:
+        return viet_html_mu(rows, path, ten_pp, split)
     legend = " ".join(f'<span style="color:{c}">● {k}</span>' for k, c in COND_COLOR.items())
     strips = "".join(strip_svg(rows, k, t) for k, t in STRIP_METRICS)
     rows = sorted(rows, key=lambda r: (r["tra_anh"] == "co", r.get("khop_net", 0)))   # từ chối, rồi khớp kém nhất
@@ -562,6 +593,12 @@ def nap_mau(layout) -> dict:
             for loai, pdf in (("phieu", "phieu_danh_so.pdf"), ("chu_so", "trang_chu_so.pdf"))}
 
 
+def ten_xem(split: str) -> dict:
+    """Tên file xem bằng mắt theo tập. Dev giữ tên cũ (không đổi file của Bước 1–6); tập khác có hậu tố _<split>."""
+    h = "" if split == "dev" else f"_{split}"
+    return {"html": f"xem_bang_mat{h}.html", "csv": f"xem_bang_mat{h}.csv", "can": f"can_xem{h}.html"}
+
+
 def cmd_run(a) -> None:
     if a.split == "test" and not a.xac_nhan_test:
         sys.exit("Tập test (0035–0040) chỉ chạy MỘT LẦN ở Bước 7 (docs/ke_hoach_tuan4.md). "
@@ -570,6 +607,10 @@ def cmd_run(a) -> None:
     layout = json.loads((ANSWER_SHEET / "output" / "layout.json").read_text(encoding="utf-8"))
     page_px = layout["page_px"]
     out = EVAL_DIR / a.phuong_phap
+    mu = a.split != "dev"           # Bước 7: xem bằng mắt MÙ – không hiện / in kết luận máy và số đo
+    if mu and (out / f"diem_{a.split}.csv").exists():
+        sys.exit(f"{out / f'diem_{a.split}.csv'} đã có – tập {a.split} chỉ chạy MỘT LẦN (đăng ký trước, Bước 7). "
+                 f"Không chạy lại để lấy số khác.")
     (out / "anh").mkdir(parents=True, exist_ok=True)
 
     mau = {loai: ban_do_net(to_work(g, page_px)) for loai, g in nap_mau(layout).items()}
@@ -613,14 +654,17 @@ def cmd_run(a) -> None:
                                   "tin_cay": int(t["tin_cay"])})
             if anh.loai == "phieu":
                 r.update(p3_nhan(aligned, layout, nhan[anh.ma]))
-            chong = anh_chong(anh_w, mau[anh.loai], tiles)
+            chong = anh_chong(anh_w, mau[anh.loai], tiles, mu=mu)
             ghi_jpg(out / "anh" / f"{anh.ten}_chong.jpg", chong)
             ghi_jpg(out / "anh" / f"{anh.ten}_chong_nho.jpg", chong, max_w=840, q=80)
         r["ket_luan_tu_dong"], r["ly_do_tu_dong"] = ket_luan_tu_dong(r)
         r["giay_cong"] = int(co_giay_cong(r))
         rows.append(r)
-        tom = (f"khop_net={r['khop_net']:.2f} lech_trungvi={r['lech_trungvi_mm']:.1f}mm "
-               f"lech_max={r['lech_max_mm']:.1f}mm" if aligned is not None else f"TỪ CHỐI: {ly_do}")
+        if mu:
+            tom = "đã xử lý" if aligned is not None else f"TỪ CHỐI: {ly_do}"
+        else:
+            tom = (f"khop_net={r['khop_net']:.2f} lech_trungvi={r['lech_trungvi_mm']:.1f}mm "
+                   f"lech_max={r['lech_max_mm']:.1f}mm" if aligned is not None else f"TỪ CHỐI: {ly_do}")
         print(f"[{n:2d}/{len(images)}] {anh.ten:8s} {tom}")
 
     cols = ["phuong_phap", "anh", "loai", "dieu_kien", "tra_anh", "ly_do", "giay", "ket_luan_tu_dong", "ly_do_tu_dong",
@@ -646,27 +690,32 @@ def cmd_run(a) -> None:
         for t in tile_rows:
             w.writerow({k: (f"{v:.4f}" if isinstance(v, float) else v) for k, v in t.items()})
 
-    viet_html(rows, out / "xem_bang_mat.html", a.phuong_phap, a.split)
-    if "huong_xoay" in rows[0]:
+    tx = ten_xem(a.split)
+    viet_html(rows, out / tx["html"], a.phuong_phap, a.split, mu=mu)
+    if "huong_xoay" in rows[0] and not mu:      # mù: người dùng xem MỌI ảnh, không có danh sách "cần xem" của máy
         can = [r for r in rows if r["tra_anh"] != "co" or r["ket_luan_tu_dong"] in ("sai", "xem")
                or r["huong_xoay"] != r["huong_dung"]]
-        viet_html(can, out / "can_xem.html", a.phuong_phap, a.split)
-        print(f"can_xem.html: {len(can)} ảnh cần xem bằng mắt (từ chối / sai / xem / lệch chiều)")
-    review = out / "xem_bang_mat.csv"
+        viet_html(can, out / tx["can"], a.phuong_phap, a.split)
+        print(f"{tx['can']}: {len(can)} ảnh cần xem bằng mắt (từ chối / sai / xem / lệch chiều)")
+    review = out / tx["csv"]
     if review.exists():
         print(f"\nGIỮ NGUYÊN {review} (đã có – có thể chứa kết luận bằng mắt).")
     else:
         with review.open("w", encoding="utf-8-sig", newline="") as fh:
             w = csv.writer(fh)
             w.writerow(["phuong_phap", "anh", "dieu_kien", "ket_luan_mat", "ghi_chu"])
-            for r in rows:
+            for r in sorted(rows, key=lambda r: r["anh"]) if mu else rows:
                 w.writerow([a.phuong_phap, r["anh"], r["dieu_kien"], "", ""])
 
     print(f"\nĐã ghi vào {out}:")
-    print(f"  diem_{a.split}.csv, o_luoi_{a.split}.csv, xem_bang_mat.html, xem_bang_mat.csv, anh/")
+    print(f"  diem_{a.split}.csv, o_luoi_{a.split}.csv, {tx['html']}, {tx['csv']}, anh/")
     tu_choi = [r for r in rows if r["tra_anh"] == "khong"]
     print(f"Trả ảnh: {len(rows) - len(tu_choi)}/{len(rows)}; từ chối: {len(tu_choi)}"
           + (" (" + ", ".join(r["anh"] for r in tu_choi) + ")" if tu_choi else ""))
+    if mu:
+        print(f"XEM MÙ: mở {tx['html']}, ghi ket_luan_mat (dung / sai) cho MỌI ảnh trả về vào {tx['csv']}. "
+              f"KHÔNG mở diem_{a.split}.csv trước khi ghi xong. Kết luận máy chỉ hiện ở finalize.")
+        return
     from collections import Counter
     dem = Counter(r["ket_luan_tu_dong"] for r in rows if r["tra_anh"] == "co")
     print(f"Kết luận tự động: dung {dem['dung']}, sai {dem['sai']}, xem {dem['xem']}; "
@@ -896,16 +945,20 @@ def cmd_finalize(a) -> None:
     """diem_dev.csv (kết luận tự động) + xem_bang_mat.csv (kết luận bằng mắt) -> truth_dev.csv.
     Mắt ưu tiên hơn máy. Chỉ ảnh máy kết luận 'dung' được lấy tự động; ảnh 'sai' hoặc 'xem' chưa có kết luận
     bằng mắt -> dừng, không ghi file (lỗi im lặng không được dựa hoàn toàn vào máy).
-    --ke-thua <pp>: lấy kết luận bằng mắt của <pp> (nguon = mat_<pp>), chỉ khi kiem_ke_thua() đạt."""
+    --ke-thua <pp>: lấy kết luận bằng mắt của <pp> (nguon = mat_<pp>), chỉ khi kiem_ke_thua() đạt.
+    --split test (Bước 7, xem MÙ): CẤM --ke-thua; MỌI ảnh có ảnh nắn phải có kết luận bằng mắt mới (không lấy tự động)."""
+    split = getattr(a, "split", "dev")
+    if split != "dev" and a.ke_thua:
+        sys.exit(f"finalize --split {split}: không được --ke-thua – kết luận bằng mắt trên tập {split} phải là kết luận mới.")
     out = EVAL_DIR / a.phuong_phap
     nguon_mat = "mat"
-    xem = out / "xem_bang_mat.csv"
+    xem = out / ten_xem(split)["csv"]
     if a.ke_thua:
         kiem_ke_thua(out, a.ke_thua)
         nguon_mat, xem = f"mat_{a.ke_thua}", EVAL_DIR / a.ke_thua / "xem_bang_mat.csv"
     mat = {r["anh"]: r for r in csv.DictReader(xem.open(encoding="utf-8-sig"))}
     rows, thieu, lech = [], [], []
-    for r in csv.DictReader((out / "diem_dev.csv").open(encoding="utf-8-sig")):
+    for r in csv.DictReader((out / f"diem_{split}.csv").open(encoding="utf-8-sig")):
         m = mat[r["anh"]]
         ghi_chu = [m["ghi_chu"]] if m["ghi_chu"] else []
         if r["giay_cong"] == "1":
@@ -918,10 +971,10 @@ def cmd_finalize(a) -> None:
             if r["ket_luan_tu_dong"] in ("dung", "sai") and r["ket_luan_tu_dong"] != ket_luan:
                 lech.append(f"{r['anh']}: máy {r['ket_luan_tu_dong']}, mắt {ket_luan}")
                 ghi_chu.append(f"máy kết luận {r['ket_luan_tu_dong']} ({r['ly_do_tu_dong']})")
-        elif r["ket_luan_tu_dong"] == "dung":
+        elif r["ket_luan_tu_dong"] == "dung" and split == "dev":
             ket_luan, nguon = "dung", "tu_dong"
-        else:  # máy kết luận 'sai' hoặc 'xem' -> bắt buộc xem bằng mắt (Quy ước chung Bước 2–7)
-            thieu.append(f"{r['anh']} ({r['ly_do_tu_dong']})")
+        else:  # máy kết luận 'sai'/'xem' (dev) hoặc mọi ảnh trả về (test, xem mù) -> bắt buộc xem bằng mắt
+            thieu.append(r["anh"] + (f" ({r['ly_do_tu_dong']})" if split == "dev" else ""))
             continue
         phan_loai = "bi_tu_choi" if r["tra_anh"] != "co" else ("dung" if ket_luan == "dung" else "loi_im_lang")
         rows.append({"phuong_phap": a.phuong_phap, "anh": r["anh"], "dieu_kien": r["dieu_kien"], "tra_anh": r["tra_anh"],
@@ -929,23 +982,27 @@ def cmd_finalize(a) -> None:
     if lech:
         print("CHÚ Ý – máy và mắt kết luận khác nhau (giữ kết luận của mắt):\n  " + "\n  ".join(lech))
     if thieu:
-        sys.exit(f"Còn {len(thieu)} ảnh 'sai'/'xem' chưa có kết luận bằng mắt – chưa ghi truth_dev.csv:\n  "
+        loai = "'sai'/'xem'" if split == "dev" else "trả ảnh nắn (xem mù: phải xem MỌI ảnh)"
+        sys.exit(f"Còn {len(thieu)} ảnh {loai} chưa có kết luận bằng mắt – chưa ghi truth_{split}.csv:\n  "
                  + "\n  ".join(thieu))
-    ghi_csv(out / "truth_dev.csv", rows)
+    ghi_csv(out / f"truth_{split}.csv", rows)
     from collections import Counter
-    print(f"Đã ghi {out / 'truth_dev.csv'}: {len(rows)} ảnh; nguồn {dict(Counter(r['nguon'] for r in rows))}; "
+    print(f"Đã ghi {out / f'truth_{split}.csv'}: {len(rows)} ảnh; nguồn {dict(Counter(r['nguon'] for r in rows))}; "
           f"kết luận {dict(Counter(r['ket_luan'] or '(từ chối)' for r in rows))}")
 
 
 def cmd_report(a) -> None:
-    """Bảng đúng / lỗi im lặng / bị từ chối theo điều kiện chụp – đọc DUY NHẤT truth_dev.csv."""
-    path = EVAL_DIR / a.phuong_phap / "truth_dev.csv"
+    """Bảng đúng / lỗi im lặng / bị từ chối theo điều kiện chụp – đọc DUY NHẤT truth_<split>.csv."""
+    split = getattr(a, "split", "dev")
+    path = EVAL_DIR / a.phuong_phap / f"truth_{split}.csv"
     rows = list(csv.DictReader(path.open(encoding="utf-8-sig")))
-    print(f"Phương pháp {a.phuong_phap} – tập dev ({path})")
+    print(f"Phương pháp {a.phuong_phap} – tập {split} ({path})")
     print(f"{'Điều kiện':10s} {'Số ảnh':>6s} {'Đúng':>10s} {'Lỗi im lặng':>13s} {'Bị từ chối':>12s} {'Giấy cong':>10s}")
     for c in ["C1", "C2", "C3", "C4", "D", "Tổng"]:
         s = rows if c == "Tổng" else [r for r in rows if r["dieu_kien"] == c]
         n = len(s)
+        if n == 0:
+            continue
         k = {p: sum(r["phan_loai"] == p for r in s) for p in ("dung", "loi_im_lang", "bi_tu_choi")}
         gc = sum("giay_cong" in r["ghi_chu"] for r in s)
         print(f"{c:10s} {n:6d} " + " ".join(f"{k[p]:4d} ({k[p] / n:4.0%})".rjust(w)
@@ -955,20 +1012,161 @@ def cmd_report(a) -> None:
     tap = {p: {r["anh"] for r in rows if r["phan_loai"] == p} for p in ("loi_im_lang", "bi_tu_choi")}
     for p, ten in (("loi_im_lang", "Lỗi im lặng"), ("bi_tu_choi", "Bị từ chối")):
         print(f"{ten} ({len(tap[p])}): {', '.join(sorted(tap[p])) or '-'}")
-    print("  (ảnh dev thật đều hợp lệ ⇒ mọi ảnh 'bị từ chối' ở bảng này là TỪ CHỐI NHẦM; "
+    print(f"  (ảnh {split} thật đều hợp lệ ⇒ mọi ảnh 'bị từ chối' ở bảng này là TỪ CHỐI NHẦM; "
           "từ chối đúng đo trên ảnh giả: lệnh run-gia)")
-    diem = EVAL_DIR / a.phuong_phap / "diem_dev.csv"
+    diem = EVAL_DIR / a.phuong_phap / f"diem_{split}.csv"
     if diem.exists():
         g = np.array([float(r["giay"]) for r in csv.DictReader(diem.open(encoding="utf-8-sig"))])
         print(f"Thời gian phương pháp mỗi ảnh (gồm đọc file): trung vị {np.median(g) * 1000:.0f} ms, "
               f"lớn nhất {g.max() * 1000:.0f} ms")
     if a.so_voi:
-        cu = list(csv.DictReader((EVAL_DIR / a.so_voi / "truth_dev.csv").open(encoding="utf-8-sig")))
+        cu = list(csv.DictReader((EVAL_DIR / a.so_voi / f"truth_{split}.csv").open(encoding="utf-8-sig")))
         cu_pl = {r["anh"]: r["phan_loai"] for r in cu}
         moi_pl = {r["anh"]: r["phan_loai"] for r in rows}
         doi = sorted(t for t in cu_pl.keys() | moi_pl.keys() if cu_pl.get(t) != moi_pl.get(t))
         print(f"\nSo với {a.so_voi}: {len(doi)} ảnh đổi phân loại"
               + "".join(f"\n  {t}: {cu_pl.get(t, '(không có)')} -> {moi_pl.get(t, '(không có)')}" for t in doi))
+
+
+# ============================================================================ lệnh report-cuoi (Bước 7)
+PP_CUOI = ("align_cu", "v6_api")            # trước / sau – đăng ký trước ở Bước 7, không thêm phương pháp khác
+PHAN_LOAI = ("dung", "loi_im_lang", "bi_tu_choi")
+
+
+def cp_tren(k: int, n: int, alpha: float = 0.05) -> float:
+    """Cận trên khoảng tin cậy Clopper–Pearson hai phía (1 − alpha) của tỉ lệ khi quan sát k / n:
+    p sao cho P(X ≤ k | n, p) = alpha / 2. k = 0 -> 1 − (alpha / 2)^(1 / n) (n = 12: 0,264)."""
+    from math import comb
+    if n == 0 or k >= n:
+        return 1.0
+    cdf = lambda p: sum(comb(n, i) * p ** i * (1 - p) ** (n - i) for i in range(k + 1))  # noqa: E731
+    lo, hi = k / n, 1.0
+    for _ in range(80):                     # cdf giảm theo p -> chia đôi
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if cdf(mid) > alpha / 2 else (lo, mid)
+    return (lo + hi) / 2
+
+
+def phoi_canh_4(t: np.ndarray) -> float:
+    """Độ phối cảnh 4 tâm TL, TR, BR, BL – đúng công thức K2 (preprocessing.do_bo_4, kiem_verify.phoi_canh)."""
+    d = lambda i, j: float(np.hypot(*(t[i] - t[j])))     # noqa: E731
+    return min(min(r, 1 / r) for r in (d(0, 1) / d(3, 2), d(0, 3) / d(1, 2)))
+
+
+def doc_tap(pp: str, split: str) -> tuple[list, dict] | None:
+    t, d = EVAL_DIR / pp / f"truth_{split}.csv", EVAL_DIR / pp / f"diem_{split}.csv"
+    if not (t.exists() and d.exists()):
+        return None
+    return (list(csv.DictReader(t.open(encoding="utf-8-sig"))),
+            {r["anh"]: r for r in csv.DictReader(d.open(encoding="utf-8-sig"))})
+
+
+def cmd_report_cuoi(a) -> None:
+    """Báo cáo cuối Tuần 4 (đăng ký trước, docs/ke_hoach_tuan4.md Bước 7) – CHỈ đọc truth_* / diem_* đã có:
+    (1) đúng / lỗi im lặng / bị từ chối theo C1–C4, D cho dev, test, gộp (n từng điều kiện; cận trên 95% của tỉ lệ lỗi
+    im lặng: Clopper–Pearson và quy tắc số 3 khi 0 lỗi); (2) độ chính xác ảnh nắn đúng (lech_trungvi_mm, lech_max_mm,
+    không tính ảnh cờ giấy cong); (3) thời gian; (4) độ phối cảnh (K2) từ 4 tâm marker của v6_api – nhỏ nhất của test."""
+    md = ["# Tuần 4 – báo cáo cuối preprocessing (`report-cuoi`)\n"]
+    du_lieu = {pp: {s: doc_tap(pp, s) for s in ("dev", "test")} for pp in PP_CUOI}
+    for pp in PP_CUOI:
+        for s in ("dev", "test"):
+            if du_lieu[pp][s] is None:
+                md.append(f"- `{pp}` / {s}: **CHƯA CHẠY** (thiếu truth_{s}.csv / diem_{s}.csv)")
+    md.append("")
+    for tap in ("dev", "test", "gop"):
+        md.append(f"## {'Dev (0001–0034 + D001–D010)' if tap == 'dev' else 'Test (0035–0040)' if tap == 'test' else 'Gộp dev + test (80 ảnh phiếu + 10 trang chữ số)'}\n")
+        if tap == "gop":
+            md.append("**Lưu ý: dev là tập đã dùng để chỉnh tham số / ngưỡng** – số gộp lạc quan hơn số test; số khách quan "
+                      "là bảng Test.\n")
+        dong = []
+        for pp in PP_CUOI:
+            parts = [du_lieu[pp][s] for s in (("dev", "test") if tap == "gop" else (tap,))]
+            if any(p is None for p in parts):
+                dong.append([pp, "chưa đủ dữ liệu", "", "", "", "", ""])
+                continue
+            rows = [r for p in parts for r in p[0]]
+            for c in ("C1", "C2", "C3", "C4", "D", "Tổng"):
+                s = rows if c == "Tổng" else [r for r in rows if r["dieu_kien"] == c]
+                n = len(s)
+                if n == 0:
+                    continue
+                k = {p: sum(r["phan_loai"] == p for r in s) for p in PHAN_LOAI}
+                cp = cp_tren(k["loi_im_lang"], n)
+                ba = f"; quy tắc số 3: {3 / n:.0%}" if k["loi_im_lang"] == 0 else ""
+                dong.append([pp, c, n, k["dung"], f"{k['loi_im_lang']} (cận trên 95% {cp:.0%}{ba})", k["bi_tu_choi"],
+                             ", ".join(sorted(r["anh"] for r in s if r["phan_loai"] != "dung")) or "–"])
+        md.append(bang_md_cuoi(["phương pháp", "ĐK", "n", "đúng", "lỗi im lặng", "bị từ chối (= nhầm)", "ảnh không đúng"], dong))
+        md.append("")
+    md.append("## Độ chính xác ảnh nắn ĐÚNG (phép 2, ô lưới tin cậy; bỏ ảnh cờ giấy cong) – sàn chung ~0,3 mm (máy in)\n")
+    dong = []
+    for pp in PP_CUOI:
+        for s in ("dev", "test"):
+            if du_lieu[pp][s] is None:
+                continue
+            truth, diem = du_lieu[pp][s]
+            ok = [diem[r["anh"]] for r in truth if r["phan_loai"] == "dung" and diem[r["anh"]].get("giay_cong") != "1"]
+            if not ok:
+                dong.append([pp, s, 0, "", "", ""])
+                continue
+            tv = np.array([float(r["lech_trungvi_mm"]) for r in ok])
+            mx = np.array([float(r["lech_max_mm"]) for r in ok])
+            i = int(np.argmax(mx))
+            dong.append([pp, s, len(ok), f"{tv.mean():.2f} / {np.median(tv):.2f}", f"{np.median(mx):.2f}",
+                         f"{mx[i]:.2f} ({ok[i]['anh']})"])
+    # So công bằng trước/sau: CÙNG tập ảnh mà cả hai phương pháp nắn đúng (align_cu sai gần hết C3 – ảnh C3 lệch thật
+    # nhiều hơn, nên so tập "ảnh đúng" riêng của từng phương pháp sẽ thiên vị align_cu)
+    for s in ("dev", "test"):
+        if any(du_lieu[pp][s] is None for pp in PP_CUOI):
+            continue
+        chung = set.intersection(*({r["anh"] for r in du_lieu[pp][s][0] if r["phan_loai"] == "dung"
+                                    and du_lieu[pp][s][1][r["anh"]].get("giay_cong") != "1"} for pp in PP_CUOI))
+        for pp in PP_CUOI:
+            ok = [du_lieu[pp][s][1][t] for t in sorted(chung)]
+            if not ok:
+                continue
+            tv = np.array([float(r["lech_trungvi_mm"]) for r in ok])
+            mx = np.array([float(r["lech_max_mm"]) for r in ok])
+            i = int(np.argmax(mx))
+            dong.append([f"{pp} (ảnh đúng ở CẢ HAI)", s, len(ok), f"{tv.mean():.2f} / {np.median(tv):.2f}",
+                         f"{np.median(mx):.2f}", f"{mx[i]:.2f} ({ok[i]['anh']})"])
+    md.append(bang_md_cuoi(["phương pháp", "tập", "n ảnh đúng", "lech_trungvi TB / TV (mm)", "lech_max TV (mm)",
+                            "lech_max lớn nhất (mm)"], dong))
+    md.append("\n## Thời gian mỗi ảnh (gồm đọc file)\n")
+    dong = []
+    for pp in PP_CUOI:
+        for s in ("dev", "test"):
+            if du_lieu[pp][s] is not None:
+                g = np.array([float(r["giay"]) for r in du_lieu[pp][s][1].values()]) * 1000
+                dong.append([pp, s, len(g), f"{np.median(g):.0f}", f"{g.max():.0f}"])
+    md.append(bang_md_cuoi(["phương pháp", "tập", "n", "trung vị (ms)", "lớn nhất (ms)"], dong))
+    md.append(f"\n## Độ phối cảnh K2 (4 tâm marker của v6_api; ngưỡng từ chối K2 < {0.50}) – cho Hướng dẫn chụp\n")
+    dong = []
+    for s in ("dev", "test"):
+        if du_lieu["v6_api"][s] is None:
+            continue
+        pc = []
+        for r in du_lieu["v6_api"][s][1].values():
+            if r.get("marker_tl_x"):
+                t = np.array([[float(r[f"marker_{g}_{c}"]) for c in "xy"] for g in ("tl", "tr", "br", "bl")])
+                pc.append((phoi_canh_4(t), r["anh"], r["dieu_kien"]))
+        thieu = [r["anh"] for r in du_lieu["v6_api"][s][1].values() if not r.get("marker_tl_x")]
+        for c in ("C1", "C2", "C3", "C4", "D", "Tổng"):
+            x = [p for p in pc if c == "Tổng" or p[2] == c]
+            if x:
+                m = min(x)
+                dong.append([s, c, len(x), f"{m[0]:.3f} ({m[1]})", f"{np.median([p[0] for p in x]):.3f}",
+                             ", ".join(thieu) if c == "Tổng" and thieu else ""])
+    md.append(bang_md_cuoi(["tập", "ĐK", "n", "nhỏ nhất (ảnh)", "trung vị", "không có 4 tâm (bị từ chối trước khi chọn bộ)"],
+                           dong))
+    out = EVAL_DIR / "bao_cao_cuoi_tuan4.md"
+    out.write_text("\n".join(md), encoding="utf-8")
+    print("\n".join(md))
+    print(f"\n-> {out}")
+
+
+def bang_md_cuoi(tieu_de: list, dong: list) -> str:
+    return "\n".join(["| " + " | ".join(tieu_de) + " |", "|" + "---|" * len(tieu_de)]
+                     + ["| " + " | ".join(str(v) for v in d) + " |" for d in dong])
 
 
 # ============================================================================ lệnh tam-marker (kiểm tra B)
@@ -1168,9 +1366,11 @@ def main() -> None:
     t.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
     t = sub.add_parser("tam-marker", help="kiểm tra B: tâm marker trên ảnh nắn đúng so với layout (cần run + xem_bang_mat.csv)")
     t.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
-    for ten, h in (("finalize", "ghép kết luận máy + mắt -> truth_dev.csv"), ("report", "bảng C1–C4 + D từ truth_dev.csv")):
+    for ten, h in (("finalize", "ghép kết luận máy + mắt -> truth_<split>.csv"),
+                   ("report", "bảng C1–C4 + D từ truth_<split>.csv")):
         t = sub.add_parser(ten, help=h)
         t.add_argument("--phuong-phap", default="align_cu", choices=sorted(PHUONG_PHAP))
+        t.add_argument("--split", default="dev", choices=sorted(SPLITS))
         if ten == "finalize":
             t.add_argument("--ke-thua", choices=sorted(PHUONG_PHAP), default=None,
                            help="dùng kết luận bằng mắt của phương pháp này (chỉ khi ảnh đọc vào giống từng điểm ảnh "
@@ -1180,9 +1380,10 @@ def main() -> None:
                            help="liệt kê ảnh đổi phân loại so với phương pháp này")
     t = sub.add_parser("run-gia", help="chấm preprocess() trên ảnh giả lỗi cố ý (data/_eval/_gia_v4) theo kết quả mong đợi")
     t.add_argument("--phuong-phap", default="v6_api", choices=["v4_verify", "v5_chuan_hoa", "v6_api"])
+    sub.add_parser("report-cuoi", help="báo cáo cuối Tuần 4: align_cu vs v6_api, dev / test / gộp (Bước 7)")
     a = ap.parse_args()
     {"run": cmd_run, "tu-kiem": cmd_tu_kiem, "dung-sai": cmd_dung_sai, "tam-marker": cmd_tam_marker,
-     "finalize": cmd_finalize, "report": cmd_report, "run-gia": cmd_run_gia}[a.lenh](a)
+     "finalize": cmd_finalize, "report": cmd_report, "run-gia": cmd_run_gia, "report-cuoi": cmd_report_cuoi}[a.lenh](a)
 
 
 if __name__ == "__main__":
