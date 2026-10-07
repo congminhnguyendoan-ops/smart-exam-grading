@@ -7,6 +7,7 @@ scikit-learn CHỈ dùng ở đây; mô hình xuất ra JSON để omr.py chạy
   python tools/huan_luyen_omr.py dac-trung      # đặc trưng 56 ảnh × 250 ô cho anh_nan và anh_chuan_hoa -> data/_omr/
   python tools/huan_luyen_omr.py cv             # M0 (ngưỡng cố định) + M1 (logistic) 7-fold OOF, F1 faint theo C1–C4 + CI,
                                                 # so anh_nan / anh_chuan_hoa, chọn nguồn -> data/_omr/chon_nguon.json
+  python tools/huan_luyen_omr.py luat           # ngưỡng luật ô -> câu / cột trên OOF (quy tắc chốt trước) -> data/_omr/luat.json
   python tools/huan_luyen_omr.py xuat           # mô hình JSON: models/omr_m0.json, models/omr_m1.json (huấn luyện trên cả
                                                 # 56 ảnh train) + mô hình từng fold data/_omr/mo_hinh_fold/ (cho eval OOF)
 """
@@ -90,15 +91,8 @@ def ma_tran(rows: list[dict]) -> np.ndarray:
 
 # ------------------------------------------------------------------------------------------------ mô hình
 def m0_du_doan(X: np.ndarray, lop: tuple) -> np.ndarray:
-    """M0: xác suất 'cứng' (0/1) từ ngưỡng cố định trên ld_anh."""
-    v = X[:, omr.TEN_DAC_TRUNG.index("ld_anh")]
-    P = np.zeros((len(v), len(lop)))
-    if lop == LOP_CAU:
-        k = np.where(v < M0_NGUONG["mark_min"], 0, np.where(v < M0_NGUONG["filled_min"], 1, 2))
-    else:
-        k = (v >= M0_NGUONG["mark_min"]).astype(int)
-    P[np.arange(len(v)), k] = 1.0
-    return P
+    """M0: xác suất 'cứng' (0/1) từ ngưỡng cố định trên ld_anh – dùng đúng omr.du_doan (mô hình loại 'nguong')."""
+    return omr.du_doan({"loai": "nguong", "nguong": M0_NGUONG}, "cau" if lop == LOP_CAU else "bubble", X)
 
 
 def m1_huan_luyen(X: np.ndarray, y: np.ndarray):
@@ -224,22 +218,110 @@ def cmd_cv() -> None:
     print("\n".join(dong))
 
 
+# ------------------------------------------------------------------------------------------------ ngưỡng luật
+# Quy tắc chọn (docs/ke_hoach_tuan5.md A3, chốt trước khi chạy): trên OOF M1 của nguồn đã chọn –
+#   trong_min (ô "trống chắc"), to_min (ô "tô chắc"): giá trị chốt, KIỂM có biên ≥ BIEN_AN_TOAN so với ca xấu nhất OOF
+#     (p(trống) lớn nhất của ô có tô; p(có tô) lớn nhất của ô trống) – không đạt thì DỪNG, không tự nới;
+#   ro_min: lớn nhất trong lưới RO_LUOI mà tỉ lệ "cần xem thừa" (câu rõ 1 ô bị cần xem) ≤ THUA_MAX_CHON (2,5% – chừa 0,5
+#     điểm % cho độ lạc quan của OOF so với tiêu chí 3%).
+LUAT_CHOT = {"cau": {"trong_min": 0.90, "to_min": 0.50},
+             "bubble": {"trong_min": 0.90, "to_min": 0.70, "ro_min_ld_anh": 0.70}}
+BIEN_LD_ANH = 0.05          # ro_min_ld_anh phải thấp hơn ld_anh nhỏ nhất của bubble tô thật (train) ít nhất bấy nhiêu
+BIEN_AN_TOAN = 0.20
+RO_LUOI = (0.5, 0.6, 0.7, 0.8, 0.9)
+THUA_MAX_CHON = 0.025
+
+
+def trang_thai_that(nhan_4: list[str]) -> tuple[str, frozenset]:
+    to = frozenset(i for i, n in enumerate(nhan_4) if n != "blank")
+    if not to:
+        return "trong", to
+    if len(to) > 1:
+        return "nhieu", to
+    return ("ro" if nhan_4[next(iter(to))] == "filled" else "mo"), to
+
+
+def mo_phong_cau(rows: list[dict], P: np.ndarray, luat_cau: dict) -> dict:
+    """Áp omr.ap_luat_cau lên OOF, đếm theo câu: lỗi nặng / nhẹ, cần xem thừa (công cụ huấn luyện – eval có bộ đếm riêng)."""
+    nhom: dict = {}
+    for i, r in enumerate(rows):
+        nhom.setdefault((r["anh"], r["phan_tu"]), []).append(i)
+    dem = {"cau": 0, "nang": 0, "nhe": 0, "thua": 0, "ro_that": 0, "can_xem": 0}
+    for idx in nhom.values():
+        tt, to = trang_thai_that([rows[i]["nhan"] for i in idx])
+        k = omr.ap_luat_cau(0, P[idx], luat_cau)
+        doc = frozenset("ABCD".index(c) for c in k.dap_an)
+        dem["cau"] += 1
+        dem["ro_that"] += tt == "ro"
+        dem["can_xem"] += k.can_xem
+        if not k.can_xem:
+            dem["nang"] += doc != to
+            dem["nhe"] += doc == to and k.trang_thai != tt
+        dem["thua"] += k.can_xem and tt == "ro"
+    return dem
+
+
+def cmd_luat() -> None:
+    chon = json.loads((OMR_DIR / "chon_nguon.json").read_text(encoding="utf-8"))
+    k = {v: kk for kk, v in NGUON.items()}[chon["nguon"]]
+    rows = doc_dac_trung(k)
+    out, can_cu = {}, {}
+    for loai, lop in (("cau", LOP_CAU), ("bubble", LOP_BUBBLE)):
+        sel = [r for r in rows if r["loai"] == loai]
+        P = np.load(OMR_DIR / f"oof_{loai}_m1_{k}.npy")
+        y = np.array([lop.index(r["nhan"]) for r in sel])
+        p_to = 1 - P[:, 0]
+        xau_to = float(P[y > 0, 0].max())             # ô có tô mà p(trống) cao nhất
+        xau_trong = float(p_to[y == 0].max())          # ô trống mà p(có tô) cao nhất
+        L = dict(LUAT_CHOT[loai])
+        if L["trong_min"] - xau_to < BIEN_AN_TOAN or L["to_min"] - xau_trong < BIEN_AN_TOAN:
+            raise SystemExit(f"{loai}: biên an toàn không đạt (trong_min {L['trong_min']} vs {xau_to:.3f}; to_min "
+                             f"{L['to_min']} vs {xau_trong:.3f}) – DỪNG, không tự nới (docs/ke_hoach_tuan5.md A3)")
+        can_cu[loai] = {"p_trong_max_o_co_to": round(xau_to, 4), "p_to_max_o_trong": round(xau_trong, 4),
+                        "p_to_min_o_co_to": round(float(p_to[y > 0].min()), 4)}
+        if loai == "bubble":
+            v = np.array([float(r["ld_anh"]) for r in sel])
+            if L["ro_min_ld_anh"] > v[y == 1].min() - BIEN_LD_ANH:
+                raise SystemExit(f"bubble: ro_min_ld_anh {L['ro_min_ld_anh']} không thấp hơn bubble tô thật nhỏ nhất "
+                                 f"{v[y == 1].min():.3f} ít nhất {BIEN_LD_ANH} – DỪNG")
+            can_cu[loai]["ld_anh_min_bubble_to"] = round(float(v[y == 1].min()), 4)
+        if loai == "cau":
+            luoi = {}
+            for ro in RO_LUOI:
+                d = mo_phong_cau(sel, P, {**L, "ro_min": ro})
+                luoi[ro] = d
+                print(f"ro_min {ro}: nặng {d['nang']}, nhẹ {d['nhe']}, cần xem thừa {d['thua']}/{d['ro_that']} "
+                      f"({d['thua'] / d['ro_that']:.2%}), cần xem {d['can_xem']}/{d['cau']}")
+            ok = [ro for ro, d in luoi.items() if d["thua"] / d["ro_that"] <= THUA_MAX_CHON and d["nang"] == 0]
+            if not ok:
+                raise SystemExit("không ro_min nào đạt (0 lỗi nặng, cần xem thừa ≤ 2,5%) – DỪNG")
+            L["ro_min"] = max(ok)
+            can_cu["cau"]["luoi_ro_min"] = {str(ro): d for ro, d in luoi.items()}
+        out[loai] = L
+    out["can_cu"] = can_cu
+    out["quy_tac"] = ("trong_min/to_min chốt trước, kiểm biên ≥ 0,20 so với ca xấu nhất OOF; ro_min = lớn nhất trong "
+                      "{0,5..0,9} có cần xem thừa ≤ 2,5% và 0 lỗi nặng (OOF M1, train 0001–0028)")
+    (OMR_DIR / "luat.json").write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(json.dumps({kk: v for kk, v in out.items() if kk in ("cau", "bubble")}, ensure_ascii=False),
+          "->", OMR_DIR / "luat.json")
+
+
 # ------------------------------------------------------------------------------------------------ xuất mô hình
 def _sha_file(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
-def _git_head() -> str:
+def _git(*args) -> str:
     try:
-        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True,
-                              check=True).stdout.strip()
+        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout.rstrip()
     except (OSError, subprocess.CalledProcessError):
         return ""
 
 
 def sieu_du_lieu(k: str, fold_huan_luyen: list[int]) -> dict:
     import sklearn
-    return {"ngay": dt.date.today().isoformat(), "git_head": _git_head(), "nguon_anh": NGUON[k],
+    return {"ngay": dt.date.today().isoformat(), "git_head": _git("rev-parse", "--short", "HEAD"),
+            "git_chua_commit": sorted(l[3:] for l in _git("status", "--porcelain", "--", "cv_engine", "tools").splitlines()), "nguon_anh": NGUON[k],
             "tap_huan_luyen": "train 0001–0028 (data/split.csv)", "fold_huan_luyen": fold_huan_luyen,
             "sha256_dac_trung": _sha_file(OMR_DIR / f"dac_trung_{k}.csv"),
             "sha256_cell_labels": _sha_file(ROOT / "data" / "cell_labels.csv"),
@@ -254,8 +336,13 @@ def tao_m1(rows: list[dict], fold_bo: int | None, k: str, luat: dict) -> dict:
     folds = [f for f in range(1, 8) if f != fold_bo]
     for loai, lop in (("cau", LOP_CAU), ("bubble", LOP_BUBBLE)):
         sel = [r for r in rows if r["loai"] == loai and int(r["fold"]) in folds]
-        m = m1_huan_luyen(ma_tran(sel), np.array([lop.index(r["nhan"]) for r in sel]))
+        X = ma_tran(sel)
+        m = m1_huan_luyen(X, np.array([lop.index(r["nhan"]) for r in sel]))
         out[loai] = m1_sang_json(m, lop)
+        # suy luận NumPy từ JSON (omr.du_doan) phải trùng sklearn
+        sai = np.abs(omr.du_doan({"loai": "logistic", loai: out[loai]}, loai, X) - m.predict_proba(X)).max()
+        if sai > 1e-9:
+            raise SystemExit(f"omr.du_doan lệch sklearn {sai:.2e} ({loai}) – không xuất mô hình")
     out["sieu_du_lieu"] = sieu_du_lieu(k, folds)
     return out
 
@@ -286,10 +373,10 @@ def cmd_xuat(luat_path: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Huấn luyện mô hình ô OMR (Tuần 5, train 0001–0028)")
-    ap.add_argument("lenh", choices=["dac-trung", "cv", "xuat"])
+    ap.add_argument("lenh", choices=["dac-trung", "cv", "luat", "xuat"])
     ap.add_argument("--luat", default=OMR_DIR / "luat.json", help="ngưỡng luật ô -> câu (chọn ở A3)")
     a = ap.parse_args()
-    {"dac-trung": cmd_dac_trung, "cv": cmd_cv}.get(a.lenh, lambda: cmd_xuat(Path(a.luat)))()
+    {"dac-trung": cmd_dac_trung, "cv": cmd_cv, "luat": cmd_luat}.get(a.lenh, lambda: cmd_xuat(Path(a.luat)))()
 
 
 if __name__ == "__main__":

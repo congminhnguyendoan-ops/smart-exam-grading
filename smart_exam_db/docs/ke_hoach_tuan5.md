@@ -408,6 +408,8 @@ Cập nhật dần trong khi làm Phần A; mỗi khoản: chỗ làm tạm → 
    trước test (đăng ký trước).
 8. **Phiếu gần như bỏ trống** (thang `S_anh` theo ảnh không dùng nhãn có sàn) – không có ảnh thật → pytest dữ liệu tạo ra; Phần B
    xem lại.
+9. **Bubble mờ đậm** (`ld_anh` ≥ 0,70) vẫn được đọc chắc chắn – không có mẫu thật; Phần B / Tuần 6 đối chiếu với SBD viết tay.
+10. **Mô hình JSON xuất trước khi commit code** (`git_chua_commit` ghi lại file đang sửa) – Phần B xuất lại từ commit sạch.
 
 ## 10. KẾT QUẢ PHẦN A
 
@@ -433,6 +435,36 @@ Cập nhật dần trong khi làm Phần A; mỗi khoản: chỗ làm tạm → 
   vài ca chạm biên (cờ). Điểm khối của ảnh dịch 1 ô tới 0,56 (chồng lên ảnh thật 0,22–0,78) – chặn được nhờ biên duy nhất
   (≤ −0,016) và chạm biên, không nhờ điểm.
 - pytest: 63 đạt (51 cũ + 12 mới `tests/test_omr_dinh_vi.py`).
+
+### A3 – luật ô → câu / cột + API + mô hình JSON (07/10/2026)
+- **Luật** (`omr.ap_luat_cau`, `omr.ap_luat_cot`, mục 5 + ★Q1): ô "trống chắc" p(trống) ≥ `trong_min`; "tô chắc" p(có tô) ≥
+  `to_min`; còn lại lưng chừng → `tin_cay_thap`. Đáp án = ô có p(có tô) ≥ 0,5; 1 ô → rõ nếu p(rõ | tô) ≥ `ro_min`, không thì mờ
+  (`o_mo`); ≥ 2 ô → `nhieu_o`; 0 ô → `trong`, **không cần xem nếu cả 4 ô trống chắc**. Định vị có cờ → `vi_tri`. Cột bubble: 1
+  ô → chữ số; 0 / ≥ 2 ô → `?` (`khong_o_nao` / `nhieu_o`); + luật an toàn bubble mờ (Quyết định #6).
+- **Ngưỡng** (`huan_luyen_omr.py luat` → `data/_omr/luat.json`, quy tắc chốt trước trong code): ô đáp án `trong_min 0,90`,
+  `to_min 0,50` – biên OOF: ô có tô p(trống) ≤ 0,441, ô trống p(có tô) ≤ 0,057 (biên ≥ 0,20 đạt); `ro_min` = lớn nhất trong
+  {0,5…0,9} có cần xem thừa ≤ 2,5% → **0,60**:
+
+  | ro_min | lỗi nặng | lỗi nhẹ | cần xem thừa | cần xem (tổng) |
+  |---|---|---|---|---|
+  | 0,5 | 0 | 6 | 23 / 1 468 (1,57%) | 563 / 2 240 |
+  | **0,6** | **0** | **5** | **33 / 1 468 (2,25%)** | 574 / 2 240 |
+  | 0,7 | 0 | 4 | 47 (3,20%) | 589 |
+  | 0,8 | 0 | 3 | 66 (4,50%) | 609 |
+  | 0,9 | 0 | 1 | 97 (6,61%) | 642 |
+
+  Bubble: `trong_min 0,90`, `to_min 0,70` (OOF: trống p(tô) ≤ 0,003, tô ≥ 0,832), `ro_min_ld_anh 0,70` (bubble tô thật train
+  `ld_anh` ≥ 0,798).
+- **API** `doc_phieu(kq, layout, mo_hinh) -> KetQuaOMR` (mục 6; trường như kế hoạch), `nap_mo_hinh`, `du_doan` (NumPy),
+  `MA_LY_DO_OMR` (5 mã), `sang_bubble_state`. Ném `ValueError` khi `kq.ok = False`.
+- **Mô hình JSON** `models/omr_m1.json` (4,4 KB, logistic, huấn luyện trên cả 56 ảnh train) và `models/omr_m0.json` (ngưỡng), kèm
+  `sieu_du_lieu`: ngày, `git_head` + danh sách file chưa commit lúc xuất, SHA-256 bảng đặc trưng / `cell_labels.csv` /
+  `split.csv`, fold, phiên bản sklearn, C, class_weight. `xuat` kiểm suy luận NumPy (`omr.du_doan`) trùng `predict_proba` của
+  sklearn (sai ≤ 1e-9) trước khi ghi. Mô hình từng fold (cho eval OOF): `data/_omr/mo_hinh_fold/omr_m1_fold{1..7}.json`.
+- **pytest** `tests/test_omr_luat.py` (29): luật mọi hàng bảng mục 5; ca hiếm bằng dữ liệu tạo ra – câu 3 ô / 4 ô / rõ + mờ /
+  2 mờ → `nhieu`; trống có ô sát ngưỡng → cần xem; cột không tô / nhiều ô / mờ lưng chừng → cần xem; chuỗi `doc_phieu` trên
+  **phiếu trắng vẽ giả** (câu 1 ABC, câu 2 A rõ + D mờ, câu 3 B, SBD cột 1 trống, cột 2 xám nhạt, mã đề 101); ảnh thật 0001_C1
+  → SBD `06238?` (`khong_o_nao`), mã đề `101`. **Tổng pytest 94 đạt.**
 
 ## 11. Quyết định tự đưa ra trong Phần A (theo ★ "lựa chọn nhỏ – hướng an toàn hơn")
 
@@ -463,7 +495,7 @@ Cập nhật dần trong khi làm Phần A; mỗi khoản: chỗ làm tạm → 
   | M0 | anh_chuan_hoa | 0,971 | 0,844 | 0,926 | 0,966 | 0,844 |
   | M1 | anh_chuan_hoa | 0,989 | 0,922 | 0,953 | 0,956 | 0,922 |
 
-  M1 `anh_nan`: **0 ô nhầm trống ↔ có tô** (8 210 → 6 720 ô trống OOF đều đúng; mọi ô có tô đúng là có tô); nhầm chỉ giữa faint /
+  M1 `anh_nan`: **0 ô nhầm trống ↔ có tô** (6 766 ô trống OOF đều đúng; 1 834 ô có tô đều đọc là có tô); nhầm chỉ giữa faint /
   filled: faint→filled 6 ô, filled→faint 25 ô (C2 12). Bubble (2 lớp) M0 và M1: 0 nhầm (4 538 trống, 502 tô).
 - **Chọn `anh_nan`** (quy tắc 4d): hiệu F1 faint M1 (chuẩn hoá − nan) C1 +0,000 · C2 −0,014 [−0,030; 0] · C3 −0,016 [−0,032; 0] ·
   C4 +0,011 [0; +0,029]; maximin −0,014 [−0,030; +0,026] – CI chứa 0 ⇒ hoà → `anh_nan` (ít phụ thuộc hơn). Ở mức đơn giản này
@@ -476,3 +508,13 @@ Cập nhật dần trong khi làm Phần A; mỗi khoản: chỗ làm tạm → 
 - Tiêu chí ★Q2 "F1 faint ≥ 0,90 mỗi điều kiện" (cấp ô, argmax): **M1 `anh_nan` đạt** ở cả 4 điều kiện (thấp nhất C2 0,935), nhưng
   **cận dưới CI của C2 (0,888) và C4 (0,880) < 0,90** – cỡ mẫu ~90 ô faint / điều kiện. M0 không đạt (C2 0,844).
 - pytest 65 đạt (2 mới `tests/test_omr_dac_trung.py`).
+5. **`ro_min` = 0,60** theo quy tắc "lớn nhất trong lưới có cần xem thừa ≤ 2,5%" (chừa 0,5 điểm % cho độ lạc quan của OOF);
+   `trong_min 0,90` / `to_min 0,50` chốt trước với kiểm biên ≥ 0,20 (an toàn hơn: vùng lưng chừng rộng). Bubble `to_min 0,70`
+   (rộng hơn ô đáp án vì không có mẫu bubble mờ).
+6. **Luật an toàn "bubble mờ"** (`ro_min_ld_anh 0,70`): pytest phiếu vẽ giả cho thấy bubble xám nhạt được mô hình 2 lớp đọc
+   p = 0,76 > `to_min` → "chắc chắn" (đúng chữ số nhưng là vết mờ). Thêm: ô bubble được chọn mà `ld_anh` < 0,70 → `o_mo` cần xem.
+   Không ảnh hưởng ảnh thật train (bubble tô thật ≥ 0,798). Giới hạn: vết mờ đậm hơn 0,70 vẫn qua (Nợ #9).
+7. **Câu trống**: `dap_an = ''`, `trang_thai = 'trong'`; cần xem chỉ khi có ô lưng chừng / `vi_tri` (★Q1). Cột bubble không đọc
+   được → `chu_so = '?'` (không đoán), chuỗi `sbd` / `ma_de` mang `?` tại cột đó.
+8. **`do_tin_cay`** câu / cột = min trên các ô của max(p(trống), p(có tô)) – chỉ phản ánh quyết định có tô / không (mức rõ / mờ
+   không tính, vì mờ đã luôn cần xem).

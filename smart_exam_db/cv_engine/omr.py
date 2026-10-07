@@ -344,3 +344,188 @@ def dac_trung_o(anh: np.ndarray, layout: dict, dv: KetQuaDinhVi) -> tuple[np.nda
     bub = np.concatenate([ld_b[..., None], ld_cot[..., None], (ld_cot / S_b)[..., None], tho_b[..., 1:5],
                           _hang_trong(ld_b)[..., None], tho_b[..., 5:6]], axis=-1)
     return cau, bub, S
+
+
+# ------------------------------------------------------------------------------------------------ mô hình JSON
+MODELS_DIR = GOC_DU_AN / "models"
+MO_HINH_MAC_DINH = MODELS_DIR / "omr_m1.json"
+LOP_CAU = ("blank", "faint", "filled")
+LOP_BUBBLE = ("blank", "filled")
+
+
+def nap_mo_hinh(path: Path | str = MO_HINH_MAC_DINH) -> dict:
+    """Nạp mô hình JSON (tools/huan_luyen_omr.py xuat). Kiểm tên đặc trưng khớp code hiện tại."""
+    m = json.loads(Path(path).read_text(encoding="utf-8"))
+    if tuple(m["ten_dac_trung"]) != TEN_DAC_TRUNG:
+        raise ValueError(f"mô hình {Path(path).name}: đặc trưng {m['ten_dac_trung']} ≠ code {TEN_DAC_TRUNG}")
+    for k in ("cau", "bubble"):
+        if k not in m.get("luat", {}):
+            raise ValueError(f"mô hình {Path(path).name} thiếu ngưỡng luật '{k}'")
+    return m
+
+
+def du_doan(mo_hinh: dict, loai: str, X: np.ndarray) -> np.ndarray:
+    """Xác suất từng lớp cho ma trận đặc trưng X (n, F). loai 'cau' -> 3 lớp LOP_CAU; 'bubble' -> 2 lớp LOP_BUBBLE."""
+    X = np.asarray(X, np.float64).reshape(-1, len(TEN_DAC_TRUNG))
+    lop = LOP_CAU if loai == "cau" else LOP_BUBBLE
+    if mo_hinh["loai"] == "nguong":                          # M0: ngưỡng cố định trên ld_anh -> xác suất "cứng"
+        v = X[:, TEN_DAC_TRUNG.index("ld_anh")]
+        ng = mo_hinh["nguong"]
+        k = (np.where(v < ng["mark_min"], 0, np.where(v < ng["filled_min"], 1, 2)) if loai == "cau"
+             else (v >= ng["mark_min"]).astype(int))
+        P = np.zeros((len(v), len(lop)))
+        P[np.arange(len(v)), k] = 1.0
+        return P
+    if mo_hinh["loai"] != "logistic":
+        raise ValueError(f"loại mô hình không hỗ trợ: {mo_hinh['loai']}")
+    m = mo_hinh[loai]
+    if tuple(m["lop"]) != lop:
+        raise ValueError(f"mô hình '{loai}': lớp {m['lop']} ≠ {lop}")
+    z = (X - np.array(m["trung_binh"])) / np.array(m["do_lech"])
+    logit = z @ np.array(m["he_so"]).T + np.array(m["chan"])
+    if logit.shape[1] == 1:                                    # 2 lớp: sklearn lưu 1 hàng hệ số cho lớp 1
+        p1 = 1 / (1 + np.exp(-logit[:, 0]))
+        return np.column_stack([1 - p1, p1])
+    logit -= logit.max(axis=1, keepdims=True)
+    e = np.exp(logit)
+    return e / e.sum(axis=1, keepdims=True)
+
+
+# ------------------------------------------------------------------------------------------------ luật ô -> câu / cột
+MA_LY_DO_OMR = {
+    "o_mo": "Ô được tô mờ – kiểm tra thí sinh có chọn đáp án / chữ số này không.",
+    "nhieu_o": "Tô nhiều hơn một ô – kiểm tra lại câu / chữ số này.",
+    "khong_o_nao": "Cột chữ số không tô ô nào – nhập chữ số bằng tay.",
+    "tin_cay_thap": "Máy không chắc ô nào được tô (vết tô sát ngưỡng) – kiểm tra bằng mắt.",
+    "vi_tri": "Không xác định chắc vị trí hàng / cột trên ảnh (giấy cong, lệch) – kiểm tra bằng mắt hoặc chụp lại.",
+}
+TRANG_THAI_DB = {"trong": "blank", "ro": "filled", "mo": "faint", "nhieu": "multiple"}   # -> ENUM bubble_state
+
+
+def sang_bubble_state(trang_thai: str) -> str:
+    """trang_thai câu ('trong' / 'ro' / 'mo' / 'nhieu') -> giá trị ENUM bubble_state của sheet_answers.state."""
+    return TRANG_THAI_DB[trang_thai]
+
+
+@dataclass(frozen=True)
+class KetQuaCau:
+    cau: int                                   # 1..40
+    trang_thai: str                            # 'trong' | 'ro' | 'mo' | 'nhieu'  (sang_bubble_state -> DB)
+    dap_an: str                                # '' | 'A' | 'AC' (thứ tự A–D) = sheet_answers.selected_options
+    xac_suat: dict                             # {'A': {'blank': .97, 'faint': .02, 'filled': .01}, ...} = option_probs
+    do_tin_cay: float                          # min trên 4 ô của max(p trống, p có tô) – 0..1
+    can_xem: bool
+    ly_do: tuple[str, ...]                     # mã trong MA_LY_DO_OMR; () khi chắc chắn
+
+
+@dataclass(frozen=True)
+class KetQuaCot:
+    truong: str                                # 'sbd' | 'ma_de'
+    vi_tri: int                                # 1..6 / 1..3
+    chu_so: str                                # '0'..'9', hoặc '?' (không ô nào / nhiều ô)
+    xac_suat_to: tuple[float, ...]             # p(có tô) của ô 0..9
+    do_tin_cay: float
+    can_xem: bool
+    ly_do: tuple[str, ...]
+
+
+def ap_luat_cau(cau: int, P: np.ndarray, luat: dict, options=("A", "B", "C", "D"), vi_tri_xau: bool = False) -> KetQuaCau:
+    """Luật ô -> câu (docs/ke_hoach_tuan5.md mục 5 + ★Q1). P: (4, 3) xác suất blank / faint / filled của 4 ô.
+    Ô 'trống chắc' khi p(trống) ≥ trong_min; 'tô chắc' khi p(có tô) ≥ to_min; còn lại 'lưng chừng' -> câu cần xem
+    (tin_cay_thap). Đáp án dự đoán = các ô có p(có tô) ≥ 0,5. 1 ô: rõ nếu p(rõ | có tô) ≥ ro_min, không thì mờ (cần xem).
+    ≥ 2 ô: nhiều ô (cần xem). 0 ô: trống – KHÔNG cần xem nếu cả 4 ô trống chắc (★Q1)."""
+    P = np.asarray(P, np.float64)
+    p_to = P[:, 1] + P[:, 2]
+    ly = ["vi_tri"] if vi_tri_xau else []
+    if np.any((P[:, 0] < luat["trong_min"]) & (p_to < luat["to_min"])):
+        ly.append("tin_cay_thap")
+    chon = [i for i in range(len(options)) if p_to[i] >= 0.5]
+    if not chon:
+        tt = "trong"
+    elif len(chon) > 1:
+        tt = "nhieu"
+        ly.append("nhieu_o")
+    else:
+        i = chon[0]
+        tt = "ro" if P[i, 2] / p_to[i] >= luat["ro_min"] else "mo"
+        if tt == "mo":
+            ly.append("o_mo")
+    xs = {o: {lop: round(float(P[i, k]), 4) for k, lop in enumerate(LOP_CAU)} for i, o in enumerate(options)}
+    tin = float(np.min(np.maximum(P[:, 0], p_to)))
+    return KetQuaCau(cau, tt, "".join(options[i] for i in chon), xs, round(tin, 4), bool(ly), tuple(dict.fromkeys(ly)))
+
+
+def ap_luat_cot(truong: str, vi_tri: int, P: np.ndarray, luat: dict, vi_tri_xau: bool = False,
+                ld_anh: np.ndarray | None = None) -> KetQuaCot:
+    """Luật 10 ô bubble -> 1 chữ số. P: (10, 2) xác suất blank / filled; ld_anh: (10,) đặc trưng ld_anh của 10 ô.
+    Mô hình bubble chỉ có 2 lớp (dev không có bubble mờ) nên thêm 2 luật an toàn: (1) xác suất lưng chừng -> tin_cay_thap;
+    (2) ô được chọn mà ld_anh < ro_min_ld_anh (bubble tô thật trên train ≥ 0,798; ô đáp án mờ trung vị 0,61) -> 'o_mo'
+    cần xem – vết mờ có thể là vết tẩy / vô tình (pytest: bubble xám nhạt vẽ giả p = 0,76 vẫn bị bắt)."""
+    P = np.asarray(P, np.float64)
+    p_to = P[:, 1]
+    ly = ["vi_tri"] if vi_tri_xau else []
+    if np.any((P[:, 0] < luat["trong_min"]) & (p_to < luat["to_min"])):
+        ly.append("tin_cay_thap")
+    chon = [d for d in range(len(p_to)) if p_to[d] >= 0.5]
+    if len(chon) == 1:
+        cs = str(chon[0])
+        if ld_anh is not None and ld_anh[chon[0]] < luat["ro_min_ld_anh"]:
+            ly.append("o_mo")
+    else:
+        cs = "?"
+        ly.append("khong_o_nao" if not chon else "nhieu_o")
+    tin = float(np.min(np.maximum(P[:, 0], p_to)))
+    return KetQuaCot(truong, vi_tri, cs, tuple(round(float(v), 4) for v in p_to), round(tin, 4), bool(ly),
+                     tuple(dict.fromkeys(ly)))
+
+
+@dataclass(frozen=True)
+class KetQuaOMR:
+    """Kết quả đọc 1 ảnh phiếu. Mọi mục can_xem = True phải qua giáo viên (Tuần 9–10); lý do: MA_LY_DO_OMR."""
+    cau: tuple[KetQuaCau, ...]                 # 40 câu
+    sbd: str                                   # 6 ký tự, '?' ở cột không đọc được
+    sbd_cot: tuple[KetQuaCot, ...]
+    ma_de: str                                 # 3 ký tự
+    ma_de_cot: tuple[KetQuaCot, ...]
+    can_xem: bool                              # có ≥ 1 câu / cột cần xem
+    sbd_can_xem: bool
+    ma_de_can_xem: bool
+    dich_chuyen_mm: dict                       # 'q1'..'q40', 'sbd1'.., 'ma_de1'.. -> (dx, dy) mm so với layout (gỡ lỗi)
+    nguon_anh: str                             # 'anh_nan' | 'anh_chuan_hoa'
+    phien_ban_mo_hinh: str                     # -> ml_models
+    thoi_gian_ms: float
+
+
+def doc_phieu(kq, layout: dict, mo_hinh: dict | None = None, mau: np.ndarray | None = None) -> KetQuaOMR:
+    """Đọc 40 câu + SBD + mã đề từ KetQuaTienXuLy (preprocess). Chỉ nhận kq.ok = True (ảnh bị từ chối không được chấm).
+    Không đọc nhãn, không ghi file."""
+    import time
+    t0 = time.perf_counter()
+    if not getattr(kq, "ok", False):
+        raise ValueError(f"không đọc OMR ảnh bị preprocess từ chối (ly_do='{getattr(kq, 'ly_do', '')}')")
+    mo_hinh = nap_mo_hinh() if mo_hinh is None else mo_hinh
+    mau = nap_mau() if mau is None else mau
+    anh = kq.anh_nan if mo_hinh["nguon_anh"] == "anh_nan" else kq.anh_chuan_hoa
+    dv = dinh_vi(kq.anh_nan, layout, mau)
+    cau_dt, bub_dt, _ = dac_trung_o(anh, layout, dv)
+    P_cau = du_doan(mo_hinh, "cau", cau_dt.reshape(-1, cau_dt.shape[-1])).reshape(cau_dt.shape[0], cau_dt.shape[1], -1)
+    P_bub = du_doan(mo_hinh, "bubble", bub_dt.reshape(-1, bub_dt.shape[-1])).reshape(bub_dt.shape[0], bub_dt.shape[1], -1)
+    luat = mo_hinh["luat"]
+    opts = tuple(layout["answers"]["options"])
+    cau = tuple(ap_luat_cau(q + 1, P_cau[q], luat["cau"], opts, bool(dv.co[f"q{q + 1}"])) for q in range(P_cau.shape[0]))
+    cot, c = {}, 0
+    for kh, truong in TRUONG_KHOI.items():
+        cot[kh] = []
+        for i in range(len(layout[truong]["bubbles"])):
+            cot[kh].append(ap_luat_cot(kh, i + 1, P_bub[c], luat["bubble"], bool(dv.co[f"{kh}{i + 1}"]),
+                                       bub_dt[c, :, TEN_DAC_TRUNG.index("ld_anh")]))
+            c += 1
+    k_mm = 25.4 / layout["dpi"]
+    return KetQuaOMR(
+        cau=cau, sbd="".join(x.chu_so for x in cot["sbd"]), sbd_cot=tuple(cot["sbd"]),
+        ma_de="".join(x.chu_so for x in cot["ma_de"]), ma_de_cot=tuple(cot["ma_de"]),
+        can_xem=any(x.can_xem for x in cau) or any(x.can_xem for v in cot.values() for x in v),
+        sbd_can_xem=any(x.can_xem for x in cot["sbd"]), ma_de_can_xem=any(x.can_xem for x in cot["ma_de"]),
+        dich_chuyen_mm={k: (round(v[0] * k_mm, 3), round(v[1] * k_mm, 3)) for k, v in dv.dich.items()},
+        nguon_anh=mo_hinh["nguon_anh"], phien_ban_mo_hinh=mo_hinh.get("phien_ban", ""),
+        thoi_gian_ms=round((time.perf_counter() - t0) * 1000, 1))

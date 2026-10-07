@@ -1,0 +1,106 @@
+{
+ "loai": "nguong",
+ "phien_ban": "omr_m0",
+ "ten_dac_trung": [
+  "ld",
+  "ld_hang",
+  "ld_anh",
+  "tuyet_doi",
+  "phu_nhe",
+  "phu_dam",
+  "do_lech",
+  "hang",
+  "giay"
+ ],
+ "nguon_anh": "anh_nan",
+ "nguong": {
+  "mark_min": 0.25,
+  "filled_min": 0.8
+ },
+ "luat": {
+  "cau": {
+   "trong_min": 0.9,
+   "to_min": 0.5,
+   "ro_min": 0.6
+  },
+  "bubble": {
+   "trong_min": 0.9,
+   "to_min": 0.7,
+   "ro_min_ld_anh": 0.7
+  },
+  "can_cu": {
+   "cau": {
+    "p_trong_max_o_co_to": 0.4412,
+    "p_to_max_o_trong": 0.0572,
+    "p_to_min_o_co_to": 0.5588,
+    "luoi_ro_min": {
+     "0.5": {
+      "cau": 2240,
+      "nang": 0,
+      "nhe": 6,
+      "thua": 23,
+      "ro_that": 1468,
+      "can_xem": 563
+     },
+     "0.6": {
+      "cau": 2240,
+      "nang": 0,
+      "nhe": 5,
+      "thua": 33,
+      "ro_that": 1468,
+      "can_xem": 574
+     },
+     "0.7": {
+      "cau": 2240,
+      "nang": 0,
+      "nhe": 4,
+      "thua": 47,
+      "ro_that": 1468,
+      "can_xem": 589
+     },
+     "0.8": {
+      "cau": 2240,
+      "nang": 0,
+      "nhe": 3,
+      "thua": 66,
+      "ro_that": 1468,
+      "can_xem": 609
+     },
+     "0.9": {
+      "cau": 2240,
+      "nang": 0,
+      "nhe": 1,
+      "thua": 97,
+      "ro_that": 1468,
+      "can_xem": 642
+     }
+    }
+   },
+   "bubble": {
+    "p_trong_max_o_co_to": 0.1676,
+    "p_to_max_o_trong": 0.0031,
+    "p_to_min_o_co_to": 0.8324,
+    "ld_anh_min_bubble_to": 0.7981
+   }
+  },
+  "quy_tac": "trong_min/to_min chốt trước, kiểm biên ≥ 0,20 so với ca xấu nhất OOF; ro_min = lớn nhất trong {0,5..0,9} có cần xem thừa ≤ 2,5% và 0 lỗi nặng (OOF M1, train 0001–0028)"
+ },
+ "sieu_du_lieu": {
+  "ngay": "2026-10-07",
+  "git_head": "d0c9574",
+  "git_chua_commit": [
+   "smart_exam_db/cv_engine/omr.py",
+   "smart_exam_db/tools/huan_luyen_omr.py"
+  ],
+  "nguon_anh": "anh_nan",
+  "tap_huan_luyen": "train 0001–0028 (data/split.csv)",
+  "fold_huan_luyen": [],
+  "sha256_dac_trung": "e0e8078b6774439a9419a068495b6dec1b8498ecc14e45bae61cf0a7a8581420",
+  "sha256_cell_labels": "cb349e2ad501e93650b2faa0dfd14ceed009ea174e14e7ca53541ab8c6cd0831",
+  "sha256_split": "a681aa0b2f5c39d4efd24585baad7f3b337db7cfb97ae016aac463d30e325773",
+  "sklearn": "1.9.1",
+  "C_logistic": 1.0,
+  "class_weight": "balanced",
+  "ghi_chu": "M0 không học – ngưỡng audit Tuần 4"
+ }
+}
