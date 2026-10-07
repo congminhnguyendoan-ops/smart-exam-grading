@@ -55,3 +55,29 @@ Mã: `backend/grading.py` (chấm thuần), `backend/service.py` (dịch vụ + 
   xoá / sửa): exams 1→2, exam_codes 2→6, answer_keys 20→180, students 10→38, exam_students 9→37.
 - **Quan sát** (thử trong giao dịch rollback): phần lớn ảnh dev có câu cần xem (bộ dữ liệu cố ý nhiều ô mờ / nhiều ô – rủi ro R7), vd
   0002_C2 10 câu cần xem; 0001 SBD `06238?` → cần xem SBD. Phiếu "sạch" hiếm ⇒ demo chủ yếu đi qua luồng giáo viên.
+
+## B3 – API FastAPI (07/10/2026)
+Mã: `backend/main.py` (endpoint mỏng), `backend/schemas.py` (hợp đồng pydantic, hiện trong Swagger). Chạy: `uvicorn backend.main:app --port 8000`
+(từ `smart_exam_db/`) → Swagger `http://127.0.0.1:8000/docs`, ReDoc `/redoc`, OpenAPI `/openapi.json`. Đã chạy thử server thật (đọc: `/health`,
+`/exams`, `/docs`, `/openapi.json`; 422 khi gửi sai). Mỗi yêu cầu một kết nối + một giao dịch (`get_conn`: commit / rollback; có test
+`test_get_conn_rollback_khi_loi`).
+
+| Endpoint | Việc |
+|---|---|
+| `GET /health` | sống + nối được CSDL + phiên bản mô hình OMR (503 nếu mất CSDL) |
+| `POST /exams` · `GET /exams` · `GET /exams/{id}` | tạo kỳ thi + mã đề + đáp án (chuỗi `ABCD…`), liệt kê, xem (kèm đáp án, số phiếu theo trạng thái) |
+| `POST /exams/{id}/sheets` | tải MỘT ảnh, chấm ngay (ảnh bị từ chối vẫn 201, `status=rejected` + `reject_code` + thông báo) |
+| `POST /exams/{id}/sheets/batch` | tải NHIỀU ảnh (một lô, `scan_batches`); lỗi một ảnh không kéo cả lô |
+| `GET /exams/{id}/sheets?status=` · `GET /sheets/{id}` | danh sách phiếu; kết quả một phiếu (điểm chính thức / tạm / tối đa, từng câu, SBD, mã đề, review) |
+| `GET /sheets/{id}/review-questions` · `GET /exams/{id}/review-questions` | câu "cần xem" còn chờ (máy đọc, lý do, xác suất từng ô) |
+| `POST /sheets/{id}/questions/{n}/review` | giáo viên xác nhận (`confirm`) / sửa (`set`) MỘT câu → tính lại; hết mục cần xem thì chốt `results` |
+| `PUT /sheets/{id}/identity` | giáo viên chốt SBD / mã đề (khi cột cần xem hoặc không khớp danh sách) |
+| `GET /sheets/{id}/image?kind=original\|aligned` · `GET /sheets/{id}/questions/{n}/image` | ảnh phiếu; ảnh cắt hàng câu để giáo viên xem |
+
+- Không có đăng nhập (nợ): người dùng = `DEMO_USER` hoặc header `X-User`.
+- **pytest `tests/test_backend_api.py` (29)**: CSDL thật trong giao dịch ROLLBACK + thư mục ảnh tạm (`conftest.py`: `conn_thu`, `client`; fixture
+  kiểm số dòng 12 bảng trước = sau). Phủ: tạo / xem đề + 8 trường hợp sai; ảnh hỏng → `khong_doc_duoc` / `thieu_marker` / ảnh giả mờ,
+  không có điểm, không review được; phiếu thật 0002_C2: chưa có điểm chính thức + câu cần xem `is_correct = NULL` + điểm tạm ≤ tối
+  đa → sửa 1 câu → xử lý hết → `graded` + `confirmed` + audit; tải lại cùng ảnh; `confirm` bị từ chối cho câu vị trí; yêu cầu sai;
+  0001_C1 SBD `06238?` → giáo viên chốt SBD → chốt; SBD không có trong danh sách; trùng SBD (phiếu thứ hai vào review, không ghi đè);
+  lô nhiều ảnh có ảnh hỏng; kỳ thi 10 câu; ảnh không thoát thư mục lưu trữ; migration chạy lại; thiếu `.env` báo lỗi rõ.

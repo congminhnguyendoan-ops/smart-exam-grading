@@ -450,7 +450,7 @@ def xem_phieu(conn, sheet_id: int) -> dict:
                        (sheet_id,)).fetchone()
     sv = conn.execute("SELECT student_id, student_code, full_name FROM students WHERE student_id = %s",
                       (sh["matched_student_id"],)).fetchone() if sh["matched_student_id"] else None
-    rv = conn.execute("SELECT review_id, reasons, status, priority, details FROM review_queue WHERE sheet_id = %s "
+    rv = conn.execute("SELECT review_id, reasons::text[] AS reasons, status::text AS status, priority, details FROM review_queue WHERE sheet_id = %s "
                       "ORDER BY review_id DESC LIMIT 1", (sheet_id,)).fetchone()
     code = conn.execute("SELECT code FROM exam_codes WHERE exam_code_id = %s", (sh["exam_code_id"],)).fetchone() if sh["exam_code_id"] else None
     det = sh["omr_detail"] or {}
