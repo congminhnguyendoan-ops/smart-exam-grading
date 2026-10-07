@@ -1,0 +1,43 @@
+"""
+config.py - Cấu hình backend đọc từ biến môi trường / file .env (smart_exam_db/.env, KHÔNG vào git).
+
+Biến môi trường đã đặt sẵn luôn thắng giá trị trong .env. Không có mật khẩu mặc định trong code: thiếu DATABASE_URL thì báo lỗi rõ.
+Mẫu: .env.example.
+"""
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).resolve().parent.parent            # smart_exam_db/
+load_dotenv(ROOT / ".env", override=False)
+
+
+class LoiCauHinh(Exception):
+    """Thiếu / sai cấu hình (vd chưa có .env)."""
+
+
+@dataclass(frozen=True)
+class CauHinh:
+    database_url: str
+    storage_dir: Path          # ảnh phiếu lưu trên đĩa, CSDL chỉ giữ đường dẫn tương đối so với thư mục này
+    mo_hinh_omr: Path
+    nguoi_dung_demo: str       # username tạm thay cho đăng nhập (nợ kỹ thuật: auth ở Tuần 7–8)
+    gioi_han_anh_mb: int
+
+
+def lay_cau_hinh() -> CauHinh:
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if not url:
+        raise LoiCauHinh("Chưa đặt DATABASE_URL. Sao chép .env.example thành .env (trong smart_exam_db/) "
+                         "rồi điền thông tin kết nối.")
+    kho = Path(os.environ.get("STORAGE_DIR", "storage"))
+    mo_hinh = Path(os.environ.get("OMR_MODEL", "models/omr_m1.json"))
+    return CauHinh(
+        database_url=url,
+        storage_dir=kho if kho.is_absolute() else ROOT / kho,
+        mo_hinh_omr=mo_hinh if mo_hinh.is_absolute() else ROOT / mo_hinh,
+        nguoi_dung_demo=os.environ.get("DEMO_USER", "gv_an"),
+        gioi_han_anh_mb=int(os.environ.get("MAX_UPLOAD_MB", "25")),
+    )

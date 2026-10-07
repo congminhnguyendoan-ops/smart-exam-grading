@@ -1,15 +1,17 @@
 """
 Kiểm tra kết nối Python -> PostgreSQL và gọi thử fn_process_sheet.
-Cài đặt:  pip install "psycopg[binary]" python-dotenv
-Chạy:     python tools/db_check.py
+Cài đặt:  pip install "psycopg[binary]" python-dotenv   (và có smart_exam_db/.env – xem .env.example)
+Chạy:     python tools/db_check.py  (từ smart_exam_db/)
 """
-import os
+import sys
+from pathlib import Path
+
 import psycopg
 
-DSN = os.getenv(
-    "DATABASE_URL",
-    "postgresql://smart_exam_app:smartexam123@localhost:5432/smart_exam",
-)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from backend.config import lay_cau_hinh  # noqa: E402  (đọc DATABASE_URL từ biến môi trường / .env – không còn mật khẩu trong code)
+
+DSN = lay_cau_hinh().database_url
 
 
 def main():
