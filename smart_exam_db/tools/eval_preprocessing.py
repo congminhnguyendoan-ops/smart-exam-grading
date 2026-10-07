@@ -151,8 +151,29 @@ def v4_verify(duong_dan: Path, loai: str | None = None):
     return (kq.anh_nan if kq.ok else None), kq.ly_do, ct
 
 
+def kiem_chuan_hoa(kq, ten) -> None:
+    """Bước 5: ok ⇔ có anh_chuan_hoa uint8 cùng cỡ anh_nan (sai -> dừng hẳn, không ghi số đo lẫn lộn)."""
+    if kq.ok != (kq.anh_chuan_hoa is not None):
+        sys.exit(f"{ten}: ok={kq.ok} nhưng anh_chuan_hoa {'thiếu' if kq.ok else 'có'}")
+    if kq.ok and (kq.anh_chuan_hoa.dtype != np.uint8 or kq.anh_chuan_hoa.shape != kq.anh_nan.shape):
+        sys.exit(f"{ten}: anh_chuan_hoa {kq.anh_chuan_hoa.dtype} {kq.anh_chuan_hoa.shape} – phải uint8 {kq.anh_nan.shape}")
+
+
+def v5_chuan_hoa(duong_dan: Path, loai: str | None = None):
+    """Bước 5: preprocess() như v4 + điền anh_chuan_hoa khi ok. Eval vị trí chấm anh_nan (phải giống v4 từng điểm ảnh:
+    tools/kiem_chuan_hoa.py so-anh-nan); tác dụng của chuẩn hoá đo riêng bằng kiem_chuan_hoa.py khao-sat / so-sanh."""
+    loai = loai or ("chu_so" if Path(duong_dan).stem.startswith("D") else "phieu")
+    kq = preprocess(duong_dan, nap_layout_loai(loai))
+    kiem_chuan_hoa(kq, Path(duong_dan).stem)
+    ct = {"marker": kq.marker, "ung_vien": kq.chi_tiet.get("ung_vien", []), "so_bo_dat": kq.chi_tiet.get("so_bo_dat", ""),
+          "huong_xoay": kq.huong_xoay if kq.huong_xoay is not None else "",
+          **{k: kq.chi_tiet[k] for k in V4_COT if k in kq.chi_tiet}}
+    return (kq.anh_nan if kq.ok else None), kq.ly_do, ct
+
+
 V4_COT = ["S0", "S180", "bien_chieu", "blur_score", "loi_marker"]
-PHUONG_PHAP = {"align_cu": align_cu, "v2_load": v2_load, "v3_hinh_hoc": v3_hinh_hoc, "v4_verify": v4_verify}
+PHUONG_PHAP = {"align_cu": align_cu, "v2_load": v2_load, "v3_hinh_hoc": v3_hinh_hoc, "v4_verify": v4_verify,
+               "v5_chuan_hoa": v5_chuan_hoa}
 
 
 def huong_tu_marker(m) -> int:
@@ -1053,6 +1074,8 @@ def cmd_run_gia(a) -> None:
         t0 = time.perf_counter()
         kq = preprocess(GIA_DIR / f"{d['ten']}.jpg", nap_layout_loai(d["layout"]))
         giay = time.perf_counter() - t0
+        if a.phuong_phap != "v4_verify":
+            kiem_chuan_hoa(kq, d["ten"])
         chap_nhan = set()
         for m in filter(None, d["ly_do_mong_doi"].split("|")):
             chap_nhan |= NHOM_MA.get(m, {m})
@@ -1149,7 +1172,7 @@ def main() -> None:
             t.add_argument("--so-voi", choices=sorted(PHUONG_PHAP), default=None,
                            help="liệt kê ảnh đổi phân loại so với phương pháp này")
     t = sub.add_parser("run-gia", help="chấm preprocess() trên ảnh giả lỗi cố ý (data/_eval/_gia_v4) theo kết quả mong đợi")
-    t.add_argument("--phuong-phap", default="v4_verify", choices=["v4_verify"])
+    t.add_argument("--phuong-phap", default="v5_chuan_hoa", choices=["v4_verify", "v5_chuan_hoa"])
     a = ap.parse_args()
     {"run": cmd_run, "tu-kiem": cmd_tu_kiem, "dung-sai": cmd_dung_sai, "tam-marker": cmd_tam_marker,
      "finalize": cmd_finalize, "report": cmd_report, "run-gia": cmd_run_gia}[a.lenh](a)

@@ -304,6 +304,13 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       4 "sai mã, đã biết" (mờ chéo / mờ + nhiễu bị chặn bởi `khong_khop_bo_cuc` thay vì `anh_mo`). Hồi quy align_cu/v2/v3
       giống từng byte. Chi tiết + bảng: `docs/ke_hoach_tuan4.md` Bước 4. Ảnh nghiêng hơn K2 0,50 bị từ chối → đưa vào
       "Hướng dẫn chụp cho giáo viên" (Bước 7/báo cáo).
+      **Bước 5 xong 07/10/2026** (`v5_chuan_hoa`): `normalize()` = chia nền ước lượng (`uoc_luong_nen`, cửa sổ ≈ 15 mm,
+      `CACH_MAC_DINH = "chia_nen_20"`, chọn trong 12 cấu hình bằng 3 cổng + maximin AUC – `tools/kiem_chuan_hoa.py so-sanh`);
+      `preprocess` điền `anh_chuan_hoa` khi ok, `anh_nan` giữ nguyên (78/78 giống vân tay v4 từng byte; eval, ảnh giả, hồi quy
+      v2/v3/v4 giống từng byte). Bóng trung vị C1 0,24→0,04 · C2 0,57→0,10 · C3 0,14→0,06 · C4 0,28→0,05; faint/blank đặc trưng
+      tuyệt đối: maximin AUC 0,994→0,999, p1−p99 âm→dương (C4: CI chạm 0); `local_darkness` 0 hàng lật. Giới hạn: mép bóng sắc
+      (0032_C4 câu 21–30) hiệu theo hàng giảm tới −0,044; cửa sổ ở biên lưới. `preprocess` 523 → 578 ms trung vị.
+      Chi tiết: `docs/ke_hoach_tuan4.md` Bước 5.
 - [ ] Tuần 5: OMR classifier + `split.csv`. Tuần 6: CNN chữ số + fine-tune.
       **Yêu cầu Tuần 6 (06/10/2026): đo độ chính xác CNN theo mức mờ (dùng ảnh giả `data/_eval/_gia_v4`, tái tạo bằng
       `tools/kiem_verify.py tao-gia`), rồi chỉnh lại ngưỡng `anh_mo` theo hậu quả.** Ngưỡng hiện tại `MO_MIN = 0,012`
@@ -313,6 +320,10 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       **Giới hạn đã biết**: `mo_huong` chỉ xét trục x/y; mờ chéo 45° và mờ có nhiễu lọt qua `anh_mo`, hiện bị chặn bởi
       `khong_khop_bo_cuc` (sai mã, vẫn an toàn). **Tuần 6: đo blur 4 hướng + trừ nhiễu, chọn lại ngưỡng `anh_mo` cùng lúc
       với đo CNN theo mức mờ** (gỡ `SAI_MA_DA_BIET` trong `tools/eval_preprocessing.py` khi sửa xong).
+      **Yêu cầu Tuần 6 (07/10/2026): thử CNN chữ số trên cả `anh_nan` và `anh_chuan_hoa`** của trang chữ số – chuẩn hoá giảm
+      nhẹ nét/nhiễu (50,1 → 48,1) và tăng chênh mức nét giữa trang (29,7 → 32,9) (`docs/ke_hoach_tuan4.md` Bước 5).
+      **Yêu cầu Tuần 5 (07/10/2026): chọn `anh_nan` hay `anh_chuan_hoa` để train OMR bằng thí nghiệm F1 lớp `faint` theo
+      C1–C4** (chuẩn hoá giúp đặc trưng tuyệt đối, nhưng ở mép bóng sắc 0032_C4 làm hiệu theo hàng giảm tới −0,044).
       **Yêu cầu Tuần 5 (06/10/2026): OMR bắt buộc dò lại từng hàng cho ảnh nghiêng mạnh** – sau khi nắn bằng 4 marker
       (đúng ±0,06 mm ở marker), nội dung ảnh C3 vẫn lệch TB +0,84 mm (0,37–1,30) ở giữa trang; ảnh giả C3 chỉ 0,1 mm ⇒ lệch
       thật (giấy/ống kính), homography 4 điểm không sửa được (`docs/ke_hoach_tuan4.md` 3c dừng B).

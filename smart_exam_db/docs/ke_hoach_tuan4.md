@@ -543,6 +543,105 @@ Báo cáo luôn tách theo điều kiện chụp **C1–C4**.
   không đổi.
 - **Xong khi**: nền đồng đều hơn ở mọi điều kiện; độ tách `faint`/`blank` **không giảm** ở điều kiện nào;
   kết quả eval giống hệt Bước 4.
+- **Kế hoạch chi tiết (người dùng duyệt 07/10/2026)**:
+  - **Ranh giới normalize / eval**: `normalize(anh_nan, layout, cach=...)` chỉ dùng `anh_nan` + `layout` (M2 dùng vị trí
+    marker từ layout – chấp nhận). Mặt nạ giấy trắng (PDF render), nhãn `cell_labels.csv`, dò lệch ±4 mm **chỉ trong eval**
+    (`tools/kiem_chuan_hoa.py`). `preprocess` điền `anh_chuan_hoa` chỉ khi `ok`, sau `verify`; `anh_nan`/`ok`/`ly_do` không đổi.
+  - **Cách thử** (giữ cả cách thua trong `cach=` để số khảo sát tái tạo được, như `blur_score`): `khong` (đối chứng) ·
+    M1 `chia_nen` (`uoc_luong_nen` cửa sổ 8/12/20, × 240) · M2 `chia_nen_keo` (M1 + điểm đen = lõi 4 marker, trung vị / min)
+    · M3 `clahe` (clip 1,5/2/3 × lưới 8/16). Độ phức tạp: `khong` < M1 < M2 < M3.
+  - **Đo**: a – nền giấy (bóng = (p95 − p5) trung vị ô lưới 10×14 / p50 – **quyết định**; dàn; std/p50; nhiễu hạt; mức giấy
+    + mực marker giữa các ảnh); b – độ tách theo nhãn, độ dịch ±4 mm dò **một lần trên `anh_nan`** rồi dùng lại; hai đặc trưng:
+    `local_darkness` (OMR hiện tại, gần như bất biến với bóng) và **tuyệt đối 1 − lõi/255** (nơi chuẩn hoá phải có lợi);
+    theo hàng (hiệu thô + **tương đối** = hiệu / (trung vị filled − trung vị blank của ảnh), không phụ thuộc phép kéo dãn
+    tuyến tính) và gộp theo điều kiện (AUC, p1 − p99) kèm **CI 95% bootstrap theo ảnh, 1000 lần, seed 2026**; báo **cỡ mẫu**;
+    c – trang D: tương phản nét, nét/nhiễu, mức nét giữa trang; d – thời gian.
+  - **Cổng (chặt)**: (1) faint/blank và filled/blank: số hàng tách theo `local_darkness` không giảm ở C1–C4 – một hàng lật là
+    trượt. Hàng lật mà hiệu đổi cỡ làm tròn uint8 vẫn ghi **trượt**, đánh dấu **"ca biên"** kèm hiệu trước/sau, người dùng
+    quyết (không tự nới); (2) bóng giảm ở mọi C1–C4 và D; (3) gộp tuyệt đối faint/blank không giảm ở điều kiện nào.
+    **Xếp hạng**: maximin theo điều kiện của AUC tuyệt đối faint/blank; chênh nhỏ hơn CI = **hoà** → chọn cách đơn giản hơn /
+    ít khuếch đại nhiễu C2 hơn, rồi nhanh hơn. Không cách nào qua cổng → báo trung thực, người dùng quyết.
+  - **Không đổi `anh_nan`**: vân tay SHA-256 `anh_nan` v4 ghi **trước** khi sửa `preprocessing.py`; `so_pixel_dev.csv` của
+    v5 so với vân tay đó → `finalize --ke-thua v4_verify`.
+  - **Dừng**: A – vân tay, mặt nạ giấy (xem bằng mắt), tự kiểm, số "trước" của `anh_nan`; B – khảo sát 11 cấu hình, người
+    dùng chọn; C – vào `preprocess`, eval `v5_chuan_hoa`, `run-gia`, hồi quy từng byte; D – tài liệu + commit.
+- **Dừng A (07/10/2026) – chờ người dùng xem mặt nạ**:
+  - **Vân tay** `data/_eval/v4_verify/anh_nan_sha256.csv`: 78 ảnh dev, ok 78/78, HEAD `7fb691c`, `preprocessing.py` sạch
+    (lệnh tự chặn nếu đã sửa / đã có file). Chạy lại 5 ảnh (0001_C1, 0006_C2, 0015_C3, 0032_C4, D006) → SHA trùng (tất định).
+  - **Mặt nạ giấy** (`kiem_chuan_hoa.py mat-na` → `data/_eval/v5_chuan_hoa/xem_mat_na.html`): phiếu 18,0% trang, trang D 9,3%.
+    Trang mẫu render ra 2481 px rộng (PyMuPDF làm tròn) → cắt về `page_px` 2480. Trang D: khe giữa các ô viết chỉ 2 mm nên
+    giấy đo được chỉ ở lề + dải tiêu đề → bóng trang D đo trên **44** ô lưới (phiếu 103) – bóng giữa lưới ô viết không đo được.
+  - **Tự kiểm** (`tu-kiem`) ĐẠT: (1) đo hai lần cùng ảnh → Δ = 0 tuyệt đối; (2) gradient 0,6→1,0 chéo. **Lần đầu chỉ một hướng
+    (TL→BR) và KHÔNG ĐẠT**: ảnh C1 vốn có bóng 0,23–0,26 (ô lưới 158–224) ngược chiều nên gradient bù trừ (0,258 → 0,252) –
+    lỗi thiết kế ca thử, không phải phép đo. Sửa: thử 4 hướng chéo. Hướng cùng chiều bóng sẵn có: bóng ×1,85–2,08; bản thử chia
+    nền đưa mọi hướng về ×0,93–1,07 của (gốc + chia nền); `local_darkness` |Δ| ≤ 0,0065, 0 hàng lật. **Sàn làm tròn**: chỉ
+    nhân gradient + làm tròn uint8 đã đổi hiệu tương đối theo hàng tới **±0,012** – tham chiếu cho "ca biên".
+  - **Số "trước" (`anh_nan`, `khao-sat --cach khong`, `tom_tat_khong.md`)**: xem bảng trong báo cáo dừng A. Tóm tắt: bóng trung
+    vị C1 0,241 / C2 **0,573** (max 0,824 – 0010_C2) / C3 0,143 / C4 0,281 / D 0,184. Mức giấy giữa các ảnh 168–221, mực marker
+    8–62. Cỡ mẫu faint: C1 107 / C2 114 / C3 110 / C4 103 ô (mọi ảnh dev đều có faint). `local_darkness`: 100% hàng tách, AUC
+    1,000 mọi điều kiện; **tuyệt đối**: AUC 0,994–0,998, p1(faint) − p99(blank) **âm** mọi điều kiện (C2 −0,103) ⇒ đặc trưng
+    tuyệt đối là nơi chuẩn hoá có thể có lợi. Hàng faint khó nhất: 0019_C3 câu 30 (tương đối 0,196). Filled/blank tuyệt đối
+    yếu nhất: 0028_C4 sbd6 (tương đối 0,084). Trang D: mức nét 24–103 giữa trang (khác bút: chì/bi – chuẩn hoá không nên ép
+    về một mức).
+  - **Người dùng duyệt dừng A (07/10/2026)**: đã xem bằng mắt mặt nạ 5 ảnh (0001_C1, 0005_C2, 0015_C3, 0032_C4, D003) – vùng
+    xanh tránh chữ in, ô, chữ viết tay, viền, marker: **ổn**. Ghi nhận:
+    - **Giới hạn đã biết**: trang D chỉ đo được bóng ở lề (9,3% trang, 44 ô lưới); bóng giữa vùng ô viết không đo được.
+    - **Ngưỡng "ca biên" của cổng 1 = |thay đổi hiệu tương đối| ≤ 0,012** (dao động do làm tròn uint8 đo ở tự kiểm).
+    - **Ca thử gradient**: sửa ca thử THIẾT KẾ SAI, có bằng chứng (bóng sẵn có của ảnh C1 ngược chiều gradient TL→BR,
+      0,258 → 0,252), không phải nới tiêu chí.
+    - **Kết luận dừng A**: `local_darkness` đã tách faint ở 100% hàng mọi điều kiện ⇒ chuẩn hoá chỉ có thể có ích cho đặc
+      trưng tuyệt đối. Nếu ở dừng B không cấu hình nào qua cổng, hoặc lợi ích nằm trong khoảng tin cậy, kết luận hợp lệ là
+      **chọn cấu hình đơn giản nhất không hại (kể cả `khong`)** – không cố tìm thêm cách.
+- **Dừng B (07/10/2026) – chờ người dùng chọn**. `preprocessing.py`: `normalize(anh_nan, layout, cach)` + `CACH_CHUAN_HOA`
+  (12 cấu hình gồm `khong`), **chưa được `preprocess` gọi** (anh_nan không đổi). Lệnh: `kiem_chuan_hoa.py khao-sat` (224 s, 78
+  ảnh × 12) → `so-sanh` (`so_sanh.md` / `.json`) → `xem-b` (`xem_b.html`). Bootstrap **ghép cặp**: cùng chỉ số ảnh rút cho mọi
+  cấu hình (seed 2026, 1000 lần) ⇒ CI là của **hiệu** giữa hai cấu hình. Đối chứng: `tom_tat_khong.md` trùng dừng A trừ dòng
+  thời gian (`khong` giờ trả bản sao, 1,4 ms).
+  | Cấu hình | Cổng 1 | Cổng 2 bóng | Cổng 3 | Maximin AUC faint tuyệt đối | Nhiễu C2 | ms TV |
+  |---|---|---|---|---|---|---|
+  | `khong` | đạt | đối chứng | đạt | 0,9938 (C2) | ×1,00 | 1 |
+  | `chia_nen_8` / `_12` | đạt | đạt | **trượt** (C4: AUC −0,0005 / khoảng −0,020 – trong CI) | 0,9973 / 0,9982 | ×1,09 / ×1,11 | 76 / 68 |
+  | **`chia_nen_20`** | đạt | đạt | **đạt** | **0,9992** (C4) | ×1,11 | 66 |
+  | `chia_nen_keo_tv` / `_min` | đạt | đạt | trượt (C4 khoảng −0,009 – trong CI) | 0,9990 / 0,9987 | ×1,34 / ×1,14 | 87 / 86 |
+  | `clahe_*` (6) | đạt | **trượt** (C3 bóng tăng; 13–35 ảnh bóng tăng) | đạt | 0,9989–0,9998 | **×2,2–3,9** | 6–7 |
+  - Cổng 1: **0 hàng lật ở cả 12 cấu hình** (không có ca biên). Giảm lớn nhất hiệu tương đối theo hàng (kể cả trong sai số):
+    `chia_nen_20` faint −0,044 (0032_C4 câu 30), filled −0,037 (0032_C4 câu 28), 37 hàng filled + 3 faint giảm quá 0,012 – đều
+    ở **mép bóng sắc** của 0032_C4 (cửa sổ nền nhỏ bám mép bóng chưa hết, xem ảnh: còn dải mảnh dọc mép bóng). CLAHE: filled
+    giảm tới −0,47, 826–1 079 hàng giảm quá biên (bão hoà ô tô đậm).
+  - **Đề xuất theo luật đã chốt: `chia_nen_20`** – qua cả 3 cổng, maximin tốt nhất trong nhóm qua cổng; hơn `khong` có ý nghĩa
+    (CI ghép cặp của Δ maximin [+0,002; +0,012] không chứa 0). Bóng trung vị C1 0,241→0,044 · C2 0,573→0,100 · C3 0,143→0,061 ·
+    C4 0,280→0,049 · D 0,184→0,073 (0032_C4 0,347→0,132; 0 ảnh bóng tăng); khoảng p1(faint) − p99(blank) tuyệt đối từ âm sang
+    **dương ở mọi điều kiện** (C2 −0,103→+0,059; C4 CI của Δ [−0,006; +0,108] chạm 0). Giá: nhiễu C2 ×1,11, 66 ms/ảnh.
+    Trang D: tương phản nét không đổi (0,626), nét/nhiễu 50,1→48,1, std mức nét giữa trang 29,7→32,9.
+  - **Lưu ý**: cửa sổ 20 (≈ 15 mm) nằm ở **biên lưới tham số** (8/12/20) – theo kết luận dừng A, không thử thêm cửa sổ nhỏ hơn.
+- **Người dùng duyệt dừng B (07/10/2026): chọn `chia_nen_20`** (đã xem `xem_b.html` bằng mắt: ô faint vẫn rõ, bóng giảm, không
+  có quầng / viền lạ đáng kể). Giới hạn đã biết (ghi cả trong docstring `CACH_MAC_DINH`):
+  - **Mép bóng sắc** (0032_C4 câu 21–30) còn dải mảnh; hiệu theo hàng giảm tới −0,044 (faint) / −0,037 (filled), **không hàng
+    nào lật**. `anh_nan` vẫn giữ; **Tuần 5 chọn `anh_nan` / `anh_chuan_hoa` bằng thí nghiệm F1 lớp faint**.
+  - **Cửa sổ 20 (≈ 15 mm) ở biên lưới đã thử**; không thử nhỏ hơn vì gần cỡ ô Ø5 mm – nguy cơ ước lượng nền "ăn" vào ô tô,
+    xoá mất faint (kết luận dừng A: không cố tối ưu thêm).
+  - **Lợi ích p1(faint) − p99(blank) ở C4 có CI chạm 0** ([−0,006; +0,108]) – chưa chắc chắn ở điều kiện đèn vàng.
+  - **Trang D**: nét/nhiễu 50,1 → 48,1, chênh mức nét giữa trang 29,7 → 32,9 ⇒ **Tuần 6 thử CNN trên cả `anh_nan` và
+    `anh_chuan_hoa`** (CLAUDE.md mục 7).
+- **Dừng C (07/10/2026)**: `CACH_MAC_DINH = "chia_nen_20"`; `preprocess` điền `anh_chuan_hoa = normalize(anh_nan, layout)`
+  **chỉ khi ok, sau verify**. Eval: phương pháp `v5_chuan_hoa` (hàm bọc kiểm ok ⇔ có `anh_chuan_hoa` uint8 cùng cỡ; `run-gia`
+  nhận `--phuong-phap v5_chuan_hoa`, mặc định). Kết quả:
+  - `kiem_chuan_hoa.py so-anh-nan`: **78/78 `anh_nan` giống vân tay v4 từng byte** (kèm `ok`, `ly_do`) → `so_pixel_dev.csv`.
+  - `run v5_chuan_hoa` → `finalize --ke-thua v4_verify` **đạt** (78 ảnh giống từng điểm ảnh, mọi số đo phép 2/3 trùng khớp;
+    nguồn 71 `tu_dong` + 7 `mat_v4_verify`) → `report --so-voi v4_verify`: **78/78 đúng, 0 lỗi im lặng, 0 từ chối, 0 ảnh đổi
+    phân loại**. `diem_dev.csv` (trừ `giay`, `phuong_phap`), `o_luoi_dev.csv` (từng byte), `truth_dev.csv` (trừ `phuong_phap`,
+    `nguon`) giống v4.
+  - `run-gia --phuong-phap v5_chuan_hoa` (111 ảnh): 45 `dung` + 62 `tu_choi_dung` + 4 `sai_ma_da_biet`, 0 lỗi im lặng – `gia.csv`
+    **giống v4 từng giá trị trừ cột `giay`**.
+  - **Hồi quy** (chạy lại `run` + `finalize` cho `v2_load --ke-thua align_cu`, `v3_hinh_hoc`, `v4_verify`; so với bản sao lưu
+    trước dừng C): `truth_dev.csv`, `o_luoi_dev.csv`, `xem_bang_mat.csv` của `align_cu`/`v2_load`/`v3_hinh_hoc`/`v4_verify` **giống
+    từng byte**; `diem_dev.csv` v2/v3/v4 chỉ khác cột `giay`.
+  - **Thời gian** `preprocess` (gồm đọc file, `diem_dev.csv`): v4 (Bước 4) trung vị 523 ms / max 561 ms → v5 **578 / 644 ms**;
+    riêng `normalize` (khảo sát) 66 / 75 ms.
+  - **Đối chiếu "Xong khi"**: nền đồng đều hơn ở mọi điều kiện – **đạt** (bóng C1–C4, D đều giảm; 0 ảnh tăng; trang D chỉ đo
+    được ở lề) · độ tách faint/blank không giảm ở điều kiện nào – **đạt theo cổng đã chốt** (0 hàng lật; gộp tuyệt đối không
+    giảm; giảm theo hàng nhỏ nhất −0,044 ở mép bóng 0032_C4, ghi trung thực) · eval giống hệt Bước 4 – **đạt** (từng byte).
+  ⇒ **BƯỚC 5 XONG.**
 
 ### Bước 6 – API + thay `align()` trong các công cụ
 - **Việc**: API gọn `preprocess(path) -> kết quả`, docstring tiếng Việt; thay `align()` trong `check_photos.py`

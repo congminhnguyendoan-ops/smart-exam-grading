@@ -8,8 +8,8 @@ Tiến độ:
     Bước 2  load_image()                         – xong
     Bước 3b tim_ung_vien_marker()                – lọc + xếp hạng ứng viên marker
     Bước 3c find_markers()  (chọn 4 marker theo hình học) – xong
-    Bước 4  warp(), verify(), preprocess() (chiều phiếu bằng nội dung, từ chối có lý do) – dừng C
-    Bước 5  normalize()     (khử bóng / cân bằng sáng)
+    Bước 4  warp(), verify(), preprocess() (chiều phiếu bằng nội dung, từ chối có lý do) – xong
+    Bước 5  normalize()     (khử bóng / cân bằng sáng: chia nền, cửa sổ ≈ 15 mm) – xong
     Bước 6  preprocess()    (API cho backend + thay align() trong các công cụ)
 
 Quy tắc: file này KHÔNG import phép kiểm tra 2/3 của tools/eval_preprocessing.py (nếu dùng chung, lỗi của
@@ -46,7 +46,7 @@ class KetQuaTienXuLy:
     ok: bool = False
     ly_do: str = ""
     anh_nan: np.ndarray | None = None           # xám, đã nắn, chưa chuẩn hoá (Bước 3–4)
-    anh_chuan_hoa: np.ndarray | None = None     # Bước 5
+    anh_chuan_hoa: np.ndarray | None = None     # Bước 5: normalize(anh_nan) – uint8 cùng cỡ, chỉ điền khi ok
     marker: np.ndarray | None = None            # 4×2 float32: tâm TL, TR, BR, BL trên ảnh gốc, dưới pixel (Bước 3)
     huong_xoay: int | None = None               # 0 / 90 / 180 / 270 (Bước 4)
     blur_score: float | None = None
@@ -592,14 +592,62 @@ def huong_xoay(marker: np.ndarray) -> int:
     return int(round(np.degrees(np.arctan2(dy, dx)) / 90.0)) % 4 * 90
 
 
-def normalize(anh_nan: np.ndarray) -> np.ndarray:
-    """Bước 5: khử bóng / cân bằng sáng."""
-    raise NotImplementedError("Bước 5")
+GIAY_DICH = 240             # chia nền: giấy -> 240 (chừa chỗ cho điểm sáng hơn nền ước lượng, không cắt cụt ở 255)
+LOI_MARKER_MM_CH = 3.0      # nửa cạnh lõi marker (mm) – điểm đen của chia_nen_keo (cùng lõi 6×6 mm với den_loi_marker)
+# Các cách chuẩn hoá được so ở Bước 5 dừng B (tools/kiem_chuan_hoa.py khao-sat). Giữ cả cách thua để số khảo sát tái tạo
+# được. Mọi cách chỉ dùng anh_nan + layout (M2: vị trí marker) – không nhãn, không PDF render, không phép 2/3 của eval.
+CACH_CHUAN_HOA = {
+    "khong": ("khong", {}),
+    "chia_nen_8": ("chia_nen", {"cua_so": 8}),          # cửa sổ nền ≈ 37 mm trên anh_nan
+    "chia_nen_12": ("chia_nen", {"cua_so": 12}),        # ≈ 25 mm (= cửa sổ của find_markers trên ảnh gốc)
+    "chia_nen_20": ("chia_nen", {"cua_so": 20}),        # ≈ 15 mm (vẫn > marker 8 mm)
+    "chia_nen_keo_tv": ("chia_nen_keo", {"cua_so": 12, "diem_den": "trung_vi"}),
+    "chia_nen_keo_min": ("chia_nen_keo", {"cua_so": 12, "diem_den": "min"}),
+    **{f"clahe_{c}_{g}": ("clahe", {"clip": c, "luoi": g}) for c in (1.5, 2, 3) for g in (8, 16)},
+}
+
+
+def ti_le_nen(anh_nan: np.ndarray, cua_so: int) -> np.ndarray:
+    """anh_nan / nền giấy cục bộ (float32; giấy ≈ 1, mực < 1) – uoc_luong_nen của Bước 3b."""
+    return anh_nan.astype(np.float32) / np.maximum(uoc_luong_nen(anh_nan, cua_so), 1.0)
+
+
+# Chốt ở Bước 5 dừng B (07/10/2026, người dùng chọn sau khi xem ảnh trước/sau), căn cứ `python tools/kiem_chuan_hoa.py
+# so-sanh` (data/_eval/v5_chuan_hoa/so_sanh.md): cấu hình duy nhất qua cả 3 cổng; maximin AUC faint/blank đặc trưng tuyệt
+# đối 0,9938 -> 0,9992, CI ghép cặp của Δ [+0,002; +0,012]; bóng trung vị C1 0,241->0,044, C2 0,573->0,100, C3 0,143->0,061,
+# C4 0,280->0,049, D 0,184->0,073. p1(faint) − p99(blank) tuyệt đối âm -> dương mọi điều kiện, nhưng ở C4 CI của Δ chạm 0
+# ([−0,006; +0,108]). Giá: nhiễu hạt C2 ×1,11, ~66 ms/ảnh.
+# GIỚI HẠN ĐÃ BIẾT: (1) mép bóng sắc (0032_C4 câu 21–30) còn dải mảnh; hiệu theo hàng (local_darkness, tương đối) giảm tới
+# −0,044 (faint) / −0,037 (filled), không hàng nào lật – anh_nan vẫn giữ, Tuần 5 chọn anh_nan / anh_chuan_hoa bằng thí nghiệm
+# F1 lớp faint. (2) cửa sổ 20 (≈ 15 mm) ở BIÊN lưới đã thử (8/12/20); không thử nhỏ hơn vì gần cỡ ô Ø5 mm – nguy cơ ước lượng
+# nền "ăn" vào ô tô, xoá mất faint. (3) Trang D: tương phản nét không đổi, nét/nhiễu 50,1 -> 48,1, chênh mức nét giữa trang
+# 29,7 -> 32,9 – Tuần 6 thử CNN trên cả anh_nan và anh_chuan_hoa.
+CACH_MAC_DINH = "chia_nen_20"
+
+
+def normalize(anh_nan: np.ndarray, layout: dict, cach: str = CACH_MAC_DINH) -> np.ndarray:
+    """Bước 5: khử bóng / cân bằng sáng -> anh_chuan_hoa (uint8, cùng cỡ anh_nan). Không đổi anh_nan.
+    'chia_nen' (M1, mặc định chia_nen_20): anh / nền ước lượng × GIAY_DICH. 'chia_nen_keo' (M2): M1 rồi kéo điểm đen = lõi
+    6×6 mm của 4 marker (đen thật, vị trí biết từ layout) về 0. 'clahe' (M3): CLAHE trên anh_nan. Chỉ dùng anh_nan + layout
+    (không nhãn, không PDF render). Căn cứ + giới hạn: xem CACH_MAC_DINH."""
+    kieu, ts = CACH_CHUAN_HOA[cach]
+    if kieu == "khong":
+        return anh_nan.copy()
+    if kieu == "clahe":
+        return cv2.createCLAHE(clipLimit=ts["clip"], tileGridSize=(ts["luoi"], ts["luoi"])).apply(anh_nan)
+    r = ti_le_nen(anh_nan, ts["cua_so"])
+    if kieu == "chia_nen_keo":
+        k = LOI_MARKER_MM_CH * layout["dpi"] / 25.4
+        loi = [float(r[round(cy - k):round(cy + k), round(cx - k):round(cx + k)].mean())
+               for cx, cy in layout["markers"]["centers"].values()]
+        den = float(np.median(loi)) if ts["diem_den"] == "trung_vi" else min(loi)
+        r = (r - den) / max(1.0 - den, 1e-3)
+    return np.clip(r * GIAY_DICH, 0, 255).round().astype(np.uint8)
 
 
 def preprocess(path, layout: dict) -> KetQuaTienXuLy:
-    """Đọc ảnh -> tìm 4 marker -> nắn -> verify (chiều bằng nội dung, từ chối có lý do). Bước 4: điền mọi trường trừ
-    anh_chuan_hoa (Bước 5). layout = layout của loại trang mong đợi (phiếu / trang chữ số).
+    """Đọc ảnh -> tìm 4 marker -> nắn -> verify (chiều bằng nội dung, từ chối có lý do) -> normalize (chỉ khi ok).
+    layout = layout của loại trang mong đợi (phiếu / trang chữ số).
     Lỗi đọc file -> ok=False, 'khong_doc_duoc'; lỗi lập trình khác vẫn ném ra (Bước 6 quyết có bọc hay không).
     marker_cham_mep (chốt 06/10/2026: TỪ CHỐI, không ước lượng tâm): (1) một marker của bộ được chọn chạm mép ảnh;
     (2) không chọn được bộ 4 mà có ứng viên chạm mép -> báo marker_cham_mep (lời nhắc 'đưa cả tờ vào khung')."""
@@ -630,4 +678,6 @@ def preprocess(path, layout: dict) -> KetQuaTienXuLy:
     kq.marker, kq.huong_xoay = tam, huong_xoay(tam)
     kq.ok, kq.ly_do = ok, ly_do
     kq.anh_nan = anh_nan                        # giữ cả khi bị từ chối (để xem lại); dùng được chỉ khi ok
+    if ok:                                      # Bước 5: sau verify – không đổi anh_nan / ok / ly_do
+        kq.anh_chuan_hoa = normalize(anh_nan, layout)
     return kq
