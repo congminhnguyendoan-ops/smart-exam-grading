@@ -81,3 +81,35 @@ Mã: `backend/main.py` (endpoint mỏng), `backend/schemas.py` (hợp đồng py
   đa → sửa 1 câu → xử lý hết → `graded` + `confirmed` + audit; tải lại cùng ảnh; `confirm` bị từ chối cho câu vị trí; yêu cầu sai;
   0001_C1 SBD `06238?` → giáo viên chốt SBD → chốt; SBD không có trong danh sách; trùng SBD (phiếu thứ hai vào review, không ghi đè);
   lô nhiều ảnh có ảnh hỏng; kỳ thi 10 câu; ảnh không thoát thư mục lưu trữ; migration chạy lại; thiếu `.env` báo lỗi rõ.
+
+## B4 – kiểm chứng (07/10/2026)
+**Công cụ độc lập** `tools/kiem_backend_dau_cuoi.py` (báo cáo `data/_eval/backend/bao_cao_dau_cuoi.md` + CSV): gọi API qua TestClient trên CSDL thật
+trong một giao dịch ROLLBACK + thư mục ảnh tạm (CSDL sau chạy: số dòng 12 bảng không đổi). **Không dùng code chấm của backend**: điểm thật tính lại từ
+`data/ground_truth.csv` (chỉ phiếu 0001–0028; nhãn người tô) + đáp án đọc từ `GET /exams/{id}` bằng luật riêng: *đúng ⇔ người tô đúng MỘT ô và ô đó = đáp án*
+(ô mờ cũng tính, đúng chính sách `faint_counts_as_answer`), 0,25 điểm / câu. Hai kỳ thi cùng đáp án (ảnh thứ nhất của mỗi phiếu → A, ảnh thứ hai → B) để
+không dính `duplicate_sbd`.
+- **Pha 1 – tải ảnh, không can thiệp**: câu KHÔNG gắn cần xem phải có `is_correct` khớp đúng/sai thật; cách đọc, SBD, mã đề khớp nhãn; điểm tạm ≤ điểm thật ≤ điểm tối đa;
+  câu cần xem phải `is_correct = NULL`; phiếu tự chốt phải đúng điểm.
+- **Pha 2 – giáo viên oracle**: chốt từng câu cần xem đúng như tờ giấy (`action=set`), chốt SBD / mã đề → điểm chính thức cuối phải = điểm thật, đúng sinh viên, `confirmed`.
+
+**Kết quả chạy đầy đủ (56 ảnh train 0001–0028, 86 giây):**
+
+| | C1 | C2 | C3 | C4 | Tổng |
+|---|---|---|---|---|---|
+| Ảnh / câu | 14 / 560 | 14 / 560 | 14 / 560 | 14 / 560 | 56 / 2 240 |
+| Câu OMR gắn cần xem | 138 | 147 | 142 | 141 | **568 (25,4%)** |
+| Câu chắc chắn (không cờ) | 422 | 413 | 418 | 419 | 1 672 |
+| **Câu chấm sai mà KHÔNG gắn cần xem** | 0 | 0 | 0 | 0 | **0** |
+| Câu đọc sai mà không gắn cần xem | 0 | 0 | 0 | 0 | 0 |
+| SBD / mã đề sai im lặng · điểm tạm-tối đa không bao điểm thật · tự chốt sai | | | | | 0 · 0 · 0 · 0 |
+| Máy đọc sai nhưng có cờ (an toàn) | | | | | 0 |
+| Phiếu tự chốt khi tải (không cần xem) | 0 | 0 | 0 | 0 | 0 / 56 (mọi phiếu dev đều có ≥ 4 câu cần xem) |
+| **Điểm chính thức sau giáo viên = điểm tính độc lập, đúng sinh viên** | 14 / 14 | 14 / 14 | 14 / 14 | 14 / 14 | **56 / 56** |
+
+- **Ảnh giả** `data/_eval/_gia_v4` (layout phiếu, 74 ảnh mong đợi `tu_choi` hoặc `ok`): **44 từ chối đúng mã, 27 nhận đúng (gồm ảnh xoay 90 / 180 / 270°), 3 từ chối
+  với mã khác mong đợi nhưng là giới hạn ĐÃ BIẾT của Tuần 4 (`SAI_MA_DA_BIET`: mờ chéo / mờ nhiễu → `khong_khop_bo_cuc`), 0 lỗi im lặng (ảnh lẽ ra bị từ chối mà
+  vẫn có điểm), 0 từ chối nhầm**. Ảnh bị từ chối không có dòng `results`, không có điểm (kiểm trong CSDL).
+- Vì phiếu dev luôn có câu cần xem, **đường tự chốt (`results` = `auto`) được kiểm bằng dữ liệu tạo ra**: monkeypatch `omr.doc_phieu` trả `KetQuaOMR` sạch (3 test:
+  tự chốt đúng điểm + đối chiếu `fn_grade_sheet`; một câu mờ / nhiều ô duy nhất cũng khiến cả phiếu không chốt, điểm tạm 9,75, câu đó `is_correct = NULL`; mã đề
+  không có trong kỳ thi → không chấm).
+- **pytest toàn bộ: 166 đạt** (116 cũ + 50 mới; ~50 giây): `test_backend_grading` (14), `test_backend_api` (35), `test_backend_dau_cuoi` (3, mẫu 7 ảnh C1–C4 + 12 ảnh giả).

@@ -293,3 +293,73 @@ def test_get_conn_rollback_khi_loi(csdl_san_sang):
     assert conn.closed
     with ket_noi() as c2:
         assert c2.execute("SELECT count(*) AS n FROM subjects WHERE subject_code = %s", (ma,)).fetchone()["n"] == 0
+
+
+# ------------------------------------------------------------------------------------------------ đường tự chốt (không cần xem)
+def omr_gia(sbd="795125", ma_de="101", chon=None, mo=(), nhieu=()):
+    """KetQuaOMR dựng tay (ảnh thật nào cũng có câu cần xem nên đường tự chốt phải kiểm bằng dữ liệu tạo ra)."""
+    from cv_engine.omr import KetQuaCau, KetQuaCot, KetQuaOMR
+    chon = chon or {}
+    xs = {o: {"blank": 0.99, "faint": 0.0, "filled": 0.01} for o in "ABCD"}
+    cau = []
+    for q in range(1, 41):
+        s = chon.get(q, "")
+        if q in mo:
+            cau.append(KetQuaCau(q, "mo", s, xs, 0.95, True, ("o_mo",)))
+        elif q in nhieu:
+            cau.append(KetQuaCau(q, "nhieu", "AB", xs, 0.95, True, ("nhieu_o",)))
+        else:
+            cau.append(KetQuaCau(q, "ro" if s else "trong", s, xs, 0.99, False, ()))
+
+    def cot(truong, so):
+        return tuple(KetQuaCot(truong, i + 1, d, tuple(1.0 if k == int(d) else 0.0 for k in range(10)), 0.99, False, ())
+                     for i, d in enumerate(so))
+    return KetQuaOMR(cau=tuple(cau), sbd=sbd, sbd_cot=cot("sbd", sbd), ma_de=ma_de, ma_de_cot=cot("ma_de", ma_de), can_xem=bool(mo or nhieu),
+                     sbd_can_xem=False, ma_de_can_xem=False, dich_chuyen_mm={}, nguon_anh="anh_nan", phien_ban_mo_hinh="omr_m1",
+                     thoi_gian_ms=1.0)
+
+
+def test_phieu_sach_tu_chot_auto_va_doi_chieu_csdl(client, conn_thu, monkeypatch):
+    """Không còn gì cần xem -> chấm tự động, ghi results 'auto' (không confirmed_by); điểm = điểm tính tay; đối chiếu fn_grade_sheet."""
+    can_anh("0002_C2")
+    them_sv(conn_thu, "795125")
+    eid = tao_de(client)
+    key = demo.khoa_demo("101")
+    chon = {q: (key[q - 1] if q % 2 else "A" if key[q - 1] != "A" else "B") for q in range(1, 38)}     # lẻ: đúng, chẵn: sai; 38–40 bỏ trống
+    dung = sum(q % 2 == 1 for q in range(1, 38))
+    monkeypatch.setattr("backend.service.omr.doc_phieu", lambda kq, layout, mh: omr_gia(chon=chon))
+    t = tai(client, eid, "0002_C2").json()
+    assert t["status"] == "graded" and t["pending_questions"] == 0
+    assert t["official_score"] == pytest.approx(0.25 * dung)
+    v = client.get(f"/sheets/{t['sheet_id']}").json()
+    assert v["score"]["result_status"] == "auto" and v["review"] is None and v["student"]["student_code"] == "795125"
+    r = conn_thu.execute("SELECT status::text AS s, confirmed_by FROM results WHERE sheet_id = %s", (t["sheet_id"],)).fetchone()
+    assert r["s"] == "auto" and r["confirmed_by"] is None
+    assert all(q["is_correct"] is not None for q in v["questions"])
+    assert client.post(f"/sheets/{t['sheet_id']}/questions/1/review", json={"action": "confirm"}).status_code == 409   # đã chốt
+
+
+@pytest.mark.parametrize("loai", ["mo", "nhieu"])
+def test_mot_cau_can_xem_la_khong_tu_chot(client, monkeypatch, loai):
+    """Chỉ MỘT câu mờ / nhiều ô cũng đủ để cả phiếu không có điểm chính thức; câu đó không được chấm (dù máy đọc đúng đáp án)."""
+    can_anh("0002_C2")
+    eid = tao_de(client)
+    key = demo.khoa_demo("101")
+    chon = {q: key[q - 1] for q in range(1, 41)}                                     # làm đúng hết 40 câu
+    monkeypatch.setattr("backend.service.omr.doc_phieu", lambda kq, layout, mh: omr_gia(chon=chon, **{loai: (7,)}))
+    t = tai(client, eid, "0002_C2").json()
+    assert t["status"] == "needs_review" and t["official_score"] is None and t["pending_questions"] == 1
+    v = client.get(f"/sheets/{t['sheet_id']}").json()
+    assert v["score"]["provisional"] == pytest.approx(0.25 * 39) and v["score"]["max_possible"] == pytest.approx(10.0)
+    assert next(q for q in v["questions"] if q["question_no"] == 7)["is_correct"] is None
+
+
+def test_ma_de_khong_co_trong_ky_thi_khong_cham(client, monkeypatch):
+    can_anh("0002_C2")
+    eid = tao_de(client, ma_de=("101", "102"))
+    monkeypatch.setattr("backend.service.omr.doc_phieu", lambda kq, layout, mh: omr_gia(ma_de="104"))
+    v = client.get(f"/sheets/{tai(client, eid, '0002_C2').json()['sheet_id']}").json()
+    assert v["status"] == "needs_review" and "exam_code_not_found" in v["review"]["reasons"]
+    assert v["score"]["provisional"] is None and v["score"]["official"] is None and all(q["is_correct"] is None for q in v["questions"])
+    r = client.put(f"/sheets/{v['sheet_id']}/identity", json={"exam_code": "102"})
+    assert r.status_code == 200 and r.json()["exam_code"]["matched_code"] == "102" and r.json()["score"]["provisional"] is not None
