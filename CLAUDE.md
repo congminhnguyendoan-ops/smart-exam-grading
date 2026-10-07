@@ -26,7 +26,7 @@ Bài toán cốt lõi cần giải: **tránh ghi nhầm điểm** (đọc sai SB
 | Sinh PDF / đọc PDF | ReportLab 5.0, PyMuPDF 1.28 | Đang dùng |
 | Database | **PostgreSQL 17** (quản lý qua pgAdmin), DB `smart_exam`, user `smart_exam_app` | Đang dùng |
 | Học máy | TensorFlow/Keras, train trên **Kaggle** | Kế hoạch (Tuần 5–6) |
-| Backend | FastAPI hoặc Flask | Kế hoạch |
+| Backend | **FastAPI 0.142** + uvicorn, psycopg 3, python-dotenv (`smart_exam_db/backend/`, mục 4d) | Bản demo 13/10/2026 (chưa auth) |
 | Frontend | Streamlit hoặc React | Kế hoạch |
 | Môi trường | Windows, PyCharm, PowerShell | |
 
@@ -65,9 +65,13 @@ smart_exam_db/
 │   ├── omr.py                    # Tuần 5: doc_phieu(kq, layout, mo_hinh) -> KetQuaOMR (API: mục 4c). dinh_vi (2 tầng),
 │   │                             #   dac_trung_o, du_doan (NumPy + JSON), ap_luat_cau/ap_luat_cot, MA_LY_DO_OMR
 │   └── tap_du_lieu.py            # NGUỒN DUY NHẤT ranh giới dev/test (+ train/val OMR), chan_test()
+├── backend/                      # Backend demo (mục 4d): main.py (API), schemas.py, service.py (ảnh → OMR → chấm → CSDL, luồng giáo viên),
+│   │                             #   grading.py (chấm thuần), demo.py (dữ liệu mẫu), config.py (.env), db.py, migrate.py
+│   └── migrations/               #   001_backend_bo_sung.sql – chỉ thêm cột / chỉ mục, chạy lại được (python -m backend.migrate)
+├── .env.example                  # mẫu cấu hình; .env thật (DATABASE_URL, STORAGE_DIR…) KHÔNG vào git. storage/ (ảnh phiếu) cũng không
 ├── models/                       # Tuần 5: omr_m1.json (logistic, train 0001–0028), omr_m0.json (ngưỡng) – trong git,
 │                                 #   kèm sieu_du_lieu (ngày, git, SHA dữ liệu, fold). Sinh: tools/huan_luyen_omr.py xuat
-├── tests/                        # pytest (116 test, ~13 s): python -m pytest tests (từ smart_exam_db/).
+├── tests/                        # pytest (166 test, ~50 s): python -m pytest tests (từ smart_exam_db/).
 │                                 #   Thiếu data/ → test cần dữ liệu tự SKIP
 ├── docs/                         # Tài liệu cho báo cáo (Tuần 1–3)
 │   ├── ke_hoach_tuan4.md         # Kế hoạch 8 bước (0–7) của preprocessing: việc, cách đo, tiêu chí xong,
@@ -147,7 +151,7 @@ smart_exam_db/
 
 Ghi chú:
 - Cấu trúc thư mục "đề xuất" trong `HUONG_DAN.md` (Phần C): đã có `cv_engine/`, `tests/` (trong `smart_exam_db/`);
-  **chưa tạo** `backend/`, `frontend/`, `ml/`, `models/`, `.env`.
+  đã có thêm `backend/`, `models/`, `.env` (cục bộ); **chưa tạo** `frontend/`, `ml/`.
 - `answer_sheet/output/overlay_check.png`, `synthetic_photo.jpg`, `synthetic_aligned.jpg`,
   `synthetic_aligned_preprocess.jpg` là ảnh do `check_layout.py` sinh ra.
 - 4 nhóm bảng DB (theo `HUONG_DAN.md` B1): Người dùng (`users`, `classes`, `students`, `student_imports`),
@@ -216,6 +220,25 @@ omr.sbd, omr.sbd_can_xem, omr.sbd_cot, omr.ma_de, omr.ma_de_can_xem, omr.can_xem
   Định vị luôn trên `anh_nan`; nguồn đặc trưng theo mô hình (`anh_nan` – chọn bằng thí nghiệm A2). ~100 ms/ảnh.
 
 ---
+
+### 4d. Backend (demo 13/10/2026; kế hoạch + nợ kỹ thuật: `docs/ke_hoach_demo.md`)
+**Chạy** (từ `smart_exam_db\`, venv gốc đã bật; cần `.env` – sao chép `.env.example`, điền `DATABASE_URL`):
+```powershell
+python -m backend.migrate                    # 1 lần: thêm cột bổ sung (chạy lại an toàn, KHÔNG xoá gì)
+python tools/nap_demo.py                     # 1 lần: kỳ thi "[DEMO] …" + 4 mã đề + đáp án giả lập + 28 thí sinh DEMO (chạy lại được)
+uvicorn backend.main:app --port 8000         # server; Swagger http://127.0.0.1:8000/docs · ReDoc /redoc · OpenAPI /openapi.json
+curl -F file=@data/raw/0002_C2.jpg http://127.0.0.1:8000/exams/<exam_id>/sheets      # tải 1 ảnh (exam_id do nap_demo in ra)
+```
+**Endpoint**: `GET /health` · `POST/GET /exams`, `GET /exams/{id}` · `POST /exams/{id}/sheets` (1 ảnh), `POST /exams/{id}/sheets/batch` (nhiều ảnh) ·
+`GET /exams/{id}/sheets` · `GET /sheets/{id}` · `GET /sheets/{id}/image?kind=original|aligned` · `GET /sheets/{id}/review-questions`,
+`GET /exams/{id}/review-questions` · `GET /sheets/{id}/questions/{n}/image` · `POST /sheets/{id}/questions/{n}/review` (`confirm` | `set`) ·
+`PUT /sheets/{id}/identity` (SBD / mã đề). Chưa có đăng nhập: người dùng = `DEMO_USER` (.env) hoặc header `X-User`.
+**Quy tắc cốt lõi**: ảnh → `doc_anh` → `preprocess_anh` → `omr.doc_phieu` → chấm. Câu OMR "cần xem" **không bao giờ** được chấm như câu chắc
+chắn (`is_correct = NULL`). Phiếu còn câu / SBD / mã đề cần xem: `status = needs_review`, CHỈ có điểm tạm (`answer_sheets.raw_score`) và mục
+`review_queue`; điểm chính thức (`results`) chỉ có khi giáo viên xem hết (`confirmed`) hoặc máy không còn gì cần xem (`auto`). Ảnh bị từ chối:
+`status = rejected` + `reject_code` + thông báo `MA_LY_DO`, không điểm. Một đường quyết định duy nhất: `service.danh_gia_phieu` (đối chiếu
+`fn_grade_sheet` trước khi ghi điểm). **Không dùng `fn_process_sheet`** (không biết lý do cần xem của OMR). Test API chạy trên CSDL thật trong giao
+dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `python tools/kiem_backend_dau_cuoi.py` (56 ảnh train: 0 câu chấm sai không gắn cần xem).
 
 ## 5. Cài đặt và chạy
 
@@ -436,7 +459,11 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       (đúng ±0,06 mm ở marker), nội dung ảnh C3 vẫn lệch TB +0,84 mm (0,37–1,30) ở giữa trang; ảnh giả C3 chỉ 0,1 mm ⇒ lệch
       thật (giấy/ống kính), homography 4 điểm không sửa được (`docs/ke_hoach_tuan4.md` 3c dừng B). **Xác nhận trên test
       (Bước 7)**: 0035_C3 `lech_max` **2,06 mm** (dev: 0030_C3 2,31 mm) > dung sai 2,0 mm của ô đáp án khi đọc toạ độ cố định.
-- [ ] Backend API, frontend, luồng review cho giáo viên.
+- [x] **Backend demo XONG (07/10/2026)** cho báo cáo 13/10 (`docs/ke_hoach_demo.md`, commit B0–B5): config `.env`, migration 001, dịch vụ chấm,
+      API FastAPI (12 đường dẫn), luồng review mỏng, dữ liệu DEMO. **Kiểm đầu-cuối 56 ảnh train: 0 câu chấm sai mà không gắn cần xem (1 672 câu
+      chắc chắn); điểm chính thức sau giáo viên khớp điểm tính độc lập 56/56; ảnh giả 44 từ chối đúng mã, 27 nhận đúng, 0 lỗi im lặng.** Nợ kỹ
+      thuật: `docs/ke_hoach_demo.md` mục NỢ KỸ THUẬT (auth, layout từ DB, hàng đợi nền, sửa đáp án + chấm lại, import SV, …).
+- [ ] Backend (phần còn lại), frontend, luồng review đầy đủ cho giáo viên.
       **Việc Tuần 7 (07/10/2026): `system_settings.min_blur_score` = 100 trong DB là thang Laplacian thô cũ** (của
       `check_photos.py` bản đầu) ≠ `blur_score` của `preprocess()` (`phan_tu_huong`, ngưỡng `MO_MIN` 0,012) – đổi sang thang
       `mo_huong` khi làm backend (backend dùng `kq.ok` / `kq.ly_do == 'anh_mo'`). Không sửa DB trước khi hỏi người dùng.
@@ -452,8 +479,8 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - Có 2 venv: `smart_exam_db_1/.venv` và `smart_exam_db/answer_sheet/.venv`. **Chốt 03/10/2026: dùng
   `.venv` ở gốc** (terminal xác nhận `sys.executable` = `smart_exam_db_1\.venv\Scripts\python.exe`).
   `answer_sheet/.idea/misc.xml` còn trỏ tới đường dẫn cũ `~\Downloads\...` – không dùng.
-- Mật khẩu DB `smartexam123` bị ghi cứng trong `00_create_database.sql`, `run_all.bat/.sh`,
-  `tools/db_check.py`, `HUONG_DAN.md` – chấp nhận được khi làm local, cần lưu ý nếu công khai repo.
+- Mật khẩu DB `smartexam123`: backend và `tools/db_check.py` đã đọc từ `.env` (không còn trong code Python); **vẫn ghi cứng** trong
+  `00_create_database.sql`, `run_all.bat/.sh`, `HUONG_DAN.md` (script tạo CSDL cần nó) – chấp nhận được khi làm local, cần lưu ý nếu công khai repo.
 - Không gửi ảnh qua Zalo/Messenger (bị nén) – chỉ chép bằng cáp hoặc Google Drive.
 - (Lịch sử, ĐÃ XỬ LÝ Tuần 4 Bước 3–6) `find_markers()`/`align()` cũ trong `check_layout.py` chọn nhầm marker mà không báo
   lỗi (dev: 19/78 lỗi im lặng – `data/_eval/align_cu/truth_dev.csv`; 4 nguyên nhân + cách sửa: `docs/ke_hoach_tuan4.md`).

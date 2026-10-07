@@ -7,11 +7,11 @@ tạm ghi vào mục NỢ KỸ THUẬT (cuối file). Câu OMR "cần xem" **kh�
 | Mốc | Việc | Trạng thái |
 |---|---|---|
 | B0 | Xuất lại mô hình OMR từ commit sạch | xong |
-| B1 | Cấu hình CSDL qua `.env` + migration bổ sung | |
-| B2 | Lớp dịch vụ chấm phiếu | |
-| B3 | API FastAPI | |
-| B4 | Kiểm chứng (pytest + đầu-cuối so với điểm tính độc lập) | |
-| B5 | CLAUDE.md | |
+| B1 | Cấu hình CSDL qua `.env` + migration bổ sung | xong |
+| B2 | Lớp dịch vụ chấm phiếu | xong |
+| B3 | API FastAPI | xong |
+| B4 | Kiểm chứng (pytest + đầu-cuối so với điểm tính độc lập) | xong |
+| B5 | CLAUDE.md | xong |
 
 ## B0 – xuất lại mô hình OMR từ commit sạch (07/10/2026)
 - `python tools/huan_luyen_omr.py xuat` chạy khi cây làm việc sạch, HEAD `3bcf190` → `models/omr_m{0,1}.json`:
@@ -112,4 +112,27 @@ không dính `duplicate_sbd`.
 - Vì phiếu dev luôn có câu cần xem, **đường tự chốt (`results` = `auto`) được kiểm bằng dữ liệu tạo ra**: monkeypatch `omr.doc_phieu` trả `KetQuaOMR` sạch (3 test:
   tự chốt đúng điểm + đối chiếu `fn_grade_sheet`; một câu mờ / nhiều ô duy nhất cũng khiến cả phiếu không chốt, điểm tạm 9,75, câu đó `is_correct = NULL`; mã đề
   không có trong kỳ thi → không chấm).
-- **pytest toàn bộ: 166 đạt** (116 cũ + 50 mới; ~50 giây): `test_backend_grading` (14), `test_backend_api` (35), `test_backend_dau_cuoi` (3, mẫu 7 ảnh C1–C4 + 12 ảnh giả).
+- **pytest toàn bộ: 166 đạt** (116 cũ + 50 mới; ~50 giây): `test_backend_grading` (14), `test_backend_api` (33), `test_backend_dau_cuoi` (3, mẫu 7 ảnh C1–C4 + 12 ảnh giả).
+
+## NỢ KỸ THUẬT (mọi chỗ làm tạm / chưa làm của bản demo)
+**An ninh / vận hành**
+1. **Chưa có đăng nhập / phân quyền**: người dùng = `DEMO_USER` hoặc header `X-User` (ai gọi API cũng sửa được điểm). Không CORS, không giới hạn tốc độ. → Tuần 7–8.
+2. **Mật khẩu CSDL** còn ghi cứng ở `00_create_database.sql`, `run_all.bat/.sh`, `HUONG_DAN.md`; `.env` cục bộ chứa mật khẩu thật (đã `.gitignore`).
+3. **Mỗi yêu cầu một kết nối CSDL** (không pool); log mặc định, không mã yêu cầu.
+4. **Xử lý ảnh đồng bộ trong yêu cầu HTTP** (~0,7 s / ảnh; lô nhiều ảnh xử lý tuần tự trong một yêu cầu → lô lớn sẽ quá thời gian). Cần hàng đợi nền (RQ / Celery) + trạng thái `processing` thật.
+5. **Ảnh lưu thư mục `storage/`** cục bộ, không dọn dẹp, không quét virus; chỉ giới hạn dung lượng (`MAX_UPLOAD_MB`). Ảnh HEIC gốc phục vụ nguyên trạng. Tải lại đúng ảnh cũ (SHA-256) trả phiếu cũ, kể cả phiếu từng bị từ chối.
+
+**Dữ liệu / nghiệp vụ**
+6. **Layout phiếu đọc từ `answer_sheet/output/layout.json`** (`nap_layout`), chưa lấy từ `sheet_templates.layout_config`; mẫu định vị `phieu_trang_300dpi.png` cố định.
+7. **`blur_score` KHÔNG ghi vào `answer_sheets.blur_score`**: `system_settings.min_blur_score` (100) là thang Laplacian cũ ≠ thang của `preprocess()` – ghi vào sẽ coi mọi phiếu là mờ. Ảnh mờ do `preprocess` từ chối (`anh_mo`). (Đã ghi ở CLAUDE.md mục 7; sửa CSDL cần hỏi người dùng.)
+8. **Chưa có CNN chữ số / `ocr_digits`**: SBD và mã đề đọc từ bubble (kênh viết tay chưa có – Tuần 6); `sbd_confidence` = min `do_tin_cay` các cột (chỉ để tham khảo, quyết định theo `can_xem` của OMR).
+9. **Không dùng `fn_process_sheet` / `fn_resolve_review` / `fn_reject_review` / `fn_regrade_exam`**: `fn_process_sheet` không biết lý do cần xem của OMR (có thể tự chấm phiếu đã bị gắn cờ, tính ô `faint` là đáp án). Hệ quả: gọi `fn_regrade_exam` sẽ tính ô `faint` của phiếu `needs_review` là đáp án (điểm tạm lệch) → cần sửa / thay các hàm CSDL cho khớp chính sách "cần xem" (hỏi người dùng trước khi sửa CSDL).
+10. **Chưa có**: sửa đáp án + chấm lại, sinh nhiều mã đề, import danh sách sinh viên, loại phiếu (`fn_reject_review`), tải lại ảnh thay ảnh bị từ chối, huỷ điểm cũ khi trùng SBD (`p_void_existing`), phân trang (giới hạn cứng 200 / 500), thống kê (view `v_*` chưa phơi ra API), xuất bảng điểm.
+11. **Giáo viên chỉ chốt từng câu**; không có xem hàng loạt, không ghi chữ số đã sửa vào `ocr_digits` để fine-tune, không lưu "máy sai" thành dữ liệu train (hướng phát triển).
+12. **Đáp án DEMO giả lập** (`random.Random("2026-<mã>")`) – điểm chỉ có ý nghĩa kiểm thử hệ thống; danh sách thí sinh nạp từ `ground_truth.csv` (chỉ phiếu 0001–0028). Mọi phiếu dev đều có ≥ 4 câu cần xem nên demo chủ yếu đi qua luồng giáo viên; đường tự chốt (`auto`) chỉ kiểm bằng dữ liệu tạo ra.
+13. **Một mô hình OMR duy nhất** nạp lúc khởi động (`OMR_MODEL`); đổi mô hình cần khởi động lại. Bản ghi `ml_models` tạo lúc tải ảnh đầu tiên (`is_active = FALSE`, không đụng bản đang active).
+
+**Kiểm thử**
+14. Test API dùng CSDL thật trong giao dịch rollback (chưa có CSDL thử riêng); nhánh commit thật của `get_conn` chưa test tự động (chạy thử tay). Đường tự chốt kiểm bằng `KetQuaOMR` dựng tay (monkeypatch `doc_phieu`).
+15. Kiểm đầu-cuối chỉ trên ảnh dev 0001–0028 (+ ảnh giả sinh từ ảnh dev); val 0029–0034 và test 0035–0040 chưa chạy qua backend (đúng quy tắc – Phần B Tuần 5).
+16. Migration chỉ tiến, không có bản lùi; theo dõi bằng `schema_migrations`.
