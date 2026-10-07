@@ -31,3 +31,27 @@ tạm ghi vào mục NỢ KỸ THUẬT (cuối file). Câu OMR "cần xem" **kh�
   original_filename}`. Chạy lại 2 lần liên tiếp OK; áp lại trực tiếp file SQL 2 lần (rollback) OK. **Không xoá / reset gì**;
   số dòng các bảng không đổi (exams 1, answer_sheets 9, sheet_answers 90, results 8, review_queue 5).
 - Chưa động tới: mật khẩu trong `00_create_database.sql`, `run_all.bat/.sh`, `HUONG_DAN.md` (script tạo CSDL cần nó) – nợ.
+
+## B2 – lớp dịch vụ chấm phiếu (07/10/2026)
+Mã: `backend/grading.py` (chấm thuần), `backend/service.py` (dịch vụ + CSDL), `backend/demo.py` + `tools/nap_demo.py` (dữ liệu mẫu).
+- **Chuỗi**: byte → ghi `storage/uploads/<exam>/<sha[:2]>/<sha>.<đuôi>` → `doc_anh` → `preprocess_anh` → (từ chối: lưu phiếu
+  `status='rejected'` + `reject_code` + `error_message` = `MA_LY_DO[mã]`, **không có điểm**) → `omr.doc_phieu` → lưu `answer_sheets`
+  (+ ảnh nắn JPEG q92 cho giáo viên xem, `omr_detail` JSONB: cột SBD / mã đề, độ dịch định vị, nguồn ảnh) + `sheet_answers`
+  (trạng thái OMR, `needs_review`, `review_reasons`, máy đọc gốc) → `danh_gia_phieu`. Cùng ảnh (SHA-256) tải lại trong một kỳ thi → trả phiếu cũ.
+- **Một đường quyết định duy nhất** `danh_gia_phieu` (gọi sau khi nhận ảnh VÀ sau mỗi lần giáo viên sửa): chấm các câu chắc chắn
+  (`grading.cham_diem`: câu cần xem → `is_correct = NULL`, không vào điểm tạm; chỉ `state='filled'` mới tính) → gom lý do
+  (`low_omr_confidence` ← mờ / lưng chừng / vị trí; `multiple_marks` ← nhiều ô; `low_ocr_confidence` ← cột SBD / mã đề cần xem;
+  `exam_code_not_found`, `sbd_not_found`, `duplicate_sbd`) → còn lý do: `status='needs_review'` + mục `review_queue` (điểm tạm ở
+  `raw_score`, **không có dòng `results`**); hết lý do: **đối chiếu `fn_grade_sheet` của CSDL** (lệch thì dừng, không ghi điểm) rồi
+  ghi `results` (`auto` nếu máy tự chốt, `confirmed` nếu đã qua review).
+- **Không dùng `fn_process_sheet`** (ghi chú để Phần sau): hàm đó chỉ nhìn `confidence` < 0,8 / `faint` / nhiều ô, không biết các
+  lý do "cần xem" của OMR (lưng chừng, vị trí) nên có thể tự chấm một phiếu mà OMR đã gắn cờ, và tính ô `faint` là đáp án.
+  Service tự quyết định; vẫn dùng trigger audit, `fn_grade_sheet` (đối chiếu) và các bảng / enum sẵn có.
+- **Giáo viên**: `xu_ly_cau` (`confirm` = nhận cách máy đọc, trừ câu cần xem vì vị trí → bắt buộc `set`; `set` = chốt lựa chọn, `''` =
+  bỏ trống), `sua_dinh_danh` (chốt SBD / mã đề). Cả hai chỉ cho phiếu `needs_review`, rồi chạy lại `danh_gia_phieu`.
+- **Dữ liệu mẫu** `python tools/nap_demo.py`: kỳ thi `[DEMO] Phiếu thu dữ liệu 0001–0028 (đáp án giả lập)` (exam_id 6 trên máy này), mã
+  đề 101–104 × 40 câu, đáp án DEMO tất định (`random.Random("2026-<mã>")`), 28 thí sinh DEMO (SBD viết tay của phiếu 0001–0028 từ
+  `data/ground_truth.csv`, lọc `PHIEU_TRAIN`), danh sách dự thi. Chạy lại: 0 bản ghi mới, không ghi đè. Đã nạp (INSERT thêm, không
+  xoá / sửa): exams 1→2, exam_codes 2→6, answer_keys 20→180, students 10→38, exam_students 9→37.
+- **Quan sát** (thử trong giao dịch rollback): phần lớn ảnh dev có câu cần xem (bộ dữ liệu cố ý nhiều ô mờ / nhiều ô – rủi ro R7), vd
+  0002_C2 10 câu cần xem; 0001 SBD `06238?` → cần xem SBD. Phiếu "sạch" hiếm ⇒ demo chủ yếu đi qua luồng giáo viên.
