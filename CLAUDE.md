@@ -27,7 +27,7 @@ Bài toán cốt lõi cần giải: **tránh ghi nhầm điểm** (đọc sai SB
 | Database | **PostgreSQL 17** (quản lý qua pgAdmin), DB `smart_exam`, user `smart_exam_app` | Đang dùng |
 | Học máy | TensorFlow/Keras, train trên **Kaggle** | Kế hoạch (Tuần 5–6) |
 | Backend | **FastAPI 0.142** + uvicorn, psycopg 3, python-dotenv (`smart_exam_db/backend/`, mục 4d) | Bản demo 13/10/2026 (chưa auth) |
-| Frontend | Streamlit hoặc React | Kế hoạch |
+| Frontend | HTML + JS thuần (`smart_exam_db/frontend/`, phục vụ `/app/`, mục 4d); Streamlit / React = nợ kỹ thuật | Bản demo 09/10/2026 |
 | Môi trường | Windows, PyCharm, PowerShell | |
 
 ---
@@ -68,10 +68,11 @@ smart_exam_db/
 ├── backend/                      # Backend demo (mục 4d): main.py (API), schemas.py, service.py (ảnh → OMR → chấm → CSDL, luồng giáo viên),
 │   │                             #   grading.py (chấm thuần), demo.py (dữ liệu mẫu), config.py (.env), db.py, migrate.py
 │   └── migrations/               #   001_backend_bo_sung.sql – chỉ thêm cột / chỉ mục, chạy lại được (python -m backend.migrate)
+├── frontend/                     # Giao diện demo (HTML + JS thuần): index.html, app.js, style.css – FastAPI phục vụ tại /app/ (mục 4d)
 ├── .env.example                  # mẫu cấu hình; .env thật (DATABASE_URL, STORAGE_DIR…) KHÔNG vào git. storage/ (ảnh phiếu) cũng không
 ├── models/                       # Tuần 5: omr_m1.json (logistic, train 0001–0028), omr_m0.json (ngưỡng) – trong git,
 │                                 #   kèm sieu_du_lieu (ngày, git, SHA dữ liệu, fold). Sinh: tools/huan_luyen_omr.py xuat
-├── tests/                        # pytest (166 test, ~50 s): python -m pytest tests (từ smart_exam_db/).
+├── tests/                        # pytest (173 test, ~50 s): python -m pytest tests (từ smart_exam_db/).
 │                                 #   Thiếu data/ → test cần dữ liệu tự SKIP
 ├── docs/                         # Tài liệu cho báo cáo (Tuần 1–3)
 │   ├── ke_hoach_tuan4.md         # Kế hoạch 8 bước (0–7) của preprocessing: việc, cách đo, tiêu chí xong,
@@ -232,7 +233,7 @@ curl -F file=@data/raw/0002_C2.jpg http://127.0.0.1:8000/exams/<exam_id>/sheets 
 **Endpoint**: `GET /health` · `POST/GET /exams`, `GET /exams/{id}` · `POST /exams/{id}/sheets` (1 ảnh), `POST /exams/{id}/sheets/batch` (nhiều ảnh) ·
 `GET /exams/{id}/sheets` · `GET /sheets/{id}` · `GET /sheets/{id}/image?kind=original|aligned` · `GET /sheets/{id}/review-questions`,
 `GET /exams/{id}/review-questions` · `GET /sheets/{id}/questions/{n}/image` · `POST /sheets/{id}/questions/{n}/review` (`confirm` | `set`) ·
-`PUT /sheets/{id}/identity` (SBD / mã đề). Chưa có đăng nhập: người dùng = `DEMO_USER` (.env) hoặc header `X-User`.
+`PUT /sheets/{id}/identity` (SBD / mã đề) · `GET /meta/reject-reasons` (mã từ chối + lời khuyên chụp lại). **Giao diện**: `http://127.0.0.1:8000/` → `/app/` (F1 tải ảnh, F2 danh sách, F3 chi tiết, F4 duyệt; các bước demo: `docs/ke_hoach_demo.md`). Chưa có đăng nhập: người dùng = `DEMO_USER` (.env) hoặc header `X-User`.
 **Quy tắc cốt lõi**: ảnh → `doc_anh` → `preprocess_anh` → `omr.doc_phieu` → chấm. Câu OMR "cần xem" **không bao giờ** được chấm như câu chắc
 chắn (`is_correct = NULL`). Phiếu còn câu / SBD / mã đề cần xem: `status = needs_review`, CHỈ có điểm tạm (`answer_sheets.raw_score`) và mục
 `review_queue`; điểm chính thức (`results`) chỉ có khi giáo viên xem hết (`confirmed`) hoặc máy không còn gì cần xem (`auto`). Ảnh bị từ chối:

@@ -114,6 +114,34 @@ không dính `duplicate_sbd`.
   không có trong kỳ thi → không chấm).
 - **pytest toàn bộ: 166 đạt** (116 cũ + 50 mới; ~50 giây): `test_backend_grading` (14), `test_backend_api` (33), `test_backend_dau_cuoi` (3, mẫu 7 ảnh C1–C4 + 12 ảnh giả).
 
+## FRONTEND – giao diện demo (09/10/2026)
+Mã: `frontend/` (`index.html`, `app.js`, `style.css` – HTML + JS thuần, không Node / build), FastAPI phục vụ tại **`/app/`** (`/` chuyển hướng sang đó).
+Bố cục theo `docs/wireframes` (thanh bên + nội dung). Backend chỉ **thêm**: `GET /meta/reject-reasons` (mã từ chối + thông báo + lời khuyên chụp lại,
+`backend/loi_khuyen.py`), thêm trường vào `GET /exams/{id}/sheets` (`detected_exam_code`, `reject_message`, `result_status`, `student_name`). Logic chấm không đổi.
+
+| Màn | Việc |
+|---|---|
+| F1 `#/upload` | chọn kỳ thi (thanh bên) → kéo thả / chọn 1 hoặc nhiều ảnh → xử lý TỪNG ảnh (thanh tiến trình "đang xử lý i/n"); ảnh bị từ chối hiện thông báo MA_LY_DO + lời khuyên chụp lại |
+| F2 `#/sheets` | bảng phiếu: SBD, mã đề, sinh viên, trạng thái (chính thức / cần xem / từ chối), điểm chính thức hoặc điểm **tạm** (nhãn "tạm"); lọc theo trạng thái |
+| F3 `#/sheet/ID` | ảnh đã nắn, điểm, SBD / mã đề từng cột (cột không chắc tô đỏ), lưới 40 câu: xanh đúng / đỏ sai / vàng viền đậm cần xem + lý do |
+| F4 `#/review`, `#/review/ID` | hàng đợi; mỗi câu cần xem: ảnh cắt hàng + máy đọc + lý do + chọn A–D → "Lưu lựa chọn" / "Bỏ trống" / "Xác nhận như máy đọc" (khoá khi lý do là vị trí); điểm cập nhật ngay; khung chốt SBD / mã đề khi thiếu cột (phiếu 0001) |
+
+**Kiểm chứng**: `tests/test_frontend.py` (7 test: chuyển hướng, phục vụ tĩnh, mọi đường dẫn API mà JS gọi có trong OpenAPI, cú pháp JS bằng `node --check`, endpoint mới, chuỗi lời gọi F1→F4);
+pytest toàn bộ **173 đạt** (~50 s). Chạy server thật + trình duyệt Edge (Playwright) tự thao tác F1→F4 trên kỳ thi `[THU] Kiểm giao diện F1-F4` (exam_id 115, 3 phiếu thật trong CSDL – KHÔNG phải kỳ thi demo):
+tải 0002_C2 + 0001_C1 + ảnh trắng → 0002: 10 câu cần xem, điểm tạm 2 → duyệt hết → chính thức 3/10; 0001: SBD `06238?` → nhập `062384` → duyệt 19 câu → chính thức 2/10; ảnh trắng bị từ chối `thieu_marker` + lời khuyên; không lỗi JS / console.
+
+### CÁC BƯỚC DEMO (tập trước 13/10)
+Chuẩn bị (1 lần, từ `smart_exam_db\`, venv bật): `python -m backend.migrate` · `python tools/nap_demo.py` · `uvicorn backend.main:app --port 8000` → mở **http://127.0.0.1:8000/**.
+Kỳ thi demo `[DEMO] Phiếu thu dữ liệu…` đang có 1 phiếu cũ; nếu muốn bắt đầu trắng, tạo kỳ thi mới (Swagger `POST /exams`) hoặc dùng `[THU]` (đã có 3 phiếu – ảnh trùng sẽ trả phiếu cũ).
+1. **Giới thiệu** (30 s): thanh bên, chọn kỳ thi, ô thông tin (40 câu, mã đề 101–104). Nhắc: đáp án DEMO giả lập.
+2. **F1 – tải ảnh bị từ chối**: kéo ảnh `trang.jpg` (hoặc ảnh chụp thiếu góc) → hiện "Bị từ chối" + lời khuyên chụp lại, không có điểm. Ý: *thà từ chối còn hơn chấm sai*.
+3. **F1 – tải phiếu thật**: chọn `0002_C2.jpg` + `0001_C1.jpg` cùng lúc → xem tiến trình từng ảnh; cả hai "Cần xem" với điểm **tạm**.
+4. **F2 – danh sách**: SBD, mã đề, sinh viên; điểm có nhãn "tạm"; lọc "Cần xem". Ý: điểm chính thức chưa ghi vào CSDL.
+5. **F3 – chi tiết 0002**: ảnh nắn phẳng, lưới 40 câu, câu vàng = cần xem + lý do (ô tô mờ / tô nhiều ô).
+6. **F4 – duyệt 0002**: bấm "Duyệt" → xem ảnh cắt từng câu → chọn đáp án đúng theo giấy → điểm tạm nhảy; hết câu → **"Chính thức"**. Chỉ ra nút "Xác nhận" bị khoá khi máy chưa chắc vị trí.
+7. **F4 – chốt SBD phiếu 0001**: máy đọc `06238?` (ô đỏ) → nhập `062384` → "Lưu" → ghép đúng sinh viên → duyệt các câu → chính thức. Kết: nhắc kiểm đầu-cuối 56 ảnh: 0 câu chấm sai mà không gắn cần xem.
+Lưu ý khi tập: mỗi phiếu chỉ chốt được MỘT lần (không có "sửa lại sau khi chốt" – nợ 17); tập lại cần ảnh khác hoặc kỳ thi mới.
+
 ## NỢ KỸ THUẬT (mọi chỗ làm tạm / chưa làm của bản demo)
 **An ninh / vận hành**
 1. **Chưa có đăng nhập / phân quyền**: người dùng = `DEMO_USER` hoặc header `X-User` (ai gọi API cũng sửa được điểm). Không CORS, không giới hạn tốc độ. → Tuần 7–8.
@@ -136,3 +164,11 @@ không dính `duplicate_sbd`.
 14. Test API dùng CSDL thật trong giao dịch rollback (chưa có CSDL thử riêng); nhánh commit thật của `get_conn` chưa test tự động (chạy thử tay). Đường tự chốt kiểm bằng `KetQuaOMR` dựng tay (monkeypatch `doc_phieu`).
 15. Kiểm đầu-cuối chỉ trên ảnh dev 0001–0028 (+ ảnh giả sinh từ ảnh dev); val 0029–0034 và test 0035–0040 chưa chạy qua backend (đúng quy tắc – Phần B Tuần 5).
 16. Migration chỉ tiến, không có bản lùi; theo dõi bằng `schema_migrations`.
+
+**Frontend (09/10/2026)**
+17. **Không sửa lại sau khi chốt**: câu đã duyệt / phiếu `graded` không mở lại được (API chỉ nhận câu đang cần xem); chưa có huỷ / loại phiếu.
+18. **HTML + JS thuần** (không framework): kế hoạch gốc dùng Streamlit hoặc React – chưa chuyển (người dùng yêu cầu ghi nợ, không chuyển ngay). Không có bundler, không test trình duyệt tự động trong pytest (chỉ kiểm cú pháp JS + đường dẫn API; luồng UI đã chạy tay bằng Playwright + Edge, script không đưa vào repo).
+19. **Còn thiếu so với wireframe**: đăng nhập, dashboard, thống kê, import sinh viên, sinh mã đề / tải PDF, gợi ý sinh viên theo SBD lệch, "Loại phiếu", phân trang (danh sách cứng 200). Tải ảnh tuần tự từng ảnh (không dùng `/sheets/batch`) để có tiến trình; trình duyệt giữ trang mở suốt lô.
+20. Duyệt chỉ hiện câu cần xem còn lại + câu vừa chốt trong phiên (tải lại trang thì thẻ đã chốt biến mất). Ảnh cắt câu tải lười (`loading="lazy"`). Giao diện chỉ thử trên Edge, màn hình laptop (1366×768).
+21. Kỳ thi `[THU]` (exam_id 115) và 3 phiếu của nó nằm trong CSDL thật do lần thử này (INSERT qua API); `[DEMO]` chưa bị đụng ngoài phiếu cũ.
+
