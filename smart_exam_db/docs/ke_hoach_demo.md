@@ -140,6 +140,9 @@ Kỳ thi demo `[DEMO] Phiếu thu dữ liệu…` đang có 1 phiếu cũ; nếu
 5. **F3 – chi tiết 0002**: ảnh nắn phẳng, lưới 40 câu, câu vàng = cần xem + lý do (ô tô mờ / tô nhiều ô).
 6. **F4 – duyệt 0002**: bấm "Duyệt" → xem ảnh cắt từng câu → chọn đáp án đúng theo giấy → điểm tạm nhảy; hết câu → **"Chính thức"**. Chỉ ra nút "Xác nhận" bị khoá khi máy chưa chắc vị trí.
 7. **F4 – chốt SBD phiếu 0001**: máy đọc `06238?` (ô đỏ) → nhập `062384` → "Lưu" → ghép đúng sinh viên → duyệt các câu → chính thức. Kết: nhắc kiểm đầu-cuối 56 ảnh: 0 câu chấm sai mà không gắn cần xem.
+8. **F5 – Bảng điểm → Xuất Excel** (`#/results`): mỗi thí sinh trong danh sách dự thi một dòng (SBD, họ tên, mã đề, số câu đúng, ĐIỂM, ĐIỂM TẠM, trạng thái). Chỉ ra: phiếu chưa duyệt xong
+   có nhãn vàng "Chưa duyệt xong – điểm tạm", điểm của nó nằm ở cột *Điểm tạm*, cột *Điểm* để trống; phiếu bị từ chối nằm ở khung riêng bên dưới. Bấm **Xuất Excel** → mở file:
+   sheet "Bảng điểm" (tiêu đề + ngày xuất + ghi chú điểm tạm) và sheet "Chi tiết" (mỗi phiếu chính thức × 40 câu: bài làm, đáp án, Đúng/Sai). Làm SAU bước 6–7 để có phiếu chính thức.
 Lưu ý khi tập: mỗi phiếu chỉ chốt được MỘT lần (không có "sửa lại sau khi chốt" – nợ 17); tập lại cần ảnh khác hoặc kỳ thi mới.
 
 ## NỢ KỸ THUẬT (mọi chỗ làm tạm / chưa làm của bản demo)
@@ -172,3 +175,8 @@ Lưu ý khi tập: mỗi phiếu chỉ chốt được MỘT lần (không có "
 20. Duyệt chỉ hiện câu cần xem còn lại + câu vừa chốt trong phiên (tải lại trang thì thẻ đã chốt biến mất). Ảnh cắt câu tải lười (`loading="lazy"`). Giao diện chỉ thử trên Edge, màn hình laptop (1366×768).
 21. Kỳ thi `[THU]` (exam_id 115) và 3 phiếu của nó nằm trong CSDL thật do lần thử này (INSERT qua API); `[DEMO]` chưa bị đụng ngoài phiếu cũ.
 
+**Bảng điểm + Excel (09/10/2026)** – `backend/bang_diem.py`, `GET /exams/{id}/results`, `GET /exams/{id}/export.xlsx`, màn F5 `#/results`. Thêm `openpyxl>=3.1` (dry-run trước; kéo thêm `et_xmlfile`).
+22. **Phiếu bị từ chối không gắn được thí sinh** (ảnh không đọc được SBD): không có dòng "Bị từ chối" theo thí sinh; thí sinh đó hiện "Chưa có phiếu", phiếu bị từ chối nằm ở khung `unmatched` + đếm ở `counts.rejected`. Gắn theo tên file / nhập tay = chưa làm.
+23. Mỗi thí sinh một dòng, chọn **một** phiếu (chính thức > chưa duyệt, mới hơn thắng); `sheets` cho biết có >1 phiếu. Điểm `void` bị bỏ qua.
+24. Sheet "Chi tiết" chỉ gồm phiếu có `results`, dạng dài (1 dòng/câu) để lọc; chưa có thống kê độ khó câu (`v_question_difficulty` chưa phơi ra). Xuất đồng bộ trong yêu cầu HTTP, không phân trang.
+25. Excel chỉ có giá trị tĩnh tại lúc xuất (không công thức); nhãn cố định tiếng Việt.

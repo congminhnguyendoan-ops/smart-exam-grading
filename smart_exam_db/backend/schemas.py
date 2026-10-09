@@ -205,3 +205,50 @@ class DinhDanh(BaseModel):
 class LyDoTuChoi(BaseModel):
     message: str = Field(description="Thông báo cho giáo viên (MA_LY_DO của preprocess)")
     advice: str = Field(description="Lời khuyên chụp lại")
+
+
+# ------------------------------------------------------------------------------------------------ bảng điểm
+class DongBangDiem(BaseModel):
+    stt: int
+    student_id: int
+    sbd: str
+    full_name: str
+    exam_code: str | None
+    num_correct: int | None = Field(description="Số câu đúng – CHỈ khi điểm đã chính thức")
+    score: float | None = Field(description="Điểm CHÍNH THỨC (bảng results). Phiếu chưa duyệt xong luôn là null")
+    provisional_score: float | None = Field(description="Điểm tạm (chỉ phiếu chưa duyệt xong) – không phải điểm chính thức")
+    provisional_correct: int | None
+    pending_questions: int = Field(description="Số câu còn chờ giáo viên (phiếu chưa duyệt xong)")
+    status: Literal["official", "pending", "rejected", "no_sheet"]
+    status_label: str
+    sheet_id: int | None
+    sheets: int = Field(description="Số phiếu đã ghép thí sinh này (>1: tải nhiều lần / trùng SBD)")
+
+
+class PhieuKhongGhep(BaseModel):
+    sheet_id: int
+    status: str
+    original_filename: str | None
+    detected_sbd: str | None
+    reject_code: str | None
+    reject_message: str | None
+
+
+class TongBangDiem(BaseModel):
+    official: int
+    pending: int
+    no_sheet: int
+    rejected: int = Field(description="Phiếu bị từ chối (ảnh không dùng được – không biết của thí sinh nào)")
+    unmatched_review: int = Field(description="Phiếu cần xem nhưng chưa ghép được thí sinh")
+    students: int
+
+
+class BangDiemOut(BaseModel):
+    exam_id: int
+    exam_title: str
+    max_score: float
+    num_questions: int
+    exported_on: str
+    counts: TongBangDiem
+    rows: list[DongBangDiem]
+    unmatched: list[PhieuKhongGhep]

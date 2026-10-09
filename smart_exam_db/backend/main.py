@@ -15,7 +15,9 @@ from fastapi import Depends, FastAPI, File, Header, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import loi_khuyen, schemas, service
+from urllib.parse import quote
+
+from . import bang_diem, loi_khuyen, schemas, service
 from .config import CauHinh, LoiCauHinh, lay_cau_hinh
 from .db import ket_noi
 
@@ -217,6 +219,22 @@ def xu_ly_cau(sheet_id: int, question_no: int, body: schemas.XuLyCau, conn=Depen
 def sua_dinh_danh(sheet_id: int, body: schemas.DinhDanh, conn=Depends(get_conn), user_id: int = Depends(get_user_id)):
     service.sua_dinh_danh(conn, sheet_id, body.sbd, body.exam_code, user_id, body.note)
     return service.xem_phieu(conn, sheet_id)
+
+
+# ------------------------------------------------------------------------------------------------ bảng điểm
+@app.get("/exams/{exam_id}/results", response_model=schemas.BangDiemOut, tags=["Bảng điểm"],
+         summary="Bảng điểm: mỗi thí sinh trong danh sách dự thi một dòng")
+def bang_diem_ky_thi(exam_id: int, conn=Depends(get_conn)):
+    """`score` là điểm CHÍNH THỨC (chỉ phiếu `official`). Phiếu chưa duyệt xong (`pending`) chỉ có `provisional_score`."""
+    return bang_diem.bang_diem(conn, exam_id)
+
+
+@app.get("/exams/{exam_id}/export.xlsx", tags=["Bảng điểm"], summary="Xuất Excel: sheet 'Bảng điểm' + sheet 'Chi tiết'")
+def xuat_excel(exam_id: int, conn=Depends(get_conn)):
+    du_lieu, ten = bang_diem.xuat_excel(conn, exam_id)
+    ascii_ten = f"bang_diem_{exam_id}.xlsx"
+    return Response(du_lieu, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename=\"{ascii_ten}\"; filename*=UTF-8''{quote(ten)}"})
 
 
 # ------------------------------------------------------------------------------------------------ giao diện (HTML + JS thuần)

@@ -1,5 +1,5 @@
 /* Smart Exam – giao diện demo (HTML + JS thuần, gọi API FastAPI cùng gốc). Màn hình: F1 tải ảnh, F2 danh sách phiếu,
-   F3 chi tiết phiếu, F4 duyệt câu cần xem + chốt SBD / mã đề. Chưa có đăng nhập (nợ kỹ thuật). */
+   F3 chi tiết phiếu, F4 duyệt câu cần xem + chốt SBD / mã đề, F5 bảng điểm + xuất Excel. Chưa có đăng nhập (nợ kỹ thuật). */
 "use strict";
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -82,11 +82,12 @@ async function route() {
   document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("on", a.dataset.r === (r === "sheet" ? "sheets" : r)));
   window.scrollTo(0, 0);
   try {
-    if (!state.examId && ["upload", "sheets", "review"].includes(r)) { main.innerHTML = '<div class="alert warn">Chưa có kỳ thi. Chạy <code>python tools/nap_demo.py</code> để nạp dữ liệu demo.</div>'; return; }
+    if (!state.examId && ["upload", "sheets", "review", "results"].includes(r)) { main.innerHTML = '<div class="alert warn">Chưa có kỳ thi. Chạy <code>python tools/nap_demo.py</code> để nạp dữ liệu demo.</div>'; return; }
     if (r === "upload") await manUpload();
     else if (r === "sheets") await manDanhSach();
     else if (r === "sheet") await manChiTiet(Number(id));
     else if (r === "review") { if (id) await manDuyet(Number(id)); else await manHangDoi(); }
+    else if (r === "results") await manBangDiem();
     else main.innerHTML = '<p class="muted">Không có trang này.</p>';
   } catch (e) { main.innerHTML = `<div class="alert bad">${esc(e.message)}</div>`; }
 }
@@ -299,6 +300,33 @@ function gan(el, id) {
     try { await post(`/sheets/${id}/questions/${n}/review`, body); daXem[id].add(n); toast(`Câu ${n} đã chốt.`); await manDuyet(id); }
     catch (e) { toast(e.message, true); el.querySelectorAll("button").forEach((x) => (x.disabled = false)); }
   }));
+}
+
+/* ------------------------------------------------------------------ F5: bảng điểm */
+const NHAN_BD = { official: ["Chính thức", "ok"], pending: ["Chưa duyệt xong – điểm tạm", "warn"], rejected: ["Bị từ chối", "bad"], no_sheet: ["Chưa có phiếu", "gray"] };
+async function manBangDiem() {
+  const b = await api(`/exams/${state.examId}/results`);
+  const k = b.counts;
+  const hang = (d) => {
+    const [t, c] = NHAN_BD[d.status];
+    const diem = d.score !== null ? `<b>${fmt(d.score)}</b>` : '<span class="muted">–</span>';
+    const tam = d.provisional_score !== null ? `${fmt(d.provisional_score)} <span class="muted small">(${d.pending_questions} câu chờ)</span>` : '<span class="muted">–</span>';
+    return `<tr><td>${d.stt}</td><td>${esc(d.sbd)}</td><td>${esc(d.full_name)}</td><td>${esc(d.exam_code || "–")}</td>
+      <td>${d.num_correct ?? "–"}</td><td>${diem}</td><td>${tam}</td><td><span class="tag ${c}">${esc(t)}</span></td>
+      <td>${d.sheet_id ? `<a href="#/sheet/${d.sheet_id}">#${d.sheet_id}</a>` : "–"}</td></tr>`;
+  };
+  main.innerHTML = `<h2>Bảng điểm</h2>
+    <div class="card"><div class="row" style="margin:0 0 10px">
+      <span class="tag ok">Chính thức: ${k.official}</span><span class="tag warn">Chưa duyệt xong: ${k.pending}</span>
+      <span class="tag bad">Bị từ chối: ${k.rejected}</span><span class="tag gray">Chưa có phiếu: ${k.no_sheet}</span>
+      <a class="btn pri" href="/exams/${state.examId}/export.xlsx" download>Xuất Excel</a></div>
+      <p class="muted small">Cột <b>Điểm</b> chỉ có điểm chính thức. Điểm của phiếu chưa duyệt xong nằm ở cột <b>Điểm tạm</b> và chưa phải điểm chính thức.
+        Phiếu bị từ chối là ảnh không dùng được nên không biết của thí sinh nào (chụp lại).</p>
+      <table><thead><tr><th>STT</th><th>SBD</th><th>Họ tên</th><th>Mã đề</th><th>Số câu đúng</th><th>Điểm</th><th>Điểm tạm</th><th>Trạng thái</th><th>Phiếu</th></tr></thead>
+      <tbody>${b.rows.map(hang).join("") || '<tr><td colspan="9" class="muted">Kỳ thi chưa có danh sách thí sinh.</td></tr>'}</tbody></table></div>
+    ${b.unmatched.length ? `<div class="card"><h3>Phiếu chưa ghép được thí sinh (${b.unmatched.length})</h3><table><thead><tr><th>Phiếu</th><th>Ảnh</th><th>Trạng thái</th><th>Lý do</th></tr></thead><tbody>
+      ${b.unmatched.map((p) => `<tr><td><a href="#/sheet/${p.sheet_id}">#${p.sheet_id}</a></td><td>${esc(p.original_filename)}</td><td>${tag(p.status)}</td>
+        <td>${p.status === "rejected" ? esc(p.reject_message || p.reject_code) : "SBD đọc: " + esc(p.detected_sbd || "–") + " – chưa khớp danh sách"}</td></tr>`).join("")}</tbody></table></div>` : ""}`;
 }
 
 /* ------------------------------------------------------------------ khởi động */
