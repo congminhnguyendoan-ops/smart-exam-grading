@@ -7,13 +7,15 @@ Nguyên tắc: endpoint mỏng – chỉ đổi HTTP <-> backend.service. Mỗi 
 rollback khi lỗi). CHƯA có đăng nhập (nợ kỹ thuật): người dùng = DEMO_USER trong .env, hoặc header X-User (username giáo viên).
 """
 import logging
+from pathlib import Path
 from contextlib import asynccontextmanager
 
 import psycopg
 from fastapi import Depends, FastAPI, File, Header, Query, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 
-from . import schemas, service
+from . import loi_khuyen, schemas, service
 from .config import CauHinh, LoiCauHinh, lay_cau_hinh
 from .db import ket_noi
 
@@ -92,6 +94,13 @@ def health(request: Request):
         return thong_tin
     except psycopg.Error as e:
         return JSONResponse({**thong_tin, "status": "loi", "db": f"không nối được CSDL: {type(e).__name__}"}, status_code=503)
+
+
+@app.get("/meta/reject-reasons", response_model=dict[str, schemas.LyDoTuChoi], tags=["Hệ thống"],
+         summary="Mã từ chối ảnh + thông báo + lời khuyên chụp lại")
+def ly_do_tu_choi():
+    """Cho giao diện: mỗi mã `reject_code` (MA_LY_DO của preprocess) kèm thông báo tiếng Việt và lời khuyên chụp lại."""
+    return loi_khuyen.danh_sach()
 
 
 # ------------------------------------------------------------------------------------------------ đề thi
@@ -208,3 +217,15 @@ def xu_ly_cau(sheet_id: int, question_no: int, body: schemas.XuLyCau, conn=Depen
 def sua_dinh_danh(sheet_id: int, body: schemas.DinhDanh, conn=Depends(get_conn), user_id: int = Depends(get_user_id)):
     service.sua_dinh_danh(conn, sheet_id, body.sbd, body.exam_code, user_id, body.note)
     return service.xem_phieu(conn, sheet_id)
+
+
+# ------------------------------------------------------------------------------------------------ giao diện (HTML + JS thuần)
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+
+
+@app.get("/", include_in_schema=False)
+def trang_chu():
+    return RedirectResponse("/app/")
+
+
+app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")   # đặt SAU các route API

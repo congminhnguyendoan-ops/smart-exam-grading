@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Exam – Chấm phiếu trắc nghiệm</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<aside class="side">
+  <h1>SMART EXAM</h1>
+  <nav id="nav">
+    <a href="#/upload" data-r="upload">Tải ảnh &amp; chấm</a>
+    <a href="#/sheets" data-r="sheets">Danh sách phiếu</a>
+    <a href="#/review" data-r="review">Hàng đợi duyệt <span id="nav-count" class="badge hidden"></span></a>
+  </nav>
+  <label class="exam-pick">Kỳ thi
+    <select id="exam-select"></select>
+  </label>
+  <p class="muted small" id="exam-info"></p>
+  <p class="muted small foot">Bản demo – chưa có đăng nhập.<br><a href="/docs" target="_blank">API (Swagger)</a></p>
+</aside>
+<main id="main"><p class="muted">Đang tải…</p></main>
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -140,9 +140,13 @@ class PhieuTomTat(BaseModel):
     status: str
     original_filename: str | None
     detected_sbd: str | None
+    detected_exam_code: str | None = None
     reject_code: str | None
+    reject_message: str | None = None
     raw_score: float | None = Field(description="Điểm tạm (câu chắc chắn)")
     official_score: float | None
+    result_status: str | None = Field(default=None, description="auto | confirmed (khi đã có điểm chính thức)")
+    student_name: str | None = None
     pending_questions: int
 
 
@@ -196,3 +200,8 @@ class DinhDanh(BaseModel):
     sbd: str | None = Field(default=None, description="Số báo danh đúng (chữ số)")
     exam_code: str | None = Field(default=None, description="Mã đề đúng (chữ số)")
     note: str | None = Field(default=None, max_length=500)
+
+
+class LyDoTuChoi(BaseModel):
+    message: str = Field(description="Thông báo cho giáo viên (MA_LY_DO của preprocess)")
+    advice: str = Field(description="Lời khuyên chụp lại")

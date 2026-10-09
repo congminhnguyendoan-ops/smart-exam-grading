@@ -479,9 +479,11 @@ def ds_phieu_ky_thi(conn, exam_id: int, status: str | None = None, gioi_han: int
     if not conn.execute("SELECT 1 FROM exams WHERE exam_id = %s", (exam_id,)).fetchone():
         raise KhongTimThay(f"Không có kỳ thi {exam_id}.")
     return conn.execute(
-        "SELECT a.sheet_id, a.status, a.original_filename, a.detected_sbd, a.reject_code, a.raw_score, r.score AS official_score, "
+        "SELECT a.sheet_id, a.status, a.original_filename, a.detected_sbd, a.detected_exam_code, a.reject_code, a.error_message AS reject_message, "
+        "a.raw_score, r.score AS official_score, r.status::text AS result_status, s.full_name AS student_name, "
         "(SELECT count(*) FROM sheet_answers q WHERE q.sheet_id = a.sheet_id AND q.needs_review) AS pending_questions "
         "FROM answer_sheets a LEFT JOIN results r ON r.sheet_id = a.sheet_id AND r.status <> 'void' "
+        "LEFT JOIN students s ON s.student_id = a.matched_student_id "
         "WHERE a.exam_id = %s AND (%s::text IS NULL OR a.status::text = %s) ORDER BY a.sheet_id LIMIT %s",
         (exam_id, status, status, gioi_han)).fetchall()
 
