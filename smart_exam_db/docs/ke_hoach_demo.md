@@ -143,6 +143,9 @@ Kỳ thi demo `[DEMO] Phiếu thu dữ liệu…` đang có 1 phiếu cũ; nếu
 8. **F5 – Bảng điểm → Xuất Excel** (`#/results`): mỗi thí sinh trong danh sách dự thi một dòng (SBD, họ tên, mã đề, số câu đúng, ĐIỂM, ĐIỂM TẠM, trạng thái). Chỉ ra: phiếu chưa duyệt xong
    có nhãn vàng "Chưa duyệt xong – điểm tạm", điểm của nó nằm ở cột *Điểm tạm*, cột *Điểm* để trống; phiếu bị từ chối nằm ở khung riêng bên dưới. Bấm **Xuất Excel** → mở file:
    sheet "Bảng điểm" (tiêu đề + ngày xuất + ghi chú điểm tạm) và sheet "Chi tiết" (mỗi phiếu chính thức × 40 câu: bài làm, đáp án, Đúng/Sai). Làm SAU bước 6–7 để có phiếu chính thức.
+9. **[DEMO-2] – minh hoạ chấm đúng** (`python tools/nap_demo_khop.py`, exam_id **178**): chọn kỳ thi "[DEMO-2] Đáp án lấy từ bài làm phiếu 0005…" → F1 tải `data/raw/0005_C1.jpg`
+   (không có 0005_C3; chỉ có C1, C2) → F4 duyệt: chọn đúng như giấy (nhãn `data/ground_truth.csv`, hàng 0005; ô mờ chọn chữ đó, câu 6 và 11 bỏ trống, câu 8/20/26/35 chọn 2 ô) → F5: SBD 823451,
+   mã đề 101, **34/40 câu, 8,5 điểm, Chính thức**. Ý: đáp án = bài làm nên mọi câu tô 1 ô đều đúng; 6 câu trống / nhiều ô sai (đáp án các câu này đặt tất định bất kỳ, không có ý nghĩa).
 Lưu ý khi tập: mỗi phiếu chỉ chốt được MỘT lần (không có "sửa lại sau khi chốt" – nợ 17); tập lại cần ảnh khác hoặc kỳ thi mới.
 
 ## NỢ KỸ THUẬT (mọi chỗ làm tạm / chưa làm của bản demo)
@@ -180,3 +183,4 @@ Lưu ý khi tập: mỗi phiếu chỉ chốt được MỘT lần (không có "
 23. Mỗi thí sinh một dòng, chọn **một** phiếu (chính thức > chưa duyệt, mới hơn thắng); `sheets` cho biết có >1 phiếu. Điểm `void` bị bỏ qua.
 24. Sheet "Chi tiết" chỉ gồm phiếu có `results`, dạng dài (1 dòng/câu) để lọc; chưa có thống kê độ khó câu (`v_question_difficulty` chưa phơi ra). Xuất đồng bộ trong yêu cầu HTTP, không phân trang.
 25. Excel chỉ có giá trị tĩnh tại lúc xuất (không công thức); nhãn cố định tiếng Việt.
+26. **[DEMO-2] đáp án giả lập một phần**: chỉ mã đề 101 (của 0005) lấy từ bài làm; 102–104 giả lập như `[DEMO]`; 6 câu (6, 11 trống; 8, 20, 26, 35 nhiều ô) có đáp án đặt bất kỳ (`random.Random("2026-khop-<câu>")`). Kỳ thi nằm trong CSDL thật (exam_id 178, INSERT 09/10/2026), dùng chung 28 thí sinh DEMO với `[DEMO]`.

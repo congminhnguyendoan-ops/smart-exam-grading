@@ -72,7 +72,7 @@ smart_exam_db/
 ├── .env.example                  # mẫu cấu hình; .env thật (DATABASE_URL, STORAGE_DIR…) KHÔNG vào git. storage/ (ảnh phiếu) cũng không
 ├── models/                       # Tuần 5: omr_m1.json (logistic, train 0001–0028), omr_m0.json (ngưỡng) – trong git,
 │                                 #   kèm sieu_du_lieu (ngày, git, SHA dữ liệu, fold). Sinh: tools/huan_luyen_omr.py xuat
-├── tests/                        # pytest (177 test, ~55 s): python -m pytest tests (từ smart_exam_db/).
+├── tests/                        # pytest (178 test, ~55 s): python -m pytest tests (từ smart_exam_db/).
 │                                 #   Thiếu data/ → test cần dữ liệu tự SKIP
 ├── docs/                         # Tài liệu cho báo cáo (Tuần 1–3)
 │   ├── ke_hoach_tuan4.md         # Kế hoạch 8 bước (0–7) của preprocessing: việc, cách đo, tiêu chí xong,
@@ -227,6 +227,7 @@ omr.sbd, omr.sbd_can_xem, omr.sbd_cot, omr.ma_de, omr.ma_de_can_xem, omr.can_xem
 ```powershell
 python -m backend.migrate                    # 1 lần: thêm cột bổ sung (chạy lại an toàn, KHÔNG xoá gì)
 python tools/nap_demo.py                     # 1 lần: kỳ thi "[DEMO] …" + 4 mã đề + đáp án giả lập + 28 thí sinh DEMO (chạy lại được)
+python tools/nap_demo_khop.py                # tuỳ chọn: kỳ thi "[DEMO-2] …" (exam_id 178): đáp án mã đề 101 = bài làm phiếu 0005 → tải 0005_C1, duyệt đúng giấy = 34/40 câu, 8,5 điểm
 uvicorn backend.main:app --port 8000         # server; Swagger http://127.0.0.1:8000/docs · ReDoc /redoc · OpenAPI /openapi.json
 curl -F file=@data/raw/0002_C2.jpg http://127.0.0.1:8000/exams/<exam_id>/sheets      # tải 1 ảnh (exam_id do nap_demo in ra)
 ```

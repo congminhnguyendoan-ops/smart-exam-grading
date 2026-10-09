@@ -109,3 +109,38 @@ def test_giao_dien_f5_co_trong_html_va_js():
     assert 'href="#/results"' in (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
     js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
     assert "manBangDiem" in js and "export.xlsx" in js
+
+
+# ------------------------------------------------------------------------------------------------ [DEMO-2] đáp án = bài làm 0005
+def test_demo2_khoa_tu_bai_lam_0005_va_diem_mong_doi(client, conn_thu):
+    """Nạp [DEMO-2] (trong ROLLBACK, chạy 2 lần không nhân đôi) -> tải 0005_C1 -> duyệt theo ground_truth -> điểm = điểm tính độc lập."""
+    can_anh("0005_C1")
+    uid = conn_thu.execute("SELECT user_id FROM users LIMIT 1").fetchone()["user_id"]
+    tieu_de = demo.TIEU_DE_2 + " (pytest)"          # tên khác kỳ thi thật -> nhánh 'tạo mới' luôn chạy trong ROLLBACK
+    k1 = demo.nap_demo_khop(conn_thu, uid, tieu_de=tieu_de)
+    k2 = demo.nap_demo_khop(conn_thu, uid, tieu_de=tieu_de)
+    assert k1["ky_thi_moi"] and not k2["ky_thi_moi"] and k2["exam_id"] == k1["exam_id"] and k2["thi_sinh_moi"] == 0
+    eid, bl = k1["exam_id"], demo.doc_bai_lam()
+    assert (k1["ma_de"], k1["sbd"]) == ("101", "823451") and len(k1["khoa"]) == 40
+    assert k1["dac_biet"] == {"bo_trong": [6, 11], "nhieu_o": [8, 20, 26, 35]} and (k1["dung_mong_doi"], k1["diem_mong_doi"]) == (34, 8.5)
+    ex = client.get(f"/exams/{eid}").json()
+    ma = {c["code"]: c["answers"] for c in ex["codes"]}
+    assert ma["101"] == k1["khoa"] and all(ma[m] == demo.khoa_demo(m) for m in ("102", "103", "104"))
+    for q, v in enumerate(bl["nhan"], 1):                      # câu 1 ô (kể cả ô mờ): đáp án = chữ trong nhãn
+        if len(v) == 1 and v != "-":
+            assert ma["101"][q - 1] == v.upper()
+    n = conn_thu.execute("SELECT count(*) AS n FROM exam_students WHERE exam_id = %s", (eid,)).fetchone()["n"]
+    assert n == 28
+    sid = tai(client, eid, "0005_C1").json()["sheet_id"]
+    v = client.get(f"/sheets/{sid}").json()
+    if v["sbd"]["can_xem"] or v["exam_code"]["can_xem"]:
+        assert client.put(f"/sheets/{sid}/identity", json={"sbd": bl["sbd"], "exam_code": bl["exam_code"]}).status_code == 200
+    for c in client.get(f"/sheets/{sid}/review-questions").json():          # giáo viên "oracle": chốt đúng như trên giấy
+        gt = bl["nhan"][c["question_no"] - 1]
+        body = {"action": "set", "selected_options": "" if gt == "-" else gt.upper()}
+        assert client.post(f"/sheets/{sid}/questions/{c['question_no']}/review", json=body).status_code == 200
+    fin = client.get(f"/sheets/{sid}").json()
+    assert fin["status"] == "graded" and fin["student"]["student_code"] == "823451" and fin["exam_code"]["matched_code"] == "101"
+    assert fin["score"]["official"] == pytest.approx(8.5) == pytest.approx(diem_doc_lap(conn_thu, sid, eid)) and fin["score"]["num_correct"] == 34
+    row = next(r for r in client.get(f"/exams/{eid}/results").json()["rows"] if r["sbd"] == "823451")
+    assert row["status"] == "official" and row["score"] == pytest.approx(8.5) and row["num_correct"] == 34
