@@ -220,3 +220,78 @@ huấn luyện trên **Kaggle** (như CLAUDE.md mục 2), mang trọng số về
 - `requirements.txt`: dòng `torch>=2.14` ghi "chỉ để HUẤN LUYỆN"; backend / `ocr.py` không import torch.
 - MNIST tải từ bản sao PyTorch (`ossci-datasets.s3.amazonaws.com/mnist`); **trang gốc yann.lecun.com không truy cập được từ máy này**. Giấy phép: Hugging Face `ylecun/mnist` ghi `license: mit` (nguồn gốc NIST SD-1/SD-3) – chưa xác minh trực tiếp ở trang gốc; ghi nguồn + trích dẫn LeCun, Cortes, Burges. SHA-256 (khớp giá trị MNIST được công bố rộng rãi) lưu ở `data/_ocr/nguon/SHA.txt` (ngoài git):
   `train-images 440fcabf…3609` · `train-labels 3552534a…255c` · `t10k-images 8d422c7b…c4e6` · `t10k-labels f7ae60f9…aec6`.
+
+### Bước 2–3 (10/10/2026) – xong
+- Viền ô in sẵn CÓ THẬT (ô 71×106 px, nét ~4–5 px) → `cv_engine/ocr.py`: `tim_khung` (thành phần liên thông cỡ ≈ ô, gán ô danh nghĩa gần nhất ≤ 40 px; ô liền kề trên phiếu chỉ cách ~12 px nên **không dò theo hàng / theo cạnh**: hai cách đó đã thử trước và bỏ vì bắt nhầm viền ô bên cạnh – phiếu SBD chỉ đúng 66%, D004–D006 lệch > 20 px), cắt vào trong 7 px, xoá vệt viền (dải 3 px của cạnh phủ > 50%) và mọi mảnh mực nằm gọn trong dải 5 px sát mép, chuẩn hoá kiểu MNIST (bbox → 20×20, trọng tâm → 28×28).
+- Cắt 78/78 ảnh từ `preprocess()` (53–59 s): **4 000 ô trang D + 408 ô SBD + 204 ô mã đề** (phiếu dev 0001–0034) × 2 nguồn (`anh_nan`, `anh_chuan_hoa`). Dò được khung: trang D **96,8%** (128 ô không dò được → loại khỏi phép ĐO, ghi số ô bỏ), SBD **99,8%**, mã đề **87,3%** (khung dính đường kẻ ở phiếu 0006 chụp ngang / ảnh C3; dùng độ lệch trung vị của ảnh + tinh chỉnh cạnh, gắn `ok_vien = 0`). **0 ô trống** trong 4 612 ô → ngưỡng `NGUONG_TRONG` = 30 px mực **chưa được kiểm trên ô trống thật** (xem nợ kỹ thuật).
+- Chọn `NUT_VIEN` = 7 bằng đo trên 4 trang (1 511 ô): 9 px cắt cụt chữ ở 35% ô, 7 px còn vệt viền ở 0,8% ô, 5 px ở 9% ô.
+- Xem bằng mắt (tôi tự xem): lưới 20×20 của **D001, D005, D008** và các ô debug; nhãn theo vị trí khớp. **7 lưới còn lại (D002–D004, D006, D007, D009, D010) chưa xem** – `data/_ocr/cat/xem/D0xx_mnist.png`; danh sách ô đáng ngờ `data/_ocr/cat/xem/dang_ngo.csv` (220 ô).
+- `tap_du_lieu.py`: thêm `ma_trang`, `nguoi_viet_trang`, `nguoi_viet_phieu`, `nguoi_viet`, `fold_nguoi_viet` (không đổi hằng / hàm cũ; `test_tap_cu_khong_doi` = vân tay SHA-256 của toàn bộ ranh giới cũ tính trước khi sửa, vẫn khớp). `data/ocr_split.csv` (`tools/ocr_du_lieu.py split | kiem`): 10 trang → 5 fold (mỗi fold = 2 trang của 1 người); ảnh phiếu test chỉ có tên; **0 phiếu test** trong dữ liệu cắt (`kiem` kiểm cả `anh_nan.csv`, `anh_chuan_hoa.csv`).
+
+### Bước 4–5 (10/10/2026) – xong (số đo: `data/_eval/ocr/m0_buoc4.json`, `m1_buoc5.json`, `bao_cao_buoc5.json`)
+Cách đọc: "trang D" = 3 872 chữ số D001–D010 (bỏ 128 ô không dò được khung); "phiếu dev" = 504 chữ số (0001–0028 × 2 ảnh × 9; **đo mọi ô**); khoảng tin cậy Clopper–Pearson 95% (2 ảnh cùng phiếu không độc lập → khoảng của phiếu hơi lạc quan). Nguồn ảnh: `anh_nan` (`anh_chuan_hoa` chênh ≤ 0,3 điểm % ở mọi số đo – trong nhiễu).
+
+**Bảng 3 cột – mức CHỮ SỐ** (accuracy, argmax thuần, chưa gắn "cần xem")
+
+| Mô hình | MNIST / test-MNIST (10 000) | MNIST / test-thật: trang D | MNIST / test-thật: phiếu dev | Tinh chỉnh / test-thật: trang D (người LẠ, OOF) | Tinh chỉnh / test-thật: phiếu dev (người LẠ, OOF) |
+|---|---|---|---|---|---|
+| M0 HOG + logistic | 97,9% [97,6–98,2] | 91,1% [90,2–92,0] | 88,1% [84,9–90,8] | – | – |
+| M1 CNN (seed 2026) | 98,9% [98,7–99,1] | 93,7% [92,8–94,4] | 87,9% [84,7–90,6] | – | – |
+| M1 seed 1 / 2 | 99,0 / 98,9 | 94,0 / 94,1 | **92,3 / 91,7** | – | – |
+| **M2 CNN tinh chỉnh (toàn bộ, `anh_nan`)** | – | – | – | **95,8% [95,2–96,5]** (3 711/3 872) | **91,9% [89,1–94,1]** (463/504) |
+
+Phiếu dev của M1 phụ thuộc seed mạnh (87,9% → 92,3%, cùng dữ liệu, cùng kiến trúc) – với 504 chữ số của 4 người, chênh ~4 điểm % là nhiễu của phép đo, không phải khác biệt thật giữa các seed. **Từ MNIST sang chữ thật mất ~5–7 điểm % ở trang D và ~7–10 điểm % ở phiếu**; tinh chỉnh với người lạ thu lại ~2 điểm % ở trang D (93,7 → 95,8).
+
+**Theo người viết** (người 1–5; trang D = M1 / M2 OOF; phiếu dev chỉ người 1–4, người 4 chỉ 0025–0028 = 72 ô, người 5 không có phiếu dev):
+
+| Người | Trang D M1 (MNIST) | Trang D M2 (người lạ) | Phiếu dev M2 (người lạ) |
+|---|---|---|---|
+| 1 | 92,8% | 95,1% | 94,4% (144 ô) |
+| 2 | 92,6% | 94,3% | 93,1% (144 ô) |
+| 3 | 89,2% | **93,0%** | **84,7%** (144 ô) |
+| 4 | 97,7% | 98,5% | 98,6% (72 ô) |
+| 5 | 95,6% | 98,0% | – (test) |
+
+Theo điều kiện chụp (phiếu dev, M2): C1 96,0% · C2 93,7% · **C3 84,9%** · C4 92,9%. Lỗi chắc chắn nhất trên trang D (`data/_eval/ocr/sai_chac_chan.png`, 60 ô): chủ yếu **kiểu viết riêng của từng người**, không phải nhãn sai – người 2 viết "1" có nét hất dài đọc thành 7; người 3 viết "7" gạch ngang / thêm nét đọc thành 8; thêm vài ô "9 → 5" ở D001–D002 (xem mục cần mắt người dùng).
+
+**Mức TRƯỜNG** (phiếu dev, 56 ảnh):
+
+| | Cách đọc | SBD (6 chữ số) | Mã đề (3 chữ số) |
+|---|---|---|---|
+| M0 / M1 | CNN argmax, đúng MỌI chữ số | 50–55% / 50% | 71–73% / 59% |
+| M2 (người lạ) | CNN argmax, đúng MỌI chữ số | 62,5% [48,6–75,1] (35/56) | 75,0% [61,6–85,6] (42/56) |
+| **M2 + đối chiếu bubble** (luật mục 2, τ_khop = 0,5) | **nhận tự động** | **29/56 = 51,8%** | **42/56 = 75,0%** |
+| | **lỗi im lặng** | **0 / 29 nhận** (CP95% ≤ 11,9%) | **0 / 42** (≤ 8,4%) |
+| | "cần xem" | 27 (21 lệch bubble, 5 tin cậy thấp, 2 thiếu bubble = 0001 × 2 ảnh – đúng chỗ) | 14 (lệch bubble) |
+
+**Kết quả so với tiêu chí (mục 2) – KHÔNG ĐẠT toàn bộ, ghi thẳng:**
+
+| Tiêu chí | Kết quả | Đánh giá |
+|---|---|---|
+| T2 lỗi im lặng mức trường = 0 | **0** trên phiếu dev (SBD 0/29, mã đề 0/42) | đạt – **có điều kiện**: kênh bubble là OMR mô hình cuối (đã học trên 0001–0028 → hơi lạc quan); lỗi im lặng mức trường chỉ có thể xảy ra khi bubble sai im lặng VÀ CNN cùng sai đúng chữ số đó |
+| T1 lỗi im lặng mức chữ số của CNN = 0 | **0** nhưng chỉ ở **τ = 0,9995, δ = 0,99 → 77% chữ số trang D / 75% phiếu dev bị gắn "cần xem"** (T = 1,75; lưới τ, δ; OOF trang D, 161 ô sai, CP95% lỗi im lặng trên ô sai ≤ 2,3%). Nới ngưỡng: phiếu dev τ = 0,9 → cần xem 22,8% nhưng 5/41 lỗi lọt; τ = 0,99 → 47,6%, 3/41 lọt | đạt về kỹ thuật, **vô dụng thực tế** → CNN KHÔNG thể là kênh duy nhất; chính đối chiếu bubble mới cho T2 |
+| T3 accuracy chữ số phiếu dev ≥ 97% | 91,9% (người lạ) | **chưa đạt** |
+| T4 cần xem thừa ≤ 10% phiếu | **53,6%** (30/56 ảnh có SBD hoặc mã đề bị gắn; 2 ảnh 0001 gắn đúng vì bubble thiếu) | **chưa đạt** – CNN sai ~8%/chữ số → SBD 6 chữ số sai ít nhất 1 chữ ~38%; độ nhạy τ_khop (chỉ tham khảo, KHÔNG chốt vì phiếu dev là tập đo): 0,5 → nhận 71/112 trường, 0,3 → 81, 0,2 → 86, 0,1 → 96 |
+| T5 ≤ 50 ms / ảnh | cắt 9 ô 47 ms (trung vị, gồm bản đồ tối cả trang) + CNN PyTorch 9 ô 1,1 ms ≈ **48 ms**; suy luận NumPy chưa viết (Bước 8) | sát ngưỡng; cắt chiếm gần hết – giảm được bằng bản đồ tối theo cửa sổ |
+
+### Quyết định tự đưa ra trong Bước 0–5 (đều theo hướng an toàn / ghi để báo cáo)
+1. **M2 sơ bộ làm ngay trong Bước 5** (kế hoạch để Bước 6) để điền cột "tinh chỉnh / test-thật": 5-fold theo người, 2 kiểu (đóng băng Conv: lr 1e-3; toàn bộ: lr 3e-4; 6 epoch) × 2 nguồn ảnh, chọn theo maximin accuracy theo người trên trang D OOF → **`toan_bo/anh_nan`** (min người 0,930; `anh_chuan_hoa` 0,926 – chênh trong nhiễu; `anh_nan` cũng là nguồn định vị của OMR). Phiếu của người k đọc bằng mô hình bỏ người k.
+2. HOG viết bằng NumPy (`hog28`) vì **OpenCV 5.0 không còn `HOGDescriptor`**; M0 chọn C = 10 trong lưới {0,1; 1; 10} bằng 5 000 ảnh MNIST giữ lại (C ở biên lưới – M0 chỉ là mốc, không chỉnh thêm).
+3. Phiếu dev chỉ **0001–0028**; 0029–0034 (val) chưa đo (ảnh đã được cắt vào cache nhưng chưa dùng). Phiếu test: không đọc ảnh, không đọc dòng nhãn.
+4. Trang D loại ô `ok_vien = 0` khỏi phép ĐO (128 / 124 ô); phiếu đo mọi ô.
+5. Hiệu chỉnh nhiệt độ T và (τ, δ) chọn trên **OOF trang D** (không dùng phiếu dev để chọn); `τ_khop = 0,5` chọn trước, không chỉnh theo dữ liệu.
+6. Luật đối chiếu cài trong `cv_engine/ocr.py` (`doi_chieu_cot`, `doi_chieu_truong`, 8 test): bubble `?` hoặc bị OMR gắn cần xem → luôn cần xem (không nhận một kênh duy nhất); ô viết tay trống + bubble chắc → chỉ nhận khi SBD trong danh sách (Q3).
+
+### Hạn chế (phải nêu trong báo cáo)
+- **Test 0035–0040 toàn do người 5 viết, người 5 cũng viết D009–D010 → test cuối chỉ đo "nét chữ đã gặp"**; khả năng đọc nét chữ người lạ chỉ lấy từ 5-fold theo người viết (số trên). Người 5 là người dễ nhất ở trang D (98,0%) → số test sẽ **lạc quan** so với 5-fold.
+- Chỉ **5 người viết**; phiếu dev của người 4 chỉ 72 ô; kiểu viết riêng (1 giống 7, 7 gạch ngang) chiếm phần lớn lỗi chắc chắn.
+- Phiếu dev 504 chữ số (252 độc lập về phiếu) → khoảng tin cậy rộng; chênh giữa seed (87,9 / 92,3 / 91,7%) cho thấy nhiễu ~±2 điểm %.
+- Kênh bubble trong số đo mức trường: OMR đã học trên 0001–0028 (lạc quan).
+
+### Nợ kỹ thuật sau Bước 5
+1. **Chưa đạt T3, T4** (xem bảng) → Bước 6: cải tiến mô hình (EMNIST Digits, tăng cường kiểu "1 có hất", "7 gạch ngang", nét mảnh / nhạt ở C3), giảm độ nhạy seed (trung bình nhiều seed / ensemble), xét luật đối chiếu mềm (p_CNN của chữ số bubble thay vì argmax).
+2. Ngưỡng ô trống `NGUONG_TRONG` chưa kiểm trên ô trống thật (bộ ảnh không có ô trống) → cần ca thử giả (xoá chữ) hoặc chụp thêm.
+3. Khung ô không dò được: mã đề 12,7% ở phiếu dev (đường kẻ dính khung, ảnh C3 / 0006 ngang); cần cải tiến hoặc coi `ok_vien = False` là "cần xem" khi nối backend.
+4. Bản đồ tối tính cả trang (~40 ms) → tính theo cửa sổ.
+5. Suy luận NumPy + JSON chưa viết (`doc_chu_so`, Bước 8); `torch` chỉ dùng huấn luyện.
+6. Xem bằng mắt lưới D002–D004, D006, D007, D009, D010.

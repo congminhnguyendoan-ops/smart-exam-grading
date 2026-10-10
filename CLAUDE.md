@@ -64,7 +64,9 @@ smart_exam_db/
 │   │                             #   (API: mục 4b). find_markers, verify, normalize, MA_LY_DO, nap_layout
 │   ├── omr.py                    # Tuần 5: doc_phieu(kq, layout, mo_hinh) -> KetQuaOMR (API: mục 4c). dinh_vi (2 tầng),
 │   │                             #   dac_trung_o, du_doan (NumPy + JSON), ap_luat_cau/ap_luat_cot, MA_LY_DO_OMR
-│   └── tap_du_lieu.py            # NGUỒN DUY NHẤT ranh giới dev/test (+ train/val OMR), chan_test()
+│   ├── ocr.py                    # Tuần 6 (đang làm, Bước 2–5): tim_khung/cat_anh (cắt ô chữ số bỏ viền, chuẩn hoá MNIST),
+│   │                             #   doi_chieu_cot/doi_chieu_truong (bubble ↔ viết tay). CHƯA có doc_chu_so/suy luận NumPy (Bước 8)
+│   └── tap_du_lieu.py            # NGUỒN DUY NHẤT ranh giới dev/test (+ train/val OMR), chan_test(); Tuần 6: người viết 1–5, fold
 ├── backend/                      # Backend demo (mục 4d): main.py (API), schemas.py, service.py (ảnh → OMR → chấm → CSDL, luồng giáo viên),
 │   │                             #   grading.py (chấm thuần), demo.py (dữ liệu mẫu), config.py (.env), db.py, migrate.py
 │   └── migrations/               #   001_backend_bo_sung.sql – chỉ thêm cột / chỉ mục, chạy lại được (python -m backend.migrate)
@@ -77,6 +79,7 @@ smart_exam_db/
 ├── docs/                         # Tài liệu cho báo cáo (Tuần 1–3)
 │   ├── ke_hoach_tuan4.md         # Kế hoạch 8 bước (0–7) của preprocessing: việc, cách đo, tiêu chí xong,
 │   │                             #   kết quả + số liệu từng bước (nguồn chi tiết cho báo cáo Tuần 4)
+│   ├── ke_hoach_tuan6.md         # Kế hoạch CNN chữ số (duyệt 10/10; mốc báo cáo 17/10): ★ quyết định, mục 10 KẾT QUẢ Bước 1–5, hạn chế, nợ
 │   ├── ke_hoach_tuan5.md         # Kế hoạch OMR (đã duyệt 07/10): ★ quyết định, Phần A/B, mục 9 NỢ KỸ THUẬT,
 │   │                             #   mục 10 KẾT QUẢ PHẦN A (A1–A4), mục 11 quyết định tự đưa ra
 │   ├── ERD.mermaid, ERD.png      # ERD 20 bảng
@@ -103,6 +106,9 @@ smart_exam_db/
 │   ├── omr_du_lieu.py            # Tuần 5: dữ liệu cho HUẤN LUYỆN (đệm ảnh nắn data/_omr/anh/, nhãn ô); chặn val (Phần A) + test
 │   ├── kiem_dinh_vi.py           # Tuần 5: thong-ke (56 ảnh train) / dich-gia (dịch 1 khoảng cách ô) -> data/_eval/omr/dinh_vi/
 │   ├── huan_luyen_omr.py         # Tuần 5: dac-trung -> cv (M0/M1 7-fold, chọn nguồn ảnh) -> luat -> xuat (models/*.json)
+│   ├── ocr_du_lieu.py            # Tuần 6: cat | xem | split | kiem – cắt ô chữ số -> data/_ocr/cat/, data/ocr_split.csv (5 fold = 5 người viết)
+│   ├── huan_luyen_ocr.py         # Tuần 6 (CHỈ huấn luyện, cần torch): m0 (HOG+logistic) | m1 (CNN, MNIST) | m2 (tinh chỉnh, CV theo người)
+│   ├── ocr_do_luong.py           # Tuần 6: omr | bao-cao (T, τ, δ, đối chiếu bubble, mức trường) -> data/_eval/ocr/
 │   ├── eval_omr.py               # Tuần 5: đánh giá ĐỘC LẬP (chỉ gọi doc_phieu): run --phuong-phap m0|m1, report
 │   │                             #   -> data/_eval/omr/bao_cao_phan_a_train.md + <pp>/xem_bang_mat.html
 │   └── check_task_pdf.py         # Trích phieu_giao_viec.pdf, so với ground_truth.csv hiện tại, commit đầu
@@ -461,6 +467,10 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       (đúng ±0,06 mm ở marker), nội dung ảnh C3 vẫn lệch TB +0,84 mm (0,37–1,30) ở giữa trang; ảnh giả C3 chỉ 0,1 mm ⇒ lệch
       thật (giấy/ống kính), homography 4 điểm không sửa được (`docs/ke_hoach_tuan4.md` 3c dừng B). **Xác nhận trên test
       (Bước 7)**: 0035_C3 `lech_max` **2,06 mm** (dev: 0030_C3 2,31 mm) > dung sai 2,0 mm của ô đáp án khi đọc toạ độ cố định.
+- [ ] **Tuần 6: CNN chữ số** (, duyệt 10/10/2026). **BƯỚC 0–5 XONG (10/10)**: torch 2.14.1+cpu (chỉ huấn luyện), MNIST + SHA; cắt ô
+      (tim_khung, bỏ viền), split theo NGƯỜI VIẾT (người 1–5; test 0035–0040 toàn người 5 → chỉ đo "nét đã gặp"). Số đo (người lạ, OOF): MNIST 98,9% → trang D
+      tinh chỉnh 95,8% → phiếu dev 91,9%; **đối chiếu bubble: lỗi im lặng mức trường 0 (SBD 0/29, mã đề 0/42) nhưng T3 (≥ 97%) và T4 (≤ 10%, thực tế 53,6%) CHƯA ĐẠT**;
+      CNN một mình không thể là kênh duy nhất (lỗi im lặng 0 chỉ ở 75% cần xem). Chưa làm: Bước 6–11 (cải tiến, suy luận NumPy, backend, val, test một lần).
 - [x] **Backend demo XONG (07/10/2026)** cho báo cáo 13/10 (`docs/ke_hoach_demo.md`, commit B0–B5): config `.env`, migration 001, dịch vụ chấm,
       API FastAPI (12 đường dẫn), luồng review mỏng, dữ liệu DEMO. **Kiểm đầu-cuối 56 ảnh train: 0 câu chấm sai mà không gắn cần xem (1 672 câu
       chắc chắn); điểm chính thức sau giáo viên khớp điểm tính độc lập 56/56; ảnh giả 44 từ chối đúng mã, 27 nhận đúng, 0 lỗi im lặng.** Nợ kỹ
