@@ -8,6 +8,7 @@
 | # | Quyết định |
 |---|---|
 | Q1 | D001–D010 do **5 người viết, mỗi người 2 trang**: người 1 = D001–D002, người 2 = D003–D004, người 3 = D005–D006, người 4 = D007–D008, người 5 = D009–D010. **5-fold THEO NGƯỜI VIẾT** (mỗi fold = 2 trang của 1 người) để đo khả năng đọc nét người chưa gặp; báo kết quả **theo từng người viết** (chỉ ghi "người 1–5", không tên thật). |
+| Q1b | **SBD / mã đề viết tay trên phiếu do cùng 5 người (người 1–5 như trang D), mỗi người 8 phiếu**: người 1 = 0001–0008, người 2 = 0009–0016, người 3 = 0017–0024, người 4 = 0025–0032, người 5 = 0033–0040. Dùng để báo kết quả theo người viết. **HẠN CHẾ phải nêu trong báo cáo:** tập test 0035–0040 hoàn toàn do **người 5** viết, mà người 5 cũng viết D009–D010 (dữ liệu tinh chỉnh) ⇒ test cuối chỉ đo **"nét chữ đã gặp"**; khả năng đọc nét chữ **người lạ** lấy từ phép chia theo người viết trên dev (OOF, mỗi fold bỏ 1 người). Val 0029–0032 thuộc người 4, 0033–0034 thuộc người 5 (cùng lưu ý). |
 | Q2 | Duyệt T1–T5. Bắt buộc **lỗi im lặng = 0** ở mức chữ số và mức trường SBD / mã đề. T4 ≤ 10% phiếu cần xem thừa chấp nhận cho bản đầu. Luôn báo khoảng tin cậy. |
 | Q3 | Bubble đọc được, ô viết tay trống → chấp nhận bubble **CHỈ KHI bubble chắc chắn VÀ SBD có trong danh sách thí sinh của kỳ thi**; thiếu một điều kiện → cần xem. |
 | Q4 | Cài **PyTorch bản CPU** vào `.venv` gốc (dry-run trước, báo dung lượng); `requirements.txt` ghi "chỉ để huấn luyện"; backend chạy NumPy + JSON. **Không dùng Kaggle.** |
