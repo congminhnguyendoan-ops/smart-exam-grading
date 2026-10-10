@@ -36,3 +36,38 @@ def test_eval_dung_chung_ranh_gioi():
     assert ep.SPLITS == {"dev": PHIEU_DEV, "test": PHIEU_TEST}
     dev = ep.list_images("dev")
     assert len(dev) == 78 and not any(la_test(x.ten) for x in dev)
+
+
+# ---- Tuần 6: người viết; chứng minh các tập phiếu dev / test CŨ không đổi -------------------------------
+def test_tap_cu_khong_doi():
+    """Vân tay SHA-256 của toàn bộ ranh giới cũ (tap_cua / ma_phieu / la_test trên 0000–0044, 160 tên ảnh phiếu, D000–D012,
+    tên lạ; cộng 8 mốc range) tính từ bản TRƯỚC khi thêm người viết (HEAD a97064d). Đổi bất kỳ hằng / hàm cũ nào sẽ làm vỡ test này."""
+    import hashlib
+    from cv_engine import tap_du_lieu as t
+    names = ([f"{i:04d}" for i in range(0, 45)] + [f"{i:04d}_C{k}.jpg" for i in range(1, 41) for k in range(1, 5)]
+             + [f"D{i:03d}" for i in range(0, 13)] + ["abc", "D1", "0035_x"])
+    s = "|".join(f"{n}:{t.tap_cua(n)}:{t.ma_phieu(n)}:{t.la_test(n)}" for n in names)
+    s += "|" + ",".join(map(str, [t.PHIEU_DEV.start, t.PHIEU_DEV.stop, t.PHIEU_TEST.start, t.PHIEU_TEST.stop,
+                                  t.PHIEU_TRAIN.start, t.PHIEU_TRAIN.stop, t.PHIEU_VAL.start, t.PHIEU_VAL.stop]))
+    assert hashlib.sha256(s.encode()).hexdigest() == "f3d507df4e2a3975b8b28f28815a72469cd764c39845a62f96bd936b308a5a98"
+
+
+def test_nguoi_viet():
+    from cv_engine.tap_du_lieu import fold_nguoi_viet, ma_trang, nguoi_viet, nguoi_viet_phieu, nguoi_viet_trang
+    assert [nguoi_viet_trang(t) for t in range(1, 11)] == [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+    assert [nguoi_viet_phieu(p) for p in (1, 8, 9, 16, 17, 24, 25, 32, 33, 40)] == [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+    assert [nguoi_viet(x) for x in ("D001", "D010.jpg", "0001_C1", "0035_C3", "0040", "IMG_1", "D011", "0041")] == \
+        [1, 5, 1, 5, 5, None, None, None]
+    assert fold_nguoi_viet("D003") == 1 and fold_nguoi_viet("abc") is None and ma_trang("0001") is None
+    for bad in (0, 11):
+        with pytest.raises(ValueError):
+            nguoi_viet_trang(bad)
+    for bad in (0, 41):
+        with pytest.raises(ValueError):
+            nguoi_viet_phieu(bad)
+
+
+def test_test_chi_nguoi_5():
+    """Hạn chế đã ghi trong kế hoạch: tập test 0035–0040 toàn người 5 (cùng người viết D009–D010)."""
+    from cv_engine.tap_du_lieu import PHIEU_TEST, nguoi_viet_phieu, nguoi_viet_trang
+    assert {nguoi_viet_phieu(p) for p in PHIEU_TEST} == {5} == {nguoi_viet_trang(9), nguoi_viet_trang(10)}

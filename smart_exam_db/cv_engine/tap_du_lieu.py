@@ -49,3 +49,50 @@ def chan_test(ds, xac_nhan: bool = False, viec: str = "") -> None:
         raise ChamTapTest(f"{viec or 'Lệnh này'} định dùng {len(t)} mục của tập TEST ({', '.join(t[:6])}"
                           f"{', …' if len(t) > 6 else ''}). Tập test 0035–0040 chỉ chạy một lần ở đánh giá cuối "
                           f"(docs/ke_hoach_tuan4.md Bước 7). Nếu đúng là lúc đó, thêm --xac-nhan-test.")
+
+
+# ---------------------------------------------------------------------------------------------
+# Tuần 6 (CNN chữ số, chốt 10/10/2026): NGƯỜI VIẾT. KHÔNG đổi các hằng / hàm ở trên.
+#   Trang chữ số: người 1 = D001–D002, 2 = D003–D004, 3 = D005–D006, 4 = D007–D008, 5 = D009–D010 (mỗi người 2 trang).
+#   Chữ số viết tay trên phiếu: người 1 = 0001–0008, 2 = 0009–0016, 3 = 0017–0024, 4 = 0025–0032, 5 = 0033–0040.
+#   5-fold CHIA THEO NGƯỜI VIẾT (fold = người − 1; mỗi fold bỏ ra 1 người). Chỉ ghi "người 1–5", không tên thật.
+#   Hạn chế: test 0035–0040 toàn do người 5 viết, người 5 cũng viết D009–D010 → test chỉ đo "nét chữ đã gặp".
+# ---------------------------------------------------------------------------------------------
+TRANG_CHU_SO = range(1, 11)                 # D001–D010
+SO_NGUOI_VIET = 5
+_MA_TRANG = re.compile(r"^D(\d{3})$", re.I)
+
+
+def ma_trang(ten) -> int | None:
+    """'D003' / 'D003.jpg' / Path -> 3. Phiếu và tên khác -> None."""
+    m = _MA_TRANG.match(Path(str(ten)).stem)
+    return int(m.group(1)) if m and int(m.group(1)) in TRANG_CHU_SO else None
+
+
+def nguoi_viet_trang(trang: int) -> int:
+    """Số trang chữ số (1–10) -> người viết 1–5."""
+    if trang not in TRANG_CHU_SO:
+        raise ValueError(f"Trang chữ số phải 1–10, nhận {trang}")
+    return (trang - 1) // 2 + 1
+
+
+def nguoi_viet_phieu(phieu: int) -> int:
+    """Mã phiếu (1–40) -> người viết 1–5 (mỗi người 8 phiếu)."""
+    if phieu not in range(1, 41):
+        raise ValueError(f"Mã phiếu phải 1–40, nhận {phieu}")
+    return (phieu - 1) // 8 + 1
+
+
+def nguoi_viet(ten) -> int | None:
+    """'D003' -> 2; '0035_C1' -> 5; tên khác -> None."""
+    t = ma_trang(ten)
+    if t is not None:
+        return nguoi_viet_trang(t)
+    p = ma_phieu(ten)
+    return nguoi_viet_phieu(p) if p is not None and 1 <= p <= 40 else None
+
+
+def fold_nguoi_viet(ten) -> int | None:
+    """Fold 0–4 của 5-fold theo người viết (= người − 1); tên khác -> None."""
+    n = nguoi_viet(ten)
+    return None if n is None else n - 1
