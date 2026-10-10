@@ -215,4 +215,8 @@ huấn luyện trên **Kaggle** (như CLAUDE.md mục 2), mang trọng số về
 
 ## 10. KẾT QUẢ
 
-*(chưa có – điền từng bước khi làm)*
+### Bước 1 (10/10/2026) – xong
+- Dry-run + cài **torch 2.14.1+cpu** vào `.venv` gốc: wheel `cp314-cp314-win_amd64` **124 MB**; cài xong `site-packages/torch` **546 MB** (+ fsspec, networkx, sympy, mpmath, filelock, Jinja2, MarkupSafe, setuptools; numpy 2.5.3 và opencv không đổi). `torch.cuda.is_available() = False` (đúng, bản CPU).
+- `requirements.txt`: dòng `torch>=2.14` ghi "chỉ để HUẤN LUYỆN"; backend / `ocr.py` không import torch.
+- MNIST tải từ bản sao PyTorch (`ossci-datasets.s3.amazonaws.com/mnist`); **trang gốc yann.lecun.com không truy cập được từ máy này**. Giấy phép: Hugging Face `ylecun/mnist` ghi `license: mit` (nguồn gốc NIST SD-1/SD-3) – chưa xác minh trực tiếp ở trang gốc; ghi nguồn + trích dẫn LeCun, Cortes, Burges. SHA-256 (khớp giá trị MNIST được công bố rộng rãi) lưu ở `data/_ocr/nguon/SHA.txt` (ngoài git):
+  `train-images 440fcabf…3609` · `train-labels 3552534a…255c` · `t10k-images 8d422c7b…c4e6` · `t10k-labels f7ae60f9…aec6`.
