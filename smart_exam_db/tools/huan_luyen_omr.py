@@ -261,6 +261,24 @@ def mo_phong_cau(rows: list[dict], P: np.ndarray, luat_cau: dict) -> dict:
     return dem
 
 
+def thua_theo_dieu_kien(rows: list[dict], P: np.ndarray, luat_cau: dict) -> dict:
+    """{điều kiện: (số câu rõ 1 ô bị cần xem, số câu rõ 1 ô)} và tổng lỗi nặng – để chọn ro_min THEO TỪNG ĐIỀU KIỆN (Phần B2)."""
+    nhom: dict = {}
+    for i, r in enumerate(rows):
+        nhom.setdefault((r["anh"], r["phan_tu"]), []).append(i)
+    d = {dk: [0, 0] for dk in DIEU_KIEN}
+    nang = 0
+    for idx in nhom.values():
+        tt, to = trang_thai_that([rows[i]["nhan"] for i in idx])
+        k = omr.ap_luat_cau(0, P[idx], luat_cau)
+        if not k.can_xem:
+            nang += frozenset("ABCD".index(c) for c in k.dap_an) != to
+        if tt == "ro":
+            d[rows[idx[0]]["dieu_kien"]][1] += 1
+            d[rows[idx[0]]["dieu_kien"]][0] += k.can_xem
+    return {"dk": d, "nang": nang}
+
+
 def cmd_luat() -> None:
     chon = json.loads((OMR_DIR / "chon_nguon.json").read_text(encoding="utf-8"))
     k = {v: kk for kk, v in NGUON.items()}[chon["nguon"]]
@@ -292,15 +310,26 @@ def cmd_luat() -> None:
                 luoi[ro] = d
                 print(f"ro_min {ro}: nặng {d['nang']}, nhẹ {d['nhe']}, cần xem thừa {d['thua']}/{d['ro_that']} "
                       f"({d['thua'] / d['ro_that']:.2%}), cần xem {d['can_xem']}/{d['cau']}")
-            ok = [ro for ro, d in luoi.items() if d["thua"] / d["ro_that"] <= THUA_MAX_CHON and d["nang"] == 0]
-            if not ok:
-                raise SystemExit("không ro_min nào đạt (0 lỗi nặng, cần xem thừa ≤ 2,5%) – DỪNG")
+            # Phần B2 (20/10/2026): ro_min chọn theo TỪNG ĐIỀU KIỆN – thừa ≤ 2,5% Ở MỌI C1–C4 (Phần A chỉ xét gộp: 0,6 -> C2 3,79% > 3%)
+            theo_dk = {ro: thua_theo_dieu_kien(sel, P, {**L, "ro_min": ro}) for ro in RO_LUOI}
+            for ro, v in theo_dk.items():
+                print(f"  ro_min {ro}: thừa theo điều kiện " + ", ".join(f"{dk} {a}/{b} ({a / b:.2%})" for dk, (a, b) in v["dk"].items()))
+            ok = [ro for ro, v in theo_dk.items() if v["nang"] == 0 and all(a / b <= THUA_MAX_CHON for a, b in v["dk"].values())]
+            if not ok:                      # dự phòng (giống omr_c2.chon_ro_min_dk): ro_min có thừa-xấu-nhất nhỏ nhất, phải còn ≤ 3% (tiêu chí ★Q2)
+                xau = {ro: max(a / b for a, b in v["dk"].values()) for ro, v in theo_dk.items() if v["nang"] == 0}
+                ro_du = min(xau, key=lambda r: (xau[r], -r)) if xau else None
+                print(f"  không ro_min nào ≤ {THUA_MAX_CHON:.1%} mọi điều kiện -> dự phòng ro_min {ro_du} (xấu nhất {xau.get(ro_du, 9):.2%})")
+                if ro_du is None or xau[ro_du] > 0.03:
+                    raise SystemExit("không ro_min nào đạt (0 lỗi nặng, cần xem thừa ≤ 3% mọi điều kiện) – DỪNG")
+                ok = [ro_du]
             L["ro_min"] = max(ok)
             can_cu["cau"]["luoi_ro_min"] = {str(ro): d for ro, d in luoi.items()}
+            can_cu["cau"]["thua_theo_dieu_kien"] = {str(ro): v["dk"] for ro, v in theo_dk.items()}
         out[loai] = L
     out["can_cu"] = can_cu
     out["quy_tac"] = ("trong_min/to_min chốt trước, kiểm biên ≥ 0,20 so với ca xấu nhất OOF; ro_min = lớn nhất trong "
-                      "{0,5..0,9} có cần xem thừa ≤ 2,5% và 0 lỗi nặng (OOF M1, train 0001–0028)")
+                      "{0,5..0,9} có 0 lỗi nặng và cần xem thừa ≤ 2,5% Ở MỌI điều kiện C1–C4 (Phần B2; Phần A: gộp -> 0,6); không có thì dự phòng = thừa-xấu-nhất nhỏ nhất, phải ≤ 3% "
+                      "(OOF M1, train 0001–0028)")
     (OMR_DIR / "luat.json").write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     print(json.dumps({kk: v for kk, v in out.items() if kk in ("cau", "bubble")}, ensure_ascii=False),
           "->", OMR_DIR / "luat.json")
