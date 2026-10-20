@@ -45,7 +45,25 @@ def doc_nhan(tap) -> dict:
     return out
 
 
-def chay(ten_tap: str, dau_ra: bool = True) -> dict:
+def luoi_html(o: list) -> str:
+    """Lưới HTML để xem bằng mắt: mỗi ảnh một hàng 9 ô = ảnh ô viết tay + chữ số bubble + chữ số máy đọc (%); ô cần xem tô vàng."""
+    import base64
+
+    import cv2
+    h = ["<meta charset=utf-8><style>body{font:13px sans-serif}td{border:1px solid #ccc;text-align:center;padding:2px}.cx{background:#fff1d6}"
+         "img{height:64px;image-rendering:pixelated}</style><h3>eval_ocr --xem</h3>"]
+    for r in o:
+        if "cells" not in r:
+            continue
+        h.append(f"<p><b>{r['anh']}</b> · SBD {'chắc' if r['sbd_chac'] else 'CẦN XEM'} {r['sbd_ly']} · mã đề {'chắc' if r['ma_chac'] else 'CẦN XEM'} {r['ma_ly']}</p><table><tr>")
+        for c in r["cells"]:
+            b = base64.b64encode(cv2.imencode(".png", c["anh"])[1].tobytes()).decode()
+            h.append(f"<td class='{'cx' if c['cx'] else ''}'><img src='data:image/png;base64,{b}'><br>ô tô <b>{c['bubble']}</b><br>máy <b>{c['cnn']}</b> {c['p']:.0%}</td>")
+        h.append("</tr></table>")
+    return "\n".join(h)
+
+
+def chay(ten_tap: str, dau_ra: bool = True, xem: bool = False) -> dict:
     tap = TAP[ten_tap]
     nhan = doc_nhan(tap)
     anhs = sorted(p for p in (DATA / "raw").glob("*.jpg") if ma_phieu(p.stem) in tap)
@@ -67,6 +85,10 @@ def chay(ten_tap: str, dau_ra: bool = True) -> dict:
                  sbd_dung=dc["sbd"][0] == sbd_t, ma_dung=dc["ma_de"][0] == ma_t,
                  sbd_nhan_sai=bool(dc["sbd"][1] and res.sbd != sbd_t), ma_nhan_sai=bool(dc["ma_de"][1] and res.ma_de != ma_t),
                  chu_so_cnn_dung=sum(a == b for a, b in zip(r_cnn(hv), sbd_t + ma_t)), ms=hv.thoi_gian_ms)
+        if xem:
+            bub = list(res.sbd) + list(res.ma_de)
+            cx = [not c.chac for c in dc["cot"]["sbd"]] + [not c.chac for c in dc["cot"]["ma_de"]]
+            r["cells"] = [{"anh": c.anh_o, "bubble": b, "cnn": c.chu_so, "p": c.p, "cx": x} for c, b, x in zip(hv.sbd + hv.ma_de, bub, cx)]
         rows.append(r)
         if dau_ra:
             print(f"{p.stem}: SBD {'chắc' if r['sbd_chac'] else 'cần xem'} {r['sbd_ly']} · mã đề {'chắc' if r['ma_chac'] else 'cần xem'} {r['ma_ly']}")
@@ -75,7 +97,7 @@ def chay(ten_tap: str, dau_ra: bool = True) -> dict:
     k_cs = sum(r["chu_so_cnn_dung"] for r in ok)
     gan = [r for r in ok if not (r["sbd_chac"] and r["ma_chac"])]
     il = [r["anh"] for r in ok if r["sbd_nhan_sai"] or r["ma_nhan_sai"]]
-    tom = {"tap": ten_tap, "anh": len(rows), "tu_choi": len(rows) - len(ok), "mo_hinh_ocr_sha": ocr.nap_mo_hinh_ocr().sieu_du_lieu.get("git_head"),
+    tom = {"tap": ten_tap, "anh": len(rows), "tu_choi": len(rows) - len(ok), "mo_hinh_xuat_tu_commit": ocr.nap_mo_hinh_ocr().sieu_du_lieu.get("git_head"),
            "T3_chu_so_dung": k_cs, "T3_n": n_cs, "T3": round(k_cs / n_cs, 4) if n_cs else None, "T3_ci95": [round(v, 4) for v in cp_ci(k_cs, n_cs)] if n_cs else None,
            "T4_gan": len(gan), "T4_n": len(ok), "T4": round(len(gan) / len(ok), 4) if ok else None,
            "T4_ci95": [round(v, 4) for v in cp_ci(len(gan), len(ok))] if ok else None,
@@ -110,11 +132,16 @@ def main():
     ap.add_argument("lenh", choices=["run"])
     ap.add_argument("--tap", choices=list(TAP), required=True)
     ap.add_argument("--xac-nhan-val", action="store_true", help="bắt buộc cho --tap val (đã đăng ký trước, chạy MỘT lần)")
+    ap.add_argument("--xem", action="store_true", help="ghi thêm data/_eval/ocr/xem_<tap>.html (lưới ảnh ô viết tay để xem bằng mắt)")
     a = ap.parse_args()
     if a.tap == "val" and not a.xac_nhan_val:
         sys.exit("DỪNG: tập val 0029–0034 chỉ chạy sau khi đăng ký trước và có lệnh 'chạy val' của người dùng (thêm --xac-nhan-val).")
-    kq = chay(a.tap)
+    kq = chay(a.tap, xem=a.xem)
     OUT.mkdir(parents=True, exist_ok=True)
+    if a.xem:
+        (OUT / f"xem_{a.tap}.html").write_text(luoi_html(kq["anh"]), encoding="utf-8")
+    for r in kq["anh"]:
+        r.pop("cells", None)
     (OUT / f"eval_{a.tap}.json").write_text(json.dumps(kq, ensure_ascii=False, indent=1), encoding="utf-8")
     t = kq["tom_tat"]
     print(json.dumps(t, ensure_ascii=False, indent=1))
