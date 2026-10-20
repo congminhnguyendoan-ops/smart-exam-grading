@@ -64,8 +64,8 @@ smart_exam_db/
 │   │                             #   (API: mục 4b). find_markers, verify, normalize, MA_LY_DO, nap_layout
 │   ├── omr.py                    # Tuần 5: doc_phieu(kq, layout, mo_hinh) -> KetQuaOMR (API: mục 4c). dinh_vi (2 tầng),
 │   │                             #   dac_trung_o, du_doan (NumPy + JSON), ap_luat_cau/ap_luat_cot, MA_LY_DO_OMR
-│   ├── ocr.py                    # Tuần 6 (đang làm, Bước 2–5): tim_khung/cat_anh (cắt ô chữ số bỏ viền, chuẩn hoá MNIST),
-│   │                             #   doi_chieu_cot/doi_chieu_truong (bubble ↔ viết tay). CHƯA có doc_chu_so/suy luận NumPy (Bước 8)
+│   ├── ocr.py                    # Tuần 6: tim_khung/cat_anh (cắt ô chữ số bỏ viền, chuẩn hoá MNIST), nap_mo_hinh_ocr + doc_chu_so
+│   │                             #   (CNN NumPy + JSON, ~15 ms/phiếu, API: mục 4e), doi_chieu_cot/doi_chieu_truong/doi_chieu_dinh_danh
 │   └── tap_du_lieu.py            # NGUỒN DUY NHẤT ranh giới dev/test (+ train/val OMR), chan_test(); Tuần 6: người viết 1–5, fold
 ├── backend/                      # Backend demo (mục 4d): main.py (API), schemas.py, service.py (ảnh → OMR → chấm → CSDL, luồng giáo viên),
 │   │                             #   grading.py (chấm thuần), demo.py (dữ liệu mẫu), config.py (.env), db.py, migrate.py
@@ -74,7 +74,8 @@ smart_exam_db/
 ├── .env.example                  # mẫu cấu hình; .env thật (DATABASE_URL, STORAGE_DIR…) KHÔNG vào git. storage/ (ảnh phiếu) cũng không
 ├── models/                       # Tuần 5: omr_m1.json (logistic, train 0001–0028), omr_m0.json (ngưỡng) – trong git,
 │                                 #   kèm sieu_du_lieu (ngày, git, SHA dữ liệu, fold). Sinh: tools/huan_luyen_omr.py xuat
-├── tests/                        # pytest (178 test, ~55 s): python -m pytest tests (từ smart_exam_db/).
+│                                 #   Tuần 6: ocr_cnn.json (CNN chữ số, NumPy + JSON, xuất từ commit sạch b75453e). Sinh: tools/xuat_ocr.py
+├── tests/                        # pytest (220 test, ~67 s): python -m pytest tests (từ smart_exam_db/).
 │                                 #   Thiếu data/ → test cần dữ liệu tự SKIP
 ├── docs/                         # Tài liệu cho báo cáo (Tuần 1–3)
 │   ├── ke_hoach_tuan4.md         # Kế hoạch 8 bước (0–7) của preprocessing: việc, cách đo, tiêu chí xong,
@@ -109,6 +110,11 @@ smart_exam_db/
 │   ├── ocr_du_lieu.py            # Tuần 6: cat | xem | split | kiem – cắt ô chữ số -> data/_ocr/cat/, data/ocr_split.csv (5 fold = 5 người viết)
 │   ├── huan_luyen_ocr.py         # Tuần 6 (CHỈ huấn luyện, cần torch): m0 (HOG+logistic) | m1 (CNN, MNIST) | m2 (tinh chỉnh, CV theo người)
 │   ├── ocr_do_luong.py           # Tuần 6: omr | bao-cao (T, τ, δ, đối chiếu bubble, mức trường) -> data/_eval/ocr/
+│   ├── ocr_phan_tich.py          # Tuần 6 Phần C B1: vì sao ~54% phiếu "cần xem" (theo cột / trường / phiếu, người viết, C1–C4)
+│   ├── ocr_cai_tien.py           # Tuần 6 Phần C B2: chay | bang | luat-mem – thí nghiệm cải thiện CNN (tăng cường, ensemble, EMNIST),
+│   │                             #   cùng luật đo T3 / T4 / lỗi im lặng; luat-mem = ĐỀ XUẤT luật mềm, KHÔNG áp dụng (chờ quyết định)
+│   ├── xuat_ocr.py               # Tuần 6: xuất models/ocr_cnn.json TỪ COMMIT SẠCH + kiểm NumPy ↔ PyTorch (< 1e-4); cần torch
+│   ├── eval_ocr.py               # Tuần 6: đánh giá ĐỘC LẬP hai kênh SBD / mã đề (chỉ ocr.py + omr.py): run --tap dev | val (--xac-nhan-val) [--xem]
 │   ├── eval_omr.py               # Tuần 5: đánh giá ĐỘC LẬP (chỉ gọi doc_phieu): run --phuong-phap m0|m1, report
 │   │                             #   -> data/_eval/omr/bao_cao_phan_a_train.md + <pp>/xem_bang_mat.html
 │   └── check_task_pdf.py         # Trích phieu_giao_viec.pdf, so với ground_truth.csv hiện tại, commit đầu
@@ -228,6 +234,23 @@ omr.sbd, omr.sbd_can_xem, omr.sbd_cot, omr.ma_de, omr.ma_de_can_xem, omr.can_xem
 
 ---
 
+### 4e. API `cv_engine.ocr` (Tuần 6 Phần C, 20/10/2026 – chi tiết `docs/ke_hoach_tuan6.md` mục 10)
+
+```python
+from cv_engine.ocr import doc_chu_so, nap_mo_hinh_ocr, doi_chieu_dinh_danh
+mh = nap_mo_hinh_ocr()                                   # models/ocr_cnn.json – nạp 1 lần, KHÔNG cần torch
+hv = doc_chu_so(kq, nap_layout("phieu"), mh)             # kq.ok = True (không thì ValueError); hv.sbd (6) / hv.ma_de (3): CotOCR
+dc = doi_chieu_dinh_danh(omr, hv, sbd_trong_ds, ma_de_trong_ds, mo_hinh=mh)   # True / False / None (chưa kiểm được) – luật Q3
+dc["sbd"] == (giá trị, chắc, lý do); dc["can_xem"]
+```
+- `CotOCR`: `chu_so` ('?' khi trống / không đọc được), `top_k`, `p` (đã hiệu chỉnh nhiệt độ), `o_trong`, `loi_o` ('' | `o_it_muc` | `khong_phai_chu_so`),
+  `ok_vien`, `cnn_chac` (chỉ thông tin), `anh28`, `anh_o`. Ô trống / ít mực / bôi đen / nhiều mảnh KHÔNG qua CNN.
+- Luật đối chiếu mỗi cột (τ_khop = 0,5, **Q3 nguyên vẹn**): bubble chắc + CNN cùng chữ số và p ≥ 0,5 → chắc; khác / p thấp → cần xem; bubble `?` hoặc OMR
+  gắn cần xem → cần xem; ô viết tay trống + bubble chắc → chắc **chỉ khi** SBD (mã đề) có trong danh sách của kỳ thi; `loi_o` → cần xem.
+  Lý do: `lech_bubble`, `tin_cay_thap`, `thieu_bubble`, `bubble_cx`, `o_trong_ngoai_ds`, `o_trong_chua_biet_ds`, `o_it_muc`, `khong_phai_chu_so`.
+- Mô hình: CNN Conv16–Conv32–Dense64 (~106 k tham số), MNIST + tăng cường → tinh chỉnh D001–D010, T = 1,75. **T3 ≈ 92%, T4 ≈ 46–54% (chưa đạt 97% / 10%)**,
+  lỗi im lặng mức trường = 0 trên dev. Luật mềm (nhận theo p_CNN của chữ số bubble): chỉ là đề xuất, chưa áp dụng.
+
 ### 4d. Backend (demo 13/10/2026; kế hoạch + nợ kỹ thuật: `docs/ke_hoach_demo.md`)
 **Chạy** (từ `smart_exam_db\`, venv gốc đã bật; cần `.env` – sao chép `.env.example`, điền `DATABASE_URL`):
 ```powershell
@@ -240,13 +263,14 @@ curl -F file=@data/raw/0002_C2.jpg http://127.0.0.1:8000/exams/<exam_id>/sheets 
 **Endpoint**: `GET /health` · `POST/GET /exams`, `GET /exams/{id}` · `POST /exams/{id}/sheets` (1 ảnh), `POST /exams/{id}/sheets/batch` (nhiều ảnh) ·
 `GET /exams/{id}/sheets` · `GET /sheets/{id}` · `GET /sheets/{id}/image?kind=original|aligned` · `GET /sheets/{id}/review-questions`,
 `GET /exams/{id}/review-questions` · `GET /sheets/{id}/questions/{n}/image` · `POST /sheets/{id}/questions/{n}/review` (`confirm` | `set`) ·
-`PUT /sheets/{id}/identity` (SBD / mã đề) · `GET /meta/reject-reasons` (mã từ chối + lời khuyên chụp lại) · `GET /exams/{id}/results` (bảng điểm: `score` CHỈ điểm chính thức, phiếu chưa duyệt chỉ ở `provisional_score`) · `GET /exams/{id}/export.xlsx` (sheet "Bảng điểm" + "Chi tiết", `backend/bang_diem.py`, openpyxl). **Giao diện**: `http://127.0.0.1:8000/` → `/app/` (F1 tải ảnh, F2 danh sách, F3 chi tiết, F4 duyệt, F5 bảng điểm + Xuất Excel; các bước demo: `docs/ke_hoach_demo.md`). Chưa có đăng nhập: người dùng = `DEMO_USER` (.env) hoặc header `X-User`.
+`PUT /sheets/{id}/identity` (SBD / mã đề; ghi `ocr_digits.corrected_digit`) · `GET /sheets/{id}/digits/{field}/{pos}/image` (ảnh ô viết tay; `field` = `sbd` | `exam_code`) · `GET /meta/reject-reasons` (mã từ chối + lời khuyên chụp lại) · `GET /exams/{id}/results` (bảng điểm: `score` CHỈ điểm chính thức, phiếu chưa duyệt chỉ ở `provisional_score`) · `GET /exams/{id}/export.xlsx` (sheet "Bảng điểm" + "Chi tiết", `backend/bang_diem.py`, openpyxl). **Giao diện**: `http://127.0.0.1:8000/` → `/app/` (F1 tải ảnh, F2 danh sách, F3 chi tiết, F4 duyệt, F5 bảng điểm + Xuất Excel; các bước demo: `docs/ke_hoach_demo.md`). Chưa có đăng nhập: người dùng = `DEMO_USER` (.env) hoặc header `X-User`.
 **Quy tắc cốt lõi**: ảnh → `doc_anh` → `preprocess_anh` → `omr.doc_phieu` → chấm. Câu OMR "cần xem" **không bao giờ** được chấm như câu chắc
 chắn (`is_correct = NULL`). Phiếu còn câu / SBD / mã đề cần xem: `status = needs_review`, CHỈ có điểm tạm (`answer_sheets.raw_score`) và mục
 `review_queue`; điểm chính thức (`results`) chỉ có khi giáo viên xem hết (`confirmed`) hoặc máy không còn gì cần xem (`auto`). Ảnh bị từ chối:
-`status = rejected` + `reject_code` + thông báo `MA_LY_DO`, không điểm. Một đường quyết định duy nhất: `service.danh_gia_phieu` (đối chiếu
+`status = rejected` + `reject_code` + thông báo `MA_LY_DO`, không điểm. **SBD / mã đề đọc bằng HAI KÊNH** (Tuần 6 Phần C): bubble (OMR) + chữ viết tay (CNN `ocr.py`), đối chiếu theo mục 4e; trường không chắc → `needs_review` (`low_ocr_confidence`,
+`details.sbd_ly_do`); `detected_sbd` = chữ số đọc từ bubble; 9 dòng `ocr_digits` + 9 PNG / phiếu; thiếu `OCR_MODEL` thì không khởi động. Một đường quyết định duy nhất: `service.danh_gia_phieu` (đối chiếu
 `fn_grade_sheet` trước khi ghi điểm). **Không dùng `fn_process_sheet`** (không biết lý do cần xem của OMR). Test API chạy trên CSDL thật trong giao
-dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `python tools/kiem_backend_dau_cuoi.py` (56 ảnh train: 0 câu chấm sai không gắn cần xem).
+dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `python tools/kiem_backend_dau_cuoi.py` (56 ảnh train: 0 câu chấm sai không gắn cần xem; 0 SBD / mã đề nhận sai so với chữ viết tay; 26/56 ảnh có SBD hoặc mã đề cần xem).
 
 ## 5. Cài đặt và chạy
 
@@ -467,10 +491,15 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       (đúng ±0,06 mm ở marker), nội dung ảnh C3 vẫn lệch TB +0,84 mm (0,37–1,30) ở giữa trang; ảnh giả C3 chỉ 0,1 mm ⇒ lệch
       thật (giấy/ống kính), homography 4 điểm không sửa được (`docs/ke_hoach_tuan4.md` 3c dừng B). **Xác nhận trên test
       (Bước 7)**: 0035_C3 `lech_max` **2,06 mm** (dev: 0030_C3 2,31 mm) > dung sai 2,0 mm của ô đáp án khi đọc toạ độ cố định.
-- [ ] **Tuần 6: CNN chữ số** (, duyệt 10/10/2026). **BƯỚC 0–5 XONG (10/10)**: torch 2.14.1+cpu (chỉ huấn luyện), MNIST + SHA; cắt ô
-      (tim_khung, bỏ viền), split theo NGƯỜI VIẾT (người 1–5; test 0035–0040 toàn người 5 → chỉ đo "nét đã gặp"). Số đo (người lạ, OOF): MNIST 98,9% → trang D
-      tinh chỉnh 95,8% → phiếu dev 91,9%; **đối chiếu bubble: lỗi im lặng mức trường 0 (SBD 0/29, mã đề 0/42) nhưng T3 (≥ 97%) và T4 (≤ 10%, thực tế 53,6%) CHƯA ĐẠT**;
-      CNN một mình không thể là kênh duy nhất (lỗi im lặng 0 chỉ ở 75% cần xem). Chưa làm: Bước 6–11 (cải tiến, suy luận NumPy, backend, val, test một lần).
+- [ ] **Tuần 6: CNN chữ số** (duyệt 10/10/2026). **Bước 0–5 xong 10/10; PHẦN C xong 20/10/2026** (commit `eb99898` … `b3d0ede`): phân tích 54% cần xem
+      (CNN đọc sai ~8% chữ số là nguyên nhân gần như duy nhất; người 3 và ảnh C3 yếu); thử tăng cường mạnh / kiểu "1 móc, 7 gạch" / ensemble 3 seed / EMNIST Digits:
+      **không cấu hình nào khác baseline có ý nghĩa** (kiểm định dấu p ≥ 0,07; dao động giữa seed lớn hơn) → chọn g0, 1 seed 2026; **T3 ≈ 92%, T4 ≈ 46–54%: chưa đạt
+      97% / 10%** (ghi nguyên trạng); lỗi im lặng mức trường = 0. `cv_engine/ocr.py` suy luận NumPy + JSON (`models/ocr_cnn.json` từ commit sạch `b75453e`,
+      khớp PyTorch 4 376 chữ số, 14 ms/phiếu); nối backend + giao diện F3/F4 (hai kênh cạnh nhau); kiểm đầu-cuối 56 ảnh dev: 0 sai im lặng, điểm chính thức khớp 56/56;
+      pytest 220 đạt. **Đề xuất luật mềm (chưa áp dụng, chờ bạn quyết)**: T4 54% → 27% (τ 0,1) đổi lấy ~5× rủi ro nhận nhầm khi tô sai bubble (mô phỏng 0,67% → 3,3%).
+      **ĐANG CHỜ**: (1) bạn xem giao diện F3/F4 trên trình duyệt (kỳ thi [THU] exam_id 509); (2) quyết định luật mềm; (3) gõ **"chạy val"** để chạy đánh giá val
+      0029–0034 (đã **đăng ký trước** ở `docs/ke_hoach_tuan6.md` mục 11, mã `b3d0ede`, SHA mô hình `6d87205c…`; `python tools/eval_ocr.py run --tap val --xac-nhan-val --xem`).
+      Còn lại: test cuối 0035–0040 (một lần, đăng ký trước, xem mù), đo theo mức mờ `_gia_v4` + chỉnh `MO_MIN`, nợ kỹ thuật Phần C (`ke_hoach_tuan6.md`).
 - [x] **Backend demo XONG (07/10/2026)** cho báo cáo 13/10 (`docs/ke_hoach_demo.md`, commit B0–B5): config `.env`, migration 001, dịch vụ chấm,
       API FastAPI (12 đường dẫn), luồng review mỏng, dữ liệu DEMO. **Kiểm đầu-cuối 56 ảnh train: 0 câu chấm sai mà không gắn cần xem (1 672 câu
       chắc chắn); điểm chính thức sau giáo viên khớp điểm tính độc lập 56/56; ảnh giả 44 từ chối đúng mã, 27 nhận đúng, 0 lỗi im lặng.** Nợ kỹ
@@ -546,6 +575,7 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
   `check_layout.py` và `update_template.sql`.
 - Toạ độ pixel luôn tính ở **300 DPI**, gốc toạ độ là ảnh đã nắn phẳng.
 - Không bao giờ ghi vào `data/raw*` (kể cả thư mục con). Ảnh xử lý ghi ra thư mục khác (`data/_aligned/`, `data/_eval/`, …).
+- Tập val 0029–0034 chỉ chạy khi người dùng gõ "chạy val" (đã đăng ký trước, `docs/ke_hoach_tuan6.md` mục 11); `tools/eval_ocr.py` khoá bằng `--xac-nhan-val`.
 - Không đọc ảnh / nhãn của tập test 0035–0040 khi chưa tới đánh giá cuối: ranh giới và `chan_test()` ở
   `cv_engine/tap_du_lieu.py`; công cụ mới phải dùng lại, không tự định nghĩa ranh giới.
 - Tên file: ảnh phiếu `NNNN_Ck.jpg` (NNNN = mã phiếu, k = 1–4), trang chữ số `DNNN.jpg`.

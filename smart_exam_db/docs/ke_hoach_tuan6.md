@@ -295,3 +295,96 @@ Theo điều kiện chụp (phiếu dev, M2): C1 96,0% · C2 93,7% · **C3 84,9%
 4. Bản đồ tối tính cả trang (~40 ms) → tính theo cửa sổ.
 5. Suy luận NumPy + JSON chưa viết (`doc_chu_so`, Bước 8); `torch` chỉ dùng huấn luyện.
 6. Xem bằng mắt lưới D002–D004, D006, D007, D009, D010.
+
+### Phần C (20/10/2026) – đưa CNN chữ số vào hệ thống (Bước 1–4; số liệu: `data/_eval/ocr/*.json`, tái tạo bằng lệnh ghi kèm)
+
+**Trạng thái đầu phiên:** HEAD `a83ebd3`, cây sạch, không commit mới của người khác từ 12/10, pytest 198 đạt. Chỉ dùng dev 0001–0028 + D001–D010 (5-fold theo người viết); **không đọc / không chạy 0029–0040**.
+
+#### Bước 1 – vì sao ~54% phiếu "cần xem" (`python tools/ocr_phan_tich.py`; M2 OOF người lạ, luật đối chiếu hiện hành, τ_khop 0,5)
+| Mức | Kết quả |
+|---|---|
+| **Cột** (504 chữ số) | chắc 456 (90,5%) · **hai kênh lệch vì CNN đọc sai 38 (7,5%)** · CNN cùng chữ số nhưng p < 0,5: 5 (1,0%) · dò ô thất bại + lệch: 3 (0,6%) · bubble không đọc được (0001 × 2): 2 (0,4%) · **bubble sai mà CNN đúng: 0** · hai kênh cùng khác nhãn: 0 |
+| **Phiếu** (30/56 = 53,6% bị gắn) – nguyên nhân ưu tiên | CNN đọc sai (lệch bubble) **22** · dò ô thất bại **3** · CNN không chắc **3** · thiếu bubble **2** |
+| Trường | SBD 27/56 bị gắn (21 phiếu có ≥ 1 cột lệch do CNN sai, 5 cột p thấp, 2 thiếu bubble) · mã đề 14/56 (11 lệch do CNN, 3 do dò ô) |
+| Theo người viết (ảnh bị gắn) | người 1 7/16 (43,8%) · người 2 6/16 (37,5%) · **người 3 14/16 (87,5%)** · người 4 3/8 (37,5%) |
+| Theo điều kiện | C1 6/14 (42,9%) · C2 6/14 (42,9%) · **C3 11/14 (78,6%)** · C4 7/14 (50,0%) |
+| Dò ô (`ok_vien`) | SBD 1/336 ô không dò được (0,3%) · **mã đề 18/168 (10,7%)** – toàn ảnh C3; chỉ 3 ô trong đó bị gắn (15 ô còn lại CNN đọc đúng, khớp bubble) |
+
+**Kết luận:** nguyên nhân gần như duy nhất là **CNN đọc sai ~8% chữ số** (mà bubble thì đúng 100% ở dev) → muốn T4 ≤ 10% dưới luật đối chiếu hiện hành thì mỗi chữ số phải đúng ≥ ~99% (0,99⁹ ≈ 91%); T3 hiện ~92%. Dò ô mã đề chỉ gây tối đa 3/56 phiếu → **không làm mục (d)** (xem nợ). Người 3 và ảnh C3 là điểm yếu (kiểu viết "7 gạch", ảnh nghiêng).
+
+#### Bước 2 – thử nghiệm cải thiện (`python tools/ocr_cai_tien.py chay` → `bang`; cùng luật cho mọi cấu hình, τ_khop 0,5 CỐ ĐỊNH)
+Tiêu chí chốt TRƯỚC khi chạy: lỗi im lặng mức trường = 0 → T4 thấp nhất → nếu khác biệt T4 không có ý nghĩa (kiểm định dấu cặp theo ảnh, p ≥ 0,05) chọn cấu hình **đơn giản hơn**. Tất cả đo trên phiếu dev 0001–0028 (56 ảnh, 504 chữ số), người lạ (OOF); CI = Clopper–Pearson 95%.
+
+| Cấu hình | Mô tả | 1 seed (2026): T3 [CI] · T4 [CI] | 3 seed riêng: T3 · T4 | Ensemble 3 seed: T3 · T4 | Lỗi im lặng |
+|---|---|---|---|---|---|
+| **g0 (gốc)** | MNIST, tăng cường cũ, tinh chỉnh toàn bộ | **91,9% [89,1–94,1] · 53,6% [40–67]** | 91,9 / 92,1 / 90,9 · 53,6 / 62,5 / 60,7 | 92,9% [90,2–95,0] · 55,4% [41–69] | 0 |
+| a1 | (a) tăng cường mạnh khi huấn luyện trước (xoay ±12°, co giãn 2 trục, nghiêng, độ dày nhiều kiểu, nhoè) | 92,5% [89,8–94,6] · 51,8% [38–65] | 92,5 / 92,3 / 91,3 · 51,8 / 64,3 / 53,6 | 92,5% · 62,5% [49–75] | 0 |
+| a2 | a1 + sinh kiểu "1 có móc / hất", "7 có gạch ngang" (~12 k ảnh sinh từ MNIST) | 90,7% [87,8–93,1] · 60,7% [47–73] | 90,7 / 91,1 / 93,1 · 60,7 / 57,1 / 51,8 | 91,9% · 53,6% [40–67] | 0 |
+| a3 | a2 + tăng cường mạnh cả lúc tinh chỉnh | 90,1% [87,1–92,5] · 64,3% [50–77] | 90,1 / 91,3 / 93,2 · 64,3 / 57,1 / 53,6 | 92,1% · 53,6% [40–67] | 0 |
+| c1 | (c) huấn luyện trước MNIST + **EMNIST Digits** (240 k ảnh) | 91,3% [88,5–93,6] · 50,0% [36–64] | 91,3 / 92,7 / 93,2 · 50,0 / 57,1 / 46,4 | 93,4% [90,9–95,5] · 51,8% [38–65] | 0 |
+| c2 | c1 + a3 | 91,7% [88,9–93,9] · 58,9% [45–72] | 91,7 / 90,9 / 92,7 · 58,9 / 60,7 / 58,9 | 92,9% · 58,9% [45–72] | 0 |
+
+- Kiểm định dấu cặp (1 seed so với g0): a1 p = 1,00 · a2 0,29 · a3 0,07 · c1 0,73 · c2 0,58; ensemble: 0,22–1,00 → **không cấu hình nào khác g0 có ý nghĩa**. Dao động giữa các seed (T4 46–64% trong cùng một cấu hình) **lớn hơn** khác biệt giữa cấu hình.
+- **Chọn: g0, một seed (2026)** (hoà trong nhiễu → đơn giản nhất; 2026 là seed mặc định có từ Bước 5, không chọn sau khi thấy số). Ensemble chỉ tăng T3 ~1 điểm, T4 không đổi trong nhiễu → không dùng.
+- (c) EMNIST: không có trang gốc lấy nhanh – `biometrics.nist.gov/cs_links/EMNIST/gzip.zip` (562 MB) chỉ tải ~70 KB/s nên bỏ giữa chừng (SHA không so được); dùng **bản sao tệp idx của chính EMNIST Digits** trên Hugging Face `tanganke/emnist_digits` (240 000 ảnh, 24 000 / lớp – kiểm cấu trúc idx; SHA-256 ở `data/_ocr/nguon_emnist_hf/SHA.txt`: ảnh `6eb25994…2df2`, nhãn `53a1c3be…4c54`; trang HF không ghi giấy phép; dữ liệu gốc NIST SD-19, trích dẫn Cohen et al. 2017). Không đưa vào mô hình xuất.
+- (d) dò ô mã đề: **không làm** (xem Bước 1: ≤ 3/56 phiếu; sửa `tim_khung` đổi mọi cache cắt ô và mọi số đo).
+- **T3 ≥ 97% và T4 ≤ 10%: CHƯA ĐẠT** (T3 ≈ 92%, T4 ≈ 50–60%). Ghi nguyên trạng, không nới tiêu chí.
+
+**Đề xuất luật đối chiếu MỀM – KHÔNG áp dụng, chờ quyết định của bạn** (`python tools/ocr_cai_tien.py luat-mem`; dev, mô hình g0 seed 2026 OOF): nhận cột khi bubble chắc và **p_CNN(chữ số bubble) ≥ τ_mềm** thay cho "argmax trùng và p ≥ 0,5". Vì dev không có ca người thi tô sai bubble (OMR đọc đúng 100%) nên "lỗi im lặng thật" luôn 0 và **không đo được rủi ro**; cột cuối là **mô phỏng**: thay chữ số bubble của một cột bằng chữ số SAI bất kỳ (9 khả năng) rồi đếm luật nhận nhầm.
+| Luật | Trường nhận / 112 | T4 (ảnh gắn) | Mô phỏng 1 cột bubble sai bị nhận nhầm |
+|---|---|---|---|
+| hiện hành (argmax + p ≥ 0,5) | 71 | 53,6% | 20 / 2 988 = 0,67% |
+| mềm τ = 0,3 | 81 | 44,6% | 49 / 3 393 = 1,44% |
+| mềm τ = 0,2 | 86 | 41,1% | 62 / 3 537 = 1,75% |
+| mềm τ = 0,1 | 96 | 26,8% | 130 / 3 933 = 3,31% |
+| mềm τ = 0,05 | 100 | 19,6% | 209 / 4 086 = 5,12% |
+| mềm τ = 0,02 | 104 | 14,3% | 332 / 4 185 = 7,93% |
+Nhận xét: hạ T4 từ 54% xuống 27% phải trả bằng việc tăng gấp ~5 lần khả năng nhận nhầm khi thí sinh tô sai bubble; **kể cả τ = 0,02 cũng chưa đạt T4 ≤ 10%**. Khuyến nghị: giữ luật hiện hành; chỉ cân nhắc luật mềm sau khi có dữ liệu thật về ca tô sai bubble (hoặc cho giáo viên chọn mức nhạy).
+
+#### Bước 3 – suy luận NumPy + JSON
+- `cv_engine/ocr.py`: `nap_mo_hinh_ocr`, `du_doan_xac_suat` (NumPy: im2col qua `sliding_window_view` + einsum; ensemble nếu nhiều thành viên), `doc_chu_so(kq, layout, mo_hinh)` (cắt 9 ô trên `anh_nan`, bản đồ tối **cục bộ** thay cả trang; ô trống / quá ít mực / bôi đen / nhiều mảnh KHÔNG qua CNN, `chu_so = '?'`; `kq.ok = False` → `ValueError`), `doi_chieu_dinh_danh(omr, ocr, sbd_trong_ds, ma_de_trong_ds)` (luật Q3 nguyên vẹn; `doi_chieu_cot` thêm `loi_o`: ô không đọc được ≠ ô trống → cần xem, không nhận theo bubble).
+- **`models/ocr_cnn.json`** (1,3 MB) xuất bằng `tools/xuat_ocr.py` **từ commit sạch `b75453e`**: g0, seed 2026, tinh chỉnh trên 3 872 ô trang D (5 người), T = 1,750, τ = 0,9995, δ = 0,99 (chỉ báo cáo – `cnn_chac`), τ_khop = 0,5; siêu dữ liệu: ngày, `git_head`, `git_sach = true`, seed, cấu hình, SHA-256 dữ liệu (cache cắt ô, MNIST), nhiệt độ, số đo OOF, kết quả kiểm tương đương. SHA-256 file `6d87205c…fcad5`.
+- **NumPy ↔ PyTorch trên 4 376 chữ số dev: cùng nhãn 100%, chênh xác suất lớn nhất 7,2e-7** (< 1e-4; pytest dựng lại CNN torch từ chính trọng số JSON).
+- **Thời gian cắt 9 ô + suy luận: trung vị 14,0 ms (max 17,6 ms) trên 12 ảnh; 16,4 ms trên 56 ảnh** (T5 ≤ 50 ms: đạt; trước đó chỉ cắt đã 47 ms vì tính bản đồ tối cả trang). Ô cắt giống cache từng byte (108/108).
+- Sau khi xuất, `ocr.py` thêm 2 kiểm "ô bôi đen" (`fr_toi` > 0,30; `ti_le_muc` > 0,36). Dev (4 504 ô): `fr_toi` max 0,21, `ti_le_muc` max 0,25 → **không ô thật nào bị ảnh hưởng, số đo dev không đổi**; trọng số không đổi (commit `00e92e7` ghi nhận). Phát hiện kèm: ô bị phủ đen > 50% làm "nền = trung vị" đảo → `ink_px` sai (đọc ra '8' p 0,63) – trước đó chưa có chốt chặn.
+
+#### Bước 4 – nối backend + giao diện
+- `service.nhan_anh`: OMR → `doc_chu_so` → `doi_chieu_dinh_danh` (SBD "có trong danh sách" = `tim_sinh_vien` trên chữ số bubble; mã đề = có trong `exam_codes`; bubble có `?` → chưa kiểm được → cần xem). Trường không chắc → `can_xem` + `reasons` (`lech_bubble`, `tin_cay_thap`, `thieu_bubble`, `bubble_cx`, `o_trong_ngoai_ds`, `o_trong_chua_biet_ds`, `o_it_muc`, `khong_phai_chu_so`) → `review_queue` lý do `low_ocr_confidence` + `details.sbd_ly_do / ma_de_ly_do`. **`detected_sbd` giữ nghĩa cũ (đọc từ bubble)**; gợi ý của CNN chỉ nằm ở từng cột (`handwriting`). `sbd_confidence` = min(độ tin cậy bubble, p CNN) theo cột.
+- 9 dòng `ocr_digits` mỗi phiếu (`predicted_digit`, `confidence`, `top_k`, `crop_image_path`) + 9 PNG ô cắt trong `storage/ocr/…`; `answer_sheets.ocr_model_id` + `ml_models` (`ocr_digit`, `is_active = FALSE`); `sua_dinh_danh` ghi `corrected_digit` (chỉ khi độ dài khớp 6 / 3). **Không ALTER, không migration mới** (cột đã có sẵn). Thiếu `OCR_MODEL` (`models/ocr_cnn.json`) thì backend không khởi động (không lặng lẽ quay về chỉ-bubble).
+- API: `GET /sheets/{id}` thêm `bubble` + `handwriting` (`pos`, `chu_so`, `p`, `top_k`, `o_trong`, `loi_o`, `ok_vien`, `corrected`, `has_crop`) từng cột và `reasons` từng trường; `GET /sheets/{id}/digits/{field}/{pos}/image` (PNG); `/health` có `ocr_model`.
+- Giao diện: **F3** bảng hai kênh (ô tô ↔ ảnh ô viết tay ↔ chữ số máy đọc + %, hàng "GV đã chốt", lý do); **F4** hai kênh cạnh nhau, **không điền sẵn** khi trường cần xem, nút "Lấy theo ô tô" / "Lấy theo chữ viết tay" (chỉ điền ô nhập, giáo viên vẫn phải bấm Lưu).
+- **Kiểm đầu-cuối `tools/kiem_backend_dau_cuoi.py` (56 ảnh dev, CSDL thật, giao dịch ROLLBACK): 0 câu chấm sai không cờ (1 672 câu chắc), 0 SBD sai im lặng, 0 mã đề sai im lặng** (nay so với chữ VIẾT TAY thật), điểm chính thức sau giáo viên **= điểm tính độc lập 56/56**; ảnh giả 44 từ chối đúng, 27 nhận đúng, 0 lỗi im lặng; ảnh có SBD hoặc mã đề cần xem **26/56 (46,4%)** (SBD 23, mã đề 14). Mô hình xuất đã tinh chỉnh trên cả 5 người ở trang D nên con số này lạc quan hơn "người lạ" (53,6%).
+- **Đo độc lập `python tools/eval_ocr.py run --tap dev`** (chỉ gọi `ocr.py` + `omr.py`): T3 **92,7%** (467/504, CI 90,0–94,8) · T4 **46,4%** (26/56, CI 33,0–60,3) · **lỗi im lặng mức trường 0** (SBD 33 trường nhận, mã đề 42; CP95% trên số trường nhận ≤ 4,8%) · lý do cần xem: `lech_bubble` 31, `tin_cay_thap` 5, `thieu_bubble` 2 · theo người viết T4: 1 43,8% · 2 37,5% · **3 68,8%** · 4 25,0%; theo điều kiện: C1 35,7% · C2 35,7% · **C3 78,6%** · C4 35,7%.
+- Thử giao diện bằng kỳ thi **[THU] mới (exam_id 509, 6 phiếu dev: 0001_C1, 0002_C2, 0010_C3, 0019_C4, 0014_C3, 0006_C3)**; `[DEMO]` / `[DEMO-2]` không đụng. Tôi không có trình duyệt trong phiên này → đã kiểm hiển thị bằng cách chạy các hàm dựng HTML của `app.js` với JSON thật của API (node) và gọi thật các endpoint; **chưa nhìn bằng mắt trên trình duyệt** (cần bạn xem).
+- **pytest 220 đạt** (~67 s): thêm `test_ocr_suy_luan.py` (7), `test_backend_ocr.py` (8), `test_eval_ocr.py` (5); các test OMR cũ dùng `ocr_khop` (CNN giả khớp bubble giả) để vẫn kiểm đường chấm / chốt điểm.
+
+### Nợ kỹ thuật mới (Phần C)
+1. **T3 ≥ 97% / T4 ≤ 10% chưa đạt**: nguyên nhân là CNN sai ~8% chữ số (người 3, ảnh C3); (a)–(c) không cải thiện có ý nghĩa. Hướng còn lại: nhiều người viết hơn / dữ liệu thật (human-in-the-loop từ `corrected_digit`), mô hình mạnh hơn, hoặc luật mềm có kiểm soát (cần dữ liệu ca tô sai bubble).
+2. Luật mềm: chưa có tập ca "tô sai bubble" thật để đo rủi ro (chỉ mô phỏng).
+3. **`NGUONG_TRONG` / `NGUONG_IT_MUC` / ngưỡng bôi đen** chưa kiểm trên ô trống thật (dev 0 ô trống; test giả bằng xoá chữ / nhiễu); ngưỡng "bôi đen" đặt ≈ 1,4 × max dev.
+4. Dò khung ô mã đề C3 (10,7% ô không dò được): chưa sửa `tim_khung`.
+5. Mô hình xuất tinh chỉnh trên cả 5 người ở trang D ⇒ val / test (0029–0040 do người 4, 5) chỉ đo "nét đã gặp"; T, τ, δ chọn từ OOF (người lạ) nên hơi bi quan cho dev, lạc quan cho val / test về mức nét.
+6. `ocr_digits` lưu 9 PNG / phiếu trên đĩa (không dọn dẹp); `corrected_digit` chỉ ghi khi độ dài SBD = 6, mã đề = 3.
+7. EMNIST lấy từ bản sao Hugging Face (không đối chiếu SHA với NIST).
+8. Giao diện chưa kiểm bằng trình duyệt trong phiên này; F4 chưa cho giáo viên sửa từng chữ số riêng (chỉ nhập cả SBD / mã đề).
+9. Tên cột `OChuSo` thêm `fr_toi` (mặc định 0,0) – cache `data/_ocr/cat` (làm trước khi có trường này) vẫn dùng được.
+
+## 11. ĐĂNG KÝ TRƯỚC – đánh giá kiểm tra giữ lại **val 0029–0034** (viết 20/10/2026; CHƯA CHẠY)
+
+> Chỉ chạy khi người dùng gõ **"chạy val"**. Lệnh: `python tools/eval_ocr.py run --tap val --xac-nhan-val --xem` (từ `smart_exam_db/`). Chạy **MỘT lần**; mọi lần chạy lại sau khi sửa phải ghi vào mục này kèm lý do. Không chỉnh mô hình / ngưỡng / luật sau khi thấy số val.
+
+| Hạng mục | Giá trị đã khoá |
+|---|---|
+| **Mã** | commit **`b3d0ede7099d9bf9ec79514aa43af5a323805028`** (`cv_engine/ocr.py`, `cv_engine/omr.py`, `tools/eval_ocr.py`, `backend/`). Các commit sau chỉ được đổi tài liệu (`docs/`, `CLAUDE.md`); kiểm trước khi chạy: `git diff b3d0ede HEAD --stat -- smart_exam_db/cv_engine smart_exam_db/models smart_exam_db/tools smart_exam_db/backend smart_exam_db/answer_sheet` phải rỗng |
+| Mô hình chữ số | `models/ocr_cnn.json`, SHA-256 `6d87205c83a29fccc4eb450f0aec0c9d51ba56e1bb141664060041ab0f2fcad5`, xuất từ commit sạch `b75453e` (g0, seed 2026, 1 thành viên, T = 1,750) |
+| Mô hình OMR | `models/omr_m1.json`, SHA-256 `6ddee713428c2ab6a9aa7894313a33e173011c504d432338aebe0b60f3c6cf33` |
+| Mẫu phiếu / layout | `answer_sheet/output/layout.json` SHA-256 `a35ccb7e259f5f7a30355d85d79ba4ef267a0d465f29c09b8fd05906cfc0ecbd`; `phieu_trang_300dpi.png` `7b7db1a95344564a95460af9c076ed74833e75583fc117028f83bb86e1bbf30f` |
+| Luật đối chiếu | **Q3 nguyên vẹn**: `doi_chieu_cot` (argmax CNN trùng bubble và p ≥ **τ_khop = 0,5**; ô viết tay trống chỉ nhận theo bubble khi bubble chắc VÀ SBD / mã đề có trong danh sách; `loi_o` → cần xem) – **KHÔNG dùng luật mềm** |
+| Ngưỡng ô | `NGUONG_TRONG` 30 · `NGUONG_IT_MUC` 100 · `NGUONG_TI_LE_MUC` 0,36 · `NGUONG_N_TP` 7 · `NGUONG_FR_TOI` 0,30 (trong `ocr.py`) |
+| Dữ liệu | phiếu 0029–0034 × 2 ảnh = **12 ảnh, 108 chữ số, 12 SBD + 12 mã đề**; nhãn SBD / mã đề VIẾT TAY từ `data/ground_truth.csv` (chỉ dòng 29–34 được đọc). SBD / mã đề coi là "có trong danh sách" (kỳ thi mô phỏng đủ thí sinh). Người viết: 0029–0032 = người 4 (8 ảnh), 0033–0034 = người 5 (4 ảnh) |
+| **Tiêu chí ĐẠT (bắt buộc)** | **lỗi im lặng mức trường = 0** cho cả SBD và mã đề (trường được nhận tự động mà ≠ chữ viết tay thật), `tu_choi` = 0 ảnh hợp lệ; ảnh bị từ chối thì ghi lý do. Báo CP 95% của số lỗi im lặng trên số trường nhận |
+| Tiêu chí mục tiêu (báo, không phải điều kiện ĐẠT) | T3 ≥ 97% chữ số; T4 ≤ 10% ảnh cần xem ở SBD / mã đề; thời gian `doc_chu_so` ≤ 50 ms |
+| **Dự đoán đăng ký trước** (để so, không chỉnh theo kết quả) | T3 ≈ 92–95% (người 4 dễ: dev 98,6–100%; người 5 dễ nhất ở trang D); **T4 ≈ 25–55% → không đạt ≤ 10%**; lỗi im lặng 0; thời gian ≈ 15 ms |
+| Hạn chế phải nêu | val chỉ 6 phiếu / 12 ảnh (2 ảnh cùng phiếu không độc lập); mô hình đã thấy nét người 4 và 5 ở trang D (D007–D010) ⇒ chỉ đo "nét chữ đã gặp"; OMR chưa từng thấy val; CP lỗi im lặng 0 / ~15–20 trường nhận ≈ 15–20% (rất rộng) |
+| Xem bằng mắt | `--xem` ghi `data/_eval/ocr/xem_val.html`: mỗi ảnh một hàng 9 ô (ảnh ô viết tay, chữ số ô tô, chữ số máy đọc + %, ô cần xem tô vàng). Người dùng đọc ảnh ô viết tay **trước**, rồi mới đối chiếu cột "máy đọc"; ghi lại mọi ô máy đọc sai mà không tô vàng (= lỗi im lặng mức chữ số, nên chỉ chấp nhận được nếu bubble bắt được) và mọi ô nghi nhãn `ground_truth` sai (liệt kê, KHÔNG tự sửa) |
+| Sau khi chạy | ghi số liệu + CP + bảng theo người / điều kiện vào mục 10 (Phần C); nếu lỗi im lặng > 0: dừng, phân tích nguyên nhân, không sửa trong cùng phiên chạy |

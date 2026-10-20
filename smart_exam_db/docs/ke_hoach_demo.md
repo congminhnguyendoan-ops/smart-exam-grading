@@ -159,10 +159,10 @@ Lưu ý khi tập: mỗi phiếu chỉ chốt được MỘT lần (không có "
 **Dữ liệu / nghiệp vụ**
 6. **Layout phiếu đọc từ `answer_sheet/output/layout.json`** (`nap_layout`), chưa lấy từ `sheet_templates.layout_config`; mẫu định vị `phieu_trang_300dpi.png` cố định.
 7. **`blur_score` KHÔNG ghi vào `answer_sheets.blur_score`**: `system_settings.min_blur_score` (100) là thang Laplacian cũ ≠ thang của `preprocess()` – ghi vào sẽ coi mọi phiếu là mờ. Ảnh mờ do `preprocess` từ chối (`anh_mo`). (Đã ghi ở CLAUDE.md mục 7; sửa CSDL cần hỏi người dùng.)
-8. **Chưa có CNN chữ số / `ocr_digits`**: SBD và mã đề đọc từ bubble (kênh viết tay chưa có – Tuần 6); `sbd_confidence` = min `do_tin_cay` các cột (chỉ để tham khảo, quyết định theo `can_xem` của OMR).
+8. ~~Chưa có CNN chữ số / `ocr_digits`~~ **ĐÃ NỐI (20/10/2026, Tuần 6 Phần C)**: SBD / mã đề đọc bằng HAI kênh (bubble + CNN chữ viết tay, luật Q3), 9 dòng `ocr_digits` + ảnh ô cắt mỗi phiếu, `sbd_confidence` = min(bubble, p CNN); quyết định theo `can_xem` đã đối chiếu. T4 ≈ 46–54% phiếu có SBD / mã đề cần xem (chưa đạt ≤ 10%). Chi tiết + nợ mới: `docs/ke_hoach_tuan6.md` mục 10 (Phần C).
 9. **Không dùng `fn_process_sheet` / `fn_resolve_review` / `fn_reject_review` / `fn_regrade_exam`**: `fn_process_sheet` không biết lý do cần xem của OMR (có thể tự chấm phiếu đã bị gắn cờ, tính ô `faint` là đáp án). Hệ quả: gọi `fn_regrade_exam` sẽ tính ô `faint` của phiếu `needs_review` là đáp án (điểm tạm lệch) → cần sửa / thay các hàm CSDL cho khớp chính sách "cần xem" (hỏi người dùng trước khi sửa CSDL).
 10. **Chưa có**: sửa đáp án + chấm lại, sinh nhiều mã đề, import danh sách sinh viên, loại phiếu (`fn_reject_review`), tải lại ảnh thay ảnh bị từ chối, huỷ điểm cũ khi trùng SBD (`p_void_existing`), phân trang (giới hạn cứng 200 / 500), thống kê (view `v_*` chưa phơi ra API), xuất bảng điểm.
-11. **Giáo viên chỉ chốt từng câu**; không có xem hàng loạt, không ghi chữ số đã sửa vào `ocr_digits` để fine-tune, không lưu "máy sai" thành dữ liệu train (hướng phát triển).
+11. **Giáo viên chỉ chốt từng câu**; không có xem hàng loạt, (chữ số SBD / mã đề giáo viên chốt ĐÃ ghi vào `ocr_digits.corrected_digit` từ 20/10/2026) không lưu "máy sai" thành dữ liệu train (hướng phát triển).
 12. **Đáp án DEMO giả lập** (`random.Random("2026-<mã>")`) – điểm chỉ có ý nghĩa kiểm thử hệ thống; danh sách thí sinh nạp từ `ground_truth.csv` (chỉ phiếu 0001–0028). Mọi phiếu dev đều có ≥ 4 câu cần xem nên demo chủ yếu đi qua luồng giáo viên; đường tự chốt (`auto`) chỉ kiểm bằng dữ liệu tạo ra.
 13. **Một mô hình OMR duy nhất** nạp lúc khởi động (`OMR_MODEL`); đổi mô hình cần khởi động lại. Bản ghi `ml_models` tạo lúc tải ảnh đầu tiên (`is_active = FALSE`, không đụng bản đang active).
 
@@ -184,3 +184,11 @@ Lưu ý khi tập: mỗi phiếu chỉ chốt được MỘT lần (không có "
 24. Sheet "Chi tiết" chỉ gồm phiếu có `results`, dạng dài (1 dòng/câu) để lọc; chưa có thống kê độ khó câu (`v_question_difficulty` chưa phơi ra). Xuất đồng bộ trong yêu cầu HTTP, không phân trang.
 25. Excel chỉ có giá trị tĩnh tại lúc xuất (không công thức); nhãn cố định tiếng Việt.
 26. **[DEMO-2] đáp án giả lập một phần**: chỉ mã đề 101 (của 0005) lấy từ bài làm; 102–104 giả lập như `[DEMO]`; 6 câu (6, 11 trống; 8, 20, 26, 35 nhiều ô) có đáp án đặt bất kỳ (`random.Random("2026-khop-<câu>")`). Kỳ thi nằm trong CSDL thật (exam_id 178, INSERT 09/10/2026), dùng chung 28 thí sinh DEMO với `[DEMO]`.
+
+**Kênh chữ viết tay (CNN) – Tuần 6 Phần C (20/10/2026)**
+27. **Chưa đạt T3 ≥ 97% / T4 ≤ 10%**: CNN sai ~8% chữ số (người 3, ảnh C3) nên ~46–54% phiếu bị gắn "cần xem" ở SBD / mã đề → giáo viên phải chốt tay nhiều. Luật mềm (chấp nhận bubble khi p_CNN ≥ τ) chỉ là đề xuất, chưa áp dụng.
+28. **Phụ thuộc hai mô hình lúc khởi động**: `OMR_MODEL` và `OCR_MODEL` (`models/ocr_cnn.json`, 1,3 MB, nạp NumPy); thiếu `OCR_MODEL` → backend không khởi động. Thêm ~15 ms / ảnh.
+29. **`ocr_digits` + ảnh ô cắt**: 9 dòng + 9 PNG nhỏ / phiếu (không dọn dẹp); `corrected_digit` chỉ ghi khi người dùng nhập đủ 6 (SBD) / 3 (mã đề) chữ số. Không tự huấn luyện lại.
+30. **Giao diện F3/F4 hai kênh chưa kiểm trên trình duyệt trong phiên Phần C** (chỉ chạy hàm dựng HTML bằng node với JSON thật + gọi API thật). F4 không điền sẵn SBD / mã đề khi cần xem (cố ý) → thao tác nhiều hơn.
+31. **Test OMR cũ dùng `ocr_khop` (CNN giả khớp bubble giả)**; hành vi lệch / ô trống kiểm riêng ở `tests/test_backend_ocr.py` (CNN thật + CNN dựng tay).
+32. Kỳ thi `[THU]` mới (exam_id 509, 6 phiếu dev) nằm trong CSDL thật do lần thử Phần C (INSERT qua API + 6 sinh viên "SV THỬ …" và danh sách dự thi); `[DEMO]` / `[DEMO-2]` không đụng.
