@@ -258,8 +258,9 @@ def tang_cuong(x, g):
     return x.clamp(0, 1)
 
 
-def huan_luyen_cnn(x, y, epochs, lr, seed, mo_hinh=None, aug=True, batch=128, tran="", dong_bang=()):
-    """Huấn luyện CNN (Adam + cosine). x uint8 [N,28,28]. Trả mô hình (eval). Không chọn epoch theo tập nào: dùng epoch cuối."""
+def huan_luyen_cnn(x, y, epochs, lr, seed, mo_hinh=None, aug=True, batch=128, tran="", dong_bang=(), aug_fn=None):
+    """Huấn luyện CNN (Adam + cosine). x uint8 [N,28,28]. Trả mô hình (eval). Không chọn epoch theo tập nào: dùng epoch cuối.
+    aug_fn(x, g) thay tang_cuong (Phần C: tăng cường mạnh hơn) khi aug=True."""
     torch, nn, F = _torch()
     torch.manual_seed(seed)
     g = torch.Generator().manual_seed(seed)
@@ -276,7 +277,7 @@ def huan_luyen_cnn(x, y, epochs, lr, seed, mo_hinh=None, aug=True, batch=128, tr
         tong = 0.0
         for i in range(0, len(X), batch):
             ix = pm[i:i + batch]
-            xb = tang_cuong(X[ix], g) if aug else X[ix]
+            xb = (aug_fn or tang_cuong)(X[ix], g) if aug else X[ix]
             loss = F.cross_entropy(m(xb), Y[ix])
             opt.zero_grad()
             loss.backward()
