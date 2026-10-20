@@ -132,10 +132,14 @@ def chay_phieu(client, conn, exam_id: int, dap_an: dict, ten: str, nhan: dict) -
         row["doc_sai_khong_gan_can_xem"] += not doc_dung
         if code_ok and q["is_correct"] is not None and q["is_correct"] != that[q["question_no"]]:
             row["cham_sai_khong_gan_can_xem"] += 1
-    if not v["sbd"]["can_xem"] and v["sbd"]["detected"] != t["sbd_bubble"]:
+    # Tuần 6 Phần C: SBD / mã đề được nhận (hai kênh bubble + chữ viết tay khớp) phải = chữ VIẾT TAY thật (nhãn người viết), không chỉ = bubble
+    if not v["sbd"]["can_xem"] and v["sbd"]["detected"] != t["sbd"]:
         row["sai_im_lang_sbd"] = 1
-    if not v["exam_code"]["can_xem"] and v["exam_code"]["detected"] != t["ma_de_bubble"]:
+    if not v["exam_code"]["can_xem"] and v["exam_code"]["detected"] != t["ma_de"]:
         row["sai_im_lang_ma_de"] = 1
+    row["sbd_can_xem"], row["ma_de_can_xem"] = int(v["sbd"]["can_xem"]), int(v["exam_code"]["can_xem"])
+    row["dinh_danh_can_xem"] = int(v["sbd"]["can_xem"] or v["exam_code"]["can_xem"])
+    row["dinh_danh_can_xem_thua"] = int(row["dinh_danh_can_xem"] and v["sbd"]["detected"] == t["sbd"] and v["exam_code"]["detected"] == t["ma_de"])
     sc = v["score"]
     if code_ok:
         row["vi_pham_can"] = int(not (Decimal(str(sc["provisional"])) <= diem_that <= Decimal(str(sc["max_possible"]))))
@@ -224,6 +228,8 @@ def tom_tat(kq: dict) -> dict:
     for k in ("cau_can_xem", "cau_chac_chan", "cham_sai_khong_gan_can_xem", "doc_sai_khong_gan_can_xem", "sai_im_lang_sbd",
               "sai_im_lang_ma_de", "cau_doc_sai_co_gan_can_xem", "vi_pham_can", "tu_chot_sai_diem"):
         s[k] = sum(r[k] for r in rows)
+    for k in ("sbd_can_xem", "ma_de_can_xem", "dinh_danh_can_xem", "dinh_danh_can_xem_thua"):
+        s[k] = sum(r.get(k, 0) for r in rows)
     s["tu_chot_khi_tai"] = sum(r["status_tai"] == "graded" for r in rows)
     s["can_xem_khi_tai"] = sum(r["status_tai"] == "needs_review" for r in rows)
     s["cuoi_graded"] = sum(r.get("status_cuoi") == "graded" for r in rows)
@@ -257,6 +263,8 @@ def ghi_bao_cao(kq: dict) -> str:
          f"{s['sai_im_lang_ma_de']} · điểm tạm / điểm tối đa không bao điểm thật: {s['vi_pham_can']} · phiếu tự chốt sai điểm: {s['tu_chot_sai_diem']}",
          f"- Câu cần xem: {s['cau_can_xem']} / {40 * s['anh']} ({100 * s['cau_can_xem'] / max(1, 40 * s['anh']):.1f}%); trong đó máy đọc sai "
          f"(nhưng có cờ, an toàn): {s['cau_doc_sai_co_gan_can_xem']}",
+         f"- SBD / mã đề cần xem khi tải: SBD {s['sbd_can_xem']} · mã đề {s['ma_de_can_xem']} · ảnh có SBD hoặc mã đề cần xem "
+         f"{s['dinh_danh_can_xem']} / {s['anh'] - s['anh_bi_tu_choi']} ({100 * s['dinh_danh_can_xem'] / max(1, s['anh'] - s['anh_bi_tu_choi']):.1f}%; T4)",
          f"- Khi tải ảnh: tự chốt (không cần xem) {s['tu_chot_khi_tai']} phiếu, cần xem {s['can_xem_khi_tai']} phiếu",
          f"- Sau giáo viên (oracle): chốt {s['cuoi_graded']} / {s['anh'] - s['anh_bi_tu_choi']} phiếu; **điểm chính thức = điểm tính độc lập và đúng "
          f"sinh viên: {s['cuoi_dung_diem']} / {s['anh'] - s['anh_bi_tu_choi']} phiếu**", "",

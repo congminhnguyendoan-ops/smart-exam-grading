@@ -51,6 +51,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
 input[type=text]{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font:inherit;width:140px}
 .cols{display:inline-flex;gap:3px}.col{width:26px;height:32px;border:1px solid var(--line);border-radius:4px;text-align:center;line-height:30px;font-weight:700;background:#fff}
 .col.bad{background:var(--badbg);border-color:var(--bad);color:var(--bad)}
+.haikenh{width:auto;margin:4px 0 8px}.haikenh th{white-space:nowrap}.haikenh td{text-align:center;min-width:56px}.haikenh td.lech{background:var(--badbg)}
+.haikenh img{height:56px;image-rendering:auto;border:1px solid var(--line);background:#fff}
 .alert{padding:8px 12px;border-radius:6px;margin:8px 0}
 .alert.bad{background:var(--badbg);color:var(--bad)}.alert.warn{background:var(--warnbg);color:var(--warn)}.alert.ok{background:var(--okbg);color:var(--ok)}
 .toast{position:fixed;bottom:20px;right:20px;background:#1d2330;color:#fff;padding:10px 16px;border-radius:8px;max-width:420px;z-index:9}

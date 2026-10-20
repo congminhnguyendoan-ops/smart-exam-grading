@@ -65,18 +65,34 @@ class KyThiTao(BaseModel):
 
 
 # ------------------------------------------------------------------------------------------------ phiếu
+class ChuVietTay(BaseModel):
+    """Chữ số CNN đọc từ ô VIẾT TAY của cột (kênh thứ hai, độc lập với bubble)."""
+    pos: int = Field(description="Vị trí ô viết tay (tính từ 0, khoá của ảnh /digits/{field}/{pos}/image và của ocr_digits)")
+    chu_so: str = Field(description="'0'–'9' hoặc '?' (ô trống / không đọc được)")
+    p: float = Field(description="Độ tin cậy (xác suất đã hiệu chỉnh) của chữ số đọc được; 0 khi '?'")
+    top_k: list[dict] = Field(description="[{d, p}] 3 chữ số khả dĩ nhất")
+    o_trong: bool
+    loi_o: str = Field(description="'' | o_it_muc | khong_phai_chu_so")
+    ok_vien: bool = Field(description="False: không dò được khung ô, vị trí ước lượng")
+    corrected: str | None = Field(default=None, description="Chữ số giáo viên đã chốt (nếu có sửa)")
+    has_crop: bool = Field(default=False, description="Có ảnh cắt: GET /sheets/{id}/digits/{field}/{pos}/image")
+
+
 class CotChuSo(BaseModel):
     vi_tri: int
-    chu_so: str = Field(description="'0'–'9' hoặc '?' (không ô nào / nhiều ô)")
+    chu_so: str = Field(description="Chữ số chốt: bubble khi bubble đọc được, '?' nếu không đọc được")
     can_xem: bool
-    ly_do: list[str]
-    do_tin_cay: float
+    ly_do: list[str] = Field(description="Mã lý do cần xem của cột (OMR + đối chiếu hai kênh, xem MA_LY_DO_OCR)")
+    do_tin_cay: float = Field(description="min(độ tin cậy bubble, xác suất CNN) của cột")
+    bubble: str | None = Field(default=None, description="Chữ số đọc từ ô tô (bubble); '?' nếu không đọc được")
+    handwriting: ChuVietTay | None = Field(default=None, description="Chữ số đọc từ chữ viết tay; None ở phiếu cũ (trước Tuần 6)")
 
 
 class TruongDinhDanh(BaseModel):
     detected: str | None
     can_xem: bool
     columns: list[CotChuSo]
+    reasons: list[str] = Field(default_factory=list, description="Lý do cần xem của cả trường (gộp các cột + danh sách thi)")
 
 
 class MaDeDoc(TruongDinhDanh):

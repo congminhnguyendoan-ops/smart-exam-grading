@@ -22,12 +22,13 @@ import cv2
 import numpy as np
 from psycopg.types.json import Jsonb
 
+from cv_engine import ocr as ocr_cnn
 from cv_engine import omr
 from cv_engine.preprocessing import (MA_LY_DO, KetQuaTienXuLy, LoiDocAnh, doc_anh, nap_layout,
                                      preprocess_anh)
 
 from . import grading
-from .config import ROOT, CauHinh
+from .config import ROOT, CauHinh, LoiCauHinh
 
 log = logging.getLogger("smart_exam.service")
 
@@ -59,16 +60,27 @@ class MoHinhDichVu:
     du_lieu: dict
     sha256: str
     duong_dan: Path
+    ocr: ocr_cnn.MoHinhOCR | None = None          # CNN chữ số viết tay (kênh thứ hai của SBD / mã đề)
+    ocr_sha256: str = ""
+    ocr_duong_dan: Path | None = None
 
     @property
     def phien_ban(self) -> str:
         return f"{self.du_lieu.get('phien_ban', 'omr')}-{self.sha256[:8]}"
 
+    @property
+    def phien_ban_ocr(self) -> str:
+        return f"ocr_cnn-{self.ocr_sha256[:8]}"
+
 
 def nap_mo_hinh(cfg: CauHinh) -> MoHinhDichVu:
-    """Nạp mô hình OMR một lần (khi khởi động). Kèm SHA-256 file để ghi vào ml_models."""
+    """Nạp mô hình OMR + CNN chữ số một lần (khi khởi động). Kèm SHA-256 file để ghi vào ml_models.
+    Thiếu mô hình chữ số thì KHÔNG chạy: SBD / mã đề cần cả hai kênh (không lặng lẽ quay về chỉ-bubble)."""
+    if not cfg.mo_hinh_ocr.exists():
+        raise LoiCauHinh(f"Chưa có mô hình chữ số viết tay: {cfg.mo_hinh_ocr} (xem OCR_MODEL trong .env, tools/xuat_ocr.py).")
     return MoHinhDichVu(omr.nap_mo_hinh(cfg.mo_hinh_omr), hashlib.sha256(cfg.mo_hinh_omr.read_bytes()).hexdigest(),
-                        cfg.mo_hinh_omr)
+                        cfg.mo_hinh_omr, ocr_cnn.nap_mo_hinh_ocr(cfg.mo_hinh_ocr),
+                        hashlib.sha256(cfg.mo_hinh_ocr.read_bytes()).hexdigest(), cfg.mo_hinh_ocr)
 
 
 def mo_hinh_id(conn, mh: MoHinhDichVu) -> int:
@@ -87,6 +99,23 @@ def mo_hinh_id(conn, mh: MoHinhDichVu) -> int:
         "VALUES (%s, 'omr_classifier', %s, 'sklearn -> NumPy JSON', %s, %s, %s, FALSE, %s) RETURNING model_id",
         (mh.du_lieu.get("phien_ban", "omr"), mh.phien_ban, rel, sd.get("tap_huan_luyen"), Jsonb({}),
          f"sha256 {mh.sha256}; git {sd.get('git_head', '')}; nguồn ảnh {mh.du_lieu.get('nguon_anh', '')}")).fetchone()["model_id"]
+
+
+def mo_hinh_ocr_id(conn, mh: MoHinhDichVu) -> int:
+    """id của bản ghi ml_models (loại ocr_digit) ứng với file CNN chữ số; tạo mới (is_active = FALSE) nếu chưa có."""
+    r = conn.execute("SELECT model_id FROM ml_models WHERE model_type = 'ocr_digit' AND version = %s", (mh.phien_ban_ocr,)).fetchone()
+    if r:
+        return r["model_id"]
+    try:
+        rel = str(mh.ocr_duong_dan.relative_to(ROOT)).replace("\\", "/")
+    except ValueError:
+        rel = str(mh.ocr_duong_dan)
+    sd = mh.ocr.sieu_du_lieu
+    return conn.execute(
+        "INSERT INTO ml_models (model_name, model_type, version, framework, file_path, train_dataset, metrics, is_active, notes) "
+        "VALUES (%s, 'ocr_digit', %s, 'PyTorch -> NumPy JSON', %s, %s, %s, FALSE, %s) RETURNING model_id",
+        ("ocr_cnn", mh.phien_ban_ocr, rel, str(sd.get("tap_huan_luyen", ""))[:200] or None, Jsonb(sd.get("do_luong", {})),
+         f"sha256 {mh.ocr_sha256}; git {sd.get('git_head', '')}; cấu hình {sd.get('cau_hinh', '')}")).fetchone()["model_id"]
 
 
 # ------------------------------------------------------------------------------------------------ người dùng
@@ -183,10 +212,36 @@ def _duoi_file(ten: str | None) -> str:
 
 
 # ------------------------------------------------------------------------------------------------ nhận ảnh -> chấm
-def _cot_json(cot) -> dict:
-    return {"can_xem": any(c.can_xem for c in cot),
-            "cot": [{"vi_tri": c.vi_tri, "chu_so": c.chu_so, "can_xem": c.can_xem, "ly_do": list(c.ly_do),
-                     "do_tin_cay": c.do_tin_cay} for c in cot]}
+def _truong_json(om_cot, hv_cot, dc_cot, ly_truong, chac) -> dict:
+    """Một trường (SBD / mã đề) sau khi đối chiếu hai kênh: bubble (OMR) ↔ chữ viết tay (CNN). `chu_so` của cột = chữ số đọc từ
+    BUBBLE ('?' nếu không đọc được; gợi ý của CNN chỉ nằm ở `handwriting`, không lẫn vào số "đã đọc"); `can_xem` của trường = KHÔNG chắc
+    (còn cột lệch / không chắc / chưa kiểm được danh sách thi)."""
+    cot = []
+    for b, h, d in zip(om_cot, hv_cot, dc_cot):
+        doc_duoc = h.chu_so != "?"
+        cot.append({"vi_tri": b.vi_tri, "chu_so": b.chu_so, "can_xem": not d.chac, "ly_do": list(d.ly_do),
+                    "do_tin_cay": min(b.do_tin_cay, h.p) if doc_duoc else b.do_tin_cay, "bubble": b.chu_so,
+                    "handwriting": {"pos": h.vi_tri, "chu_so": h.chu_so, "p": round(float(h.p), 4), "o_trong": h.o_trong, "loi_o": h.loi_o,
+                                    "top_k": [{"d": str(k), "p": round(float(v), 4)} for k, v in h.top_k], "ok_vien": bool(h.ok_vien)}})
+    return {"can_xem": not chac, "ly_do": list(ly_truong), "cot": cot}
+
+
+def _ghi_ocr_digits(conn, cfg: CauHinh, exam_id: int, sha: str, sheet_id: int, hv) -> None:
+    """9 dòng `ocr_digits` (SBD 6 + mã đề 3) + ảnh cắt từng ô viết tay lưu trên đĩa (như ảnh phiếu, CSDL chỉ giữ đường dẫn)."""
+    dong = []
+    for truong, cots in (("sbd", hv.sbd), ("exam_code", hv.ma_de)):
+        for c in cots:
+            rel = f"ocr/{exam_id}/{sha[:2]}/{sha}_{truong}{c.vi_tri}.png"
+            ok, png = cv2.imencode(".png", c.anh_o)
+            if not ok:
+                raise RuntimeError("không mã hoá được ảnh ô viết tay")
+            _ghi_file(cfg.storage_dir / rel, png.tobytes())
+            doc = c.chu_so != "?"
+            dong.append((sheet_id, truong, c.vi_tri, c.chu_so if doc else None, round(float(c.p), 4) if doc else None,
+                         Jsonb([{"d": str(k), "p": round(float(v), 4)} for k, v in c.top_k]), rel))
+    with conn.cursor() as cur:
+        cur.executemany("INSERT INTO ocr_digits (sheet_id, field, position, predicted_digit, confidence, top_k, crop_image_path) "
+                        "VALUES (%s, %s::ocr_field, %s, %s, %s, %s, %s)", dong)
 
 
 def nhan_anh(conn, cfg: CauHinh, mh: MoHinhDichVu, exam_id: int, du_lieu: bytes, ten_file: str | None, user_id: int,
@@ -244,19 +299,35 @@ def nhan_anh(conn, cfg: CauHinh, mh: MoHinhDichVu, exam_id: int, du_lieu: bytes,
     if n > len(res.cau):
         raise RuntimeError(f"kỳ thi {n} câu nhưng OMR chỉ đọc {len(res.cau)} câu")
 
-    detail = {"nguon_anh": res.nguon_anh, "phien_ban_mo_hinh": res.phien_ban_mo_hinh, "sbd": _cot_json(res.sbd_cot),
-              "ma_de": _cot_json(res.ma_de_cot), "dich_chuyen_mm": {k: list(v) for k, v in res.dich_chuyen_mm.items()},
+    # Kênh thứ hai: chữ số viết tay (CNN) + đối chiếu với bubble. Luật Q3: ô viết tay trống chỉ được nhận theo bubble khi bubble chắc
+    # VÀ SBD (mã đề) có trong danh sách thí sinh (các mã đề) của kỳ thi; chưa kiểm được (bubble có '?') -> cần xem.
+    t2 = time.perf_counter()
+    hv = ocr_cnn.doc_chu_so(kq, layout, mh.ocr)
+    t_ocr = (time.perf_counter() - t2) * 1000
+    sbd_trong = None if "?" in res.sbd else tim_sinh_vien(conn, exam_id, res.sbd) is not None
+    ma_trong = None if "?" in res.ma_de else conn.execute(
+        "SELECT 1 FROM exam_codes WHERE exam_id = %s AND code = %s", (exam_id, res.ma_de)).fetchone() is not None
+    dc = ocr_cnn.doi_chieu_dinh_danh(res, hv, sbd_trong, ma_trong, mo_hinh=mh.ocr)
+    sbd_j = _truong_json(res.sbd_cot, hv.sbd, dc["cot"]["sbd"], dc["sbd"][2], dc["sbd"][1])
+    ma_j = _truong_json(res.ma_de_cot, hv.ma_de, dc["cot"]["ma_de"], dc["ma_de"][2], dc["ma_de"][1])
+
+    detail = {"nguon_anh": res.nguon_anh, "phien_ban_mo_hinh": res.phien_ban_mo_hinh, "sbd": sbd_j,
+              "ma_de": ma_j, "dich_chuyen_mm": {k: list(v) for k, v in res.dich_chuyen_mm.items()},
+              "ocr": {"phien_ban_mo_hinh": mh.phien_ban_ocr, "sbd_trong_ds": sbd_trong, "ma_de_trong_ds": ma_trong,
+                      "tau_khop": mh.ocr.tau_khop},
               "preprocess": {"huong_xoay": kq.huong_xoay, "exif": kq.exif_orientation,
                              "blur_score": None if kq.blur_score is None else float(kq.blur_score)},
-              "ms": {"tien_xu_ly": round(t_pre), "omr": round(t_omr)}}
+              "ms": {"tien_xu_ly": round(t_pre), "omr": round(t_omr), "ocr": round(t_ocr)}}
     sheet_id = conn.execute(
         "INSERT INTO answer_sheets (exam_id, batch_id, image_path, aligned_image_path, image_hash, original_filename, uploaded_by, "
-        "status, detected_sbd, sbd_confidence, detected_exam_code, exam_code_confidence, omr_model_id, omr_detail, processing_time_ms) "
+        "status, detected_sbd, sbd_confidence, detected_exam_code, exam_code_confidence, omr_model_id, ocr_model_id, omr_detail, "
+        "processing_time_ms) "
         "VALUES (%(exam_id)s, %(batch_id)s, %(image_path)s, %(nan)s, %(image_hash)s, %(filename)s, %(user_id)s, 'processing', "
-        "%(sbd)s, %(sbd_c)s, %(ma)s, %(ma_c)s, %(model)s, %(detail)s, %(ms)s) RETURNING sheet_id",
-        {**chung, "nan": rel_nan, "sbd": res.sbd, "sbd_c": min(c.do_tin_cay for c in res.sbd_cot),
-         "ma": res.ma_de, "ma_c": min(c.do_tin_cay for c in res.ma_de_cot), "model": mo_hinh_id(conn, mh),
-         "detail": Jsonb(detail), "ms": round(t_pre + t_omr)}).fetchone()["sheet_id"]
+        "%(sbd)s, %(sbd_c)s, %(ma)s, %(ma_c)s, %(model)s, %(ocr_model)s, %(detail)s, %(ms)s) RETURNING sheet_id",
+        {**chung, "nan": rel_nan, "sbd": res.sbd, "sbd_c": min(c["do_tin_cay"] for c in sbd_j["cot"]),
+         "ma": res.ma_de, "ma_c": min(c["do_tin_cay"] for c in ma_j["cot"]), "model": mo_hinh_id(conn, mh),
+         "ocr_model": mo_hinh_ocr_id(conn, mh), "detail": Jsonb(detail), "ms": round(t_pre + t_omr + t_ocr)}).fetchone()["sheet_id"]
+    _ghi_ocr_digits(conn, cfg, exam_id, sha, sheet_id, hv)
     # blur_score KHÔNG ghi vào cột answer_sheets.blur_score: system_settings.min_blur_score (100) là thang Laplacian cũ,
     # khác thang blur_score của preprocess() – ghi vào sẽ làm mọi phiếu bị coi là mờ (nợ kỹ thuật).
     with conn.cursor() as cur:
@@ -317,6 +388,10 @@ def danh_gia_phieu(conn, sheet_id: int, user_id: int, ghi_chu: str | None = None
     if sbd_cx or ma_cx:
         ly_do.append("low_ocr_confidence")
         chi_tiet.update(sbd_can_xem=sbd_cx, ma_de_can_xem=ma_cx)
+        if sbd_cx:
+            chi_tiet["sbd_ly_do"] = det["sbd"].get("ly_do", [])
+        if ma_cx:
+            chi_tiet["ma_de_ly_do"] = det["ma_de"].get("ly_do", [])
     if not ma_cx and code_id is None:
         ly_do.append("exam_code_not_found")
         chi_tiet["detected_exam_code"] = ma
@@ -432,6 +507,13 @@ def sua_dinh_danh(conn, sheet_id: int, sbd: str | None, ma_de: str | None, user_
                  "sbd_confidence = CASE WHEN %s::text IS NULL THEN sbd_confidence ELSE 1 END, "
                  "exam_code_confidence = CASE WHEN %s::text IS NULL THEN exam_code_confidence ELSE 1 END, omr_detail = %s "
                  "WHERE sheet_id = %s", (sbd, ma_de, sbd, ma_de, Jsonb(det), sheet_id))
+    # Dữ liệu cho lần tinh chỉnh sau (human-in-the-loop; KHÔNG tự huấn luyện lại): chữ số giáo viên chốt theo từng ô viết tay.
+    # Chỉ ghi khi độ dài khớp số ô trên phiếu (SBD 6, mã đề 3); sai độ dài thì không biết chữ số nào ứng với ô nào.
+    for truong, v, cols in (("sbd", sbd, det["sbd"]["cot"]), ("exam_code", ma_de, det["ma_de"]["cot"])):
+        if v is not None and len(v) == len(cols):
+            with conn.cursor() as cur:
+                cur.executemany("UPDATE ocr_digits SET corrected_digit = %s WHERE sheet_id = %s AND field = %s::ocr_field AND position = %s",
+                                [(d, sheet_id, truong, i) for i, d in enumerate(v)])
     return danh_gia_phieu(conn, sheet_id, user_id, ghi_chu)
 
 
@@ -454,13 +536,31 @@ def xem_phieu(conn, sheet_id: int) -> dict:
                       "ORDER BY review_id DESC LIMIT 1", (sheet_id,)).fetchone()
     code = conn.execute("SELECT code FROM exam_codes WHERE exam_code_id = %s", (sh["exam_code_id"],)).fetchone() if sh["exam_code_id"] else None
     det = sh["omr_detail"] or {}
+    ocr_rows = {(r["field"], r["position"]): r for r in conn.execute(
+        "SELECT field::text AS field, position, corrected_digit, crop_image_path IS NOT NULL AS co_anh FROM ocr_digits WHERE sheet_id = %s",
+        (sheet_id,)).fetchall()}
+
+    def cot_ra(truong: str, khoa: str) -> list[dict]:
+        """Cột của omr_detail + chữ viết tay (phiếu cũ trước Tuần 6 không có `handwriting`) + chữ số giáo viên chốt / có ảnh cắt."""
+        ra = []
+        for c in det[khoa]["cot"]:
+            c = dict(c)
+            hw = c.get("handwriting")
+            if hw is not None:
+                r = ocr_rows.get((truong, hw["pos"]))
+                hw = {**hw, "corrected": r["corrected_digit"] if r else None, "has_crop": bool(r and r["co_anh"])}
+            c["handwriting"] = hw
+            ra.append(c)
+        return ra
     return {
         "sheet_id": sheet_id, "exam_id": sh["exam_id"], "status": sh["status"], "original_filename": sh["original_filename"],
         "uploaded_at": sh["uploaded_at"], "reject_code": sh["reject_code"], "reject_message": sh["error_message"],
         "sbd": None if sh["status"] == "rejected" else {"detected": sh["detected_sbd"], "can_xem": det["sbd"]["can_xem"],
-                                                       "columns": det["sbd"]["cot"]},
+                                                       "reasons": det["sbd"].get("ly_do", []), "columns": cot_ra("sbd", "sbd")},
         "exam_code": None if sh["status"] == "rejected" else {"detected": sh["detected_exam_code"], "can_xem": det["ma_de"]["can_xem"],
-                                                              "matched_code": code["code"] if code else None, "columns": det["ma_de"]["cot"]},
+                                                              "reasons": det["ma_de"].get("ly_do", []),
+                                                              "matched_code": code["code"] if code else None,
+                                                              "columns": cot_ra("exam_code", "ma_de")},
         "student": dict(sv) if sv else None,
         "score": None if sh["status"] == "rejected" else {
             "official": res["score"] if res else None, "result_status": res["status"] if res else None,
@@ -535,3 +635,15 @@ def cat_anh_cau(conn, cfg: CauHinh, sheet_id: int, question_no: int) -> bytes:
     x0, y0, x1, y1 = int(min(xs) - 12 * px), int(cy - 5 * px), int(max(xs) + 5 * px), int(cy + 5 * px)
     crop = cv2.resize(anh[max(y0, 0):y1, max(x0, 0):x1], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
     return cv2.imencode(".png", crop)[1].tobytes()
+
+
+def anh_chu_so(conn, cfg: CauHinh, sheet_id: int, truong: str, vi_tri: int) -> Path:
+    """Đường dẫn PNG ô viết tay (truong 'sbd' | 'exam_code') – để giáo viên so với chữ số bubble."""
+    r = conn.execute("SELECT crop_image_path FROM ocr_digits WHERE sheet_id = %s AND field = %s::ocr_field AND position = %s",
+                     (sheet_id, truong, vi_tri)).fetchone()
+    if not r or not r["crop_image_path"]:
+        raise KhongTimThay("Không có ảnh ô viết tay này (phiếu cũ hoặc bị từ chối).")
+    p = (cfg.storage_dir / r["crop_image_path"]).resolve()
+    if cfg.storage_dir.resolve() not in p.parents or not p.exists():
+        raise KhongTimThay("Không thấy file ảnh trên đĩa.")
+    return p

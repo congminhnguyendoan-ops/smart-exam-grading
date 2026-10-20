@@ -6,7 +6,7 @@ import pytest
 from openpyxl import load_workbook
 
 from backend import demo
-from test_backend_api import anh_trang, can_anh, giai_quyet_het, omr_gia, tai, tao_de, them_sv
+from test_backend_api import ocr_khop, anh_trang, can_anh, giai_quyet_het, omr_gia, tai, tao_de, them_sv
 
 
 def dang_ky(conn, eid, *sbd):
@@ -63,6 +63,7 @@ def test_khong_co_phieu_chua_duyet_trong_cot_diem_chinh_thuc(client, conn_thu, m
     dung = sum(q % 3 != 0 for q in range(1, 41))
     ds = iter([omr_gia(sbd="795125", chon=chon), omr_gia(sbd="222222", chon={q: key[q - 1] for q in range(1, 41)}, mo=(7,))])
     monkeypatch.setattr("backend.service.omr.doc_phieu", lambda kq, layout, mh: next(ds))
+    ocr_khop(monkeypatch, ("795125", "101"), ("222222", "101"))
     a = tai(client, eid, "0002_C2").json()
     p = tai(client, eid, "0003_C3").json()
     assert a["status"] == "graded" and p["status"] == "needs_review"

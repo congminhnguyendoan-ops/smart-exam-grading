@@ -183,9 +183,11 @@ def test_review_yeu_cau_sai(client, body):
     assert client.post(f"/sheets/{sid}/questions/{q}/review", json=body).status_code == 422
 
 
-def test_sbd_thieu_cot_can_xem_va_giao_vien_chot(client, conn_thu):
-    """0001_C1: cột SBD 6 không tô -> SBD '06238?' cần xem; giáo viên chốt SBD thật rồi xem hết câu -> phiếu được chốt."""
+def test_sbd_thieu_cot_can_xem_va_giao_vien_chot(client, conn_thu, monkeypatch):
+    """0001_C1: cột SBD 6 không tô -> SBD '06238?' cần xem (dù chữ viết tay đọc được 062384: không tự nhận một kênh duy nhất);
+    giáo viên chốt SBD thật rồi xem hết câu -> phiếu được chốt."""
     can_anh("0001_C1")
+    ocr_khop(monkeypatch, ("062384", "101"))
     them_sv(conn_thu, "062384")
     eid = tao_de(client)
     sid = tai(client, eid, "0001_C1").json()["sheet_id"]
@@ -319,6 +321,23 @@ def omr_gia(sbd="795125", ma_de="101", chon=None, mo=(), nhieu=()):
                      thoi_gian_ms=1.0)
 
 
+def ocr_khop(monkeypatch, *cap):
+    """Thay kênh CHỮ VIẾT TAY (CNN) bằng kết quả dựng tay: mỗi phiếu đọc ĐÚNG như bubble giả (sbd, ma_de), độ tin cậy 0,99.
+    Các test này kiểm đường OMR / chấm / chốt điểm, nên hai kênh phải khớp; một cặp = dùng cho mọi phiếu, nhiều cặp = lần lượt.
+    (Hành vi khi hai kênh LỆCH được kiểm riêng bằng CNN thật ở test_backend_ocr.py.)"""
+    from cv_engine.ocr import CotOCR, KetQuaOCR
+    cap = cap or (("795125", "101"),)
+    it = iter(cap) if len(cap) > 1 else None
+
+    def cot(so):
+        return [CotOCR(i, d, [(int(d), 0.99)], 0.99, False, "", True, True, None, np.full((20, 12), 255, np.uint8)) for i, d in enumerate(so)]
+
+    def gia(kq, layout, mh):
+        sbd, ma = next(it) if it else cap[0]
+        return KetQuaOCR(cot(sbd), cot(ma), 1.0)
+    monkeypatch.setattr("backend.service.ocr_cnn.doc_chu_so", gia)
+
+
 def test_phieu_sach_tu_chot_auto_va_doi_chieu_csdl(client, conn_thu, monkeypatch):
     """Không còn gì cần xem -> chấm tự động, ghi results 'auto' (không confirmed_by); điểm = điểm tính tay; đối chiếu fn_grade_sheet."""
     can_anh("0002_C2")
@@ -328,6 +347,7 @@ def test_phieu_sach_tu_chot_auto_va_doi_chieu_csdl(client, conn_thu, monkeypatch
     chon = {q: (key[q - 1] if q % 2 else "A" if key[q - 1] != "A" else "B") for q in range(1, 38)}     # lẻ: đúng, chẵn: sai; 38–40 bỏ trống
     dung = sum(q % 2 == 1 for q in range(1, 38))
     monkeypatch.setattr("backend.service.omr.doc_phieu", lambda kq, layout, mh: omr_gia(chon=chon))
+    ocr_khop(monkeypatch)
     t = tai(client, eid, "0002_C2").json()
     assert t["status"] == "graded" and t["pending_questions"] == 0
     assert t["official_score"] == pytest.approx(0.25 * dung)
@@ -347,6 +367,7 @@ def test_mot_cau_can_xem_la_khong_tu_chot(client, monkeypatch, loai):
     key = demo.khoa_demo("101")
     chon = {q: key[q - 1] for q in range(1, 41)}                                     # làm đúng hết 40 câu
     monkeypatch.setattr("backend.service.omr.doc_phieu", lambda kq, layout, mh: omr_gia(chon=chon, **{loai: (7,)}))
+    ocr_khop(monkeypatch)
     t = tai(client, eid, "0002_C2").json()
     assert t["status"] == "needs_review" and t["official_score"] is None and t["pending_questions"] == 1
     v = client.get(f"/sheets/{t['sheet_id']}").json()
@@ -358,6 +379,7 @@ def test_ma_de_khong_co_trong_ky_thi_khong_cham(client, monkeypatch):
     can_anh("0002_C2")
     eid = tao_de(client, ma_de=("101", "102"))
     monkeypatch.setattr("backend.service.omr.doc_phieu", lambda kq, layout, mh: omr_gia(ma_de="104"))
+    ocr_khop(monkeypatch, ("795125", "104"))
     v = client.get(f"/sheets/{tai(client, eid, '0002_C2').json()['sheet_id']}").json()
     assert v["status"] == "needs_review" and "exam_code_not_found" in v["review"]["reasons"]
     assert v["score"]["provisional"] is None and v["score"]["official"] is None and all(q["is_correct"] is None for q in v["questions"])

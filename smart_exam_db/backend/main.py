@@ -7,11 +7,11 @@ Nguyên tắc: endpoint mỏng – chỉ đổi HTTP <-> backend.service. Mỗi 
 rollback khi lỗi). CHƯA có đăng nhập (nợ kỹ thuật): người dùng = DEMO_USER trong .env, hoặc header X-User (username giáo viên).
 """
 import logging
-from pathlib import Path
 from contextlib import asynccontextmanager
+from pathlib import Path as DuongDan
 
 import psycopg
-from fastapi import Depends, FastAPI, File, Header, Query, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Header, Path, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -29,8 +29,8 @@ VERSION = "0.1.0"
 async def lifespan(app: FastAPI):
     cfg = lay_cau_hinh()
     app.state.cfg = cfg
-    app.state.mo_hinh = service.nap_mo_hinh(cfg)          # nạp mô hình OMR một lần
-    log.info("Đã nạp mô hình OMR %s", app.state.mo_hinh.phien_ban)
+    app.state.mo_hinh = service.nap_mo_hinh(cfg)          # nạp OMR + CNN chữ số một lần
+    log.info("Đã nạp mô hình OMR %s, CNN chữ số %s", app.state.mo_hinh.phien_ban, app.state.mo_hinh.phien_ban_ocr)
     yield
 
 
@@ -88,7 +88,8 @@ def _loi_cau_hinh(_: Request, e: LoiCauHinh):
 def health(request: Request):
     """Trả 200 khi API chạy và nối được CSDL; 503 nếu không nối được CSDL."""
     mh = getattr(request.app.state, "mo_hinh", None)
-    thong_tin = {"status": "ok", "version": VERSION, "omr_model": mh.phien_ban if mh else None}
+    thong_tin = {"status": "ok", "version": VERSION, "omr_model": mh.phien_ban if mh else None,
+                 "ocr_model": mh.phien_ban_ocr if mh else None}
     try:
         with ket_noi() as conn:
             conn.execute("SELECT 1")
@@ -189,6 +190,13 @@ def anh_cau(sheet_id: int, question_no: int, conn=Depends(get_conn), cfg: CauHin
     return Response(service.cat_anh_cau(conn, cfg, sheet_id, question_no), media_type="image/png")
 
 
+@app.get("/sheets/{sheet_id}/digits/{field}/{position}/image", tags=["Review"],
+         summary="Ảnh ô viết tay (SBD / mã đề) đã cắt, để so với chữ số bubble")
+def anh_chu_so(sheet_id: int, field: str = Path(pattern="^(sbd|exam_code)$"), position: int = Path(ge=0, le=9), conn=Depends(get_conn),
+               cfg: CauHinh = Depends(get_cau_hinh)):
+    return FileResponse(service.anh_chu_so(conn, cfg, sheet_id, field, position), media_type="image/png")
+
+
 # ------------------------------------------------------------------------------------------------ review (giáo viên)
 @app.get("/sheets/{sheet_id}/review-questions", response_model=list[schemas.CauCanXem], tags=["Review"],
          summary="Các câu cần xem của một phiếu")
@@ -238,7 +246,7 @@ def xuat_excel(exam_id: int, conn=Depends(get_conn)):
 
 
 # ------------------------------------------------------------------------------------------------ giao diện (HTML + JS thuần)
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+FRONTEND_DIR = DuongDan(__file__).resolve().parent.parent / "frontend"
 
 
 @app.get("/", include_in_schema=False)

@@ -12,6 +12,10 @@ const fmt = (x) => (x === null || x === undefined ? "–" : Number(x).toFixed(2)
 const NHAN_TRANG_THAI = { graded: ["Chính thức", "ok"], needs_review: ["Cần xem", "warn"], rejected: ["Bị từ chối", "bad"],
   processing: ["Đang xử lý", "gray"], uploaded: ["Đã tải lên", "gray"], processed: ["Đã xử lý", "gray"], error: ["Lỗi", "bad"] };
 const LY_DO_CAU = { o_mo: "ô tô mờ", nhieu_o: "tô nhiều ô", khong_o_nao: "không thấy ô nào", tin_cay_thap: "máy chưa chắc", vi_tri: "chưa chắc vị trí hàng" };
+const LY_DO_CHU_SO = { lech_bubble: "chữ viết tay khác chữ số bubble", tin_cay_thap: "chữ viết tay khó đọc (máy chưa chắc)",
+  thieu_bubble: "cột bubble không đọc được (không tô / tô nhiều ô)", bubble_cx: "cột bubble máy chưa chắc",
+  o_trong_ngoai_ds: "ô viết tay trống và số này không có trong danh sách", o_trong_chua_biet_ds: "ô viết tay trống, chưa kiểm được danh sách",
+  o_it_muc: "ô viết tay quá ít mực", khong_phai_chu_so: "ô viết tay không giống chữ số" };
 const LY_DO_PHIEU = { low_omr_confidence: "có câu máy chưa chắc", multiple_marks: "có câu tô nhiều ô", low_ocr_confidence: "SBD / mã đề chưa chắc",
   exam_code_not_found: "mã đề không có trong kỳ thi", sbd_not_found: "SBD không có trong danh sách", duplicate_sbd: "trùng SBD với phiếu khác" };
 
@@ -177,6 +181,22 @@ function cotsHtml(tr) {
   if (!tr) return "–";
   return `<span class="cols">${tr.columns.map((c) => `<span class="col ${c.can_xem || c.chu_so === "?" ? "bad" : ""}" title="cột ${c.vi_tri}: tin cậy ${fmt(c.do_tin_cay)}">${esc(c.chu_so)}</span>`).join("")}</span>`;
 }
+/* Hai kênh cạnh nhau: ô tô (bubble) ↔ chữ viết tay (ảnh ô + chữ số máy đọc + độ tin cậy). Cột lệch / không chắc tô đỏ. */
+function haiKenhHtml(sheetId, field, tr) {
+  if (!tr || !tr.columns.some((c) => c.handwriting)) return "";
+  const hang = (ten, f) => `<tr><th>${ten}</th>${tr.columns.map((c) => `<td class="${c.can_xem ? "lech" : ""}">${f(c)}</td>`).join("")}</tr>`;
+  const ly = [...new Set(tr.columns.flatMap((c) => c.ly_do).concat(tr.reasons || []))];
+  return `<table class="haikenh"><tbody>
+    ${hang("Ô tô (bubble)", (c) => `<b>${esc(c.bubble ?? c.chu_so)}</b>`)}
+    ${hang("Chữ viết tay", (c) => c.handwriting && c.handwriting.has_crop
+      ? `<img src="/sheets/${sheetId}/digits/${field}/${c.handwriting.pos}/image" alt="ô viết tay ${c.vi_tri}">` : "–")}
+    ${hang("Máy đọc", (c) => { const h = c.handwriting; if (!h) return "–";
+      if (h.o_trong) return '<span class="muted">ô trống</span>';
+      if (h.chu_so === "?") return `<span class="muted">không đọc được</span>`;
+      return `<b>${esc(h.chu_so)}</b> <span class="muted small">${Math.round(h.p * 100)}%</span>`; })}
+    ${hang("GV đã chốt", (c) => (c.handwriting && c.handwriting.corrected) ? `<b>${esc(c.handwriting.corrected)}</b>` : "")}
+    </tbody></table>${ly.length ? `<p class="small muted">Lý do cần xem: ${ly.map((m) => LY_DO_CHU_SO[m] || m).join("; ")}</p>` : ""}`;
+}
 function cauHtml(q, dapAn) {
   const cls = q.needs_review ? "review" : q.is_correct === true ? "good" : q.is_correct === false ? "wrong" : "";
   const doc = q.selected_options || (q.state === "blank" ? "—" : "?");
@@ -203,6 +223,8 @@ async function manChiTiet(id) {
       <dl class="kv"><dt>SBD</dt><dd>${cotsHtml(p.sbd)} <span class="muted small">${p.sbd && p.sbd.can_xem ? "cần xem" : ""}</span></dd>
         <dt>Mã đề</dt><dd>${cotsHtml(p.exam_code)} ${maKhop ? "" : '<span class="tag warn">chưa xác định</span>'}</dd>
         <dt>Sinh viên</dt><dd>${p.student ? esc(p.student.full_name) + ` (${esc(p.student.student_code)})` : '<span class="muted">chưa ghép được</span>'}</dd></dl>
+      <h3>SBD: ô tô ↔ chữ viết tay</h3>${haiKenhHtml(p.sheet_id, "sbd", p.sbd)}
+      <h3>Mã đề: ô tô ↔ chữ viết tay</h3>${haiKenhHtml(p.sheet_id, "exam_code", p.exam_code)}
       ${rv && p.status === "needs_review" ? `<div class="alert warn">Lý do vào hàng đợi duyệt: ${rv.reasons.map((r) => LY_DO_PHIEU[r] || r).join("; ")}</div>` : ""}
       ${p.status === "needs_review" ? `<a class="btn pri" href="#/review/${id}">Duyệt các mục cần xem →</a>` : ""}`}</div></div></div>
     ${rejected ? "" : `<div class="card"><h3>Bảng ${p.questions.length} câu</h3>
@@ -244,20 +266,29 @@ async function manDuyet(id) {
     ${dinhDanhCan ? khungDinhDanh(p) : ""}
     <h3>Câu cần xem (${p.questions.filter((q) => q.needs_review).length} còn lại)</h3>
     ${the.map((q) => theCau(id, q)).join("") || '<p class="muted">Không có câu nào cần xem.</p>'}`;
-  if (dinhDanhCan) $("#luu-dd").addEventListener("click", () => luuDinhDanh(id));
+  if (dinhDanhCan) {
+    $("#luu-dd").addEventListener("click", () => luuDinhDanh(id));
+    main.querySelectorAll("button[data-fill]").forEach((b) => b.addEventListener("click", () => { $("#" + b.dataset.fill).value = b.dataset.val; }));
+  }
   main.querySelectorAll(".rcard").forEach((el) => gan(el, id));
   await napChiTietKyThi();
 }
+const chuoiCot = (tr, f) => { const v = tr.columns.map(f); return v.every((d) => /^\d$/.test(d || "")) ? v.join("") : ""; };
 function khungDinhDanh(p) {
   const ma = state.exam ? state.exam.codes.map((c) => c.code).join(", ") : "";
-  const sbdDoc = /^\d+$/.test(p.sbd.detected || "") ? p.sbd.detected : "";
-  const maDoc = p.exam_code.matched_code || (/^\d+$/.test(p.exam_code.detected || "") ? p.exam_code.detected : "");
+  // Trường đang cần xem: KHÔNG điền sẵn (máy không chắc → giáo viên nhìn ảnh rồi tự chọn). Trường đã chắc: điền chữ số máy chốt.
+  const sbdDoc = p.sbd.can_xem ? "" : (/^\d+$/.test(p.sbd.detected || "") ? p.sbd.detected : "");
+  const maDoc = p.exam_code.can_xem ? "" : (p.exam_code.matched_code || (/^\d+$/.test(p.exam_code.detected || "") ? p.exam_code.detected : ""));
+  const nut = (id, tr, f, ten) => `<button type="button" data-fill="${id}" data-val="${esc(chuoiCot(tr, f))}" ${chuoiCot(tr, f) ? "" : "disabled"}>${ten}</button>`;
   return `<div class="card"><h3>Chốt số báo danh / mã đề</h3>
-    <p class="small muted">Ảnh phần đầu phiếu (SBD, mã đề); ô đỏ là cột máy không đọc chắc chắn (dấu ?).</p>
+    <p class="small muted">Nhìn ảnh ô viết tay cạnh ô tô; cột đỏ là chỗ hai kênh lệch hoặc máy không chắc. Máy KHÔNG tự chọn thay giáo viên.</p>
     <div class="grid2"><div class="clip"><img src="/sheets/${p.sheet_id}/image?kind=aligned" alt="đầu phiếu"></div>
-    <div><dl class="kv"><dt>SBD máy đọc</dt><dd>${cotsHtml(p.sbd)}</dd><dt>Mã đề máy đọc</dt><dd>${cotsHtml(p.exam_code)}</dd></dl>
+    <div><h3>SBD</h3>${haiKenhHtml(p.sheet_id, "sbd", p.sbd) || cotsHtml(p.sbd)}
+      <h3>Mã đề</h3>${haiKenhHtml(p.sheet_id, "exam_code", p.exam_code) || cotsHtml(p.exam_code)}
       <div class="row"><label>SBD đúng <input type="text" id="in-sbd" inputmode="numeric" value="${esc(sbdDoc)}"></label>
-        <label>Mã đề đúng <input type="text" id="in-ma" inputmode="numeric" value="${esc(maDoc)}"></label></div>
+        ${nut("in-sbd", p.sbd, (c) => c.bubble, "Lấy theo ô tô")} ${nut("in-sbd", p.sbd, (c) => c.handwriting && c.handwriting.chu_so, "Lấy theo chữ viết tay")}</div>
+      <div class="row"><label>Mã đề đúng <input type="text" id="in-ma" inputmode="numeric" value="${esc(maDoc)}"></label>
+        ${nut("in-ma", p.exam_code, (c) => c.bubble, "Lấy theo ô tô")} ${nut("in-ma", p.exam_code, (c) => c.handwriting && c.handwriting.chu_so, "Lấy theo chữ viết tay")}</div>
       <p class="small muted">Mã đề của kỳ thi: ${esc(ma)}</p>
       <div class="row"><button class="pri" id="luu-dd">Lưu SBD / mã đề</button></div></div></div></div>`;
 }
