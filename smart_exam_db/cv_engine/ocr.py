@@ -44,6 +44,7 @@ class OChuSo:
     vien_con: float                 # max (4 cạnh) tỉ lệ mực trong dải 2 px sát cạnh ô cắt TRƯỚC khi xoá; > 0,5 = có vệt viền (đã xoá dải 3 px của cạnh đó)
     lech_vien: tuple[int, int]      # (dx, dy) dò được so với vị trí danh nghĩa (px)
     ok_vien: bool                   # False nếu dò viền không đáng tin (dùng vị trí danh nghĩa + độ lệch trang)
+    fr_toi: float = 0.0             # tỉ lệ pixel ô cắt tối hơn 50% mức giấy (phân vị 95): ô bị bôi đen > 30% không phải chữ số
 
 
 def ban_do_toi(xam: np.ndarray) -> np.ndarray:
@@ -179,7 +180,8 @@ def cat_o(xam: np.ndarray, khung: tuple[int, int, int, int, bool], rect) -> OChu
     return OChuSo(anh28=ve_mnist(ink), ink=ink, ink_px=ink_px, ti_le_muc=ink_px / ink.size, n_tp=n_tp,
                   cao=int(ys.max() - ys.min() + 1) if len(ys) else 0, rong=int(xs.max() - xs.min() + 1) if len(xs) else 0,
                   cham_vien=int((mk & vanh).sum()), vien_con=vc,
-                  lech_vien=(x0 - int(round(rect[0])), y0 - int(round(rect[1]))), ok_vien=ok)
+                  lech_vien=(x0 - int(round(rect[0])), y0 - int(round(rect[1]))), ok_vien=ok,
+                  fr_toi=float((o < 0.5 * float(np.percentile(o, 95))).mean()) if o.size else 0.0)
 
 
 def cat_anh(xam: np.ndarray, nhom_rects, toi: np.ndarray | None = None) -> list[list[OChuSo]]:
@@ -265,8 +267,9 @@ def doi_chieu_truong(cot: list[CotDoiChieu], trong_danh_sach: bool | None) -> tu
 DUONG_DAN_MO_HINH = Path(__file__).resolve().parent.parent / "models" / "ocr_cnn.json"
 NGUONG_TRONG = 30        # ink_px < ngưỡng -> ô viết tay trống (đo trên 4 612 ô dev: ô ít mực nhất 167 px; CHƯA kiểm trên ô trống thật)
 NGUONG_IT_MUC = 100      # 30 <= ink_px < 100: có vết nhưng quá ít để đọc -> cần xem (dev: không ô nào, min 167)
-NGUONG_TI_LE_MUC = 0.40  # > 40% diện tích ô là mực -> không phải chữ số (dev: max 0,25)
+NGUONG_TI_LE_MUC = 0.36  # > 36% diện tích ô là mực -> không phải chữ số (dev: max 0,25; ngưỡng ≈ 1,4 × max dev, nghiêng về cần xem)
 NGUONG_N_TP = 7          # >= 7 mảnh mực rời -> không phải chữ số (dev: max 5)
+NGUONG_FR_TOI = 0.30     # > 30% pixel ô tối (ô bị bôi đen: nền = trung vị ô bị đảo nên ink_px sai) -> không phải chữ số (dev 4 504 ô: max 0,21, p99,9 0,18)
 LE_BAN_DO_TOI = 100      # px: lề quanh vùng 9 ô khi tính bản đồ tối cục bộ (cửa sổ closing 15 px ≪ lề)
 
 
@@ -360,6 +363,8 @@ def _ban_do_toi_cuc_bo(xam: np.ndarray, rects) -> np.ndarray:
 
 
 def _hop_ly_o(o: OChuSo) -> str:
+    if o.fr_toi > NGUONG_FR_TOI:
+        return "khong_phai_chu_so"
     if o.ink_px < NGUONG_TRONG:
         return "trong"
     if o.ink_px < NGUONG_IT_MUC:
