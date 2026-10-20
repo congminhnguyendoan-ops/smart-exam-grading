@@ -388,3 +388,15 @@ Nhận xét: hạ T4 từ 54% xuống 27% phải trả bằng việc tăng gấp
 | Hạn chế phải nêu | val chỉ 6 phiếu / 12 ảnh (2 ảnh cùng phiếu không độc lập); mô hình đã thấy nét người 4 và 5 ở trang D (D007–D010) ⇒ chỉ đo "nét chữ đã gặp"; OMR chưa từng thấy val; CP lỗi im lặng 0 / ~15–20 trường nhận ≈ 15–20% (rất rộng) |
 | Xem bằng mắt | `--xem` ghi `data/_eval/ocr/xem_val.html`: mỗi ảnh một hàng 9 ô (ảnh ô viết tay, chữ số ô tô, chữ số máy đọc + %, ô cần xem tô vàng). Người dùng đọc ảnh ô viết tay **trước**, rồi mới đối chiếu cột "máy đọc"; ghi lại mọi ô máy đọc sai mà không tô vàng (= lỗi im lặng mức chữ số, nên chỉ chấp nhận được nếu bubble bắt được) và mọi ô nghi nhãn `ground_truth` sai (liệt kê, KHÔNG tự sửa) |
 | Sau khi chạy | ghi số liệu + CP + bảng theo người / điều kiện vào mục 10 (Phần C); nếu lỗi im lặng > 0: dừng, phân tích nguyên nhân, không sửa trong cùng phiên chạy |
+
+### KẾT QUẢ val 0029–0034 (20/10/2026, chạy MỘT lần theo đăng ký mục 11; mã `b3d0ede`, SHA mô hình `6d87205c…` khớp, `git diff` mã rỗng)
+`python tools/eval_ocr.py run --tap val --xac-nhan-val --xem` → `data/_eval/ocr/eval_val.json`, `xem_val.html`.
+| Tiêu chí | Kết quả | Đánh giá |
+|---|---|---|
+| **Lỗi im lặng mức trường = 0** (bắt buộc) | **0** (SBD 11 trường nhận, mã đề 10; CP95% ≤ 16,1% trên 21 trường nhận) | **ĐẠT** |
+| Ảnh bị từ chối | 0 / 12 | đạt |
+| T3 ≥ 97% (mục tiêu) | **98,1%** (106/108, CI 93,5–99,8) | đạt trên val (nét đã gặp; dự đoán 92–95% → lạc quan hơn dự đoán) |
+| T4 ≤ 10% (mục tiêu) | **16,7%** (2/12 ảnh, CI 2,1–48,4) | chưa đạt; thấp hơn dự đoán 25–55% |
+| Thời gian | trung vị 15,8 ms (max 18,2) | đạt |
+- Ảnh cần xem: 0031_C3 (mã đề `tin_cay_thap`), 0034_C3 (SBD + mã đề `lech_bubble`); cả hai ở C3. Theo người: người 4 T3 100% / T4 12,5% (8 ảnh), người 5 T3 94,4% / T4 25% (4 ảnh). Theo điều kiện: C1, C2, C4 T4 0%; C3 T4 66,7%.
+- Hạn chế (như đăng ký): 6 phiếu, mô hình đã thấy nét người 4 và 5 → chỉ đo "nét đã gặp", không so được với 5-fold người lạ (T3 92%, T4 ~54%). Chưa xem bằng mắt `xem_val.html` (chờ người dùng); không sửa gì sau khi thấy số.
