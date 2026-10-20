@@ -186,7 +186,9 @@ def cmd_run(pp: str, split: str, cho_phep_val: bool) -> None:
     cau_rows, cot_rows, o_rows, anh_rows = [], [], [], []
     cache = {}
     for r in rows:
-        mo_hinh = cache.setdefault(r["fold"], omr.nap_mo_hinh(MO_HINH[pp](r["fold"])))
+        # train: OOF (mô hình bỏ fold của ảnh); val (Phần B): mô hình ĐẦY ĐỦ models/omr_<pp>.json huấn luyện trên cả 56 ảnh train
+        khoa = r["fold"] if split == "train" else "cuoi"
+        mo_hinh = cache.setdefault(khoa, omr.nap_mo_hinh(MO_HINH[pp](r["fold"]) if split == "train" else ROOT / "models" / f"omr_{pp}.json"))
         t = time.perf_counter()
         kq = preprocess(DATA / "raw" / f"{r['anh']}.jpg", L)
         t_pre = (time.perf_counter() - t) * 1000
@@ -347,7 +349,8 @@ def pct(a, b):
 def cmd_report(split: str) -> None:
     kq = {pp: bang(pp, split) for pp in ("m0", "m1") if (OUT / pp / f"cau_{split}.csv").exists()}
     L = ["# Tuần 5 – Phần A: đánh giá OMR độc lập (tools/eval_omr.py)", "",
-         f"Tập: **{split}** (56 ảnh 0001–0028; M1 = dự đoán NGOÀI FOLD, 7 fold theo phiếu). Không dùng val 0029–0034, test.",
+         (f"Tập: **{split}** (56 ảnh 0001–0028; M1 = dự đoán NGOÀI FOLD, 7 fold theo phiếu). Không dùng val 0029–0034, test." if split == "train" else
+          f"Tập: **{split}** (val 0029–0034, 12 ảnh; mô hình huấn luyện trên 56 ảnh train, KHÔNG thấy val). Không dùng test."),
          "Đơn vị: lượt (ảnh, câu) / (ảnh, cột). CI 95%: bootstrap theo phiếu 1000 lần, seed 2026. Cận trên lỗi nặng: "
          "Clopper–Pearson 95% (lạc quan – lượt cùng ảnh không độc lập).", ""]
     for pp, b in kq.items():
@@ -382,8 +385,8 @@ def cmd_report(split: str) -> None:
     # ca thử
     L += ["## Ca thử (ô C, nhãn faint – đã so giấy; n 0,23–0,26 sát ngưỡng cố định)", ""]
     for p, q, o in CA_THU:
-        if int(p) not in PHIEU_TRAIN:
-            L.append(f"- {p} câu {q}: thuộc val 0029–0034 – **Phần A không chạy**, để Phần B.")
+        if (int(p) in PHIEU_TRAIN) != (split == "train"):
+            L.append(f"- {p} câu {q}: thuộc tập khác ({'val 0029–0034' if int(p) in PHIEU_VAL else 'train'}), không có trong tập {split}.")
             continue
         for pp in kq:
             oo = [r for r in doc_csv(OUT / pp / f"o_{split}.csv") if r["phieu"] == p and r["phan_tu"] == f"q{q}" and r["o"] == o]
@@ -412,10 +415,11 @@ def cmd_report(split: str) -> None:
     print("\n".join(L))
     for pp in kq:
         xuat_html(pp, split)
+        xuat_html(pp, split, chi_can_thiet=True)
 
 
 # ------------------------------------------------------------------------------------------------ HTML xem bằng mắt
-def xuat_html(pp: str, split: str) -> None:
+def xuat_html(pp: str, split: str, chi_can_thiet: bool = False) -> None:
     """Ca lỗi nặng / nhẹ, cần xem thừa, cần xem mà đọc sai, vị trí đáng ngờ, ca thử: ảnh cắt hàng câu (vòng tròn tại vị trí omr
     báo, màu theo dự đoán ô) + nhãn + kết quả. Phần A: người dùng xem SAU (không chặn)."""
     L = nap_layout("phieu")
@@ -429,11 +433,15 @@ def xuat_html(pp: str, split: str) -> None:
     chon = []
     for r in cau:
         loai = loai_cau(r)
+        if chi_can_thiet:                      # Phần B1c: LIỆT KÊ CẢ câu "cần xem cần thiết" đọc đúng (mờ / nhiều ô) để kiểm nhãn rõ / mờ
+            if loai == "can_xem_can_thiet":
+                chon.append(("cau", loai, r))
+            continue
         if loai in ("loi_nang", "loi_nhe", "can_xem_thua", "can_xem_thua_doc_sai", "can_xem_can_thiet_doc_sai") \
                 or float(r["lech_vi_tri_mm"]) > VI_TRI_SAI_MM or (r["phieu"], r["cau"]) in ca_thu \
                 or "tin_cay_thap" in r["ly_do"] or "vi_tri" in r["ly_do"]:
             chon.append(("cau", loai, r))
-    for r in cot:
+    for r in ([] if chi_can_thiet else cot):
         loai = loai_cot(r)
         if loai != "dung_chac_chan" or float(r["lech_vi_tri_mm"]) > VI_TRI_SAI_MM:
             chon.append(("cot", loai, r))
@@ -477,11 +485,11 @@ def xuat_html(pp: str, split: str) -> None:
         crop = a[max(y0, 0):y1, max(x0, 0):x1]
         cv2.imencode(".png", cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC))[1].tofile(img_dir / ten)
         khoi.append(f"<div class='o'><img src='xem/{ten}'><p>{mo_ta}</p></div>")
-    trang = d / "xem_bang_mat.html"
+    trang = d / ("xem_can_xem_can_thiet.html" if chi_can_thiet else f"xem_bang_mat{'' if split == 'train' else '_' + split}.html")
     trang.write_text(f"""<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>OMR {pp} – xem bằng mắt</title>
 <style>body{{font-family:Segoe UI,Arial,sans-serif;margin:16px;background:#fafafa;color:#222}}
 .o{{background:#fff;border:1px solid #ccc;padding:8px;margin:8px 0}} img{{border:1px solid #888;max-width:100%}}
-code{{font-size:15px}}</style></head><body><h2>{TEN_PP[pp]} – {len(khoi)} mục cần xem bằng mắt ({split})</h2>
+code{{font-size:15px}}</style></head><body><h2>{TEN_PP[pp]} – {len(khoi)} mục {'"cần xem cần thiết" (đọc đúng tập ô; kiểm nhãn rõ / mờ)' if chi_can_thiet else 'cần xem bằng mắt'} ({split})</h2>
 <p>Thứ tự: lỗi nặng → cần xem mà đọc sai → lỗi nhẹ → cần xem thừa → còn lại (lưng chừng, vị trí, ca thử, cột).
 Vòng tròn tại vị trí omr.py báo: <span style="color:#dc0000">đỏ = rõ</span>, <span style="color:#ffa500">cam = mờ</span>,
 xám = trống (dự đoán argmax). Nghi nhãn sai → so giấy thật, KHÔNG sửa ground_truth.csv khi chưa xác nhận.</p>
