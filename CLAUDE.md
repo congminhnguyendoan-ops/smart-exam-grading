@@ -75,7 +75,7 @@ smart_exam_db/
 ├── models/                       # Tuần 5: omr_m1.json (logistic, train 0001–0028), omr_m0.json (ngưỡng) – trong git,
 │                                 #   kèm sieu_du_lieu (ngày, git, SHA dữ liệu, fold). Sinh: tools/huan_luyen_omr.py xuat
 │                                 #   Tuần 6: ocr_cnn.json (CNN chữ số, NumPy + JSON, xuất từ commit sạch b75453e). Sinh: tools/xuat_ocr.py
-├── tests/                        # pytest (223 test, ~69 s): python -m pytest tests (từ smart_exam_db/).
+├── tests/                        # pytest (232 test, ~73 s): python -m pytest tests (từ smart_exam_db/).
 │                                 #   Thiếu data/ → test cần dữ liệu tự SKIP
 ├── docs/                         # Tài liệu cho báo cáo (Tuần 1–3)
 │   ├── ke_hoach_tuan4.md         # Kế hoạch 8 bước (0–7) của preprocessing: việc, cách đo, tiêu chí xong,
@@ -115,6 +115,7 @@ smart_exam_db/
 │   │                             #   cùng luật đo T3 / T4 / lỗi im lặng; luat-mem = ĐỀ XUẤT luật mềm, KHÔNG áp dụng (chờ quyết định)
 │   ├── xuat_ocr.py               # Tuần 6: xuất models/ocr_cnn.json TỪ COMMIT SẠCH + kiểm NumPy ↔ PyTorch (< 1e-4); cần torch
 │   ├── eval_ocr.py               # Tuần 6: đánh giá ĐỘC LẬP hai kênh SBD / mã đề (chỉ ocr.py + omr.py): run --tap dev | val (--xac-nhan-val) [--xem]
+│   ├── eval_he_thong.py          # Tuần 5–6: đánh giá cả hệ thống (nắn ảnh → OMR → CNN → chấm → giáo viên) độc lập; run --tap dev | test (--xac-nhan-test, đăng ký + khoá một lần)
 │   ├── eval_omr.py               # Tuần 5: đánh giá ĐỘC LẬP (chỉ gọi doc_phieu): run --phuong-phap m0|m1, report
 │   │                             #   -> data/_eval/omr/bao_cao_phan_a_train.md + <pp>/xem_bang_mat.html
 │   └── check_task_pdf.py         # Trích phieu_giao_viec.pdf, so với ground_truth.csv hiện tại, commit đầu
@@ -467,6 +468,9 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       CNN nhỏ (M2) kém M1 ngoài CI → giữ M1; **val OMR chạy MỘT lần (đăng ký mã `4902810`): lỗi nặng 0, SBD / mã đề 0 sai, ca 0033:4 đọc mờ cần xem cả 2 ảnh**
       (M0 bỏ sót 1); thừa gộp 1,54% (C2 4,50% với n nhỏ). Kết quả `docs/ke_hoach_tuan5.md` mục 12–14. **Test cuối cả hệ thống: kế hoạch soạn (`docs/ke_hoach_test_cuoi.md`),
       CHƯA chạy, chờ người dùng chốt mục 1 + gõ "chạy test hệ thống"; CNN test 0035–0040 cũng chưa chạy.**
+      **Test cuối cả hệ thống (21/10/2026): công cụ `tools/eval_he_thong.py` đã viết + thử dev (H2–H5 = 0, điểm khớp 56/56, nhất quán nắn ảnh Tuần 4 56/56); ĐÃ ĐĂNG KÝ TRƯỚC
+      (`docs/ke_hoach_test_cuoi.md`, `docs/dang_ky_test_he_thong.json`, mã `551b356`; OMR phương án A giữ `omr_m1.json`); CHƯA CHẠY – chờ người dùng gõ "chạy test hệ thống"
+      (`python tools/eval_he_thong.py run --tap test --xac-nhan-test --xem`, có khoá chạy một lần).**
       (Ghi cũ, Phần A) **Chờ người dùng**: xem `data/_eval/omr/m1/xem_bang_mat.html` (44 mục) bằng mắt. **Phần B** (sau báo cáo 13/10): M2–M4
       nếu cần, chọn nguồn ảnh kỹ, trả Nợ kỹ thuật (mục 9), kiểm tra cuối val 0029–0034 (gồm ca thử 0033 câu 4), đăng ký trước
       + đánh giá test 0035–0040 một lần + xem mù (8 mục rõ/mờ). Tuần 6: CNN chữ số + fine-tune.

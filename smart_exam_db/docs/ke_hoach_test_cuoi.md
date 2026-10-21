@@ -1,45 +1,71 @@
-# Kế hoạch đánh giá test cuối CẢ HỆ THỐNG trên 0035–0040 (SOẠN 21/10/2026 – **CHƯA CHẠY, chưa đăng ký**)
+# Đánh giá test cuối CẢ HỆ THỐNG trên 0035–0040 – KẾ HOẠCH ĐÃ DUYỆT + ĐĂNG KÝ TRƯỚC (21/10/2026; **CHƯA CHẠY**)
 
-> Mục đích: một lần duy nhất đo toàn chuỗi **nắn ảnh → OMR → CNN chữ số + đối chiếu → chấm điểm → giáo viên** trên 12 ảnh test (6 phiếu).
-> Chỉ chạy khi người dùng gõ **"chạy test hệ thống"** SAU khi (a) duyệt kế hoạch này, (b) quyết các điểm ở mục 1, (c) có commit đăng ký (mục 4).
-> Đã chạy trên test trước đó: nắn ảnh (07/10, Tuần 4 Bước 7, 12/12 đúng). OMR và CNN **chưa** chạy trên test.
+> Một lần duy nhất đo toàn chuỗi **nắn ảnh → OMR → CNN chữ số + đối chiếu → chấm điểm → giáo viên** trên 12 ảnh test (6 phiếu).
+> Chỉ chạy khi người dùng gõ **"chạy test hệ thống"**. Trạng thái: công cụ `tools/eval_he_thong.py` đã viết + thử trên dev (mục 8); bản đăng ký
+> `docs/dang_ky_test_he_thong.json` đã commit. Trước đây trên test chỉ chạy: nắn ảnh (07/10, Tuần 4 Bước 7: 12/12 đúng). OMR, CNN, chấm điểm: **chưa**.
 
-## 1. Quyết định cần người dùng chốt TRƯỚC khi đăng ký
-1. **Mô hình OMR cho test**: (A, khuyến nghị) giữ nguyên `models/omr_m1.json` đã kiểm val (huấn luyện trên 0001–0028) – không thêm thay đổi chưa kiểm; hay (B) huấn luyện lại trên 0001–0034 (nợ Tuần 5 #7) với siêu tham số + ngưỡng khoá (`ro_min` 0,5): thêm 12 ảnh dữ liệu nhưng mô hình mới **không còn tập giữ lại** để kiểm trước test. Mặc định đề xuất: A.
-2. **Mô hình CNN**: giữ `models/ocr_cnn.json` (g0, seed 2026, SHA `6d87205c…`; đã kiểm val). Không huấn luyện lại.
-3. **Luật đối chiếu**: Q3 nguyên vẹn, τ_khop 0,5 (người dùng đã chốt GIỮ, không dùng luật mềm).
-4. **Đáp án chấm**: như `kiem_backend_dau_cuoi.py` – kỳ thi mô phỏng, 4 mã đề đáp án giả lập (`demo.khoa_demo`), danh sách thí sinh = SBD viết tay thật của 6 phiếu (nhãn `ground_truth.csv` dòng 35–40); điểm "đúng thật" tính độc lập từ nhãn người tô.
-5. **MO_MIN** giữ 0,012 (chưa chỉnh; đo theo mức mờ còn nợ) – ghi rõ trong đăng ký.
+## 1. Quyết định của người dùng (21/10/2026)
+- **OMR**: phương án (A) – giữ nguyên `models/omr_m1.json` (huấn luyện trên 0001–0028, đã kiểm val). Không huấn luyện lại.
+- **CNN**: giữ `models/ocr_cnn.json` (g0, seed 2026). **Luật đối chiếu**: Q3 nguyên vẹn, τ_khop 0,5 (GIỮ, không dùng luật mềm).
+- **Đáp án chấm**: kỳ thi mô phỏng (4 mã đề giả lập `demo.khoa_demo`, như `kiem_backend_dau_cuoi.py`); điểm "đúng thật" tính độc lập từ nhãn người tô.
+- **MO_MIN** giữ 0,012 (chưa chỉnh).
 
-## 2. Công cụ (viết SAU khi duyệt: `tools/eval_he_thong.py`; thử trên dev trước; khoá test bằng `chan_test` + `--xac-nhan-test`)
-Chỉ gọi API công khai (backend qua TestClient trong giao dịch **ROLLBACK**, thư mục ảnh tạm – không ghi CSDL thật; `omr`, `ocr`). Bộ đọc nhãn và bộ đếm riêng. Chạy một lần, tự chặn chạy lại bằng file khoá `data/_eval/he_thong/da_chay_test.lock`. Pha 1: tải ảnh không can thiệp; pha 2: giáo viên oracle chốt đúng như giấy (như `kiem_backend_dau_cuoi.py`).
+## 2. Đăng ký trước – mã, SHA, kiểm tra trước khi chạy (yêu cầu 1)
+- **Mã đăng ký = MỘT commit cụ thể: `551b356f33f4ae2f677f442766592f8242ef9d8a`** (`cv_engine/`, `models/`, `tools/`, `backend/`, `answer_sheet/`, `frontend/`).
+  Các commit sau chỉ được đổi `docs/`, `CLAUDE.md`.
+- SHA-256 (cũng ghi trong `docs/dang_ky_test_he_thong.json`, file mà công cụ đọc):
+  | File | SHA-256 |
+  |---|---|
+  | `models/omr_m1.json` | `f8f87577b42e28741def10bb9d42f4b6e937e6e3b37c025c5e63b8d8c81c60af` |
+  | `models/ocr_cnn.json` | `6d87205c83a29fccc4eb450f0aec0c9d51ba56e1bb141664060041ab0f2fcad5` |
+  | `data/_eval/nguong.json` (ngưỡng nắn ảnh Tuần 4) | `df9908623638b392b31488c5f1af00963541b1eada0324b7b7a592e3aea91780` |
+  | `answer_sheet/output/layout.json` | `a35ccb7e259f5f7a30355d85d79ba4ef267a0d465f29c09b8fd05906cfc0ecbd` |
+  | `answer_sheet/output/phieu_trang_300dpi.png` | `7b7db1a95344564a95460af9c076ed74833e75583fc117028f83bb86e1bbf30f` |
+  | `cv_engine/preprocessing.py` | `651f14fa720714fe4f3ff218694b296f66840dbf4c848a8b06b26b0060fe4352` |
+- **Công cụ TỰ KIỂM trước khi chạy test** (`kiem_dang_ky`): có file đăng ký; `git diff 551b356 HEAD` các đường dẫn mã **rỗng**; mã không có thay đổi chưa commit; mọi SHA-256 trên **khớp**. Sai một điều → DỪNG, chưa tạo khoá.
+- Tham số: `MO_MIN` 0,012, ngưỡng ô OMR `ro_min` 0,5 / `trong_min` 0,90 / `to_min` 0,50 (bubble 0,90 / 0,70), τ_khop 0,5, ngưỡng ô viết tay (`NGUONG_*` trong `ocr.py`).
 
-## 3. Chỉ số và tiêu chí
-**ĐẠT (bắt buộc, tất cả):**
+## 3. Nắn ảnh: kiểm nhất quán với Tuần 4 (yêu cầu 2)
+- `cv_engine/preprocessing.py` **không đổi từ commit `aa2748b`** (`git diff aa2748b HEAD -- smart_exam_db/cv_engine/preprocessing.py` rỗng; lần sửa cuối `fc4946b`, trước Bước 7 Tuần 4).
+- Nên nắn 12 ảnh test PHẢI trùng Tuần 4: kết quả "xem mù 07/10/2026 – 12/12 đúng, 0 lỗi im lặng, 0 từ chối" (`data/_eval/v6_api/truth_test.csv`). **Phép kiểm nhất quán** (trong `eval_he_thong.py`): mỗi ảnh phải cùng ok / từ chối và có 4 marker (sai ≤ 0,01 px), hướng xoay, blur trùng `data/_eval/v6_api/diem_test.csv`. Lệch bất kỳ ảnh nào = ghi rõ (không phải điều kiện ĐẠT riêng, nhưng thay đổi hành vi nắn so với Tuần 4 phải giải thích).
+- Thử trên dev: 56/56 ảnh nhất quán với `diem_dev.csv`.
+
+## 4. Chỉ số, tiêu chí, ca thử (yêu cầu 3, 4)
+**Tiêu chí ĐẠT bắt buộc (tất cả = 0 lỗi):**
 | # | Tiêu chí | Ngưỡng |
 |---|---|---|
-| H1 | Nắn ảnh sai mà không bị từ chối (lỗi im lặng) | = 0 / 12 |
-| H2 | OMR: lỗi nặng (câu + cột) không gắn cần xem | = 0 / 480 câu + 108 cột |
-| H3 | SBD / mã đề được nhận tự động mà ≠ chữ viết tay thật | = 0 / 12 SBD + 12 mã đề |
-| H4 | Câu chấm sai mà không gắn cần xem; điểm tạm / tối đa không bao điểm thật; phiếu tự chốt sai điểm | = 0 |
-| H5 | Sau giáo viên oracle: điểm chính thức = điểm tính độc lập, đúng sinh viên | 12/12 ảnh (mỗi ảnh một kỳ thi như dev) |
+| H1 | Nắn ảnh sai mà không bị từ chối (lỗi im lặng) – theo **kết luận mắt mù** của người dùng, kèm kiểm nhất quán Tuần 4 | = 0 / 12 |
+| H2 | OMR lỗi nặng không gắn cần xem: câu (tập ô đọc ≠ tập ô người tô) + cột bubble (chữ số ≠ nhãn và không bị cờ) | = 0 / 480 câu + 108 cột |
+| H3 | SBD / mã đề được nhận tự động mà ≠ chữ VIẾT TAY thật | = 0 / 12 SBD + 12 mã đề |
+| H4 | Câu chấm sai mà không gắn cần xem; điểm tạm / điểm tối đa không bao điểm thật; phiếu tự chốt sai điểm / sai sinh viên | = 0 |
+| H5 | Sau giáo viên oracle (chốt đúng như giấy): điểm chính thức = điểm tính độc lập, đúng sinh viên | tất cả ảnh không bị từ chối (số ảnh bị từ chối báo riêng, kèm lý do) |
 
-Báo kèm, **không là điều kiện ĐẠT**: số ảnh bị từ chối (lý do), lỗi nhẹ OMR, cần xem thừa (mục tiêu ≤ 3%), F1 mờ theo C1–C4 (n rất nhỏ), T3 chữ số CNN (mục tiêu ≥ 97%), T4 ảnh có SBD / mã đề cần xem (mục tiêu ≤ 10%), thời gian / ảnh, CP 95% cho mọi tỉ lệ 0 / n (n nhỏ → cận trên rộng, ghi rõ).
+**Chỉ báo – báo kèm CI và cận trên Clopper–Pearson (CP 95%), KHÔNG là điều kiện ĐẠT:** T3 độ đúng chữ số CNN (mục tiêu ≥ 97%); T4 ảnh có SBD hoặc mã đề cần xem (mục tiêu ≤ 10%); cần xem thừa câu rõ 1 ô (mục tiêu ≤ 3%); F1 mờ cấp CÂU (tổng và C1–C4; bootstrap theo phiếu; n mờ ≈ 30 – CI rất rộng); lỗi nhẹ OMR; số ảnh bị từ chối; thời gian / ảnh; cận trên CP của mọi số đếm 0 / n.
 
 **Ca thử bắt buộc báo riêng:**
-- **0035: mã đề viết `103` nhưng KHÔNG tô bubble** (nhãn `---`): hệ thống PHẢI gắn mã đề cần xem (`thieu_bubble`); nhận / chấm tự động = vi phạm H3.
-- **8 mục rõ / mờ** (nhãn đã so giấy 07/10, 8/8 giữ nguyên): 0036 câu 2, 10, 13; 0037 câu 1, 15, 31; 0040 câu 5 (nhãn mờ), câu 10 (nhãn rõ) – báo dự đoán so với nhãn; mờ đọc thành rõ chắc chắn = lỗi nhẹ (không tính ĐẠT).
-- **0035_C3** (nội dung lệch 2,06 mm > dung sai cố định 2,0 mm) và **0039_C3** (độ phối cảnh 0,618, nhỏ nhất): định vị phải đúng hoặc gắn `vi_tri`.
-- Cả 12 ảnh do **người 5** viết, người 5 cũng viết D009–D010 (dữ liệu tinh chỉnh CNN) → CNN chỉ đo "nét đã gặp", **lạc quan** so với người lạ (OOF T3 ≈ 92%).
+1. **0035: mã đề viết `103`, KHÔNG tô bubble** (nhãn `---`): phải **cần xem** (`thieu_bubble`); nhận / chấm tự động = vi phạm H3. (Công cụ kiểm tổng quát: mọi cột nhãn "không tô" phải làm trường cần xem.)
+2. **8 mục rõ / mờ của test, nhãn ĐÃ XÁC NHẬN bằng giấy ở Tuần 4 (07/10/2026), chỉ dùng ở đây**: 0036 câu 2, 10, 13; 0037 câu 1, 15, 31; 0040 câu 5 (nhãn mờ), 0040 câu 10 (nhãn rõ). Báo từng ảnh: nhãn, máy đọc, cần xem. Mờ đọc thành rõ chắc chắn = lỗi nhẹ (chỉ báo).
+3. **0035_C3** (nội dung lệch 2,06 mm > dung sai cố định 2,0 mm) và **0039_C3** (độ phối cảnh 0,618 nhỏ nhất): định vị phải đúng hoặc gắn `vi_tri`.
 
-## 4. Đăng ký trước (commit riêng, TRƯỚC khi chạy)
-Ghi: commit mã đóng băng (cv_engine, backend, tools/eval_he_thong.py, models); SHA-256 `omr_m1.json` / `ocr_cnn.json` / `layout.json` / `phieu_trang_300dpi.png`; `MO_MIN`, `ro_min`, τ_khop, ngưỡng ô; tiêu chí H1–H5; dự đoán (H1–H5 đều 0; T4 ≈ 25–50%; thời gian ≈ 0,75 s/ảnh); hạn chế (12 ảnh / 6 phiếu, CP rộng; một người viết; test đã được mở một lần ở Tuần 4 cho nắn ảnh và audit nhãn – không tham số nào chọn theo test). Kiểm `git diff <commit> HEAD` mã = rỗng ngay trước khi chạy.
+**Dự đoán đăng ký trước (để so, không chỉnh theo kết quả):** H1 = 0 (nắn trùng Tuần 4 12/12); H2 = 0; H3 = 0; H4 = 0; H5 12/12; nhất quán Tuần 4 12/12; mã đề 0035 cần xem; T3 ≈ 94–99% (val 98,1%, dev 92,7%; test toàn người 5 – nét dễ nhất); **T4 ≈ 15–50% (2–6 / 12 ảnh) – dự đoán KHÔNG đạt ≤ 10%**; cần xem thừa 0–4%; tổng câu cần xem 22–28%; F1 mờ cấp câu gộp 0,90–0,99; thời gian ≈ 0,75 s / ảnh; 0040 câu 5 đọc `mờ` và cần xem.
 
-## 5. Xem bằng mắt (mù)
-Công cụ xuất `data/_eval/he_thong/xem_test_mu.html`: mỗi ảnh gồm ảnh nắn, hàng 9 ô viết tay, các câu cần kiểm – **chưa** có kết quả máy. Người dùng đọc SBD / mã đề viết tay, các câu mờ / nhiều ô và kết luận ảnh nắn đúng / sai TRƯỚC; sau đó mới mở `xem_test_may.html`. Mọi ca máy ≠ mắt được liệt kê; nghi nhãn `ground_truth.csv` sai → người dùng so giấy, KHÔNG tự sửa.
+**Giới hạn phải nêu trong báo cáo:** chỉ **12 ảnh / 6 phiếu** (hai ảnh cùng phiếu không độc lập; CP cho 0 / 480 ≈ 0,8%, 0 / 12 ≈ 26%); **toàn bộ do người 5 viết**, người 5 cũng viết D009–D010 (dữ liệu tinh chỉnh CNN) ⇒ CNN chỉ đo "nét chữ đã gặp", lạc quan hơn người lạ (OOF T3 ≈ 92%); test đã được mở một lần ở Tuần 4 cho nắn ảnh và audit nhãn (sửa nhãn mã đề 0035 theo giấy) – không tham số nào chọn theo test; kỳ thi và đáp án là mô phỏng.
 
-## 6. Sau khi chạy
-Ghi số liệu + CP vào mục KẾT QUẢ của tài liệu này; không chỉnh gì rồi chạy lại. Nếu H1–H5 có lỗi: ghi nguyên trạng, phân tích, sửa ở phiên bản sau và chỉ kiểm lại trên dev (không chạy lại test).
+## 5. Xem bằng mắt MÙ (yêu cầu 5)
+`eval_he_thong.py run --tap test --xac-nhan-test --xem` ghi hai file (tạo cùng lúc, nhưng người dùng chỉ mở file thứ nhất trước):
+1. **`data/_eval/he_thong/test/xem_mu.html`** – KHÔNG chứa bất kỳ kết luận nào của máy (không chữ số đọc, không cần xem / lý do, không trạng thái; kiểm bằng pytest): với mỗi ảnh gồm ảnh nắn thu nhỏ (để kết luận nắn đúng / sai), 9 ô viết tay, các câu cần đọc (mọi câu nhãn mờ / nhiều ô + 8 mục ở mục 4, chọn theo NHÃN không theo máy).
+   Người dùng ghi kết luận trước: ảnh nắn đúng / sai; SBD và mã đề đọc được; từng câu tô gì / mức nào.
+2. **`xem_may.html`** – kết quả máy (ô tô, chữ số máy đọc + %, câu máy đọc, cần xem + lý do). Chỉ mở SAU khi đã có kết luận của người dùng; mọi ca máy ≠ mắt được liệt kê; nghi nhãn `ground_truth.csv` sai → người dùng so giấy, KHÔNG tự sửa.
 
-## 7. Lệnh dự kiến (KHÔNG chạy bây giờ)
-`python tools/eval_he_thong.py run --tap dev` (thử công cụ) → duyệt → commit đăng ký → người dùng gõ "chạy test hệ thống" → `python tools/eval_he_thong.py run --tap test --xac-nhan-test --xem` → mở HTML mù → `report`.
+## 6. Chốt chặn và quy tắc sau khi chạy (yêu cầu 6, 7)
+- `--xac-nhan-test` + `chan_test` + bản đăng ký khớp (mục 2) + **file khoá `data/_eval/he_thong/da_chay_test.lock`** (tạo NGAY khi bắt đầu, kể cả chạy hỏng giữa chừng): lần chạy test thứ hai bị **từ chối** (pytest `test_khoa_chay_mot_lan`).
+- **Có lỗi trên test ⇒ ghi nguyên trạng** (số liệu + phân tích nguyên nhân) vào mục KẾT QUẢ bên dưới; **không chạy lại test, không chỉnh mã / mô hình / ngưỡng rồi đo lại trên test**; sửa (nếu có) làm ở phiên bản sau và chỉ kiểm lại trên dev. Không sửa `ground_truth.csv` khi chưa được người dùng xác nhận bằng giấy.
+
+## 7. Công cụ `tools/eval_he_thong.py` (đã viết, commit `551b356`)
+- **Độc lập (yêu cầu 6)**: không import `cv_engine.omr` / `ocr` / `backend.service` / `grading` (pytest kiểm bằng AST); chỉ gọi API công khai của backend qua TestClient trong giao dịch **ROLLBACK** + thư mục ảnh tạm (không ghi CSDL thật). Kết quả "đúng thật" tính riêng từ `ground_truth.csv`: câu đúng ⇔ người tô ĐÚNG MỘT ô và ô đó = đáp án chuẩn (ô mờ cũng tính); lỗi nặng / nhẹ, chữ số viết tay thật, bubble thật đều từ nhãn. `cv_engine.preprocessing` chỉ được import trong hàm kiểm nhất quán Tuần 4. Chỉ đọc dòng nhãn của tập được chạy.
+- Lệnh: `python tools/eval_he_thong.py run --tap dev [--xem]` (thử); `run --tap test --xac-nhan-test --xem` (MỘT lần).
+
+## 8. Chạy thử trên dev 0001–0028 (21/10/2026, 56 ảnh) – ra lại đúng các số đã biết
+H2 lỗi nặng **0 / 2 744** (CP95% ≤ 0,13%) · H3 SBD 0, mã đề 0 / 56 · H4: **0 câu chấm sai không cờ**, điểm tạm / tối đa 0 vi phạm, 0 phiếu tự chốt sai · **H5 điểm chính thức khớp 56/56** · nhất quán nắn ảnh với Tuần 4 **56/56** · câu cần xem 560 / 2 240 (25,0%) · T4 26 / 56 (46,4%) · T3 467 / 504 (92,7%) · cần xem thừa 18 / 1 468 (1,23%) · ca "cột không tô bubble" (0001_C1, 0001_C2) → SBD cần xem (`thieu_bubble`) · 0,76 s / ảnh. Số liệu: `data/_eval/he_thong/dev/ket_qua.json`.
+
+## 9. KẾT QUẢ (điền SAU khi chạy – hiện trống)

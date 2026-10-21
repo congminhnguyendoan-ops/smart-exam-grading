@@ -1,0 +1,21 @@
+{
+ "ma_commit": "551b356f33f4ae2f677f442766592f8242ef9d8a",
+ "ngay": "2026-10-21",
+ "duong_dan_ma": [
+  "smart_exam_db/cv_engine",
+  "smart_exam_db/models",
+  "smart_exam_db/tools",
+  "smart_exam_db/backend",
+  "smart_exam_db/answer_sheet",
+  "smart_exam_db/frontend"
+ ],
+ "sha256": {
+  "smart_exam_db/models/omr_m1.json": "f8f87577b42e28741def10bb9d42f4b6e937e6e3b37c025c5e63b8d8c81c60af",
+  "smart_exam_db/models/ocr_cnn.json": "6d87205c83a29fccc4eb450f0aec0c9d51ba56e1bb141664060041ab0f2fcad5",
+  "smart_exam_db/data/_eval/nguong.json": "df9908623638b392b31488c5f1af00963541b1eada0324b7b7a592e3aea91780",
+  "smart_exam_db/answer_sheet/output/layout.json": "a35ccb7e259f5f7a30355d85d79ba4ef267a0d465f29c09b8fd05906cfc0ecbd",
+  "smart_exam_db/answer_sheet/output/phieu_trang_300dpi.png": "7b7db1a95344564a95460af9c076ed74833e75583fc117028f83bb86e1bbf30f",
+  "smart_exam_db/cv_engine/preprocessing.py": "651f14fa720714fe4f3ff218694b296f66840dbf4c848a8b06b26b0060fe4352"
+ },
+ "ghi_chu": "Đăng ký trước đánh giá test hệ thống 0035–0040 (docs/ke_hoach_test_cuoi.md). Chưa chạy lúc đăng ký."
+}
