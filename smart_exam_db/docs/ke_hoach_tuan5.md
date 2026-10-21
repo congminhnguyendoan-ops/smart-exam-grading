@@ -575,3 +575,41 @@ Cập nhật dần trong khi làm Phần A; mỗi khoản: chỗ làm tạm → 
    sai −127 px (đáp ứng 0,046); trên bản đồ cạnh không cửa sổ: đúng ở cả 56 ảnh. Đáp ứng < 0,05 hoặc |dịch| > 6 mm → eval DỪNG.
 10. **"Cần xem thừa"** báo riêng câu rõ 1 ô (tiêu chí ★Q2) và câu trống (0 / 226); tiêu chí 3% đối chiếu cả gộp lẫn từng điều kiện
     (báo cả hai, không chọn cách có lợi).
+
+## 12. PHẦN B (20–21/10/2026) – trả nợ đo lường, sửa C2, so CNN, đăng ký trước val
+
+Trạng thái đầu Phần B: HEAD `97b2269`, cây sạch, pytest 220. Chỉ dùng 56 ảnh train 0001–0028 cho B1–B3; **không đọc val / test** trước B4.
+
+### B1 – đo lường không lạc quan (commit `555e410`)
+- **B1a nested CV** (`python tools/omr_long.py`): `ro_min` chọn trên 6 fold trong, đo trên fold ngoài (7 vòng). Lỗi nặng **0** (Phần A 0); lỗi nhẹ 6 (5); cần xem thừa gộp **1,91%** (2,25%); theo điều kiện C1 0,27 / **C2 2,98** / C3 1,66 / C4 2,74% (Phần A C2 3,79%). `ro_min` được chọn: 0,5 ở 3 fold, 0,6 ở 4 fold → chênh giữa Phần A và nested chủ yếu do `ro_min` chọn *gộp* làm C2 xấu đi, không phải do lạc quan của mô hình.
+- **B1b dịch giả cho phép đo vị trí của `eval_omr`** (`python tools/kiem_vi_tri_eval.py`): 8 ảnh train × 15 độ dịch (0,5–11 mm, ngang / dọc / chéo, gồm đúng 1 chu kỳ ô 7 / 5,8 / 11 mm) = 120 lượt: **96 đúng (sai ≤ 0,1 mm, đến 5 mm), 24 tự dừng (RuntimeError, dịch ≥ 5,8 mm), 0 sai im lặng** → cờ "vị trí đáng ngờ" của eval đáng tin.
+- **B1c** `eval_omr.py report` nay sinh thêm `data/_eval/omr/<pp>/xem_can_xem_can_thiet.html` liệt kê **cả 541 câu "cần xem cần thiết"** đọc đúng (M0: 511) để kiểm nhãn rõ / mờ; val dùng mô hình đầy đủ `models/omr_<pp>.json`.
+
+### B2 – cần xem thừa C2 (commit `417311a`)
+- Phân tích 12 ô rõ ở C2 bị đọc mờ (OOF): 7/12 là **bút chì 2B nhạt** (`ld_anh` 0,65–0,72, độ phủ đậm 0,12–0,33), 4 bút bi xanh 0014_C2 (p rõ ≈ 0,5), 1 bút bi đen; C2 không "tối" hơn (mức giấy trung vị 0,80 cao nhất) mà nét tô nhạt hơn (`tuyet_doi` p5 0,53 vs 0,60–0,70) – ranh giới rõ/mờ vốn mơ hồ (R2).
+- 5 ứng viên chốt trước, **nested CV**, luật chọn `ro_min` theo từng điều kiện (`python tools/omr_c2.py chay dk`): m1 thừa C1–C4 0,27 / 2,71 / 1,10 / 2,19 (nặng 0, đạt); m1 không class_weight 0,00 / 1,36 / 0,28 / 1,10 (nhưng lỗi nhẹ 12); m1 + log S 2,98 ở C2 (không đạt); m1 bậc 2 đạt; HGB thừa 1,23% đạt. **Không ứng viên nào tốt hơn m1 ngoài CI ghép cặp** (F1 mờ không ứng viên nào thấp hơn ngoài CI) → **giữ M1**.
+- **Sửa thật sự**: `ro_min` 0,6 → **0,5** (luật chọn theo từng điều kiện, `huan_luyen_omr.py luat`). Train OOF: thừa C1–C4 **0,27 / 2,71 / 1,10 / 2,19%** (gộp 1,57%) – cả bốn ≤ 3%; lỗi nặng 0; lỗi nhẹ 6 (+1: điểm không sai vì ô mờ vẫn tính là đáp án); F1 mờ 0,989 / 0,935 / 0,968 / 0,945 (không đổi – F1 cấp ô không phụ thuộc `ro_min`). Mô hình xuất lại từ **commit sạch `57aa46d`** (`git_chua_commit = []`) – trả nợ #10; commit `4902810`.
+
+### B3 – M1 logistic vs M2 CNN nhỏ trên ảnh ô (commit `57aa46d`; `python tools/omr_cnn.py cat` → `so-sanh`)
+CNN Conv12–Conv24–Dense32 (~52 k tham số) trên ô 32×32 chia mức giấy, cùng 7-fold, nested, cùng luật. **M2 kém hơn M1 ngoài CI**: F1 mờ C1 0,972 / C2 **0,664** / C3 **0,809** / C4 0,966 (M1 0,989 / 0,935 / 0,968 / 0,945); hiệu maximin −0,254 [−0,377; −0,103]; thừa C2 19,5%; 3 ô nhầm trống↔có tô. **Giữ M1** (đơn giản hơn, chạy NumPy). Giới hạn: CNN chỉ 14 epoch, 8 960 ô, không dò siêu tham số.
+
+### Nợ kỹ thuật còn lại sau B1–B3
+1. C2 nested 2,98% / train 2,71% sát ngưỡng 3% (chênh ~1–3 câu / 369); cỡ mẫu faint ~90 ô / điều kiện nên CI F1 mờ C2 / C4 vẫn có cận dưới < 0,90.
+2. `anh_nan` vs `anh_chuan_hoa` chưa so lại kỹ (theo bút, 0032_C4); trong nested vẫn cố định `anh_nan`.
+3. Bubble mờ thật, câu 3–4 ô, rõ + mờ cùng câu: vẫn chỉ có pytest dữ liệu tạo ra.
+4. 541 câu "cần xem cần thiết" chưa ai xem nhãn rõ / mờ bằng mắt (HTML đã có).
+
+## 13. ĐĂNG KÝ TRƯỚC – đánh giá val OMR 0029–0034 (viết 21/10/2026; CHƯA CHẠY lúc đăng ký)
+
+Chạy MỘT lần: `python tools/eval_omr.py run --phuong-phap m1 --split val --cho-phep-val`, rồi `report --split val`; M0 (`--phuong-phap m0`) chạy kèm để so (không phải mô hình đăng ký). Không chỉnh gì sau khi thấy số.
+| Hạng mục | Giá trị đã khoá |
+|---|---|
+| Mã | commit **`49028109f4ad290c71cf7d0f20dc47f7a5ccab0e`** (`cv_engine/`, `models/`, `tools/`, `backend/`, `answer_sheet/`); các commit sau chỉ được đổi `docs/`, `CLAUDE.md` (kiểm `git diff 4902810 HEAD --stat -- smart_exam_db/cv_engine smart_exam_db/models smart_exam_db/tools smart_exam_db/backend smart_exam_db/answer_sheet` rỗng) |
+| Mô hình | `models/omr_m1.json` SHA-256 `f8f87577b42e28741def10bb9d42f4b6e937e6e3b37c025c5e63b8d8c81c60af` (logistic, huấn luyện trên 56 ảnh train, `anh_nan`, luật: ô đáp án trong_min 0,90 / to_min 0,50 / **ro_min 0,5**; bubble trong_min 0,90 / to_min 0,70 / ro_min_ld_anh 0,70); `omr_m0.json` `014f1677…4a57` |
+| Dữ liệu | phiếu 0029–0034 × 2 ảnh = 12 ảnh, 480 lượt câu, 108 lượt cột bubble; nhãn từ `ground_truth.csv` (chỉ dòng 29–34) đối chiếu `cell_labels.csv`; định vị bằng `omr.dinh_vi` (không học từ nhãn) |
+| **Tiêu chí ĐẠT (bắt buộc)** | **lỗi nặng = 0** ở mức câu và cột (kèm CP 95% trên số lượt); SBD / mã đề không sai im lặng; vị trí đáng ngờ (đo độc lập > 0,5 mm) báo số lượng |
+| Chỉ báo, không là điều kiện ĐẠT (n nhỏ) | lỗi nhẹ; cần xem thừa câu rõ 1 ô (mục tiêu ≤ 3%, n ≈ 120 câu rõ nên 1 câu ≈ 0,8 điểm %); F1 mờ theo C1–C4 (n mờ ≈ 30 toàn val, ≈ 7 / điều kiện – CI rất rộng, chỉ ghi điểm); tổng cần xem; thời gian |
+| **Ca thử bắt buộc** | **0033 câu 4 ô C** (nhãn `faint`, đã so giấy; n 0,24–0,26 sát ngưỡng cố định): phải đọc **có tô** (mờ / rõ) hoặc câu **cần xem** ở CẢ 2 ảnh (0033_C1, 0033_C2); "trống chắc chắn" = lỗi nặng |
+| Dự đoán đăng ký trước | lỗi nặng 0; cần xem thừa gộp 0–4%; tổng cần xem 22–28% (dev 25%); F1 mờ gộp 0,90–0,98; SBD / mã đề 0 sai im lặng; vị trí đáng ngờ 0; ca 0033:4 đọc `mo` cần xem |
+| Hạn chế | 12 ảnh / 6 phiếu, hai ảnh cùng phiếu không độc lập; CP lỗi nặng 0 / 588 lượt ≈ 0,6% (lạc quan); `ro_min` 0,5 chọn trên OOF train (nested cho thấy cùng mức) |
+| Sau khi chạy | ghi kết quả vào mục 14, xem bằng mắt `data/_eval/omr/m1/xem_bang_mat_val.html` (người dùng); nếu lỗi nặng > 0: dừng, phân tích, ghi cả lần trượt, không chạy lại val |
