@@ -75,7 +75,7 @@ smart_exam_db/
 ├── models/                       # Tuần 5: omr_m1.json (logistic, train 0001–0028), omr_m0.json (ngưỡng) – trong git,
 │                                 #   kèm sieu_du_lieu (ngày, git, SHA dữ liệu, fold). Sinh: tools/huan_luyen_omr.py xuat
 │                                 #   Tuần 6: ocr_cnn.json (CNN chữ số, NumPy + JSON, xuất từ commit sạch b75453e). Sinh: tools/xuat_ocr.py
-├── tests/                        # pytest (220 test, ~67 s): python -m pytest tests (từ smart_exam_db/).
+├── tests/                        # pytest (223 test, ~69 s): python -m pytest tests (từ smart_exam_db/).
 │                                 #   Thiếu data/ → test cần dữ liệu tự SKIP
 ├── docs/                         # Tài liệu cho báo cáo (Tuần 1–3)
 │   ├── ke_hoach_tuan4.md         # Kế hoạch 8 bước (0–7) của preprocessing: việc, cách đo, tiêu chí xong,
@@ -462,7 +462,12 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       **M1 OOF 7-fold trên 56 ảnh train: 0 lỗi nặng / 2 744 lượt câu + cột (CP 95% ≤ 0,13%); F1 faint C1 0,989 · C2 0,935 ·
       C3 0,968 · C4 0,945; cần xem thừa 2,25% (C2 riêng 3,79% > 3%); lỗi nhẹ 5; SBD / mã đề 0 sai im lặng; ~100 ms/ảnh.**
       M0 (ngưỡng cố định): 2 lỗi nặng = đúng 2 ca thử 0019_C3 q24, 0020_C1 q33 (vết mờ đọc thành trống); F1 faint C2 0,844.
-      **Chờ người dùng**: xem `data/_eval/omr/m1/xem_bang_mat.html` (44 mục) bằng mắt. **Phần B** (sau báo cáo 13/10): M2–M4
+      **PHẦN B XONG (21/10/2026)**: nested CV (lỗi nặng 0, thừa gộp 1,91%); phép đo vị trí của eval kiểm bằng ảnh dịch giả (0 sai im lặng); HTML 541 câu
+      "cần xem cần thiết"; **C2: `ro_min` 0,6 → 0,5** (luật chọn theo từng điều kiện: thừa 0,27 / 2,71 / 1,10 / 2,19%, nặng 0; mô hình xuất lại từ commit sạch `57aa46d`);
+      CNN nhỏ (M2) kém M1 ngoài CI → giữ M1; **val OMR chạy MỘT lần (đăng ký mã `4902810`): lỗi nặng 0, SBD / mã đề 0 sai, ca 0033:4 đọc mờ cần xem cả 2 ảnh**
+      (M0 bỏ sót 1); thừa gộp 1,54% (C2 4,50% với n nhỏ). Kết quả `docs/ke_hoach_tuan5.md` mục 12–14. **Test cuối cả hệ thống: kế hoạch soạn (`docs/ke_hoach_test_cuoi.md`),
+      CHƯA chạy, chờ người dùng chốt mục 1 + gõ "chạy test hệ thống"; CNN test 0035–0040 cũng chưa chạy.**
+      (Ghi cũ, Phần A) **Chờ người dùng**: xem `data/_eval/omr/m1/xem_bang_mat.html` (44 mục) bằng mắt. **Phần B** (sau báo cáo 13/10): M2–M4
       nếu cần, chọn nguồn ảnh kỹ, trả Nợ kỹ thuật (mục 9), kiểm tra cuối val 0029–0034 (gồm ca thử 0033 câu 4), đăng ký trước
       + đánh giá test 0035–0040 một lần + xem mù (8 mục rõ/mờ). Tuần 6: CNN chữ số + fine-tune.
       **Yêu cầu Tuần 5 (07/10/2026): dùng 8 mục rõ/mờ của tập test (nhãn ĐÃ XÁC NHẬN bằng giấy thật 07/10, 8/8 giữ nguyên)

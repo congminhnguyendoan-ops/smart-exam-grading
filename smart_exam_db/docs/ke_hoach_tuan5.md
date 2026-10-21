@@ -586,7 +586,7 @@ Trạng thái đầu Phần B: HEAD `97b2269`, cây sạch, pytest 220. Chỉ d�
 - **B1c** `eval_omr.py report` nay sinh thêm `data/_eval/omr/<pp>/xem_can_xem_can_thiet.html` liệt kê **cả 541 câu "cần xem cần thiết"** đọc đúng (M0: 511) để kiểm nhãn rõ / mờ; val dùng mô hình đầy đủ `models/omr_<pp>.json`.
 
 ### B2 – cần xem thừa C2 (commit `417311a`)
-- Phân tích 12 ô rõ ở C2 bị đọc mờ (OOF): 7/12 là **bút chì 2B nhạt** (`ld_anh` 0,65–0,72, độ phủ đậm 0,12–0,33), 4 bút bi xanh 0014_C2 (p rõ ≈ 0,5), 1 bút bi đen; C2 không "tối" hơn (mức giấy trung vị 0,80 cao nhất) mà nét tô nhạt hơn (`tuyet_doi` p5 0,53 vs 0,60–0,70) – ranh giới rõ/mờ vốn mơ hồ (R2).
+- Phân tích 12 ô rõ ở C2 bị đọc mờ (OOF): 6/12 là **bút chì 2B nhạt** (`ld_anh` 0,65–0,72, độ phủ đậm 0,12–0,33), 4 bút bi xanh 0014_C2 (p rõ ≈ 0,5–0,97), 2 bút bi đen; C2 không "tối" hơn (mức giấy trung vị 0,80 cao nhất) mà nét tô nhạt hơn (`tuyet_doi` p5 0,53 vs 0,60–0,70) – ranh giới rõ/mờ vốn mơ hồ (R2).
 - 5 ứng viên chốt trước, **nested CV**, luật chọn `ro_min` theo từng điều kiện (`python tools/omr_c2.py chay dk`): m1 thừa C1–C4 0,27 / 2,71 / 1,10 / 2,19 (nặng 0, đạt); m1 không class_weight 0,00 / 1,36 / 0,28 / 1,10 (nhưng lỗi nhẹ 12); m1 + log S 2,98 ở C2 (không đạt); m1 bậc 2 đạt; HGB thừa 1,23% đạt. **Không ứng viên nào tốt hơn m1 ngoài CI ghép cặp** (F1 mờ không ứng viên nào thấp hơn ngoài CI) → **giữ M1**.
 - **Sửa thật sự**: `ro_min` 0,6 → **0,5** (luật chọn theo từng điều kiện, `huan_luyen_omr.py luat`). Train OOF: thừa C1–C4 **0,27 / 2,71 / 1,10 / 2,19%** (gộp 1,57%) – cả bốn ≤ 3%; lỗi nặng 0; lỗi nhẹ 6 (+1: điểm không sai vì ô mờ vẫn tính là đáp án); F1 mờ 0,989 / 0,935 / 0,968 / 0,945 (không đổi – F1 cấp ô không phụ thuộc `ro_min`). Mô hình xuất lại từ **commit sạch `57aa46d`** (`git_chua_commit = []`) – trả nợ #10; commit `4902810`.
 
@@ -613,3 +613,22 @@ Chạy MỘT lần: `python tools/eval_omr.py run --phuong-phap m1 --split val -
 | Dự đoán đăng ký trước | lỗi nặng 0; cần xem thừa gộp 0–4%; tổng cần xem 22–28% (dev 25%); F1 mờ gộp 0,90–0,98; SBD / mã đề 0 sai im lặng; vị trí đáng ngờ 0; ca 0033:4 đọc `mo` cần xem |
 | Hạn chế | 12 ảnh / 6 phiếu, hai ảnh cùng phiếu không độc lập; CP lỗi nặng 0 / 588 lượt ≈ 0,6% (lạc quan); `ro_min` 0,5 chọn trên OOF train (nested cho thấy cùng mức) |
 | Sau khi chạy | ghi kết quả vào mục 14, xem bằng mắt `data/_eval/omr/m1/xem_bang_mat_val.html` (người dùng); nếu lỗi nặng > 0: dừng, phân tích, ghi cả lần trượt, không chạy lại val |
+
+## 14. KẾT QUẢ val OMR 0029–0034 (21/10/2026; chạy MỘT lần theo mục 13, mã `4902810`, SHA mô hình khớp, `git diff` mã rỗng)
+`eval_omr.py run --phuong-phap m1|m0 --split val --cho-phep-val` → `report --split val` → `data/_eval/omr/bao_cao_phan_a_val.{md,json}`, `m1/xem_bang_mat_val.html`.
+| | M1 (đăng ký) | M0 (so sánh) |
+|---|---|---|
+| **Lỗi nặng** (480 câu + 108 cột) [CP95% trên] | **0** [0,63%] – **ĐẠT** | **1** [0,94%] (0033_C2 q4: vết mờ đọc thành trống) |
+| SBD / mã đề đúng & chắc / cần xem / sai im lặng | 12 / 0 / 0 và 12 / 0 / 0 | như M1 |
+| Vị trí đáng ngờ / lệch độc lập max | 0 / 0,26 mm | 0 / 0,26 mm |
+| Lỗi nhẹ | 0 | 0 |
+| Độ đúng câu: tập ô / tập ô + mức | 100% / 98,96% | 99,79% / 98,54% |
+| Cần xem thừa câu rõ 1 ô, gộp (C1 / C2 / C3 / C4) | 5/324 = **1,54%** (0 / **4,50** / 0 / 0) | 6/324 = 1,85% |
+| Cần xem thừa câu trống | 0 / 46 | 0 / 46 |
+| Tổng câu cần xem | 115 / 480 = 24,0% (dev 25,0%) | 115 |
+| F1 mờ cấp ô C1 / C2 / C3 / C4 / gộp (n mờ 18 / 19 / 16 / 15 / 68) | 1,000 / **0,884** [0,681–1,000] / 1,000 / 1,000 / 0,965 [0,882–1,000] | 1,000 / 0,818 / 1,000 / 1,000 / 0,944 |
+| `doc_phieu` trung vị / max | 101 / 133 ms | 101 / 116 ms |
+- **Ca thử 0033 câu 4 ô C** (nhãn mờ): **M1 đọc `faint` cả 0033_C1 (p 0,990) và 0033_C2 (p 0,967)** → câu `mo` cần xem, đúng như đăng ký; M0 đọc C2 là trống chắc chắn (lỗi nặng) – minh hoạ giới hạn của ngưỡng cố định.
+- **Đối chiếu dự đoán đăng ký**: lỗi nặng 0 ✓; thừa gộp 1,54% (dự đoán 0–4%) ✓; tổng cần xem 24,0% (22–28%) ✓; SBD / mã đề 0 sai ✓; vị trí 0 ✓; ca 0033:4 `mo` cần xem ✓; F1 mờ gộp 0,965 (0,90–0,98) ✓.
+- **Không đạt chỉ ở chỉ báo (không phải điều kiện ĐẠT)**: C2 riêng có cần xem thừa 5/111 = 4,50% (> 3%) và F1 mờ 0,884 (< 0,90): **cỡ mẫu rất nhỏ** (1 câu ≈ 0,9 điểm %; n mờ C2 = 19; CI F1 0,681–1,000), cùng chiều với điểm yếu C2 đã biết ở train (nested 2,98%, OOF 2,71%) – C2 vẫn là điều kiện sát ngưỡng. Không chỉnh gì sau khi thấy số.
+- Việc cần người dùng: xem bằng mắt `data/_eval/omr/m1/xem_bang_mat_val.html` (5 câu rõ→mờ ở C2, ca 0033:4) và `m1/xem_can_xem_can_thiet.html` (nay chứa các câu val).
