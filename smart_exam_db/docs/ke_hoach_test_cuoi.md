@@ -69,3 +69,38 @@
 H2 lỗi nặng **0 / 2 744** (CP95% ≤ 0,13%) · H3 SBD 0, mã đề 0 / 56 · H4: **0 câu chấm sai không cờ**, điểm tạm / tối đa 0 vi phạm, 0 phiếu tự chốt sai · **H5 điểm chính thức khớp 56/56** · nhất quán nắn ảnh với Tuần 4 **56/56** · câu cần xem 560 / 2 240 (25,0%) · T4 26 / 56 (46,4%) · T3 467 / 504 (92,7%) · cần xem thừa 18 / 1 468 (1,23%) · ca "cột không tô bubble" (0001_C1, 0001_C2) → SBD cần xem (`thieu_bubble`) · 0,76 s / ảnh. Số liệu: `data/_eval/he_thong/dev/ket_qua.json`.
 
 ## 9. KẾT QUẢ (điền SAU khi chạy – hiện trống)
+
+**Chạy MỘT lần ngày 21/10/2026** theo đăng ký (mã `551b356`, `git diff` mã rỗng, SHA khớp, khoá chạy một lần đã tạo). Lệnh: `eval_he_thong.py run --tap test --xac-nhan-test --xem`. Số liệu: `data/_eval/he_thong/test/ket_qua.json`; HTML `xem_mu.html` / `xem_may.html`. Không chỉnh gì sau khi thấy số, không chạy lại.
+
+### Tiêu chí ĐẠT bắt buộc
+| # | Kết quả | Đánh giá |
+|---|---|---|
+| H1 nắn ảnh | 0 ảnh bị từ chối; **nhất quán Tuần 4 12/12** (marker ≤ 0,01 px, hướng xoay, blur trùng `diem_test.csv`) ⇒ nắn 12/12 như kết luận mắt mù 07/10. **Kết luận mắt mù lần này: CHỜ người dùng (`xem_mu.html`)** | nhất quán đạt; mắt chờ |
+| H2 OMR lỗi nặng | **0 / 588** (480 câu + 108 cột), CP95% trên 0,63% | **ĐẠT** |
+| H3 SBD / mã đề nhận mà sai | **0 / 12 SBD, 0 / 12 mã đề** (CP95% trên 26,5% mỗi loại) | **ĐẠT** |
+| H4 chấm sai không cờ / điểm tạm vi phạm / tự chốt sai | **0 / 0 / 0** (CP95% trên 1,0% số câu chắc) | **ĐẠT** |
+| H5 điểm chính thức sau giáo viên = điểm độc lập, đúng sinh viên | **12 / 12** (0 ảnh bị từ chối) | **ĐẠT** |
+
+### Ca thử bắt buộc
+- **0035 mã đề `103` không tô bubble**: cả 0035_C3 và 0035_C4 → mã đề **CẦN XEM** (`thieu_bubble`), không nhận, không tự chốt – **đúng yêu cầu**. (SBD của 0035 cũng bị gắn `lech_bubble` – CNN đọc sai chữ số.)
+- **8 mục rõ / mờ** (mỗi mục 2 ảnh): máy đọc `faint` + cần xem ở 0036 q2, q10, q13 (cả 2 ảnh), 0037_C1 q15 và q31, 0040 q5 (cả 2 ảnh), 0040_C4 q10; máy đọc **`filled` chắc chắn (không cờ) cho nhãn mờ**: 0037 q1 (cả 2 ảnh), 0037_C2 q15 và q31 = 4 lượt **lỗi nhẹ** (điểm không sai vì ô mờ vẫn tính là đáp án); 0040_C1 q10 (nhãn rõ) đọc rõ, 0040_C4 q10 đọc mờ cần xem (cần xem thừa, vô hại). Không lượt nào đọc trống / đọc sai ô.
+- **0035_C3, 0039_C3** (định vị khó): lỗi nặng 0, không câu nào bị gắn `vi_tri`.
+
+### Chỉ báo (không là điều kiện ĐẠT) so với dự đoán đã đăng ký
+| Chỉ báo | Kết quả [CP95% / bootstrap] | Dự đoán | |
+|---|---|---|---|
+| T3 độ đúng chữ số CNN (mục tiêu ≥ 97%) | **100 / 108 = 92,6%** [85,9–96,7%] | 94–99% | **thấp hơn dự đoán**, chưa đạt 97% |
+| T4 ảnh có SBD / mã đề cần xem (mục tiêu ≤ 10%) | **7 / 12 = 58,3%** [27,7–84,8%] | 15–50% | **cao hơn dự đoán**, chưa đạt |
+| Cần xem thừa câu rõ 1 ô (mục tiêu ≤ 3%) | 12 / 326 = 3,68% [1,9–6,3%] | 0–4% | trong dự đoán, > 3% (0037_C2: 4 câu) |
+| Tổng câu cần xem | 118 / 480 = 24,6% | 22–28% | đúng |
+| Lỗi nhẹ OMR | 6 (0037_C1: 1, 0037_C2: 5) | – | tập trung ở phiếu 0037 |
+| F1 mờ cấp CÂU gộp (n mờ 84) | 0,897 [0,840–0,979] | 0,90–0,99 | sát đáy |
+| F1 mờ C1 / C2 / C3 / C4 (n mờ 26 / 19 / 16 / 23) | 0,980 / **0,700** / 0,941 / 0,939 | – | C2 yếu (như dev / val) |
+| Thời gian / ảnh | trung vị 0,778 s | ≈ 0,75 s | đúng |
+| Cần xem thừa câu trống | 0 / 42 | – | – |
+
+### Nhận xét
+- **Các điều kiện bắt buộc H2–H5 đạt (0 lỗi im lặng ở mọi tầng; điểm chính thức khớp 12/12 sau giáo viên); H1 chờ mắt mù.** Cỡ mẫu nhỏ: CP95% cho H3 0 / 12 chỉ ≤ 26%, H2 0 / 588 ≤ 0,63% (lạc quan vì lượt không độc lập).
+- Điểm yếu giữ nguyên như dev / val: **CNN đọc sai ~7% chữ số** (không do "nét lạ": toàn người 5, nét đã gặp) ⇒ T4 58% (7 / 12 ảnh phải xem SBD hoặc mã đề); lệch hai kênh luôn bị bắt (lech_bubble) nên không thành lỗi im lặng – đúng thiết kế an toàn. **C2 vẫn là điều kiện yếu** của OMR (F1 mờ 0,70; 0037_C2 5 lỗi nhẹ, 4 cần xem thừa) – nét tô nhạt ở ảnh C2, ranh giới rõ/mờ mơ hồ.
+- Giới hạn (như đăng ký): 12 ảnh / 6 phiếu; một người viết; kỳ thi và đáp án mô phỏng; test từng được mở cho nắn ảnh và audit nhãn ở Tuần 4.
+- **Việc còn lại của người dùng**: xem mù `data/_eval/he_thong/test/xem_mu.html` (ảnh nắn đúng / sai; SBD, mã đề; các câu mờ / nhiều ô) rồi mới mở `xem_may.html` để so; nếu nghi nhãn `ground_truth.csv` sai → so giấy, không tự sửa. Kết luận mắt quyết định H1.

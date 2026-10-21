@@ -469,8 +469,9 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       (M0 bỏ sót 1); thừa gộp 1,54% (C2 4,50% với n nhỏ). Kết quả `docs/ke_hoach_tuan5.md` mục 12–14. **Test cuối cả hệ thống: kế hoạch soạn (`docs/ke_hoach_test_cuoi.md`),
       CHƯA chạy, chờ người dùng chốt mục 1 + gõ "chạy test hệ thống"; CNN test 0035–0040 cũng chưa chạy.**
       **Test cuối cả hệ thống (21/10/2026): công cụ `tools/eval_he_thong.py` đã viết + thử dev (H2–H5 = 0, điểm khớp 56/56, nhất quán nắn ảnh Tuần 4 56/56); ĐÃ ĐĂNG KÝ TRƯỚC
-      (`docs/ke_hoach_test_cuoi.md`, `docs/dang_ky_test_he_thong.json`, mã `551b356`; OMR phương án A giữ `omr_m1.json`); CHƯA CHẠY – chờ người dùng gõ "chạy test hệ thống"
-      (`python tools/eval_he_thong.py run --tap test --xac-nhan-test --xem`, có khoá chạy một lần).**
+      (`docs/ke_hoach_test_cuoi.md`, `docs/dang_ky_test_he_thong.json`, mã `551b356`; OMR phương án A giữ `omr_m1.json`); ĐÃ CHẠY MỘT LẦN 21/10/2026: **H2–H5 đạt** (lỗi nặng 0/588, SBD / mã đề sai 0/12 + 0/12, chấm sai không cờ 0, điểm chính thức khớp 12/12; nhất quán nắn ảnh Tuần 4 12/12; 0035 mã đề không tô → cần xem),
+      **H1 chờ kết luận mắt mù của người dùng** (`data/_eval/he_thong/test/xem_mu.html`, rồi `xem_may.html`); chỉ báo: T3 92,6%, T4 58,3% (7/12), cần xem thừa 3,68%, F1 mờ C2 0,70. KHÔNG chạy lại (khoá `da_chay_test.lock`).
+      Chi tiết `docs/ke_hoach_test_cuoi.md` mục 9.**
       (Ghi cũ, Phần A) **Chờ người dùng**: xem `data/_eval/omr/m1/xem_bang_mat.html` (44 mục) bằng mắt. **Phần B** (sau báo cáo 13/10): M2–M4
       nếu cần, chọn nguồn ảnh kỹ, trả Nợ kỹ thuật (mục 9), kiểm tra cuối val 0029–0034 (gồm ca thử 0033 câu 4), đăng ký trước
       + đánh giá test 0035–0040 một lần + xem mù (8 mục rõ/mờ). Tuần 6: CNN chữ số + fine-tune.
