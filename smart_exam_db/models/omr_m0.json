@@ -21,7 +21,7 @@
   "cau": {
    "trong_min": 0.9,
    "to_min": 0.5,
-   "ro_min": 0.6
+   "ro_min": 0.5
   },
   "bubble": {
    "trong_min": 0.9,
@@ -74,6 +74,98 @@
       "ro_that": 1468,
       "can_xem": 642
      }
+    },
+    "thua_theo_dieu_kien": {
+     "0.5": {
+      "C1": [
+       1,
+       372
+      ],
+      "C2": [
+       10,
+       369
+      ],
+      "C3": [
+       4,
+       362
+      ],
+      "C4": [
+       8,
+       365
+      ]
+     },
+     "0.6": {
+      "C1": [
+       2,
+       372
+      ],
+      "C2": [
+       14,
+       369
+      ],
+      "C3": [
+       7,
+       362
+      ],
+      "C4": [
+       10,
+       365
+      ]
+     },
+     "0.7": {
+      "C1": [
+       7,
+       372
+      ],
+      "C2": [
+       17,
+       369
+      ],
+      "C3": [
+       9,
+       362
+      ],
+      "C4": [
+       14,
+       365
+      ]
+     },
+     "0.8": {
+      "C1": [
+       11,
+       372
+      ],
+      "C2": [
+       23,
+       369
+      ],
+      "C3": [
+       13,
+       362
+      ],
+      "C4": [
+       19,
+       365
+      ]
+     },
+     "0.9": {
+      "C1": [
+       19,
+       372
+      ],
+      "C2": [
+       29,
+       369
+      ],
+      "C3": [
+       17,
+       362
+      ],
+      "C4": [
+       32,
+       365
+      ]
+     }
     }
    },
    "bubble": {
@@ -83,11 +175,11 @@
     "ld_anh_min_bubble_to": 0.7981
    }
   },
-  "quy_tac": "trong_min/to_min chốt trước, kiểm biên ≥ 0,20 so với ca xấu nhất OOF; ro_min = lớn nhất trong {0,5..0,9} có cần xem thừa ≤ 2,5% và 0 lỗi nặng (OOF M1, train 0001–0028)"
+  "quy_tac": "trong_min/to_min chốt trước, kiểm biên ≥ 0,20 so với ca xấu nhất OOF; ro_min = lớn nhất trong {0,5..0,9} có 0 lỗi nặng và cần xem thừa ≤ 2,5% Ở MỌI điều kiện C1–C4 (Phần B2; Phần A: gộp -> 0,6); không có thì dự phòng = thừa-xấu-nhất nhỏ nhất, phải ≤ 3% (OOF M1, train 0001–0028)"
  },
  "sieu_du_lieu": {
-  "ngay": "2026-10-07",
-  "git_head": "3bcf190",
+  "ngay": "2026-10-20",
+  "git_head": "57aa46d",
   "git_chua_commit": [],
   "nguon_anh": "anh_nan",
   "tap_huan_luyen": "train 0001–0028 (data/split.csv)",
