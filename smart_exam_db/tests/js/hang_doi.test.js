@@ -1,0 +1,112 @@
+// Kiểm thử hàng đợi chụp liên tục (frontend/m_hang_doi.js) – node:test, không cần thư viện ngoài. Chạy: node --test tests/js  (pytest gọi qua test_dien_thoai_lien_tuc.py)
+"use strict";
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const path = require("node:path");
+const { HangDoi } = require(path.join(__dirname, "..", "..", "frontend", "m_hang_doi.js"));
+
+/** Máy chủ giả: mỗi lần gửi tạo một "lời hứa" do test tự quyết khi nào xong / lỗi. */
+function mayChuGia() {
+  const cho = [];
+  let dongThoi = 0, maxDongThoi = 0;
+  const gui = (to, bao) => new Promise((ok, loi) => {
+    dongThoi++; maxDongThoi = Math.max(maxDongThoi, dongThoi);
+    cho.push({ to, bao, ok: (v) => { dongThoi--; ok(v); }, loi: (e) => { dongThoi--; loi(e); } });
+  });
+  return { cho, gui, max: () => maxDongThoi };
+}
+const tep = (ten) => ({ name: ten, size: 1000 });
+const nghi = () => new Promise((r) => setImmediate(r));
+const loiMa = (ma, msg = "lỗi") => Object.assign(new Error(msg), { ma });
+
+test("gửi theo đúng thứ tự chụp, tối đa 2 song song, không chặn việc thêm tờ", async () => {
+  const m = mayChuGia();
+  const hd = new HangDoi({ gui: m.gui, toiDa: 2 });
+  hd.them([tep("1"), tep("2"), tep("3"), tep("4"), tep("5")]);
+  assert.equal(m.cho.length, 2);                                   // chỉ 2 yêu cầu chạy
+  assert.deepEqual(m.cho.map((c) => c.to.ten), ["1", "2"]);
+  assert.deepEqual(hd.ds.map((t) => t.trangThai), ["gui", "gui", "cho", "cho", "cho"]);
+  hd.them([tep("6")]);                                              // chụp tiếp trong lúc đang gửi: vẫn vào hàng
+  assert.equal(hd.ds.length, 6);
+  m.cho[1].ok({ sheet_id: 12, status: "needs_review" });            // tờ 2 xong trước tờ 1
+  await nghi();
+  assert.equal(m.cho[2].to.ten, "3");                               // tờ kế tiếp lấy theo thứ tự chụp
+  for (let i = 0; i < 6; i++) { if (m.cho[i] && hd.tim(m.cho[i].to.stt).trangThai !== "xong") m.cho[i].ok({ sheet_id: 100 + i, status: "graded" }); await nghi(); }
+  while (hd.dangBan()) { m.cho.filter((c) => hd.tim(c.to.stt).trangThai === "gui").forEach((c, i) => c.ok({ sheet_id: 200 + c.to.stt, status: "graded" })); await nghi(); }
+  assert.equal(m.max(), 2);
+  assert.deepEqual(hd.ds.map((t) => t.soTo), [1, 2, 3, 4, 5, 6]);
+  assert.equal(hd.tong().chamDuoc, 6);
+  assert.ok(hd.ds.every((t) => t.file === null));                   // xong: giải phóng ảnh
+});
+
+test("tiến trình 100% -> 'đang chấm'; ảnh bị từ chối tính riêng", async () => {
+  const m = mayChuGia();
+  const hd = new HangDoi({ gui: m.gui });
+  hd.them([tep("a"), tep("b")]);
+  m.cho[0].bao(0.5); assert.equal(hd.ds[0].trangThai, "gui");
+  m.cho[0].bao(1); assert.equal(hd.ds[0].trangThai, "cham");
+  m.cho[0].ok({ sheet_id: 1, status: "rejected", reject_code: "thieu_marker" });
+  m.cho[1].ok({ sheet_id: 2, status: "needs_review" });
+  await nghi();
+  assert.deepEqual(hd.tong(), { daChup: 2, chamDuoc: 1, canXem: 1, tuChoi: 1, dangCho: 0, loi: 0, trung: 0 });
+});
+
+test("lỗi mạng: GIỮ ảnh, không chặn tờ sau; Gửi lại thành công", async () => {
+  const m = mayChuGia();
+  const hd = new HangDoi({ gui: m.gui });
+  const [t1] = hd.them([tep("1"), tep("2"), tep("3")]);
+  m.cho[0].loi(loiMa(0, "Mất kết nối"));
+  await nghi();
+  assert.equal(t1.trangThai, "loi");
+  assert.ok(t1.file && t1.file.name === "1");                       // còn File để gửi lại
+  assert.equal(m.cho[2].to.ten, "3");                               // tờ 3 vẫn được gửi
+  assert.equal(hd.tong().loi, 1);
+  assert.equal(hd.guiLai(t1.stt), true);
+  assert.equal(t1.trangThai === "gui" || t1.trangThai === "cho", true);
+  m.cho[1].ok({ sheet_id: 2, status: "graded" }); m.cho[2].ok({ sheet_id: 3, status: "graded" }); await nghi();
+  m.cho[3].ok({ sheet_id: 1, status: "needs_review" }); await nghi();
+  assert.equal(t1.trangThai, "xong"); assert.equal(t1.lanGui, 2); assert.equal(t1.soTo, 1);
+  assert.equal(hd.guiLai(t1.stt), false);                           // chỉ gửi lại tờ đang lỗi
+  assert.deepEqual(hd.tong(), { daChup: 3, chamDuoc: 3, canXem: 1, tuChoi: 0, dangCho: 0, loi: 0, trung: 0 });
+});
+
+test("ảnh trùng: không tính chấm được, không lặp dòng phiếu đã có trong phiên", async () => {
+  const m = mayChuGia();
+  const hd = new HangDoi({ gui: m.gui });
+  hd.them([tep("1")]);
+  m.cho[0].ok({ sheet_id: 7, status: "needs_review", da_ton_tai: false }); await nghi();
+  const [lai] = hd.them([tep("1")]);
+  m.cho[1].ok({ sheet_id: 7, status: "needs_review", da_ton_tai: true }); await nghi();
+  assert.equal(lai.trangThai, "trung"); assert.equal(lai.an, true);  // phiếu #7 đã có dòng -> ẩn dòng trùng
+  const [cu] = hd.them([tep("x")]);
+  m.cho[2].ok({ sheet_id: 99, status: "graded", da_ton_tai: true }); await nghi();
+  assert.equal(cu.trangThai, "trung"); assert.equal(cu.an, false);  // phiếu tải từ phiên trước: hiện một dòng "đã tải trước đó"
+  assert.deepEqual(hd.tong(), { daChup: 1, chamDuoc: 1, canXem: 1, tuChoi: 0, dangCho: 0, loi: 0, trung: 2 });
+});
+
+test("401: tạm dừng, tờ quay về hàng chờ, tiếp tục sau khi đăng nhập", async () => {
+  const m = mayChuGia();
+  const hd = new HangDoi({ gui: m.gui, toiDa: 1 });
+  const [t1, t2] = hd.them([tep("1"), tep("2")]);
+  m.cho[0].loi(loiMa(401, "hết phiên")); await nghi();
+  assert.equal(hd.tamDung, true); assert.equal(t1.trangThai, "cho"); assert.equal(m.cho.length, 1);   // không gửi tiếp khi chưa đăng nhập
+  hd.tiepTuc();
+  assert.equal(m.cho.length, 2); assert.equal(m.cho[1].to, t1);       // gửi lại đúng tờ 1 trước
+  m.cho[1].ok({ sheet_id: 1, status: "graded" }); await nghi();
+  m.cho[2].ok({ sheet_id: 2, status: "graded" }); await nghi();
+  assert.equal(t2.trangThai, "xong"); assert.equal(hd.tong().chamDuoc, 2);
+});
+
+test("chụp lại tờ bị từ chối: giữ số tờ, tờ cũ không còn tính", async () => {
+  const m = mayChuGia();
+  const hd = new HangDoi({ gui: m.gui });
+  const [t1] = hd.them([tep("1")]);
+  hd.them([tep("2")]);
+  m.cho[0].ok({ sheet_id: 1, status: "rejected" }); m.cho[1].ok({ sheet_id: 2, status: "graded" }); await nghi();
+  assert.equal(hd.tong().tuChoi, 1);
+  const moi = hd.chupLai(t1.stt, tep("1b"));
+  assert.equal(moi.soTo, 1); assert.equal(t1.thayBang, moi.stt); assert.equal(moi.thayCho, t1.stt);
+  assert.equal(hd.soToKeTiep(), 3);                                    // không tăng số tờ
+  m.cho[2].ok({ sheet_id: 3, status: "needs_review" }); await nghi();
+  assert.deepEqual(hd.tong(), { daChup: 2, chamDuoc: 2, canXem: 1, tuChoi: 0, dangCho: 0, loi: 0, trung: 0 });
+});

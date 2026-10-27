@@ -28,21 +28,26 @@
   <div id="exam-list" class="list"></div>
 </section>
 
-<!-- 3–5. Chụp / đang chấm / kết quả -->
+<!-- 3. Chụp LIÊN TỤC: tổng kết (dính đầu) · danh sách tờ · nút chụp cố định ở đáy -->
 <section id="v-cap" class="view hidden">
   <button type="button" id="doi-ky-thi" class="exam-head"><span id="cap-sub" class="sub"></span><b id="cap-title"></b><span class="sub">Đổi kỳ thi ›</span></button>
-  <div id="ket-qua" class="card hidden"></div>
-  <div id="dang-cham" class="card hidden"><div class="spin"></div><b id="dc-txt">Đang tải ảnh…</b><div class="bar"><div id="dc-bar"></div></div></div>
-  <div id="counter" class="counter"></div>
-  <ul id="recent" class="recent"></ul>
-  <p class="hint">Đặt phiếu phẳng, đủ sáng, thấy đủ <b>4 ô vuông đen</b> ở 4 góc. Ảnh gửi nguyên bản (không nén).</p>
+  <div id="tong-ket" class="tong-ket">
+    <div class="so" id="tk-so"></div>
+    <div class="row-tong"><label class="tong-to">Tổng số tờ <input id="tong-to" type="number" inputmode="numeric" min="1" max="500" value="40"></label>
+      <span id="tk-cho" class="small muted"></span></div>
+    <p class="duyet">Duyệt câu cần xem trên máy tính (Hàng đợi duyệt): <code id="lk-duyet"></code></p>
+  </div>
+  <ol id="ds-to" class="ds-to"></ol>
+  <p id="goi-y" class="hint">Đặt phiếu phẳng, đủ sáng, thấy đủ <b>4 ô vuông đen</b> ở 4 góc. Chụp xong tờ này chụp ngay tờ kế – ảnh tự gửi và chấm ở nền (ảnh gốc, không nén).</p>
   <div class="dock">
-    <label class="big pri cam" id="cam-btn"><span id="cam-txt">📷 Chụp phiếu</span>
+    <label class="big pri cam" id="cam-btn"><span id="cam-txt">📷 Chụp tiếp</span>
       <input type="file" id="cam" accept="image/*" capture="environment"></label>
+    <label class="phu" id="nhieu-btn">Chọn nhiều ảnh<input type="file" id="nhieu" accept="image/*" multiple></label>
   </div>
 </section>
 
 <div id="toast" class="toast hidden"></div>
+<script src="/app/m_hang_doi.js"></script>
 <script src="/app/m.js"></script>
 </body>
 </html>

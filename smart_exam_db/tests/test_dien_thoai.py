@@ -23,19 +23,24 @@ ANH_GIA = ROOT / "data" / "_eval" / "demo_bv" / "gia"       # python tools/thu_b
 def test_trang_m_co_cac_phan_tu_chinh():
     html = (FRONTEND / "m.html").read_text(encoding="utf-8")
     o = re.search(r'<input[^>]*id="cam"[^>]*>', html).group(0)
-    assert 'type="file"' in o and 'accept="image/*"' in o and 'capture="environment"' in o      # camera gốc, không cần HTTPS
-    for id_ in ("v-login", "f-login", "v-exams", "exam-list", "v-cap", "ket-qua", "dang-cham", "counter", "recent", "logout"):
+    assert 'type="file"' in o and 'accept="image/*"' in o and 'capture="environment"' in o and "multiple" not in o   # camera gốc, không cần HTTPS
+    n = re.search(r'<input[^>]*id="nhieu"[^>]*>', html).group(0)
+    assert 'type="file"' in n and "multiple" in n and "capture" not in n     # chọn nhiều ảnh: KHÔNG capture
+    for id_ in ("v-login", "f-login", "v-exams", "exam-list", "v-cap", "tong-ket", "tk-so", "tong-to", "ds-to", "cam-btn", "nhieu-btn", "lk-duyet", "logout"):
         assert f'id="{id_}"' in html, id_
-    for ref in re.findall(r'(?:src|href)="/app/([a-z.]+)"', html):
+    refs = re.findall(r'(?:src|href)="/app/([a-z_.]+)"', html)
+    assert {"m.css", "m_hang_doi.js", "m.js"} <= set(refs) and refs.index("m_hang_doi.js") < refs.index("m.js")     # hàng đợi nạp trước
+    for ref in refs:
         assert (FRONTEND / ref).exists(), ref
     assert 'name="viewport"' in html
 
 
 def test_m_js_khong_luu_token_khong_nen_anh_goi_dung_api():
-    js = re.sub(r"/\*.*?\*/|^\s*//.*$", "", (FRONTEND / "m.js").read_text(encoding="utf-8"), flags=re.S | re.M)   # bỏ comment
+    bo_cmt = lambda p: re.sub(r"/\*.*?\*/|^\s*//.*$", "", (FRONTEND / p).read_text(encoding="utf-8"), flags=re.S | re.M)   # noqa: E731
+    js = bo_cmt("m.js") + bo_cmt("m_hang_doi.js")
     assert "localStorage" not in js and "document.cookie" not in js and "Authorization" not in js
     assert "toBlob" not in js and "canvas" not in js.lower()                 # gửi ẢNH GỐC, không nén / đổi kích thước
-    assert "FormData" in js and "timeout" in js
+    assert "FormData" in js and "timeout" in js and "toiDa: SONG_SONG" in js and re.search(r"SONG_SONG = 2\b", js)
     from backend.main import app
     paths = app.openapi()["paths"]
     goi = set(re.findall(r'[`"](/(?:exams|sheets|meta|auth|me)[^`"?]*)[`"]', js))
@@ -46,10 +51,18 @@ def test_m_js_khong_luu_token_khong_nen_anh_goi_dung_api():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="không có node để kiểm cú pháp JS")
-@pytest.mark.parametrize("ten", ["m.js", "app.js"])
+@pytest.mark.parametrize("ten", ["m.js", "m_hang_doi.js", "app.js"])
 def test_js_dung_cu_phap(ten):
     r = subprocess.run(["node", "--check", str(FRONTEND / ten)], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="không có node để chạy test hàng đợi JS")
+def test_hang_doi_chup_lien_tuc_node():
+    """tests/js/hang_doi.test.js (node:test): thứ tự, tối đa 2 song song, lỗi mạng giữ ảnh để gửi lại, ảnh trùng, 401 tạm dừng, chụp lại."""
+    r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "hang_doi.test.js")], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert re.search(r"pass 6\b", r.stdout) and re.search(r"fail 0\b", r.stdout), r.stdout
 
 
 def test_app_js_co_nut_ket_noi_va_tham_do_khi_tab_hien():
