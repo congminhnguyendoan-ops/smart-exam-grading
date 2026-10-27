@@ -10,6 +10,8 @@ exam_students ON CONFLICT DO NOTHING). Không sửa / xoá kỳ thi [DEMO], [DEM
   python tools/kiem_bo_demo.py              # kiểm kịch bản trước
   python tools/nap_bo_demo.py               # xem trước
   python tools/nap_bo_demo.py --ap-dung     # GHI vào CSDL
+  python tools/nap_bo_demo.py --ban-tap [--ap-dung]   # BẢN TẬP: 2 kỳ thi "[DEMO-BV-TẬP]" giống hệt E1 / E2 (đáp án, môn, lớp, GV, dự thi)
+                                                      #   để diễn tập chụp bằng điện thoại mà không làm bẩn kỳ thi demo 1380 / 1381
 """
 import argparse
 import os
@@ -24,12 +26,13 @@ os.environ.setdefault("AUTH_MODE", "demo")      # công cụ trong tiến trình
 import kiem_bo_demo as K  # noqa: E402
 
 NHAN = "[DEMO-BV]"
+NHAN_TAP = "[DEMO-BV-TẬP]"
 DU_THI = {"E1": [str(s) for s in range(220001, 220006)], "E2": [str(s) for s in range(220006, 220010)]}   # 220010 cố ý KHÔNG dự thi
 SO_CAU, THANG, DAT = 40, 10, 5
 
 
-def ke_hoach() -> list[dict]:
-    """Kỳ thi cần nạp, dựng từ demo_bv_dap_an.csv (đã kiểm bằng kiem_bo_demo)."""
+def ke_hoach(ban_tap: bool = False) -> list[dict]:
+    """Kỳ thi cần nạp, dựng từ demo_bv_dap_an.csv (đã kiểm bằng kiem_bo_demo). ban_tap: chỉ đổi nhãn tiêu đề [DEMO-BV] -> [DEMO-BV-TẬP]."""
     loi, _ = K.kiem(K.doc(K.DAP_AN), K.doc(K.KICH_BAN))
     if loi:
         raise SystemExit("DỪNG: kịch bản demo sai – chạy python tools/kiem_bo_demo.py:\n  " + "\n  ".join(loi))
@@ -40,6 +43,8 @@ def ke_hoach() -> list[dict]:
         e["codes"].append({"code": r["exam_code"], "answers": r["answers"]})
     for e in kt.values():
         assert NHAN in e["exam_title"], e["exam_title"]
+        if ban_tap:
+            e["exam_title"] = e["exam_title"].replace(NHAN, NHAN_TAP)
     return list(kt.values())
 
 
@@ -65,11 +70,11 @@ def doi_chieu(conn, kh: list[dict]) -> list[dict]:
     return ra
 
 
-def nap(conn, ap_dung: bool) -> list[dict]:
+def nap(conn, ap_dung: bool, ban_tap: bool = False) -> list[dict]:
     """Trả tóm tắt từng kỳ thi (số dòng sẽ / đã INSERT mỗi bảng). ap_dung=False: chỉ đọc. KHÔNG commit (người gọi quyết định)."""
     from backend import service
     tom = []
-    for e in doi_chieu(conn, ke_hoach()):
+    for e in doi_chieu(conn, ke_hoach(ban_tap)):
         moi = e["exam_id"] is None
         da_du_thi = set() if moi else {r["student_id"] for r in conn.execute("SELECT student_id FROM exam_students WHERE exam_id = %s",
                                                                                  (e["exam_id"],)).fetchall()}
@@ -105,14 +110,15 @@ def in_tom_tat(tom: list[dict], ap_dung: bool) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ap-dung", action="store_true", help="GHI vào CSDL (mặc định chỉ xem trước)")
+    ap.add_argument("--ban-tap", action="store_true", help="bản TẬP [DEMO-BV-TẬP] (diễn tập, không đụng kỳ thi demo)")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     from backend.db import ket_noi
-    print("CHẾ ĐỘ:", "ÁP DỤNG (ghi CSDL)" if a.ap_dung else "XEM TRƯỚC (giao dịch chỉ đọc, không ghi)")
+    print("CHẾ ĐỘ:", "ÁP DỤNG (ghi CSDL)" if a.ap_dung else "XEM TRƯỚC (giao dịch chỉ đọc, không ghi)", "· BẢN TẬP" if a.ban_tap else "")
     with ket_noi() as conn:
         if not a.ap_dung:
             conn.execute("SET TRANSACTION READ ONLY")
-        tom = nap(conn, a.ap_dung)
+        tom = nap(conn, a.ap_dung, a.ban_tap)
         if a.ap_dung:
             conn.commit()
         else:

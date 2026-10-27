@@ -72,3 +72,20 @@ def test_xem_truoc_khong_ghi_va_ap_dung_idempotent(conn_thu):
         sv = [r["student_code"] for r in conn_thu.execute("SELECT s.student_code FROM exam_students x JOIN students s USING (student_id) "
                                                           "WHERE x.exam_id = %s ORDER BY 1", (e[0]["exam_id"],)).fetchall()]
         assert sv == N.DU_THI[t["ma"]] and "220010" not in sv
+
+
+def test_ban_tap_giong_ban_demo_chi_khac_tieu_de(conn_thu):
+    """--ban-tap: 2 kỳ thi [DEMO-BV-TẬP] cùng đáp án / môn / lớp / GV / dự thi; không đụng kỳ thi [DEMO-BV]; chạy lại không trùng."""
+    import nap_bo_demo as N
+    goc, tap = N.ke_hoach(), N.ke_hoach(ban_tap=True)
+    for g, t in zip(goc, tap):
+        assert t["exam_title"] == g["exam_title"].replace("[DEMO-BV]", "[DEMO-BV-TẬP]") and "[DEMO-BV-TẬP]" in t["exam_title"]
+        assert {k: v for k, v in t.items() if k != "exam_title"} == {k: v for k, v in g.items() if k != "exam_title"}
+    demo_truoc = conn_thu.execute("SELECT count(*) AS n FROM exams WHERE exam_title LIKE '%%[DEMO-BV]%%'").fetchone()["n"]
+    truoc = _dem(conn_thu)
+    lan1 = N.nap(conn_thu, ap_dung=True, ban_tap=True)
+    assert {t["ma"] for t in lan1} == {"E1", "E2"} and all("TẬP" in t["exam_title"] for t in lan1)
+    sau1 = _dem(conn_thu)
+    assert N.nap(conn_thu, ap_dung=True, ban_tap=True) and _dem(conn_thu) == sau1                # chạy lại: không đổi
+    assert conn_thu.execute("SELECT count(*) AS n FROM exams WHERE exam_title LIKE '%%[DEMO-BV]%%'").fetchone()["n"] == demo_truoc
+    assert sau1["exams"] - truoc["exams"] == sum(t["insert"]["exams"] for t in lan1)              # chưa nạp: 2; đã nạp thật: 0

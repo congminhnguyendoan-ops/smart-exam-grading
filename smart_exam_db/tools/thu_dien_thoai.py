@@ -185,6 +185,11 @@ def chay(ghi_that: bool, ky_thi_tap: list[int] | None) -> dict:
                 return time.perf_counter() - t0
 
             def chon(e):
+                if not dl:                                                   # ghi thật: mỗi kỳ thi TẬP do đúng giáo viên phụ trách lớp chụp
+                    r = gv[ky_thi[e]]
+                    dt.clear_cookies(); cookie_cho(dt, r["created_by"], r["password_hash"])
+                    pg.goto(url + "/m")
+                    pg.wait_for_selector("#v-exams:not(.hidden) .exam, #v-cap:not(.hidden)")
                 pg.click("#doi-ky-thi") if pg.is_visible("#doi-ky-thi") else None
                 pg.wait_for_selector(f".exam[data-id='{ky_thi[e]}']")
                 pg.click(f".exam[data-id='{ky_thi[e]}']")
