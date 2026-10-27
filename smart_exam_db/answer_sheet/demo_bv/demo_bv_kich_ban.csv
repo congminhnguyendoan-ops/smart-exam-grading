@@ -1,0 +1,11 @@
+﻿sheet_id,sbd,student_name,exam,exam_code,so_cau_dung,diem_mong_doi,ghi_chu,q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13,q14,q15,q16,q17,q18,q19,q20,q21,q22,q23,q24,q25,q26,q27,q28,q29,q30,q31,q32,q33,q34,q35,q36,q37,q38,q39,q40
+BV01,220001,Lê Minh Khoa,E1,101,38,9.5,Bài tốt,A,D,D,B,A,B,D,C,A,d,B,A,C,D,D,C,B,B,A,D,B,B,A,C,B,A,C,C,B,D,B,A,A,C,A,A,D,B,D,c
+BV02,220002,Phạm Thu Hà,E1,102,33,8.25,Có 1 câu tô hai ô (tính sai),C,B,B,C,C,AC,D,A,A,C,A,D,B,B,C,A,B,D,C,B,A,C,A,b,D,A,B,A,D,A,A,D,D,D,D,B,A,A,C,c
+BV03,220003,Đỗ Quang Huy,E1,101,27,6.75,Có câu bỏ trống và câu tô hai ô,a,D,A,B,A,B,D,C,D,A,D,A,A,D,D,A,B,C,C,D,D,B,A,C,D,A,C,C,B,CD,B,B,a,C,A,B,D,B,-,C
+BV04,220004,Vũ Ngọc Lan,E1,102,22,5.5,"Điểm sát ngưỡng đạt (5,5)",C,D,C,D,C,D,D,C,D,c,A,B,B,B,C,C,A,D,B,C,A,C,C,-,A,A,B,B,B,D,A,b,-,C,D,A,A,A,C,B
+BV05,220005,Hoàng Đức Minh,E1,101,17,4.25,"Điểm không đạt (4,25)",A,D,B,-,C,AB,D,A,C,d,B,a,A,C,C,C,D,C,C,B,D,A,D,-,C,A,C,C,D,B,C,A,A,C,C,A,D,D,C,-
+BV06,220006,Ngô Thanh Tâm,E2,103,36,9.0,Bài tốt,B,A,C,A,A,C,C,A,C,b,B,C,D,C,D,B,B,D,B,A,D,B,D,A,D,c,C,A,D,A,B,C,A,D,B,A,D,C,D,B
+BV07,220007,Bùi Gia Bảo,E2,104,30,7.5,TÔ NHẠT CẢ TỜ (bút chì HB nhẹ tay): minh hoạ cảnh báo 'tờ nhạt',d,b,a,a,d,d,a,c,b,b,a,d,d,a,b,c,a,b,d,b,b,a,b,b,b,c,b,d,a,b,d,d,a,c,c,b,d,c,d,b
+BV08,220008,Trịnh Mai Anh,E2,103,24,6.0,Có 1 câu bỏ trống,B,C,C,C,A,C,C,D,B,B,A,C,D,C,B,B,A,D,B,C,D,-,D,A,D,D,D,A,d,A,A,C,A,D,C,D,B,c,A,D
+BV09,220009,Lý Hoài Nam,E2,104,13,3.25,"Điểm thấp (3,25)",B,B,A,A,D,D,A,c,C,C,C,C,D,A,A,D,A,A,-,C,A,D,C,-,B,A,A,A,a,D,D,A,D,A,D,C,B,A,A,C
+BV10,220010,Đặng Khánh Linh,E2,103,31,7.75,SBD 220010 KHÔNG nằm trong danh sách kỳ thi: minh hoạ cảnh báo định danh,B,A,C,A,a,C,C,A,B,B,B,C,B,C,D,A,B,A,B,B,D,B,D,D,D,B,C,A,B,C,b,C,A,D,-,D,D,C,C,B
