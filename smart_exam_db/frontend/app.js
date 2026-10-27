@@ -65,7 +65,9 @@ const put = (p, data) => api(p, { method: "PUT", headers: { "Content-Type": "app
 async function napKyThi() {
   state.exams = await api("/exams");
   const sel = $("#exam-select");
-  sel.innerHTML = state.exams.map((e) => `<option value="${e.exam_id}">${esc(e.subject_name)} – ${esc(e.class_code || "không lớp")} – ${esc(e.exam_title)} (${e.so_phieu} phiếu)</option>`).join("");
+  // Tên kỳ thi đứng ĐẦU: ô chọn trong thanh bên hẹp cắt phần cuối; đủ "Môn – Lớp – tên" ở title (rê chuột) và ở #exam-name (xuống dòng).
+  sel.innerHTML = state.exams.map((e) => `<option value="${e.exam_id}" title="${esc(e.subject_name)} – ${esc(e.class_code || "không lớp")} – ${esc(e.exam_title)}">` +
+    `${esc(e.exam_title)} · ${esc(e.class_code || "không lớp")} (${e.so_phieu} phiếu)</option>`).join("");
   let saved = null; try { saved = localStorage.getItem("examId"); } catch (_) { /* bỏ qua */ }
   state.examId = state.exams.some((e) => String(e.exam_id) === saved) ? Number(saved)
     : (state.exams.find((e) => e.exam_title.startsWith("[DEMO]")) || state.exams[state.exams.length - 1] || {}).exam_id || null;
@@ -75,6 +77,8 @@ async function napKyThi() {
 async function napChiTietKyThi() {
   state.exam = state.examId ? await api(`/exams/${state.examId}`) : null;
   const e = state.exam;
+  $("#exam-name").textContent = e ? e.exam_title : "";
+  $("#exam-select").title = e ? `${e.subject_name} – ${e.class_code || "không lớp"} – ${e.exam_title}` : "";
   $("#exam-info").textContent = e ? `Môn ${e.subject_name} · lớp ${e.class_code || "(không gắn lớp)"} · ${e.num_questions} câu · ${e.max_score} điểm · mã đề ${e.codes.map((c) => c.code).join(", ")} · ` +
     `${e.sheets.tong} phiếu (${e.sheets.da_cham} chính thức, ${e.sheets.can_xem} cần xem, ${e.sheets.bi_tu_choi} từ chối)` : "Chưa có kỳ thi.";
   const n = $("#nav-count");
