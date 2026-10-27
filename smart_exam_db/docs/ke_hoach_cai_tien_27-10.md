@@ -127,3 +127,11 @@ Không phải chập chờn mà phụ thuộc môi trường: tái tạo tất �
 Tiến trình con `eval_ocr.py` in thông báo có dấu "–" bằng cp1252 (byte 0x96); tiến trình cha `subprocess.run(text=True, encoding="utf-8")` giải mã lỗi trong luồng đọc → `r.stderr = None` → `None + str` = `TypeError`.
 Sửa test (không đổi công cụ / tiêu chí): chạy tiến trình con với `PYTHONUTF8=1`. Các `subprocess.run` khác trong `tests/` chỉ nhận ASCII (git, node) nên không bị.
 
+## 7. ĐÓNG BĂNG MÃ cho test đợt 2 (28/10/2026)
+Quyết định người dùng: giữ N = 90 px (không hạ theo dữ liệu dev); bubble SBD / mã đề giữ nợ; test cuối mới đăng ký trên **đợt 2** (phiếu 0101–0110, chụp bằng điện thoại,
+chưa có ảnh) ở lệnh sau. Mã đóng băng: tag cục bộ `ma-dot2-dong-bang` (commit `b53a343`); SHA-256 các file lõi + tham số: `docs/dong_bang_ma_dot2.json`.
+Từ đây chỉ được đổi `docs/` và `CLAUDE.md` cho tới khi chạy test đợt 2. Sáu file đợt 2 chép nguyên vẹn vào `answer_sheet/dot2/` (commit `b53a343`).
+- **Ghi trung thực**: `omr.py` đã đổi sau commit đăng ký `551b356` (luật `vet_nho`) nên kết quả test cuối 21/10 là của bản cũ; đợt 2 là phép kiểm MỚI trên bản đóng băng.
+- **Giới hạn `vet_nho`**: ngưỡng 90 px nằm sát chấm bút bi cỡ ~1 mm (~110 px ở 300 DPI); phiếu đợt 2 dùng chấm ~1,5 mm (~250 px).
+- Nợ `nhat_tuyet_doi` (mục 6.4) KHÔNG cài; đợt 2 kiểm bằng phiếu 0105 (tô nhạt cả tờ) – chỉ báo cáo, không chỉnh mã theo kết quả.
+

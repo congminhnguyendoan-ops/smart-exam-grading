@@ -1,0 +1,31 @@
+{
+ "ngay": "2026-10-28",
+ "ma_commit": "b53a3432a77cdaa7dac466dc0811f4fe51634cf2",
+ "tag": "ma-dot2-dong-bang",
+ "sha256": {
+  "models/omr_m1.json": "F8F87577B42E28741DEF10BB9D42F4B6E937E6E3B37C025C5E63B8D8C81C60AF",
+  "models/ocr_cnn.json": "6D87205C83A29FCCC4EB450F0AEC0C9D51BA56E1BB141664060041AB0F2FCAD5",
+  "answer_sheet/output/layout.json": "A35CCB7E259F5F7A30355D85D79BA4EF267A0D465F29C09B8FD05906CFC0ECBD",
+  "answer_sheet/output/phieu_trang_300dpi.png": "7B7DB1A95344564A95460AF9C076ED74833E75583FC117028F83BB86E1BBF30F",
+  "cv_engine/preprocessing.py": "651F14FA720714FE4F3FF218694B296F66840DBF4C848A8B06B26B0060FE4352",
+  "cv_engine/omr.py": "9C26582BE33FDC385BD0FB4D884CBEC1D240DC3826BC8EBAEDCCED06ABA2B90A",
+  "cv_engine/ocr.py": "62618C2ACEA0C80F863E22E91E4EBBFC2C5691FEBF020FA5B6FAB39D0D8B0151",
+  "cv_engine/tap_du_lieu.py": "3F030B71ECE0B3117DB0465C2EBBE3CF1948911140DEB002F20A333D37FD9F01"
+ },
+ "tham_so": {
+  "vet_nho_N_px": 90,
+  "vet_nho_mo_k": 7,
+  "vet_nho_toi": 0.6,
+  "nhat_tuyet_doi_X": null,
+  "MO_MIN_anh_mo": 0.012,
+  "tau_khop_ocr": 0.5,
+  "S_SAN": 0.2,
+  "omr_phuong_an": "A: models/omr_m1.json (ro_min C2 = 0,5)"
+ },
+ "ghi_chu": [
+  "Từ commit này chỉ được đổi docs/ và CLAUDE.md cho tới khi chạy test đợt 2 (phiếu 0101–0110, chụp bằng điện thoại).",
+  "omr.py đã đổi sau commit đăng ký test cuối 551b356 (luật vet_nho) nên kết quả test cuối 21/10 là của bản cũ; đợt 2 là phép kiểm mới trên bản đóng băng này.",
+  "Giới hạn vet_nho: ngưỡng 90 px nằm sát chấm bút bi cỡ ~1 mm (~110 px ở 300 DPI); phiếu đợt 2 dùng chấm ~1,5 mm (~250 px).",
+  "nhat_tuyet_doi (nợ thang S_anh) KHÔNG được cài: không có X thoả tiêu chí (docs/ke_hoach_cai_tien_27-10.md mục 6.4); kiểm bằng phiếu 0105."
+ ]
+}
