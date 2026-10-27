@@ -116,6 +116,7 @@ smart_exam_db/
 │   ├── xuat_ocr.py               # Tuần 6: xuất models/ocr_cnn.json TỪ COMMIT SẠCH + kiểm NumPy ↔ PyTorch (< 1e-4); cần torch
 │   ├── eval_ocr.py               # Tuần 6: đánh giá ĐỘC LẬP hai kênh SBD / mã đề (chỉ ocr.py + omr.py): run --tap dev | val (--xac-nhan-val) [--xem]
 │   ├── eval_he_thong.py          # Tuần 5–6: đánh giá cả hệ thống (nắn ảnh → OMR → CNN → chấm → giáo viên) độc lập; run --tap dev | test (--xac-nhan-test, đăng ký + khoá một lần)
+│   ├── kiem_bo_demo.py, nap_bo_demo.py, thu_bo_demo.py  # Bộ demo bảo vệ [DEMO-BV] (mục 4f): kiểm kịch bản / nạp (chỉ INSERT) / chấm thử ROLLBACK
 │   ├── eval_omr.py               # Tuần 5: đánh giá ĐỘC LẬP (chỉ gọi doc_phieu): run --phuong-phap m0|m1, report
 │   │                             #   -> data/_eval/omr/bao_cao_phan_a_train.md + <pp>/xem_bang_mat.html
 │   └── check_task_pdf.py         # Trích phieu_giao_viec.pdf, so với ground_truth.csv hiện tại, commit đầu
@@ -132,6 +133,7 @@ smart_exam_db/
 │   │                             #   ảnh nắn → data/_aligned/<thư mục>/ (JPEG, chỉ để xem); bỏ qua ảnh test
 │   ├── requirements.txt
 │   ├── HUONG_DAN_THU_DU_LIEU.md  # Quy trình thu dữ liệu chi tiết (đọc file này trước)
+│   ├── demo_bv/                  # Bộ demo bảo vệ (chép nguyên vẹn): đáp án 4 mã đề, kịch bản tô BV01–BV10, PDF in phiếu + giao việc
 │   ├── fonts/                    # DejaVuSans(.ttf, -Bold) để in tiếng Việt trong PDF
 │   └── output/                   # File sinh ra (không sửa tay, trừ ground_truth.csv)
 │       ├── phieu_danh_so.pdf     # 40 phiếu có Mã phiếu 0001–0040 (thu dữ liệu)
@@ -283,6 +285,11 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - Tài khoản: `python -m backend.tai_khoan` (`tao` / `dat-lai-mat-khau` / `khoa` / `mo-khoa` / `--mau`; mật khẩu nhập bằng getpass). Mẫu: `admin`, `gv_an`, `gv_binh`. Dữ liệu mẫu: `tools/nap_giao_vien_demo.py [--ap-dung]`.
 - **Test KHÔNG tự áp migration lên CSDL thật** (sự cố 27/10: 002 bị áp nhầm, giữ nguyên): `csdl_san_sang` chỉ kiểm migration đã áp (chưa áp → SKIP rõ); áp trong test cần `SMART_EXAM_TEST_MIGRATE=1`; áp thường: `python -m backend.migrate`.
   Nhánh này: pytest 345 đạt + 1 skip có chủ đích.
+- **Bộ demo bảo vệ [DEMO-BV]** (27/10/2026, kịch bản `docs/kich_ban_demo_bao_ve.md`, `ke_hoach_cai_tien_27-10.md` mục 5): nguồn `answer_sheet/demo_bv/`; ĐÃ NẠP (chỉ INSERT, sao lưu trước
+  `data/_backup/smart_exam_20261027_175511_truoc_demo_bv.dump`): E1 exam_id **1380** (gv_an, IT3080, CNTT-K22A, mã đề 101/102, dự thi 220001–220005), E2 **1381** (gv_binh, IT4040, CNTT-K22B, 103/104,
+  220006–220009; 220010 cố ý ngoài danh sách = phiếu BV10). Công cụ: `tools/kiem_bo_demo.py` (kịch bản, chỉ đọc) · `tools/nap_bo_demo.py [--ap-dung]` (xem trước mặc định, chạy lại INSERT 0) ·
+  `tools/thu_bo_demo.py tao-anh | chay` (ảnh giả hoá BV01–BV10 → API thật với token gv_an / gv_binh, ROLLBACK; 10/10 khớp; BV10 KHÔNG ghi điểm vì `sbd_not_found` – đúng thiết kế).
+  Diễn tập bằng `thu_bo_demo.py`, KHÔNG tải ảnh thật lên 1380 / 1381 trước buổi bảo vệ (phiếu nằm lại; xoá phải hỏi).
 
 ## 5. Cài đặt và chạy
 

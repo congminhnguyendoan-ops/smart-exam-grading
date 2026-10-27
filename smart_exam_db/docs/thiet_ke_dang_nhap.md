@@ -36,7 +36,7 @@ Công cụ: `python -m backend.tai_khoan` (tạo / đặt lại mật khẩu / k
 
 ## 5. Giao diện (`frontend/`, JS thuần)
 Màn đăng nhập (khi `GET /me` trả 401 hoặc API trả 401 → quay về); thanh đầu: tên giáo viên + đăng xuất; "Hồ sơ" (xem / sửa họ tên, email; đổi mật khẩu); "Lớp của tôi" (danh sách lớp → bảng sinh viên có ô tìm);
-chọn kỳ thi hiện "Môn – Lớp – tên kỳ thi"; đầu bảng điểm hiện Môn và Lớp. Không dùng localStorage cho token.
+chọn kỳ thi: option "tên kỳ thi · lớp (n phiếu)" (tên đứng đầu vì ô hẹp cắt phần cuối), `title` đủ "Môn – Lớp – tên", dòng `#exam-name` dưới ô chọn hiện đủ tên (xuống dòng); đầu bảng điểm hiện Môn và Lớp. Không dùng localStorage cho token.
 
 ## 6. Bảng endpoint × quyền (sinh từ danh sách route thật; kiểm tự động bởi `tests/test_xac_thuc_khong_csdl.py`)
 Chưa đăng nhập (AUTH_MODE=on) → **401** ở mọi endpoint không công khai. Header `X-User` bị BỎ QUA khi `on`. "Kiểm quyền" = `phan_quyen.kiem_*`; ngoài quyền → **404** cùng thông báo như id không tồn tại.

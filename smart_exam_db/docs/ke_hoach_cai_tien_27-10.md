@@ -12,6 +12,18 @@
 | 6 | Xem lại code vùng đậm–nhạt 0–255 |
 | 7 | Đăng nhập giáo viên, phân quyền theo lớp (cá nhân, lớp dạy, học sinh) |
 
+## 5. Yêu cầu 5 – chấm đủ 40 câu: bộ demo bảo vệ [DEMO-BV] (nhánh `cai-tien-b`, 27/10/2026) – XONG
+Kịch bản demo: `docs/kich_ban_demo_bao_ve.md`. Nguồn: `answer_sheet/demo_bv/` (commit `5a46d89`); công cụ `tools/kiem_bo_demo.py`, `tools/nap_bo_demo.py` (`7d8bfed`), `tools/thu_bo_demo.py` (`5f07ff7`).
+- **Ghi CSDL (người dùng đồng ý, chỉ INSERT)**: sao lưu trước `data/_backup/smart_exam_20261027_175511_truoc_demo_bv.dump`; nạp E1 (exam_id 1380, gv_an, IT3080, CNTT-K22A, mã đề 101/102, dự thi 220001–220005)
+  và E2 (1381, gv_binh, IT4040, CNTT-K22B, 103/104, 220006–220009; 220010 cố ý không dự thi): exams 2, exam_codes 4, answer_keys 160, exam_students 9. Chạy lần hai: INSERT 0.
+  Vân tay md5 15 bảng: chỉ 4 bảng trên đổi; dòng cũ của chúng giống hệt trước khi nạp (5 / 18 / 660 / 72 dòng).
+- **5a quyền (chỉ GET, `AUTH_MODE=on`)**: 24/24 đạt – chéo kỳ thi / chéo lớp → 404, `GET /exams` có môn + lớp, Excel "Môn:" (A4) / "Lớp:" (F4).
+- **5b đầu-cuối (ảnh giả hoá, ROLLBACK)**: 10/10 khớp, 0 câu chấm sai không cờ; BV07 → 40 câu `to_nhat`; BV10 → không ghi điểm (`sbd_not_found`) dù GV đã xác nhận SBD.
+  Ghi trung thực: lần chạy đầu tiêu chí của công cụ đòi BV10 có điểm chính thức 7,75 (sai với kịch bản "SBD ngoài danh sách") → sửa tiêu chí theo danh sách dự thi trong CSDL
+  TRƯỚC khi commit; hành vi backend không đổi. CSDL giống hệt trước / sau 5a + 5b.
+- **Giao diện**: tên kỳ thi bị cắt ở ô chọn thanh bên → tên đứng đầu option + dòng `#exam-name` xuống dòng (commit `e7c8373`).
+- Giới hạn: ảnh giả hoá phẳng, không chữ viết tay – chỉ minh hoạ luồng; ảnh thật: ~50% phiếu có SBD / mã đề cần xem (CNN, T4 Tuần 6).
+
 ## 6. Rà độ tối 0–255 (`omr.py` `_do_o`, `dac_trung_o`)
 
 Độ tối = 1 − TB lõi (0,75r) / giấy vành (1,15–1,45r) → không phụ thuộc độ sáng tuyệt đối của ảnh.
