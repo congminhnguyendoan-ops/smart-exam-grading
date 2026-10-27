@@ -166,3 +166,13 @@ def test_chay_nho_tren_anh_gia_hoa(csdl_san_sang, monkeypatch, tmp_path):
     mu, may = E.H.html_trang(kq["rows"], False), E.H.html_trang(kq["rows"], True)
     assert "chưa có kết luận của máy" in mu and "máy:" not in mu and "ô tô" not in mu and "cần xem" not in mu.lower()
     assert "KẾT QUẢ MÁY" in may and "máy:" in may
+
+
+def test_dang_ky_that_khop_voi_cay_lam_viec():
+    """Bản đăng ký thật (docs/dang_ky_test_dot2.json) phải khớp SHA các file đang có – bắt lỗi ghi sai (vd chữ HOA / thường) hoặc file trôi sau đăng ký."""
+    if not E.DANG_KY.exists():
+        pytest.skip("chưa có bản đăng ký")
+    d = json.loads(E.DANG_KY.read_text(encoding="utf-8"))
+    assert d["sha256"] and all(h == h.lower() for h in d["sha256"].values())
+    sai = [f for f, h in d["sha256"].items() if E.H.sha_file(ROOT.parent / f) != h]
+    assert not sai, f"SHA khác đăng ký: {sai}"
