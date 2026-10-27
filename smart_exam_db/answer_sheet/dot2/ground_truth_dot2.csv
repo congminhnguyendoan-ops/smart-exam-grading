@@ -1,0 +1,11 @@
+﻿sheet_id,sbd,exam_code,sbd_bubble,exam_code_bubble,pen,conditions,writer,q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13,q14,q15,q16,q17,q18,q19,q20,q21,q22,q23,q24,q25,q26,q27,q28,q29,q30,q31,q32,q33,q34,q35,q36,q37,q38,q39,q40
+0101,864325,101,864325,101,Bút chì 2B,C1+C2,Người A,*B,b,Ab,d,B,A,C,ABD,-,*B,AD,C,C,BD,B,C,d,*A,-,C,-,bD,C,-,ad,A,B,c,aB,D,c,d,CD,-,-,B,C,D,bd,b
+0102,097160,102,097160,102,Bút bi xanh,C2+C3,Người A,b,ABD,bd,c,*C,-,B,bD,-,*B,D,a,a,A,AD,c,B,c,C,-,Ab,B,B,B,BC,Cd,D,B,-,C,AD,-,C,b,*B,ac,-,D,C,D
+0103,183954,103,183954,103,Bút bi đen,C3+C4,Người B,c,D,-,B,B,C,-,bC,a,Ab,ABD,B,B,*C,-,C,-,B,*B,CD,D,*C,b,A,D,d,B,a,A,-,BD,Ad,D,b,A,ac,-,bd,c,BC
+0104,278103,104,278103,104,Bút chì 2B,C4+C1,Người B,-,cd,*A,A,A,C,*A,A,BCD,C,b,CD,A,bD,B,D,a,D,-,-,bd,a,b,-,D,-,b,D,B,AB,cD,Ac,*D,C,D,-,C,a,d,AB
+0105,527694,101,527694,101,Bút chì HB – tô NHẸ tay toàn bộ,C1+C2,Người C,bc,ab,c,-,ac,-,-,cd,c,c,*C,c,d,-,c,a,abd,c,cd,*A,-,c,b,c,d,a,*B,c,d,b,-,d,cd,ad,b,b,b,bc,c,a
+0106,564901,102,564901,102,Bút bi đen,C2+C3,Người C,A,A,-,C,BC,-,B,B,*D,C,B,A,A,Bc,-,Bc,A,BC,-,-,A,*A,d,bc,A,D,c,ac,cD,d,c,-,c,b,AB,ABD,B,c,*B,D
+0107,378273,103,37-273,103,Bút chì 2B,C3+C4,Người D,B,-,C,d,-,a,-,-,*A,*B,c,ab,C,cD,c,A,BC,B,D,D,C,C,b,-,B,D,D,C,A,AD,ACD,C,-,bD,*B,BD,ab,b,c,Ac
+0108,452180,104,452180,104,Bút bi xanh,C4+C1,Người D,-,b,BC,b,*D,C,A,ac,-,B,A,BCD,a,B,Bd,aC,d,C,C,b,AC,D,bc,B,*B,C,C,A,-,*D,B,B,BD,c,-,-,B,a,bD,-
+0109,697132,101,697132,101,Bút bi đen,C1+C2,Người E,-,c,*B,D,-,A,bc,aB,d,c,CD,A,Ad,Cd,C,D,-,C,B,C,d,C,D,A,bc,*D,-,b,*B,b,A,-,D,c,BCD,AD,AC,-,C,B
+0110,498560,102,498560,102,Bút chì 2B,C2+C3,Người E,AD,B,*B,c,D,aB,ac,c,-,A,-,d,B,c,-,B,C,bd,CD,B,ABC,Ac,*D,D,-,C,a,B,D,B,A,Bd,C,CD,c,-,-,a,*C,D
