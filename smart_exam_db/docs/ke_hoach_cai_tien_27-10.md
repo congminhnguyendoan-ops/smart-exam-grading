@@ -23,6 +23,10 @@ Thiết kế + kết quả chi tiết: `docs/thiet_ke_chup_dien_thoai.md` (mục
 - Kỳ thi TẬP **1632 / 1633** `[DEMO-BV-TẬP]` (chỉ INSERT). Giả lập Pixel 7, ảnh 3024×4032: ROLLBACK p50 0,81 s / p95 0,85 s; ghi thật trên TẬP p50 1,13 s / p95 2,13 s (loopback, chưa gồm Wi‑Fi).
 - pytest 375 đạt + 1 skip có chủ đích; `kiem_backend_dau_cuoi.py` 56/56, 0 chấm sai không cờ. Tường lửa: `SmartExam-8000-LAN` (Public,Private + `LocalSubnet`), xoá sau demo.
 - **Còn lại**: thử điện thoại thật cùng mạng (người dùng); camera trực tiếp `getUserMedia` (cần HTTPS) = hướng nâng cấp.
+- **Dọn kỳ thi TẬP (27/10, người dùng đồng ý)**: sao lưu `data/_backup/smart_exam_20261027_190525_truoc_xoa_tap.dump` (`pg_restore -l` đọc được) → một giao dịch xoá 21 phiếu của 1632 / 1633:
+  answer_sheets 21, sheet_answers 800, review_queue 20, ocr_digits 180, results 0, score_audit_logs 0 → kiểm lại: 1632 / 1633 / 1380 / 1381 đều 0 phiếu; vân tay 13 bảng (loại dòng đã xoá)
+  giống hệt trước → xoá 221 tệp ảnh (đường dẫn lấy từ chính các dòng vừa xoá, chỉ trong `storage/`). 5 ảnh của exam 115 `[THU]` giữ nguyên (người dùng chọn giữ; chạy với `--khong-xoa-anh`).
+- Ảnh dự phòng `data/_eval/demo_bv/anh_gia/` (`thu_bo_demo.py xuat`); hướng dẫn lệnh nguyên văn: `docs/chay_server_va_tai_khoan.md`.
 
 ## 5. Yêu cầu 5 – chấm đủ 40 câu: bộ demo bảo vệ [DEMO-BV] (nhánh `cai-tien-b`, 27/10/2026) – XONG
 Kịch bản demo: `docs/kich_ban_demo_bao_ve.md`. Nguồn: `answer_sheet/demo_bv/` (commit `5a46d89`); công cụ `tools/kiem_bo_demo.py`, `tools/nap_bo_demo.py` (`7d8bfed`), `tools/thu_bo_demo.py` (`5f07ff7`).

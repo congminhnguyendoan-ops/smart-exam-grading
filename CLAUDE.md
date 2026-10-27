@@ -292,7 +292,9 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   220006–220009; 220010 cố ý ngoài danh sách = phiếu BV10). Công cụ: `tools/kiem_bo_demo.py` (kịch bản, chỉ đọc) · `tools/nap_bo_demo.py [--ap-dung]` (xem trước mặc định, chạy lại INSERT 0) ·
   `tools/thu_bo_demo.py tao-anh | chay` (ảnh giả hoá BV01–BV10 → API thật với token gv_an / gv_binh, ROLLBACK; 10/10 khớp; BV10 KHÔNG ghi điểm vì `sbd_not_found` – đúng thiết kế).
   Diễn tập bằng `thu_bo_demo.py`, KHÔNG tải ảnh thật lên 1380 / 1381 trước buổi bảo vệ (phiếu nằm lại; xoá phải hỏi).
-  **Kỳ thi TẬP** `[DEMO-BV-TẬP]` (`nap_bo_demo.py --ban-tap --ap-dung`, đã nạp 27/10): **1632** (gv_an, K22A), **1633** (gv_binh, K22B) – diễn tập chụp điện thoại ở đây.
+  **Kỳ thi TẬP** `[DEMO-BV-TẬP]` (`nap_bo_demo.py --ban-tap --ap-dung`, đã nạp 27/10): **1632** (gv_an, K22A), **1633** (gv_binh, K22B) – diễn tập chụp điện thoại ở đây
+  (đang TRỐNG: 21 phiếu thử đã xoá 27/10 theo đồng ý). Ảnh dự phòng: `data/_eval/demo_bv/anh_gia/` (`thu_bo_demo.py xuat`). Lệnh vận hành nguyên văn: `docs/chay_server_va_tai_khoan.md`.
+  Người dùng chọn GIỮ 5 ảnh exam 115 `[THU]` → luôn chạy `chay_server_lan.py --khong-xoa-anh`.
 - **Chụp bằng điện thoại → chấm ngay** (27/10/2026, yêu cầu 2; `docs/thiet_ke_chup_dien_thoai.md`): trang **`/m`** (HTML tĩnh `frontend/m.html|js|css`, camera gốc `capture=environment`,
   ảnh gốc không nén) → `POST /exams/{id}/sheets` → thẻ kết quả (điểm TẠM, câu cần xem, cảnh báo); điện thoại KHÔNG duyệt câu. Máy tính: nút "Kết nối điện thoại" (`GET /meta/ket-noi`, chỉ
   người đăng nhập: IP LAN + QR), danh sách phiếu / hàng đợi tự làm mới 4 s khi tab hiện. **Chạy cho điện thoại**: `python tools/chay_server_lan.py` (`--host 0.0.0.0`, in URL + QR + lệnh tường lửa;
@@ -302,7 +304,7 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   Giả lập: `python tools/thu_dien_thoai.py tao-anh | chay` (Pixel 7, ROLLBACK mặc định; `--ky-thi-tap 1632 1633 --ghi-that` chỉ trên TẬP) → `data/_eval/ui_m/`. CHƯA thử điện thoại thật.
 - **Ảnh tạm** (migration **003 ĐÃ ÁP** 27/10: `answer_sheets.image_deleted_at`): `backend/don_anh.py` xoá ảnh gốc + nắn + ô viết tay của phiếu `graded` / `rejected` sau `ANH_GIU_GIO` (24) giờ;
   giữ phiếu `needs_review` và kỳ thi `[DEMO…]` (`ANH_GIU_DEMO=1`); chỉ tệp trong `STORAGE_DIR`; API ảnh → 410. Luồng dọn chỉ chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật;
-  `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Lượt đầu sẽ xoá 5 tệp của exam 115 `[THU]` (bản sao ảnh dev).
+  `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Không có `--khong-xoa-anh` thì lượt đầu xoá 5 tệp của exam 115 `[THU]` (người dùng muốn GIỮ).
 - **Migration trong test / công cụ**: `migrate.chua_ap()` chỉ đọc; `migrate.TUY_CHON` (003) không chặn test; fixture `csdl_003`. `kiem_backend_dau_cuoi.py`, `eval_he_thong.py`, `thu_bo_demo.py`
   chỉ KIỂM migration (trước 27/10 hai công cụ đầu tự áp). Nhánh này: **pytest 375 đạt + 1 skip có chủ đích**.
 

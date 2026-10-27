@@ -10,6 +10,7 @@ không phải số đo độ chính xác.
 
   python tools/thu_bo_demo.py tao-anh     # 10 ảnh -> data/_eval/demo_bv/gia/BVxx.jpg
   python tools/thu_bo_demo.py chay        # chấm + giáo viên duyệt đúng như kịch bản, ROLLBACK -> data/_eval/demo_bv/ket_qua_thu.{md,json}
+  python tools/thu_bo_demo.py xuat        # chép 10 ảnh + README.txt -> data/_eval/demo_bv/anh_gia/ (để tải tay khi demo; KHÔNG ghi CSDL)
 """
 import argparse
 import json
@@ -185,13 +186,50 @@ def ghi_bao_cao(rows: list[dict]) -> None:
     print("\n" + "\n".join(d))
 
 
+def xuat() -> None:
+    """10 ảnh giả hoá BV01–BV10 + README.txt -> OUT/anh_gia/. Không ghi CSDL, không tải lên kỳ thi nào."""
+    import shutil
+    kb, dap_an = kich_ban()
+    if not all((GIA / f"{m}.jpg").exists() for m in kb):
+        tao_anh()
+    ra = OUT / "anh_gia"
+    ra.mkdir(parents=True, exist_ok=True)
+    do = {r["phieu"]: r for r in json.loads((OUT / "ket_qua_thu.json").read_text(encoding="utf-8"))} if (OUT / "ket_qua_thu.json").exists() else {}
+    lop = {"E1": "E1 – K22A (gv_an, IT3080 Cơ sở dữ liệu)", "E2": "E2 – K22B (gv_binh, IT4040 Trí tuệ nhân tạo)"}
+    d = ["ẢNH GIẢ HOÁ BỘ DEMO BẢO VỆ BV01–BV10 (sinh bằng: python tools/thu_bo_demo.py xuat)",
+         "Vẽ lên mẫu phiếu trắng theo answer_sheet/demo_bv/demo_bv_kich_ban.csv: ô đậm xám 30, ô mờ xám 170 (BV07 'tô nhạt cả tờ': xám 150),",
+         "bubble SBD / mã đề tô đậm. Ảnh phẳng 2480×3508 (bản giống ảnh chụp 3024×4032: data/_eval/demo_bv/gia_12mp/BVxx_v1.jpg).",
+         "Tải lên: kỳ thi đúng như cột 'Kỳ thi' (E1 -> 1380 [DEMO-BV] / 1632 [DEMO-BV-TẬP]; E2 -> 1381 / 1633).", "",
+         "Phiếu | SBD    | Kỳ thi                                        | Mã đề | Điểm mong đợi | Lúc tải (đo 27/10, ROLLBACK)        | Ghi chú"]
+    for m, p in kb.items():
+        r = do.get(m, {})
+        luc_tai = (f"tạm {r['diem_tam']}, {len(r['cau_can_xem'])} câu cần xem" + (", SBD cần xem" if r.get("sbd_can_xem") else "")) if r else "–"
+        diem = f"{p['diem_mong_doi']}" + (" (KHÔNG ghi điểm: SBD ngoài danh sách)" if m == "BV10" else "")
+        d.append(f"{m}  | {p['sbd']} | {lop[p['exam']]:45} | {p['exam_code']}   | {diem:13} | {luc_tai:35} | {p['ghi_chu']}")
+        shutil.copyfile(GIA / f"{m}.jpg", ra / f"{m}.jpg")
+    d += ["", "GHI CHÚ – SBD / MÃ ĐỀ:",
+          "Ảnh giả hoá KHÔNG có chữ viết tay trong ô SBD / mã đề. Hệ thống đọc hai kênh (ô tô + chữ viết tay); khi ô viết tay trống, SBD / mã đề chỉ được",
+          "nhận khi ô tô đọc chắc VÀ SBD có trong danh sách dự thi (mã đề có trong kỳ thi) – luật Q3. Vì vậy trên kỳ thi 1380/1381 (hoặc 1632/1633):",
+          "  - BV01–BV09: SBD và mã đề được nhận (đã đo 27/10); giáo viên chỉ duyệt các câu cần xem.",
+          "  - BV10 (SBD 220010 không có trong danh sách): SBD ở trạng thái CẦN XEM – giáo viên phải xác nhận; kể cả sau khi xác nhận, phiếu KHÔNG được ghi điểm",
+          "    chính thức (sbd_not_found) cho tới khi thêm 220010 vào danh sách dự thi.",
+          "  - Tải lên một kỳ thi KHÁC (không có các SBD này trong danh sách) thì SBD sẽ ở trạng thái CẦN XEM và giáo viên phải xác nhận.",
+          "Câu tô hai ô: giáo viên xác nhận đúng giấy -> câu đó tính SAI (đúng <=> tô đúng MỘT ô).",
+          "Ảnh chỉ để minh hoạ luồng – không phải số đo độ chính xác (ảnh phẳng, không nhiễu thật)."]
+    (ra / "README.txt").write_text("\n".join(d) + "\n", encoding="utf-8-sig")
+    print(f"Đã ghi 10 ảnh + README.txt ở {ra}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("lenh", choices=["tao-anh", "chay"])
+    ap.add_argument("lenh", choices=["tao-anh", "chay", "xuat"])
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     if a.lenh == "tao-anh":
         tao_anh()
+        return 0
+    if a.lenh == "xuat":
+        xuat()
         return 0
     rows = chay()
     ghi_bao_cao(rows)

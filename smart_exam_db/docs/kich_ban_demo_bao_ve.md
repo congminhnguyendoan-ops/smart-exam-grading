@@ -68,7 +68,8 @@ Khớp 10/10; 0 câu chấm sai mà không gắn cần xem. Câu tô hai ô: GV 
 3. Điện thoại nối **cùng Wi‑Fi**; trên máy tính bấm **📱 Kết nối điện thoại** → quét QR → đăng nhập. Hộp thoại báo vàng "chỉ nghe 127.0.0.1" = đang chạy nhầm `uvicorn` thường.
 
 **Diễn tập trên kỳ thi TẬP, KHÔNG trên 1380 / 1381**: **1632** "Giữa kỳ Cơ sở dữ liệu – K22A [DEMO-BV-TẬP]" (gv_an) và **1633** "… K22B [DEMO-BV-TẬP]" (gv_binh) – cùng đáp án, môn,
-lớp, danh sách dự thi như E1 / E2. Đã có 21 phiếu thử của công cụ giả lập (27/10): chụp lại đúng tệp ảnh đó sẽ báo "ảnh đã tải trước đó"; ảnh chụp mới từ điện thoại luôn có SHA khác.
+lớp, danh sách dự thi như E1 / E2. **Đang trống** (21 phiếu thử của công cụ giả lập đã được xoá 27/10 theo đồng ý của người dùng, kèm 221 tệp ảnh).
+Ảnh dự phòng để tải tay: `data/_eval/demo_bv/anh_gia/BV01.jpg … BV10.jpg` + `README.txt` (`python tools/thu_bo_demo.py xuat`). Lệnh chạy server / tài khoản: `docs/chay_server_va_tai_khoan.md`.
 Diễn tập không cần điện thoại: `python tools/thu_dien_thoai.py chay` (ROLLBACK, không ghi gì).
 
 **Trình tự trong buổi bảo vệ** (chèn sau bước 3 của mục 3, thay cho "Tải ảnh & chấm" trên máy tính):
