@@ -27,6 +27,9 @@ Thiết kế + kết quả chi tiết: `docs/thiet_ke_chup_dien_thoai.md` (mục
   answer_sheets 21, sheet_answers 800, review_queue 20, ocr_digits 180, results 0, score_audit_logs 0 → kiểm lại: 1632 / 1633 / 1380 / 1381 đều 0 phiếu; vân tay 13 bảng (loại dòng đã xoá)
   giống hệt trước → xoá 221 tệp ảnh (đường dẫn lấy từ chính các dòng vừa xoá, chỉ trong `storage/`). 5 ảnh của exam 115 `[THU]` giữ nguyên (người dùng chọn giữ; chạy với `--khong-xoa-anh`).
 - Ảnh dự phòng `data/_eval/demo_bv/anh_gia/` (`thu_bo_demo.py xuat`); hướng dẫn lệnh nguyên văn: `docs/chay_server_va_tai_khoan.md`.
+- **Chụp LIÊN TỤC (lệnh M, 27/10)**: hàng đợi gửi nền tối đa 2 song song (`frontend/m_hang_doi.js`, 6 test Node), không chờ kết quả tờ trước; Gửi lại / Chụp lại / Chọn nhiều ảnh.
+  Đo (ROLLBACK, giả lập Pixel 7, loopback): camera 20 tờ mỗi 2 s → tổng 39,5 s, mỗi tờ p50 0,79 / p95 0,83 s, 0 lỗi; chọn nhiều 20 tờ → 10,4 s. pytest 377 đạt + 1 skip; hồi quy 56/56.
+  Chi tiết `docs/thiet_ke_chup_dien_thoai.md` mục 9. Camera trực tiếp (getUserMedia, cần HTTPS): `docs/khao_sat_camera_truc_tiep.md` – KHÔNG làm trước bảo vệ.
 
 ## 5. Yêu cầu 5 – chấm đủ 40 câu: bộ demo bảo vệ [DEMO-BV] (nhánh `cai-tien-b`, 27/10/2026) – XONG
 Kịch bản demo: `docs/kich_ban_demo_bao_ve.md`. Nguồn: `answer_sheet/demo_bv/` (commit `5a46d89`); công cụ `tools/kiem_bo_demo.py`, `tools/nap_bo_demo.py` (`7d8bfed`), `tools/thu_bo_demo.py` (`5f07ff7`).

@@ -79,6 +79,22 @@ trong "Đã xoá gần đây" (iPhone) / "Thùng rác" (Android). (Trên vài m�
 - **Lượt dọn đầu tiên trên CSDL hiện tại** (xem trước 27/10, `python -m backend.don_anh`, chỉ đọc): 12 phiếu – 9 phiếu seed kỳ thi 1 (tệp không có trên đĩa → chỉ đánh dấu)
   và 3 phiếu kỳ thi `[THU] Kiểm giao diện F1-F4` (exam 115, **5 tệp thật** = bản sao ảnh dev; `data/raw` không bị đụng). Muốn giữ: chạy `chay_server_lan.py --khong-xoa-anh`.
 
+## 9. Chụp LIÊN TỤC (lệnh M, 27/10/2026) – thay luồng "chụp → chờ → Chụp tiếp" ở mục 2
+- `frontend/m_hang_doi.js` (thuần logic, test Node `tests/js/hang_doi.test.js`): mỗi tờ chụp xong vào hàng, gửi nền **tối đa 2 yêu cầu song song** (cùng API
+  `POST /exams/{id}/sheets`), không chặn chụp tờ kế; lỗi mạng GIỮ ảnh để "Gửi lại"; 401 tạm dừng rồi gửi tiếp sau khi đăng nhập lại; ảnh trùng không tính, không lặp dòng;
+  tờ bị từ chối "Chụp lại" giữ số tờ. Ảnh đã có kết quả được giải phóng khỏi bộ nhớ điện thoại.
+- Giao diện: nút "📷 Chụp tiếp · Tờ N/tổng" cố định ở đáy; ô "Tổng số tờ" (mặc định 40); khối tổng kết dính đầu (đã chụp / chấm được / cần xem / từ chối / đang chờ, lỗi, trùng) +
+  đường dẫn duyệt trên máy tính; danh sách tờ theo thứ tự chụp (đang gửi % / đang chấm / cần xem N câu / bị từ chối / lỗi mạng; tên + SBD + điểm TẠM + cảnh báo);
+  "Chọn nhiều ảnh" (input multiple, không capture). Danh sách vẽ TỪNG DÒNG (ô "Chụp lại" không bị thay giữa lúc camera đang mở). Rời trang khi còn tờ chờ → hỏi lại.
+- Đo (`python tools/thu_dien_thoai.py chay`, ROLLBACK, giả lập Pixel 7, ảnh 3024×4032 ~2,3 MB, loopback – chưa gồm Wi‑Fi; kỳ thi gộp 4 mã đề trong giao dịch):
+  | Kịch bản | Tờ | Tổng | Xử lý mỗi tờ p50 / p95 | Chụp → kết quả p50 / p95 / max | Lỗi |
+  |---|---|---|---|---|---|
+  | B. Camera, mỗi 2 s một tờ (không chờ) | 20 | 39,5 s (chụp xong tờ 20 sau 40,7 s) | 0,79 / 0,83 s | 0,79 / 0,83 / 0,85 s | 0 |
+  | A. "Chọn nhiều ảnh" 20 tờ một lần | 20 | 10,4 s | 1,04 / 1,09 s | 5,7 / 10,4 / 10,4 s (xếp hàng) | 0 |
+  Lỗi mạng (2 tờ, ngắt mạng) → Gửi lại: 2/2 chấm được ở lần gửi thứ 2. Ảnh trắng → từ chối → Chụp lại (giữ số tờ) → chấm được. Ảnh trùng: tổng "chấm được" không đổi, "trùng" +1, không thêm dòng.
+  Vân tay CSDL 15 bảng giống hệt trước / sau. Ảnh: `data/_eval/ui_m/lien_tuc/` (01–11), số đo `thoi_gian.json`.
+- Camera trực tiếp (getUserMedia, tự bắt khung): khảo sát `docs/khao_sat_camera_truc_tiep.md` – KHÔNG làm trước buổi bảo vệ.
+
 ## 8. Kết quả (27/10/2026)
 - **Migration 003 ĐÃ ÁP** (người dùng đồng ý; sao lưu trước `data/_backup/smart_exam_20261027_184231_truoc_003.dump`, `pg_restore -l` đọc được). Chạy lại: "không có migration mới".
   Vân tay dòng cũ 15 bảng giống hệt trước khi áp; 31 phiếu cũ `image_deleted_at = NULL`.

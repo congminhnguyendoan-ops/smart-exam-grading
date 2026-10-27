@@ -70,14 +70,14 @@ Khớp 10/10; 0 câu chấm sai mà không gắn cần xem. Câu tô hai ô: GV 
 **Diễn tập trên kỳ thi TẬP, KHÔNG trên 1380 / 1381**: **1632** "Giữa kỳ Cơ sở dữ liệu – K22A [DEMO-BV-TẬP]" (gv_an) và **1633** "… K22B [DEMO-BV-TẬP]" (gv_binh) – cùng đáp án, môn,
 lớp, danh sách dự thi như E1 / E2. **Đang trống** (21 phiếu thử của công cụ giả lập đã được xoá 27/10 theo đồng ý của người dùng, kèm 221 tệp ảnh).
 Ảnh dự phòng để tải tay: `data/_eval/demo_bv/anh_gia/BV01.jpg … BV10.jpg` + `README.txt` (`python tools/thu_bo_demo.py xuat`). Lệnh chạy server / tài khoản: `docs/chay_server_va_tai_khoan.md`.
-Diễn tập không cần điện thoại: `python tools/thu_dien_thoai.py chay` (ROLLBACK, không ghi gì).
+Diễn tập không cần điện thoại: `python tools/thu_dien_thoai.py chay` (chụp liên tục, ROLLBACK, không ghi gì). Có ảnh sẵn trong máy: "Chọn nhiều ảnh" đưa cả loạt vào hàng đợi.
 
 **Trình tự trong buổi bảo vệ** (chèn sau bước 3 của mục 3, thay cho "Tải ảnh & chấm" trên máy tính):
 | # | Điện thoại | Máy tính (màn chiếu) |
 |---|---|---|
 | a | Mở `/m` bằng QR, đăng nhập `gv_an`, chọn "Giữa kỳ Cơ sở dữ liệu – K22A [DEMO-BV]" | "Danh sách phiếu" của kỳ thi đó đang mở |
-| b | **📷 Chụp phiếu** (camera gốc) → "Đang chấm…" → thẻ: tên SV, **điểm TẠM**, số câu cần xem | ≤ 4 s sau phiếu tự hiện, nhãn "mới" + thông báo – KHÔNG chép file, không tải lại trang |
-| c | **Chụp tiếp** BV02 … BV05 | Bấm **Duyệt** từng phiếu (màn lớn) → điểm chính thức |
+| b | (Tuỳ chọn) nhập "Tổng số tờ"; **📷 Chụp tiếp · Tờ 1/…** (camera gốc) → chụp ngay tờ kế, KHÔNG chờ: danh sách hiện "đang gửi / đang chấm / cần xem N câu" + tên, SBD, **điểm TẠM** | ≤ 4 s sau phiếu tự hiện, nhãn "mới" + thông báo – KHÔNG chép file, không tải lại trang |
+| c | Chụp liền BV02 … BV05 (mỗi tờ vài giây); tờ bị từ chối có nút "Chụp lại tờ N", rớt mạng có "Gửi lại" | Bấm **Duyệt** từng phiếu (màn lớn) → điểm chính thức |
 | d | Đăng xuất, đăng nhập `gv_binh`; chụp BV07 → cảnh báo "tô nhạt cả tờ"; BV10 → "SBD … không có trong danh sách" | như bước 9–10 mục 3 |
 Cảnh báo / thông điệp điện thoại có thể hiện: ảnh bị từ chối + lời khuyên chụp lại; "ảnh này đã tải trước đó"; "mất kết nối / quá thời gian chờ"; "phiên đăng nhập đã hết".
 

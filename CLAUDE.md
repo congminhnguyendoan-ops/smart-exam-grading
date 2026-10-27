@@ -301,12 +301,14 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   `--khong-xoa-anh`, `--chi-in`). Tường lửa (người dùng TỰ chạy, PowerShell quản trị; KHÔNG BAO GIỜ tự chạy lệnh mạng / tường lửa):
   `New-NetFirewallRule -DisplayName "SmartExam-8000-LAN" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Public,Private -RemoteAddress LocalSubnet` · xoá sau demo:
   `Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"` (Wi‑Fi máy người dùng ở hồ sơ Public). Wi‑Fi chặn thiết bị → hotspot điện thoại.
-  Giả lập: `python tools/thu_dien_thoai.py tao-anh | chay` (Pixel 7, ROLLBACK mặc định; `--ky-thi-tap 1632 1633 --ghi-that` chỉ trên TẬP) → `data/_eval/ui_m/`. CHƯA thử điện thoại thật.
+  **Chụp LIÊN TỤC** (lệnh M): `frontend/m_hang_doi.js` (hàng đợi thuần logic, tối đa 2 song song, Gửi lại / Chụp lại / ảnh trùng / 401 tạm dừng; test `node --test tests/js/hang_doi.test.js`,
+  pytest gọi qua `test_dien_thoai.py`) + nút "Chụp tiếp · Tờ N/tổng", "Chọn nhiều ảnh". Giả lập: `python tools/thu_dien_thoai.py tao-anh | chay` (Pixel 7, CHỈ ROLLBACK, kỳ thi gộp trong
+  giao dịch) → `data/_eval/ui_m/lien_tuc/`. CHƯA thử điện thoại thật. Camera trực tiếp getUserMedia (cần HTTPS): chỉ khảo sát `docs/khao_sat_camera_truc_tiep.md`, không làm trước bảo vệ.
 - **Ảnh tạm** (migration **003 ĐÃ ÁP** 27/10: `answer_sheets.image_deleted_at`): `backend/don_anh.py` xoá ảnh gốc + nắn + ô viết tay của phiếu `graded` / `rejected` sau `ANH_GIU_GIO` (24) giờ;
   giữ phiếu `needs_review` và kỳ thi `[DEMO…]` (`ANH_GIU_DEMO=1`); chỉ tệp trong `STORAGE_DIR`; API ảnh → 410. Luồng dọn chỉ chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật;
   `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Không có `--khong-xoa-anh` thì lượt đầu xoá 5 tệp của exam 115 `[THU]` (người dùng muốn GIỮ).
 - **Migration trong test / công cụ**: `migrate.chua_ap()` chỉ đọc; `migrate.TUY_CHON` (003) không chặn test; fixture `csdl_003`. `kiem_backend_dau_cuoi.py`, `eval_he_thong.py`, `thu_bo_demo.py`
-  chỉ KIỂM migration (trước 27/10 hai công cụ đầu tự áp). Nhánh này: **pytest 375 đạt + 1 skip có chủ đích**.
+  chỉ KIỂM migration (trước 27/10 hai công cụ đầu tự áp). Nhánh này: **pytest 377 đạt + 1 skip có chủ đích** (cây sạch; cây bẩn thì `test_eval_he_thong` đỏ / skip – không phải lỗi mã).
 
 ## 5. Cài đặt và chạy
 
