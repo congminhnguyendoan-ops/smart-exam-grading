@@ -74,9 +74,12 @@ def phien():
     from backend.config import lay_cau_hinh
     from backend.db import ket_noi
     from backend.main import app, get_cau_hinh, get_conn
-    migrate.ap_dung()
     cfg = replace(lay_cau_hinh(), storage_dir=Path(tempfile.mkdtemp(prefix="kho_dau_cuoi_")))
     conn = ket_noi()
+    chua = migrate.chua_ap(conn)                       # CHỈ KIỂM – công cụ không áp migration lên CSDL thật (sự cố 002)
+    if chua:
+        conn.close()
+        raise SystemExit(f"DỪNG: migration chưa áp {chua} – chạy python -m backend.migrate (người dùng quyết).")
 
     def _conn():
         yield conn

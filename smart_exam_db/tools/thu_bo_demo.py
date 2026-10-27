@@ -82,8 +82,8 @@ def chay() -> list[dict]:
     conn = ket_noi()
     rows = []
     try:
-        thieu = {f.name for f in (ROOT / "backend" / "migrations").glob("*.sql")} - \
-                {r["filename"] for r in conn.execute("SELECT filename FROM schema_migrations").fetchall()}
+        from backend import migrate
+        thieu = migrate.chua_ap(conn)
         if thieu:                                                  # chỉ KIỂM, không áp (quy tắc: công cụ / test không áp migration lên CSDL thật)
             raise SystemExit(f"DỪNG: migration chưa áp {sorted(thieu)} – chạy python -m backend.migrate (người dùng quyết).")
         ky_thi = {}
