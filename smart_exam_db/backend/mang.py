@@ -13,7 +13,7 @@ from dataclasses import dataclass
 CONG_MAC_DINH = 8000
 TU_KHOA_AO = ("vethernet", "wsl", "hyper-v", "docker", "virtualbox", "vmware", "vpn", "tap-", "tap ", "tun", "tailscale", "zerotier",
               "hamachi", "bluetooth", "loopback", "npcap")
-TEN_LUAT_TUONG_LUA = "Smart Exam {cong} (LAN)"
+TEN_LUAT_TUONG_LUA = "SmartExam-{cong}-LAN"
 
 
 @dataclass(frozen=True)
@@ -109,17 +109,12 @@ def qr_terminal(noi_dung: str) -> str:
 
 
 def lenh_tuong_lua(cong: int = CONG_MAC_DINH) -> dict[str, str]:
-    """Lệnh PowerShell (quản trị) – CHỈ để in cho người dùng tự chạy. Chỉ hồ sơ mạng Private."""
+    """Lệnh PowerShell (quản trị) – CHỈ để in cho người dùng tự chạy (chốt 27/10/2026). Hồ sơ Public + Private vì Wi‑Fi của người dùng là Public,
+    nhưng -RemoteAddress LocalSubnet: chỉ nhận kết nối từ CÙNG mạng con nội bộ, không mở ra Internet. Xoá luật sau buổi demo."""
     ten = TEN_LUAT_TUONG_LUA.format(cong=cong)
-    return {"mo": f'New-NetFirewallRule -DisplayName "{ten}" -Direction Inbound -Protocol TCP -LocalPort {cong} -Action Allow -Profile Private',
-            "kiem": f'Get-NetFirewallRule -DisplayName "{ten}" | Format-List DisplayName, Enabled, Profile, Action',
-            "ho_so": "Get-NetConnectionProfile | Format-List Name, InterfaceAlias, NetworkCategory",
+    return {"mo": f'New-NetFirewallRule -DisplayName "{ten}" -Direction Inbound -Protocol TCP -LocalPort {cong} -Action Allow '
+                  f'-Profile Public,Private -RemoteAddress LocalSubnet',
             "go": f'Remove-NetFirewallRule -DisplayName "{ten}"'}
-
-
-def lenh_doi_ho_so(card: str) -> str:
-    """Lệnh đổi hồ sơ mạng sang Private (CHỈ để in). Tên card lấy từ Get-NetConnectionProfile; dấu " bị loại để không phá chuỗi lệnh."""
-    return f'Set-NetConnectionProfile -InterfaceAlias "{card.replace(chr(34), "")}" -NetworkCategory Private'
 
 
 def dang_mo_lan() -> bool:

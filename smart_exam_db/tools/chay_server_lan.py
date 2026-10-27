@@ -3,7 +3,7 @@ chay_server_lan.py - Chạy máy chủ cho ĐIỆN THOẠI cùng mạng nội b�
 
 Tìm IP LAN → in địa chỉ trang điện thoại + mã QR ra terminal + lệnh tường lửa (CHỈ IN – bạn tự chạy bằng PowerShell quản trị) →
 chạy uvicorn backend.main:app --host 0.0.0.0. Bật luồng dọn ẢNH TẠM (ANH_XOA_TU_DONG=1) trừ khi --khong-xoa-anh.
-Không đổi cấu hình hệ thống; chỉ ĐỌC hồ sơ mạng (Get-NetConnectionProfile) để cảnh báo khi Wi‑Fi đang là "Public".
+Không đổi cấu hình hệ thống (không chạy lệnh tường lửa / mạng nào).
 
   python tools/chay_server_lan.py                 # cổng 8000
   python tools/chay_server_lan.py --cong 8080 --khong-xoa-anh
@@ -12,7 +12,6 @@ Thường (chỉ máy này, 127.0.0.1):  uvicorn backend.main:app --port 8000
 """
 import argparse
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -20,19 +19,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from backend import mang  # noqa: E402
-
-
-def ho_so_mang() -> list[tuple[str, str]]:
-    """[(card, Public|Private|DomainAuthenticated)] – CHỈ ĐỌC; lỗi / không phải Windows -> []."""
-    if os.name != "nt":
-        return []
-    try:
-        r = subprocess.run(["powershell", "-NoProfile", "-Command",
-                            "Get-NetConnectionProfile | ForEach-Object { $_.InterfaceAlias + '|' + $_.NetworkCategory }"],
-                           capture_output=True, text=True, timeout=15, encoding="utf-8", errors="replace")
-        return [tuple(x.strip().split("|", 1)) for x in r.stdout.splitlines() if "|" in x]
-    except (OSError, subprocess.SubprocessError):
-        return []
 
 
 def in_huong_dan(cong: int, xoa_anh: bool) -> str | None:
@@ -50,18 +36,13 @@ def in_huong_dan(cong: int, xoa_anh: bool) -> str | None:
     if url:
         print(f"\nĐIỆN THOẠI mở: {url}   (quét mã QR dưới đây)")
         print(mang.qr_terminal(url))
-    for card, loai in ho_so_mang():
-        if loai.strip().lower() == "public":
-            print(f"CẢNH BÁO: mạng '{card}' đang là Public – luật tường lửa dưới đây (chỉ Private) không áp dụng. "
-                  "Đổi sang Riêng tư (CHỈ với mạng bạn tin cậy): Cài đặt → Mạng & Internet → Wi‑Fi → (tên mạng) → Loại hồ sơ mạng: Riêng tư, hoặc (PowerShell quản trị):")
-            print("  " + mang.lenh_doi_ho_so(card))
     lt = mang.lenh_tuong_lua(cong)
-    print("Tường lửa – chạy MỘT LẦN trong PowerShell (Run as Administrator), chỉ cho mạng Riêng tư:")
+    print("Tường lửa – BẠN tự chạy MỘT LẦN trong PowerShell (Run as Administrator); công cụ này KHÔNG chạy:")
     print("  " + lt["mo"])
-    print("  Kiểm tra: " + lt["kiem"])
-    print("  Gỡ khi không dùng: " + lt["go"])
-    print("Wi‑Fi trường chặn thiết bị nói chuyện với nhau? Bật điểm phát sóng trên điện thoại (máy tính nối vào) hoặc Mobile hotspot của Windows,")
-    print("rồi chạy lại công cụ này để lấy IP mới.")
+    print("  Chỉ nhận kết nối từ CÙNG mạng nội bộ (LocalSubnet), không mở ra Internet. Xoá luật sau buổi demo:")
+    print("  " + lt["go"])
+    print("Wi‑Fi trường chặn thiết bị nói chuyện với nhau (QR mở không được dù đúng IP)? Bật điểm phát sóng (hotspot) trên điện thoại,")
+    print("máy tính nối vào đó, rồi chạy lại công cụ này để lấy IP mới.")
     print(f"Ảnh tạm: {'XOÁ ảnh của phiếu đã chốt sau ANH_GIU_GIO giờ (mặc định 24)' if xoa_anh else 'KHÔNG tự xoá (--khong-xoa-anh)'}.")
     print("Máy tính: http://127.0.0.1:%d/  ·  Dừng máy chủ: Ctrl+C" % cong)
     print("=" * 72)

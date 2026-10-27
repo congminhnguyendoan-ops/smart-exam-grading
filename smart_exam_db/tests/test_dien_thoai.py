@@ -89,10 +89,10 @@ def test_qr_va_lenh_tuong_lua():
     import segno
     assert segno.make(url, error="m").designator                             # mã hoá được
     assert "█" in mang.qr_terminal(url) or "▀" in mang.qr_terminal(url)
-    lt = mang.lenh_tuong_lua(8000)
-    assert "-LocalPort 8000" in lt["mo"] and "-Profile Private" in lt["mo"] and "Public" not in lt["mo"] and "Any" not in lt["mo"]
-    assert lt["go"].startswith("Remove-NetFirewallRule")
-    assert mang.lenh_doi_ho_so('Wi"Fi') == 'Set-NetConnectionProfile -InterfaceAlias "WiFi" -NetworkCategory Private'
+    lt = mang.lenh_tuong_lua(8000)                                           # đúng nguyên văn người dùng chốt 27/10/2026
+    assert lt["mo"] == ('New-NetFirewallRule -DisplayName "SmartExam-8000-LAN" -Direction Inbound -Protocol TCP -LocalPort 8000 '
+                        '-Action Allow -Profile Public,Private -RemoteAddress LocalSubnet')
+    assert lt["go"] == 'Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"'
 
 
 def test_mac_dinh_khong_mo_lan_khong_don_anh(monkeypatch):
@@ -108,10 +108,10 @@ def test_chay_server_lan_chi_in_khong_chay(capsys):
     import sys
     sys.path.insert(0, str(ROOT / "tools"))
     import chay_server_lan as C
-    C.ho_so_mang = lambda: [("Wi-Fi", "Public")]                              # không gọi PowerShell trong test
     C.in_huong_dan(8000, True)
     out = capsys.readouterr().out
-    assert "New-NetFirewallRule" in out and "-Profile Private" in out and "Set-NetConnectionProfile" in out and "Public" in out
+    lt = mang.lenh_tuong_lua(8000)
+    assert lt["mo"] in out and lt["go"] in out and "LocalSubnet" in out and "Set-NetConnectionProfile" not in out
 
 
 # ------------------------------------------------------------------------------------------------ dọn ảnh tạm: phần tệp (thư mục tạm, không CSDL)

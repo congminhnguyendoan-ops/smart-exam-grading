@@ -505,8 +505,8 @@ async function moKetNoi() {
         <li>Mở camera điện thoại, quét mã QR (hoặc gõ địa chỉ trên vào trình duyệt).</li>
         <li>Đăng nhập → chọn kỳ thi → bấm <b>Chụp phiếu</b>. Phiếu mới tự hiện ở "Danh sách phiếu" trên máy tính.</li></ol>
       ${khac.length ? `<p class="small muted">Địa chỉ khác (nếu mã trên không vào được): ${khac.map((u) => `<code>${esc(u.url)}</code> (${esc(u.card)}${u.ao ? ", card ảo" : ""}${u.hotspot ? ", điểm phát sóng" : ""})`).join(" · ")}</p>` : ""}
-      <p class="small muted">Không vào được dù cùng Wi‑Fi: tường lửa Windows chưa mở cổng ${k.cong} cho mạng Riêng tư, hoặc Wi‑Fi chặn thiết bị nói chuyện với nhau
-        → dùng điểm phát sóng của điện thoại hoặc của máy tính (xem <code>docs/thiet_ke_chup_dien_thoai.md</code> mục 4).</p>`;
+      <p class="small muted">Không vào được dù cùng Wi‑Fi: tường lửa Windows chưa mở cổng ${k.cong} (lệnh in ra khi chạy <code>tools/chay_server_lan.py</code>),
+        hoặc Wi‑Fi chặn thiết bị nói chuyện với nhau → dùng điểm phát sóng (hotspot) của điện thoại (xem <code>docs/thiet_ke_chup_dien_thoai.md</code> mục 4).</p>`;
   } catch (e) { if (!e.dangNhap) body.innerHTML = `<div class="alert bad">${esc(e.message)}</div>`; }
 }
 $("#ket-noi-dt").addEventListener("click", moKetNoi);
