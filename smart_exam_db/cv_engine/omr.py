@@ -11,6 +11,7 @@ Các khâu:
   2. dac_trung_o()  – đặc trưng từng ô (tương đối quanh ô, trong hàng, trong ảnh; tuyệt đối; kết cấu). Không dùng nhãn.
   3. mô hình        – JSON trong models/ (hồi quy logistic: chuẩn hoá + softmax, chỉ cần NumPy; hoặc ngưỡng cố định M0).
   4. luật ô -> câu / cột + "cần xem" (ap_luat_cau, ap_luat_cot).
+  6. luật mức tờ 'to_nhat' (them_to_nhat, 28/10/2026) – trung vị ld của ô "rõ chắc" cả tờ < 0,44 -> mọi câu đã chọn cần xem (chỉ cộng cờ).
   5. luật phụ 'vet_nho' (vet_nho_px, 27/10/2026) – ô KHÔNG được chọn mà có khối tối đặc ≥ 90 px -> câu cần xem (chỉ cộng cờ).
 
 Lúc chạy chỉ cần NumPy + OpenCV + JSON (scikit-learn chỉ dùng trong tools/huan_luyen_omr.py).
@@ -420,6 +421,23 @@ def them_vet_nho(cau: "KetQuaCau", vet: np.ndarray, options=("A", "B", "C", "D")
     return replace(cau, can_xem=True, ly_do=cau.ly_do + ("vet_nho",))
 
 
+# ------------------------------------------------------------------------------------------------ luật mức tờ 'to_nhat'
+TO_NHAT_X = 0.44            # T = trung vị ld của ô "rõ chắc" cả tờ < 0,44 -> phiếu tô nhạt cả tờ. Dev: T thật min 0,467 (56 ảnh); tờ giả xám 150 = 0,412
+TO_NHAT_N = 10              # cần ≥ 10 ô "rõ chắc" mới đánh giá được (dev: n min 19)                       (docs/ke_hoach_cai_tien_27-10.md mục 6.6)
+
+
+def them_to_nhat(cau: tuple, cau_dt: np.ndarray, options=("A", "B", "C", "D")) -> tuple:
+    """(cau mới, to_nhat, T). T = trung vị ld (cột 0 của đặc trưng) của ô đáp án các câu "rõ chắc" (1 ô, không cờ); nan khi n < TO_NHAT_N.
+    to_nhat: mọi câu có ≥ 1 ô được chọn thêm can_xem + 'to_nhat'. KHÔNG đổi trạng thái / đáp án."""
+    ld = [float(cau_dt[k.cau - 1, options.index(k.dap_an), 0]) for k in cau if k.trang_thai == "ro" and not k.can_xem and len(k.dap_an) == 1]
+    if len(ld) < TO_NHAT_N:
+        return cau, False, float("nan")
+    T = float(np.median(ld))
+    if T >= TO_NHAT_X:
+        return cau, False, T
+    return tuple(k if (not k.dap_an or "to_nhat" in k.ly_do) else replace(k, can_xem=True, ly_do=k.ly_do + ("to_nhat",)) for k in cau), True, T
+
+
 # ------------------------------------------------------------------------------------------------ luật ô -> câu / cột
 MA_LY_DO_OMR = {
     "o_mo": "Ô được tô mờ – kiểm tra thí sinh có chọn đáp án / chữ số này không.",
@@ -427,6 +445,7 @@ MA_LY_DO_OMR = {
     "khong_o_nao": "Cột chữ số không tô ô nào – nhập chữ số bằng tay.",
     "tin_cay_thap": "Máy không chắc ô nào được tô (vết tô sát ngưỡng) – kiểm tra bằng mắt.",
     "vi_tri": "Không xác định chắc vị trí hàng / cột trên ảnh (giấy cong, lệch) – kiểm tra bằng mắt hoặc chụp lại.",
+    "to_nhat": "Phiếu tô nhạt cả tờ – nên kiểm tra lại các câu đã chọn.",
     "vet_nho": "Có vết tối nhỏ trong một ô không được chọn (chấm bút, vết bẩn) – kiểm tra thí sinh có ý chọn ô đó không.",
 }
 TRANG_THAI_DB = {"trong": "blank", "ro": "filled", "mo": "faint", "nhieu": "multiple"}   # -> ENUM bubble_state
@@ -524,6 +543,8 @@ class KetQuaOMR:
     nguon_anh: str                             # 'anh_nan' | 'anh_chuan_hoa'
     phien_ban_mo_hinh: str                     # -> ml_models
     thoi_gian_ms: float
+    to_nhat: bool = False                      # cảnh báo mức phiếu: tô nhạt cả tờ (them_to_nhat)
+    do_toi_to: float = float("nan")            # T: trung vị ld của ô "rõ chắc" (nan khi < TO_NHAT_N ô)
 
 
 def doc_phieu(kq, layout: dict, mo_hinh: dict | None = None, mau: np.ndarray | None = None) -> KetQuaOMR:
@@ -547,6 +568,7 @@ def doc_phieu(kq, layout: dict, mo_hinh: dict | None = None, mau: np.ndarray | N
     cau = tuple(them_vet_nho(k, np.array([vet_nho_px(anh, ans["centers"][str(q + 1)][o][0] + dv.dich[f"q{q + 1}"][0],
                                                       ans["centers"][str(q + 1)][o][1] + dv.dich[f"q{q + 1}"][1], r_o)
                                            for o in opts]), opts) for q, k in enumerate(cau))
+    cau, to_nhat, T_to = them_to_nhat(cau, cau_dt, opts)
     cot, c = {}, 0
     for kh, truong in TRUONG_KHOI.items():
         cot[kh] = []
@@ -562,4 +584,4 @@ def doc_phieu(kq, layout: dict, mo_hinh: dict | None = None, mau: np.ndarray | N
         sbd_can_xem=any(x.can_xem for x in cot["sbd"]), ma_de_can_xem=any(x.can_xem for x in cot["ma_de"]),
         dich_chuyen_mm={k: (round(v[0] * k_mm, 3), round(v[1] * k_mm, 3)) for k, v in dv.dich.items()},
         nguon_anh=mo_hinh["nguon_anh"], phien_ban_mo_hinh=mo_hinh.get("phien_ban", ""),
-        thoi_gian_ms=round((time.perf_counter() - t0) * 1000, 1))
+        thoi_gian_ms=round((time.perf_counter() - t0) * 1000, 1), to_nhat=to_nhat, do_toi_to=T_to)

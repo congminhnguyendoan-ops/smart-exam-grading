@@ -158,3 +158,42 @@ def test_phieu_trang_khong_gan_co_vet_nho(mo_hinh):
     anh = omr.nap_mau().copy()
     kq = omr.doc_phieu(SimpleNamespace(ok=True, anh_nan=anh, anh_chuan_hoa=anh), L, mo_hinh).cau
     assert not any("vet_nho" in k.ly_do for k in kq)
+
+
+# ------------------------------------------------------------------------------------------------ luật mức tờ 'to_nhat'
+def _doc_to(mo_hinh, cases, nen=None):
+    """Như doc() nhưng trả cả KetQuaOMR; các câu sau `cases` tô ô C ở xám `nen` (None = bỏ trống)."""
+    cases = list(cases) + [({"C": nen} if nen is not None else {})] * (40 - len(cases))
+    anh = omr.nap_mau().copy()
+    for q, cs in enumerate(cases, 1):
+        for o, g in cs.items():
+            cx, cy = ANS["centers"][str(q)][o]
+            cv2.circle(anh, (int(round(cx)), int(round(cy))), int(round(0.85 * R)), int(g), -1)
+    return omr.doc_phieu(SimpleNamespace(ok=True, anh_nan=anh, anh_chuan_hoa=anh), L, mo_hinh)
+
+
+@pytest.mark.parametrize("xam", [150, 190])
+def test_to_nhat_ca_to_xam_nhat_moi_cau_da_chon_can_xem(mo_hinh, xam):
+    res = _doc_to(mo_hinh, [{"ABCD"[q % 4]: xam} for q in range(40)])
+    assert res.to_nhat and res.do_toi_to < omr.TO_NHAT_X
+    assert all(k.can_xem and "to_nhat" in k.ly_do for k in res.cau)
+    assert all((k.trang_thai, k.dap_an) == ("ro", "ABCD"[q % 4]) for q, k in enumerate(res.cau))      # chỉ cộng cờ
+
+
+@pytest.mark.parametrize("xam", [30, 60, 80])
+def test_to_nhat_to_dam_khong_co(mo_hinh, xam):
+    res = _doc_to(mo_hinh, [{"ABCD"[q % 4]: xam} for q in range(40)])
+    assert not res.to_nhat and not any("to_nhat" in k.ly_do or k.can_xem for k in res.cau)
+
+
+@pytest.mark.parametrize("nen,vet", [(150, 170), (150, 190), (190, 190), (190, 210)])
+def test_to_nhat_vet_lac_tren_to_nhat_co_co(mo_hinh, nen, vet):
+    """Tờ nhạt + vệt lạc 1 ô ở câu 1: trước luật mức tờ vệt 170 / 190 là 'rõ chắc' không cờ."""
+    res = _doc_to(mo_hinh, [{"A": vet}], nen)
+    assert res.to_nhat and res.cau[0].can_xem and "to_nhat" in res.cau[0].ly_do
+
+
+def test_to_nhat_it_o_ro_chac_khong_danh_gia(mo_hinh):
+    """Dưới TO_NHAT_N ô 'rõ chắc' thì không kết luận (không đủ dữ liệu): 5 câu xám 150, còn lại bỏ trống."""
+    res = _doc_to(mo_hinh, [{"A": 150}] * 5)
+    assert not res.to_nhat and omr.np.isnan(res.do_toi_to)
