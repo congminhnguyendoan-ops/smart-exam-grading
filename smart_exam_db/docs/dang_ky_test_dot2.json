@@ -1,0 +1,75 @@
+{
+ "ngay": "2026-10-28",
+ "mo_ta": "ĐĂNG KÝ TRƯỚC test hệ thống đợt 2 (phiếu 0101–0110); viết khi CHƯA có ảnh đợt 2 nào. Kế hoạch: docs/ke_hoach_test_dot2.md",
+ "tag_ma_khoa": "ma-dot2-dong-bang-v3",
+ "ma_commit": "25436473542a24688bced376fb9d0ba004eadfca",
+ "sha256": {
+  "smart_exam_db/models/omr_m1.json": "F8F87577B42E28741DEF10BB9D42F4B6E937E6E3B37C025C5E63B8D8C81C60AF",
+  "smart_exam_db/models/ocr_cnn.json": "6D87205C83A29FCCC4EB450F0AEC0C9D51BA56E1BB141664060041AB0F2FCAD5",
+  "smart_exam_db/answer_sheet/output/layout.json": "A35CCB7E259F5F7A30355D85D79BA4EF267A0D465F29C09B8FD05906CFC0ECBD",
+  "smart_exam_db/answer_sheet/output/phieu_trang_300dpi.png": "7B7DB1A95344564A95460AF9C076ED74833E75583FC117028F83BB86E1BBF30F",
+  "smart_exam_db/cv_engine/preprocessing.py": "651F14FA720714FE4F3FF218694B296F66840DBF4C848A8B06B26B0060FE4352",
+  "smart_exam_db/cv_engine/omr.py": "7E508FAD51FFDE2C8E9F278F27AF38F63D7C700623B17F0132045D17C7A6027C",
+  "smart_exam_db/cv_engine/ocr.py": "62618C2ACEA0C80F863E22E91E4EBBFC2C5691FEBF020FA5B6FAB39D0D8B0151",
+  "smart_exam_db/cv_engine/tap_du_lieu.py": "3F030B71ECE0B3117DB0465C2EBBE3CF1948911140DEB002F20A333D37FD9F01",
+  "smart_exam_db/backend/service.py": "AAF9D39A14E4DB3BCA5507BD038C8FE0B98117ED2671D2C386E43E4F035AB7AD",
+  "smart_exam_db/backend/schemas.py": "EE270729546126AC3BF153B208B739A6D347CB2D3B214E48C86F668F3EE5116C",
+  "smart_exam_db/tools/eval_dot2.py": "1FC023635074C3558056E1F922C144AF839ADD42263A535EBF626FB0C2A70A50",
+  "smart_exam_db/answer_sheet/dot2/ground_truth_dot2.csv": "AB1E1548942864A5A16721433F782B09C8C055AA667916228AB2807C6DAB2D23",
+  "smart_exam_db/answer_sheet/dot2/cell_labels_dot2.csv": "91EAEC9157DB4BD8C67FF573FAF24FE059D375FC1A28033F4FC9946D657E2621",
+  "smart_exam_db/docs/ke_hoach_test_dot2.md": "0815421E3F2253D7CEDAE0C98A4F21738826381D45B9BBB5D12856EF88BF1F1D",
+  "smart_exam_db/docs/dong_bang_ma_dot2.json": "6A8BCD4CAA87B434B488D2E336244ACC57AA874E6C92ECA54106C9C2D25657D0"
+ },
+ "tham_so": {
+  "vet_nho_N_px": 90,
+  "vet_nho_mo_k": 7,
+  "vet_nho_toi": 0.6,
+  "nhat_tuyet_doi_X": null,
+  "MO_MIN_anh_mo": 0.012,
+  "tau_khop_ocr": 0.5,
+  "S_SAN": 0.2,
+  "omr_phuong_an": "A: models/omr_m1.json (ro_min C2 = 0,5)",
+  "to_nhat_Xs": 0.44,
+  "to_nhat_n_min": 10
+ },
+ "tieu_chi_bat_buoc": {
+  "H1": "nắn ảnh sai mà không từ chối = 0 (mắt mù)",
+  "H2": "OMR lỗi nặng không cờ = 0 (câu + cột; gồm vết đọc thành đáp án chắc)",
+  "H3": "SBD / mã đề nhận mà sai = 0; 0107 SBD phải cần xem",
+  "H4": "chấm sai không cờ = 0; điểm tạm vi phạm = 0; tự chốt sai = 0",
+  "H5": "điểm chính thức sau giáo viên oracle đúng 20/20"
+ },
+ "chi_bao": [
+  "T3",
+  "T4",
+  "cần xem thừa (câu 1 đậm, trống)",
+  "tổng câu cần xem",
+  "F1 mờ cấp câu",
+  "theo loại câu / C1–C4 / phiếu / người viết",
+  "tỉ lệ vết gắn cờ (chấm ~1,5 mm)",
+  "kết quả 0105 và 0107",
+  "thời gian/ảnh"
+ ],
+ "du_doan": {
+  "H2_H5": "đạt cả (0 lỗi)",
+  "H3_0107": "2/2 ảnh SBD cần xem",
+  "H1": "0 nắn sai; 0–2 ảnh bị từ chối",
+  "T3": "85–95%",
+  "T4": "40–65%",
+  "cx_thua_cau_1_dam": "1–5%",
+  "cx_thua_cau_trong": "0–1 câu",
+  "tong_cau_can_xem": "51–58% (bắt buộc 205/400 = 51,25%)",
+  "vet_gan_co_cham_1_5mm": ">= 90%",
+  "F1_mo_cau": "0,80–0,95",
+  "0105": "0 lỗi nặng; to_nhat gắn ở >= 1/2 ảnh với xác suất ~60%; nếu T in [0,44; ~0,55] thì không gắn và có thể 0–10 lỗi nhẹ",
+  "thoi_gian_anh": "0,7–1,5 s"
+ },
+ "gioi_han": [
+  "10 phiếu / 20 ảnh; 5 người viết; ảnh điện thoại chụp tay; kỳ thi + đáp án mô phỏng",
+  "vet_nho: 90 px sát chấm bút bi ~1 mm (~110 px); đợt 2 dùng ~1,5 mm (~250 px)",
+  "to_nhat Xs = 0,44 chọn trên dev, chưa thử tờ nhạt thật",
+  "chạy MỘT LẦN; có lỗi thì ghi nguyên trạng, không chỉnh mã rồi đo lại; đổi mã về sau => đợt 2 thành dev, thu đợt 3"
+ ],
+ "lenh_chay_that": "python tools/eval_dot2.py run --xac-nhan-dot2 --xem (chỉ khi người dùng gõ 'chạy test đợt 2')",
+ "bo_sung": {}
+}
