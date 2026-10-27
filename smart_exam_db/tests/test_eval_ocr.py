@@ -1,5 +1,6 @@
 """Kiểm thử công cụ đánh giá độc lập tools/eval_ocr.py (Tuần 6 Phần C): chỉ dùng API công khai, khoá tập val, không đọc nhãn ngoài tập."""
 import ast
+import os
 import subprocess
 import sys
 
@@ -24,8 +25,9 @@ def test_eval_chi_dung_api_cong_khai():
 
 
 def test_val_bi_khoa_neu_khong_xac_nhan():
+    # Tiến trình con phải xuất UTF-8: thông báo có dấu "–"; mặc định cp1252 thì tiến trình cha giải mã UTF-8 lỗi, r.stderr = None
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "eval_ocr.py"), "run", "--tap", "val"], capture_output=True, text=True,
-                       encoding="utf-8", cwd=ROOT)
+                       encoding="utf-8", cwd=ROOT, env={**os.environ, "PYTHONUTF8": "1"})
     assert r.returncode != 0 and "val" in (r.stderr + r.stdout) and "xac-nhan-val" in (r.stderr + r.stdout)
 
 
