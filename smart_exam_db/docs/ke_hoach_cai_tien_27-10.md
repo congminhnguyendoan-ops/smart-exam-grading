@@ -185,3 +185,14 @@ Mở khoá để thêm `to_nhat` (mục 6.6), khoá lại: tag cục bộ `ma-do
 Từ tag v2: không sửa file hiện có của `cv_engine/`, `models/`, `backend/`, `answer_sheet/output/`, `docs/dong_bang_ma_dot2.json`; chỉ được thêm FILE MỚI vào `tools/`, `tests/`, `docs/`, `answer_sheet/dot2/` trước đăng ký.
 Nợ `nhat_tuyet_doi` theo từng ô (mục 6.4) vẫn KHÔNG cài; luật mức tờ thay thế một phần.
 
+### 7c. Phát hiện lỗi backend khi thử công cụ đợt 2 → khoá lại v3 (28/10/2026)
+**Lỗi**: `tools/eval_dot2.py run --thu-gia` (ảnh giả hoá, phiếu 0105) dừng với `RuntimeError: phiếu …: điểm Python 1,25 ≠ fn_grade_sheet 1,75 (cần xem còn lại 2)`.
+Nguyên nhân gốc: `backend/service.py` `LY_DO_OMR_CAU = {o_mo, tin_cay_thap, vi_tri}` – mã câu MỚI `vet_nho` (lệnh A) và `to_nhat` (lệnh này) chưa có trong tập. Khi mọi câu còn "cần xem"
+chỉ mang mã mới thì `danh_gia_phieu` không gom được lý do → coi là "hết lý do" → chốt an toàn ném `RuntimeError` (không ghi điểm sai, nhưng phiếu lẽ ra vào hàng đợi giáo viên lại gây lỗi 500).
+Không lộ ở lệnh A vì luật chưa từng gắn cờ câu nào trên 56 ảnh train. Sửa: thêm hai mã vào `LY_DO_OMR_CAU` (+ nhãn giao diện `frontend/app.js`, mô tả `schemas.py`) và test
+`tests/test_backend_ly_do_omr.py` (mọi mã lý do câu của `MA_LY_DO_OMR` phải được backend xử lý; thất bại trên mã cũ, đạt trên mã mới). Commit `1eb3444`.
+Đây là sửa BACKEND (phạm vi đóng băng) nên đóng băng v2 bị thay bằng **v3** (tag `ma-dot2-dong-bang-v3`); **vẫn TRƯỚC khi có bất kỳ ảnh đợt 2 nào** và không chỉnh theo dữ liệu nào.
+Đầu-cuối sau sửa: `kiem_backend_dau_cuoi.py` 0 câu chấm sai không cờ, điểm 56/56; pytest 274 đạt.
+Chạy thử công cụ trên ảnh giả hoá (`python tools/eval_dot2.py tao-gia` → `run --thu-gia --xem`, 20 ảnh): H2 / H3 / H4 / H5 = 0 lỗi, điểm cuối đúng 20/20; vết 60/60 gắn cờ; 0107 SBD "cần xem" (thieu_bubble) cả 2 ảnh;
+0105 mọi câu có ô được chọn đều có cờ. CHỈ là số tham chiếu của công cụ (ảnh vẽ phẳng, không chữ viết tay), không đưa vào tiêu chí.
+
