@@ -22,6 +22,7 @@ Mỗi ảnh đi 2 pha:
 import argparse
 import csv
 import json
+import os
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -31,6 +32,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+os.environ.setdefault("AUTH_MODE", "demo")      # công cụ chạy trong tiến trình: bỏ đăng nhập (backend: AUTH_MODE=on là mặc định)
 from cv_engine.tap_du_lieu import PHIEU_TRAIN, ma_phieu  # noqa: E402
 
 DATA = ROOT / "data"

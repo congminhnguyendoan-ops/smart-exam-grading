@@ -4,6 +4,7 @@ Test cần dữ liệu (data/ không có trong git) tự SKIP nếu thiếu file
 Chỉ dùng ảnh dev và ảnh giả tạo từ ảnh dev (data/_eval/_gia_v4); không đọc ảnh test 0035–0040.
 """
 import json
+import os
 import sys
 import warnings
 from pathlib import Path
@@ -14,6 +15,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent           # smart_exam_db/
 sys.path.insert(0, str(ROOT))
+os.environ["AUTH_MODE"] = "demo"      # test CŨ chạy không đăng nhập; test đăng nhập (test_dang_nhap.py) tự bật 'on' qua cấu hình
 
 ANSWER_SHEET_DIR = ROOT / "answer_sheet"
 DATA = ROOT / "data"

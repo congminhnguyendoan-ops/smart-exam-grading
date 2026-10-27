@@ -160,10 +160,10 @@ def tao_ky_thi(conn, d: dict, user_id: int) -> int:
         sub = conn.execute("INSERT INTO subjects (subject_code, subject_name) VALUES (%s, %s) RETURNING subject_id",
                            (d["subject_code"], d.get("subject_name") or d["subject_code"])).fetchone()
     exam_id = conn.execute(
-        "INSERT INTO exams (exam_title, subject_id, template_id, exam_date, duration_min, num_questions, max_score, pass_score, created_by) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING exam_id",
+        "INSERT INTO exams (exam_title, subject_id, template_id, exam_date, duration_min, num_questions, max_score, pass_score, created_by, class_id) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING exam_id",
         (d["exam_title"], sub["subject_id"], tpl["template_id"], d.get("exam_date"), d.get("duration_min"), n,
-         d.get("max_score", 10), d.get("pass_score", 5), user_id)).fetchone()["exam_id"]
+         d.get("max_score", 10), d.get("pass_score", 5), user_id, d.get("class_id"))).fetchone()["exam_id"]
     for c in codes:
         cid = conn.execute("INSERT INTO exam_codes (exam_id, code) VALUES (%s, %s) RETURNING exam_code_id",
                            (exam_id, c["code"])).fetchone()["exam_code_id"]
@@ -174,8 +174,8 @@ def tao_ky_thi(conn, d: dict, user_id: int) -> int:
 
 
 def doc_ky_thi(conn, exam_id: int) -> dict:
-    e = conn.execute("SELECT e.*, s.subject_code, s.subject_name FROM exams e JOIN subjects s USING (subject_id) "
-                     "WHERE e.exam_id = %s", (exam_id,)).fetchone()
+    e = conn.execute("SELECT e.*, s.subject_code, s.subject_name, c.class_code, c.class_name FROM exams e JOIN subjects s USING (subject_id) "
+                     "LEFT JOIN classes c ON c.class_id = e.class_id WHERE e.exam_id = %s", (exam_id,)).fetchone()
     if not e:
         raise KhongTimThay(f"Không có kỳ thi {exam_id}.")
     codes = []
@@ -189,15 +189,19 @@ def doc_ky_thi(conn, exam_id: int) -> dict:
                                 count(*) FILTER (WHERE status = 'rejected') AS bi_tu_choi
                          FROM answer_sheets WHERE exam_id = %s""", (exam_id,)).fetchone()
     return {"exam_id": e["exam_id"], "exam_title": e["exam_title"], "subject_code": e["subject_code"],
-            "subject_name": e["subject_name"], "exam_date": e["exam_date"], "num_questions": e["num_questions"],
+            "subject_name": e["subject_name"], "class_id": e["class_id"], "class_code": e["class_code"], "class_name": e["class_name"],
+            "exam_date": e["exam_date"], "num_questions": e["num_questions"],
             "max_score": e["max_score"], "pass_score": e["pass_score"], "codes": codes, "sheets": dict(th)}
 
 
-def ds_ky_thi(conn) -> list[dict]:
+def ds_ky_thi(conn, dieu_kien: str = "TRUE", tham_so: tuple = ()) -> list[dict]:
+    """`dieu_kien` + `tham_so` do phan_quyen.dieu_kien_ky_thi sinh (mệnh đề có tham số, KHÔNG nối dữ liệu người dùng)."""
     return conn.execute(
-        "SELECT e.exam_id, e.exam_title, e.num_questions, e.max_score, e.exam_date, "
+        "SELECT e.exam_id, e.exam_title, e.num_questions, e.max_score, e.exam_date, sj.subject_code, sj.subject_name, "
+        "e.class_id, c.class_code, c.class_name, "
         "(SELECT count(*) FROM answer_sheets a WHERE a.exam_id = e.exam_id) AS so_phieu "
-        "FROM exams e ORDER BY e.exam_id DESC").fetchall()
+        "FROM exams e JOIN subjects sj ON sj.subject_id = e.subject_id LEFT JOIN classes c ON c.class_id = e.class_id "
+        f"WHERE {dieu_kien} ORDER BY e.exam_id DESC", tham_so).fetchall()
 
 
 # ------------------------------------------------------------------------------------------------ lưu ảnh

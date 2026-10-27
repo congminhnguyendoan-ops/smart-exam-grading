@@ -1,10 +1,11 @@
 /* Smart Exam – giao diện demo (HTML + JS thuần, gọi API FastAPI cùng gốc). Màn hình: F1 tải ảnh, F2 danh sách phiếu,
-   F3 chi tiết phiếu, F4 duyệt câu cần xem + chốt SBD / mã đề, F5 bảng điểm + xuất Excel. Chưa có đăng nhập (nợ kỹ thuật). */
+   F3 chi tiết phiếu, F4 duyệt câu cần xem + chốt SBD / mã đề, F5 bảng điểm + xuất Excel; đăng nhập, Hồ sơ, Lớp của tôi.
+   Phiên đăng nhập là cookie HttpOnly do máy chủ đặt – KHÔNG lưu token ở localStorage (chỉ nhớ kỳ thi đang chọn). */
 "use strict";
 
 const $ = (s, r = document) => r.querySelector(s);
 const main = $("#main");
-const state = { examId: null, exams: [], exam: null, reasons: {} };
+const state = { examId: null, exams: [], exam: null, reasons: {}, me: null };
 
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (x) => (x === null || x === undefined ? "–" : Number(x).toFixed(2).replace(/\.00$/, ""));
@@ -41,10 +42,15 @@ function toast(msg, err = false) {
 }
 
 async function api(path, opts = {}) {
-  const r = await fetch(path, opts);
+  const { khongChuyen, ...fo } = opts;                 // khongChuyen: lỗi 401 của chính màn đăng nhập thì KHÔNG quay về đăng nhập
+  const r = await fetch(path, { credentials: "same-origin", ...fo });
   let body = null;
   try { body = await r.json(); } catch (_) { /* ảnh / rỗng */ }
   if (!r.ok) {
+    if (r.status === 401 && !khongChuyen) {
+      state.me = null; manDangNhap("Chưa đăng nhập hoặc phiên đã hết hạn – hãy đăng nhập lại.");
+      const e = new Error("Cần đăng nhập."); e.dangNhap = true; throw e;
+    }
     let d = body && body.detail;
     if (Array.isArray(d)) d = d.map((x) => x.msg).join("; ");
     throw new Error(d || `Lỗi ${r.status}`);
@@ -52,13 +58,14 @@ async function api(path, opts = {}) {
   return body;
 }
 const post = (p, data) => api(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+const patch = (p, data) => api(p, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
 const put = (p, data) => api(p, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
 
 /* ------------------------------------------------------------------ kỳ thi */
 async function napKyThi() {
   state.exams = await api("/exams");
   const sel = $("#exam-select");
-  sel.innerHTML = state.exams.map((e) => `<option value="${e.exam_id}">${esc(e.exam_title)} (${e.so_phieu} phiếu)</option>`).join("");
+  sel.innerHTML = state.exams.map((e) => `<option value="${e.exam_id}">${esc(e.subject_name)} – ${esc(e.class_code || "không lớp")} – ${esc(e.exam_title)} (${e.so_phieu} phiếu)</option>`).join("");
   let saved = null; try { saved = localStorage.getItem("examId"); } catch (_) { /* bỏ qua */ }
   state.examId = state.exams.some((e) => String(e.exam_id) === saved) ? Number(saved)
     : (state.exams.find((e) => e.exam_title.startsWith("[DEMO]")) || state.exams[state.exams.length - 1] || {}).exam_id || null;
@@ -68,7 +75,7 @@ async function napKyThi() {
 async function napChiTietKyThi() {
   state.exam = state.examId ? await api(`/exams/${state.examId}`) : null;
   const e = state.exam;
-  $("#exam-info").textContent = e ? `${e.num_questions} câu · ${e.max_score} điểm · mã đề ${e.codes.map((c) => c.code).join(", ")} · ` +
+  $("#exam-info").textContent = e ? `Môn ${e.subject_name} · lớp ${e.class_code || "(không gắn lớp)"} · ${e.num_questions} câu · ${e.max_score} điểm · mã đề ${e.codes.map((c) => c.code).join(", ")} · ` +
     `${e.sheets.tong} phiếu (${e.sheets.da_cham} chính thức, ${e.sheets.can_xem} cần xem, ${e.sheets.bi_tu_choi} từ chối)` : "Chưa có kỳ thi.";
   const n = $("#nav-count");
   n.textContent = e ? e.sheets.can_xem : ""; n.classList.toggle("hidden", !e || !e.sheets.can_xem);
@@ -86,16 +93,99 @@ async function route() {
   document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("on", a.dataset.r === (r === "sheet" ? "sheets" : r)));
   window.scrollTo(0, 0);
   try {
+    if (!state.me) { manDangNhap(); return; }
     if (!state.examId && ["upload", "sheets", "review", "results"].includes(r)) { main.innerHTML = '<div class="alert warn">Chưa có kỳ thi. Chạy <code>python tools/nap_demo.py</code> để nạp dữ liệu demo.</div>'; return; }
     if (r === "upload") await manUpload();
     else if (r === "sheets") await manDanhSach();
     else if (r === "sheet") await manChiTiet(Number(id));
     else if (r === "review") { if (id) await manDuyet(Number(id)); else await manHangDoi(); }
     else if (r === "results") await manBangDiem();
+    else if (r === "classes") { if (id) await manSinhVienLop(Number(id)); else await manLop(); }
+    else if (r === "profile") await manHoSo();
     else main.innerHTML = '<p class="muted">Không có trang này.</p>';
-  } catch (e) { main.innerHTML = `<div class="alert bad">${esc(e.message)}</div>`; }
+  } catch (e) { if (!e.dangNhap) main.innerHTML = `<div class="alert bad">${esc(e.message)}</div>`; }
 }
 window.addEventListener("hashchange", route);
+
+/* ------------------------------------------------------------------ đăng nhập / hồ sơ / lớp của tôi */
+const NHAN_VAI_TRO = { admin: "Quản trị viên", teacher: "Giáo viên", student: "Sinh viên" };
+function hienNguoiDung() {
+  const me = state.me;
+  $("#userbox").classList.toggle("hidden", !me);
+  document.body.classList.toggle("logged-out", !me);
+  if (me) { $("#u-name").textContent = me.full_name; $("#u-role").textContent = `${NHAN_VAI_TRO[me.role] || me.role} · ${me.username}`; }
+}
+function manDangNhap(thongBao) {
+  state.me = null; hienNguoiDung();
+  main.innerHTML = `<div class="card login"><h2>Đăng nhập</h2>
+    ${thongBao ? `<div class="alert warn">${esc(thongBao)}</div>` : ""}
+    <form id="f-login"><label>Tên đăng nhập<input type="text" id="lg-user" autocomplete="username" required></label>
+      <label>Mật khẩu<input type="password" id="lg-pass" autocomplete="current-password" required></label>
+      <button class="pri" type="submit">Đăng nhập</button><div id="lg-err" class="alert bad hidden"></div></form></div>`;
+  $("#f-login").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const btn = $("#f-login button"); btn.disabled = true;
+    try {
+      await api("/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, khongChuyen: true,
+        body: JSON.stringify({ username: $("#lg-user").value, password: $("#lg-pass").value }) });
+      await khoiDong();
+    } catch (e) { const er = $("#lg-err"); er.textContent = e.message; er.classList.remove("hidden"); btn.disabled = false; }
+  });
+}
+$("#logout").addEventListener("click", async () => {
+  try { await api("/auth/logout", { method: "POST", khongChuyen: true }); } catch (_) { /* bỏ qua */ }
+  state.examId = null; state.exams = []; state.exam = null;
+  manDangNhap("Đã đăng xuất.");
+});
+async function manHoSo() {
+  const me = await api("/me"); state.me = me; hienNguoiDung();
+  const ln = me.last_login_at ? new Date(me.last_login_at).toLocaleString("vi-VN") : "chưa có";
+  main.innerHTML = `<h2>Hồ sơ</h2><div class="card"><h3>Thông tin cá nhân</h3>
+      <dl class="kv"><dt>Tên đăng nhập</dt><dd>${esc(me.username)}</dd><dt>Vai trò</dt><dd>${esc(NHAN_VAI_TRO[me.role] || me.role)}</dd>
+        <dt>Đăng nhập gần nhất</dt><dd>${esc(ln)}</dd></dl>
+      <form id="f-ho-so" class="formcol"><label>Họ tên<input type="text" id="hs-ten" value="${esc(me.full_name)}" required></label>
+        <label>Email<input type="text" id="hs-mail" value="${esc(me.email)}" required></label>
+        <button class="pri" type="submit">Lưu thông tin</button></form></div>
+    <div class="card"><h3>Đổi mật khẩu</h3><form id="f-mk" class="formcol">
+        <label>Mật khẩu hiện tại<input type="password" id="mk-cu" autocomplete="current-password" required></label>
+        <label>Mật khẩu mới (tối thiểu 8 ký tự)<input type="password" id="mk-moi" autocomplete="new-password" required></label>
+        <button class="pri" type="submit">Đổi mật khẩu</button></form>
+      <p class="muted small">Sau khi đổi mật khẩu bạn cần đăng nhập lại.</p></div>`;
+  $("#f-ho-so").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try { state.me = await patch("/me", { full_name: $("#hs-ten").value, email: $("#hs-mail").value }); hienNguoiDung(); toast("Đã lưu thông tin."); }
+    catch (e) { toast(e.message, true); }
+  });
+  $("#f-mk").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try { await post("/me/password", { old_password: $("#mk-cu").value, new_password: $("#mk-moi").value }); manDangNhap("Đã đổi mật khẩu – hãy đăng nhập lại."); }
+    catch (e) { toast(e.message, true); }
+  });
+}
+async function manLop() {
+  const ds = await api("/me/classes");
+  main.innerHTML = `<h2>Lớp của tôi</h2><div class="card">${ds.length ? `<table><thead><tr><th>Mã lớp</th><th>Tên lớp</th><th>Năm học</th><th>Môn tôi dạy</th><th>Sinh viên</th></tr></thead><tbody>
+    ${ds.map((c) => `<tr class="row-link" data-id="${c.class_id}"><td><a href="#/classes/${c.class_id}">${esc(c.class_code)}</a></td><td>${esc(c.class_name)}</td>
+      <td>${esc(c.academic_year || "–")}</td><td>${c.subject_name ? esc(c.subject_code + " – " + c.subject_name) : '<span class="muted">–</span>'}</td><td>${c.so_sinh_vien}</td></tr>`).join("")}
+    </tbody></table>` : '<p class="muted">Bạn chưa được phân công lớp nào. Nhờ quản trị viên gán lớp.</p>'}</div>`;
+  main.querySelectorAll("tr.row-link").forEach((tr) => tr.addEventListener("click", () => { location.hash = `#/classes/${tr.dataset.id}`; }));
+}
+async function manSinhVienLop(id, q = "", trang = 1) {
+  const r = await api(`/classes/${id}/students?q=${encodeURIComponent(q)}&page=${trang}&page_size=50`);
+  const tongTrang = Math.max(1, Math.ceil(r.tong / r.co_trang));
+  main.innerHTML = `<h2>Lớp ${esc(r.lop.class_code)} – ${esc(r.lop.class_name)}</h2><div class="card">
+    <div class="row" style="margin:0 0 10px"><a href="#/classes">← Lớp của tôi</a>
+      <form id="f-tim" class="row" style="margin:0"><input type="text" id="tim" placeholder="Tìm theo mã hoặc họ tên" value="${esc(q)}"><button type="submit">Tìm</button></form>
+      <span class="muted small">${r.tong} sinh viên</span></div>
+    <table><thead><tr><th>Mã SV</th><th>Họ tên</th><th>Ngày sinh</th><th>Giới tính</th><th>Email</th></tr></thead><tbody>
+    ${r.sinh_vien.map((s) => `<tr><td>${esc(s.student_code)}</td><td>${esc(s.full_name)}</td><td>${esc(s.date_of_birth || "–")}</td><td>${esc(s.gender || "–")}</td><td>${esc(s.email || "–")}</td></tr>`).join("")
+      || '<tr><td colspan="5" class="muted">Không có sinh viên phù hợp.</td></tr>'}</tbody></table>
+    <div class="pager"><button id="truoc" ${trang <= 1 ? "disabled" : ""}>‹ Trước</button><span class="small">Trang ${trang} / ${tongTrang}</span>
+      <button id="sau" ${trang >= tongTrang ? "disabled" : ""}>Sau ›</button></div></div>`;
+  $("#f-tim").addEventListener("submit", (ev) => { ev.preventDefault(); manSinhVienLop(id, $("#tim").value, 1).catch((e) => toast(e.message, true)); });
+  $("#truoc").addEventListener("click", () => manSinhVienLop(id, q, trang - 1).catch((e) => toast(e.message, true)));
+  $("#sau").addEventListener("click", () => manSinhVienLop(id, q, trang + 1).catch((e) => toast(e.message, true)));
+}
 
 /* ------------------------------------------------------------------ F1: tải ảnh */
 async function manUpload() {
@@ -347,6 +437,7 @@ async function manBangDiem() {
       <td>${d.sheet_id ? `<a href="#/sheet/${d.sheet_id}">#${d.sheet_id}</a>` : "–"}</td></tr>`;
   };
   main.innerHTML = `<h2>Bảng điểm</h2>
+    <p><b>Môn:</b> ${esc(b.subject_code)} – ${esc(b.subject_name)} · <b>Lớp:</b> ${b.class_code ? esc(b.class_code + " – " + b.class_name) : "(không gắn lớp)"} · <b>Kỳ thi:</b> ${esc(b.exam_title)}</p>
     <div class="card"><div class="row" style="margin:0 0 10px">
       <span class="tag ok">Chính thức: ${k.official}</span><span class="tag warn">Chưa duyệt xong: ${k.pending}</span>
       <span class="tag bad">Bị từ chối: ${k.rejected}</span><span class="tag gray">Chưa có phiếu: ${k.no_sheet}</span>
@@ -361,4 +452,10 @@ async function manBangDiem() {
 }
 
 /* ------------------------------------------------------------------ khởi động */
-napKyThi().then(route).catch((e) => { main.innerHTML = `<div class="alert bad">Không nối được API: ${esc(e.message)}</div>`; });
+async function khoiDong() {
+  try { state.me = await api("/me"); } catch (e) { if (!e.dangNhap) main.innerHTML = `<div class="alert bad">Không nối được API: ${esc(e.message)}</div>`; return; }
+  hienNguoiDung();
+  try { await napKyThi(); } catch (e) { if (e.dangNhap) return; main.innerHTML = `<div class="alert bad">Không nối được API: ${esc(e.message)}</div>`; return; }
+  route();
+}
+khoiDong();

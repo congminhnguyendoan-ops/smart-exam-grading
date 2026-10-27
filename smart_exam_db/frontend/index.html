@@ -10,17 +10,23 @@
 <body>
 <aside class="side">
   <h1>SMART EXAM</h1>
+  <div class="userbox hidden" id="userbox">
+    <b id="u-name"></b><div class="muted small" id="u-role"></div>
+    <div class="row"><a href="#/profile" class="small">Hồ sơ</a><button type="button" id="logout" class="small">Đăng xuất</button></div>
+  </div>
   <nav id="nav">
     <a href="#/upload" data-r="upload">Tải ảnh &amp; chấm</a>
     <a href="#/sheets" data-r="sheets">Danh sách phiếu</a>
     <a href="#/review" data-r="review">Hàng đợi duyệt <span id="nav-count" class="badge hidden"></span></a>
     <a href="#/results" data-r="results">Bảng điểm</a>
+    <a href="#/classes" data-r="classes">Lớp của tôi</a>
+    <a href="#/profile" data-r="profile">Hồ sơ</a>
   </nav>
   <label class="exam-pick">Kỳ thi
     <select id="exam-select"></select>
   </label>
   <p class="muted small" id="exam-info"></p>
-  <p class="muted small foot">Bản demo – chưa có đăng nhập.<br><a href="/docs" target="_blank">API (Swagger)</a></p>
+  <p class="muted small foot">Cần đăng nhập để dùng.<br><a href="/docs" target="_blank">API (Swagger)</a></p>
 </aside>
 <main id="main"><p class="muted">Đang tải…</p></main>
 <div id="toast" class="toast hidden"></div>

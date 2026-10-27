@@ -22,6 +22,8 @@ class KyThiMoi(BaseModel):
     num_questions: int = Field(gt=0, le=40, description="Tối đa 40 (mẫu phiếu chuẩn)")
     max_score: Decimal = Field(default=Decimal(10), gt=0, le=999)
     pass_score: Decimal = Field(default=Decimal(5), ge=0, le=999)
+    class_id: int | None = Field(default=None, description="Lớp của kỳ thi (tuỳ chọn): phải TỒN TẠI và thuộc lớp bạn phụ trách (admin: bất kỳ)")
+    class_code: str | None = Field(default=None, max_length=30, description="Hoặc mã lớp (vd 'CNTT-K22A'); không tự tạo lớp mới")
     template_name: str | None = Field(default=None, description="Mẫu phiếu; bỏ trống = mẫu đầu tiên ('Phiếu chuẩn 40 câu A4')")
     codes: list[MaDeMoi] = Field(min_length=1, max_length=20)
 
@@ -43,6 +45,9 @@ class KyThiOut(BaseModel):
     exam_title: str
     subject_code: str
     subject_name: str
+    class_id: int | None = None
+    class_code: str | None = None
+    class_name: str | None = None
     exam_date: date | None
     num_questions: int
     max_score: float
@@ -54,6 +59,11 @@ class KyThiOut(BaseModel):
 class KyThiTomTat(BaseModel):
     exam_id: int
     exam_title: str
+    subject_code: str
+    subject_name: str
+    class_id: int | None = None
+    class_code: str | None = None
+    class_name: str | None = None
     num_questions: int
     max_score: float
     exam_date: date | None
@@ -262,9 +272,77 @@ class TongBangDiem(BaseModel):
 class BangDiemOut(BaseModel):
     exam_id: int
     exam_title: str
+    subject_code: str
+    subject_name: str
+    class_id: int | None = None
+    class_code: str | None = None
+    class_name: str | None = None
     max_score: float
     num_questions: int
     exported_on: str
     counts: TongBangDiem
     rows: list[DongBangDiem]
     unmatched: list[PhieuKhongGhep]
+
+
+# ------------------------------------------------------------------------------------------------ tài khoản / lớp
+class DangNhap(BaseModel):
+    username: str = Field(min_length=1, max_length=50)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class HoSo(BaseModel):
+    user_id: int
+    username: str
+    full_name: str
+    email: str
+    role: Literal["admin", "teacher", "student"]
+    last_login_at: datetime | None = Field(default=None, description="Lần đăng nhập gần nhất (None nếu chưa từng)")
+    created_at: datetime | None = None
+
+
+class SuaHoSo(BaseModel):
+    full_name: str | None = Field(default=None, max_length=150)
+    email: str | None = Field(default=None, max_length=255)
+
+
+class DoiMatKhau(BaseModel):
+    old_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=1, max_length=200, description="Tối thiểu 8 ký tự, khác mật khẩu cũ")
+
+
+class LopCuaToi(BaseModel):
+    class_id: int
+    class_code: str
+    class_name: str
+    academic_year: str | None
+    subject_id: int | None = Field(description="Môn bạn dạy ở lớp này (None nếu chưa gán / admin)")
+    subject_code: str | None
+    subject_name: str | None
+    so_sinh_vien: int
+
+
+class SinhVienLop(BaseModel):
+    student_id: int
+    student_code: str
+    full_name: str
+    date_of_birth: date | None
+    gender: str | None
+    email: str | None
+
+
+class LopThongTin(BaseModel):
+    class_id: int
+    class_code: str
+    class_name: str
+    academic_year: str | None
+
+
+class DsSinhVienLop(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    lop: LopThongTin
+    tong: int
+    trang: int
+    co_trang: int
+    sinh_vien: list[SinhVienLop]
+

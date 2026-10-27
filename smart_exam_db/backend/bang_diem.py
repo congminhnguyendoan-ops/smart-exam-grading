@@ -26,7 +26,9 @@ def _f(x):
 
 
 def bang_diem(conn, exam_id: int) -> dict:
-    ex = conn.execute("SELECT exam_id, exam_title, max_score, num_questions FROM exams WHERE exam_id = %s", (exam_id,)).fetchone()
+    ex = conn.execute("SELECT e.exam_id, e.exam_title, e.max_score, e.num_questions, sj.subject_code, sj.subject_name, e.class_id, c.class_code, c.class_name "
+                      "FROM exams e JOIN subjects sj ON sj.subject_id = e.subject_id LEFT JOIN classes c ON c.class_id = e.class_id "
+                      "WHERE e.exam_id = %s", (exam_id,)).fetchone()
     if not ex:
         raise KhongTimThay(f"Không có kỳ thi {exam_id}.")
     # Mọi phiếu CÓ ghép thí sinh (graded / needs_review), kèm kết quả chính thức nếu có.
@@ -74,7 +76,8 @@ def bang_diem(conn, exam_id: int) -> dict:
     dem = {k: sum(d["status"] == k for d in dong) for k in ("official", "pending", "no_sheet")}
     dem["rejected"] = sum(p["status"] == "rejected" for p in roi)
     dem["unmatched_review"] = sum(p["status"] == "needs_review" for p in roi)
-    return {"exam_id": exam_id, "exam_title": ex["exam_title"], "max_score": _f(ex["max_score"]), "num_questions": ex["num_questions"],
+    return {"exam_id": exam_id, "exam_title": ex["exam_title"], "subject_code": ex["subject_code"], "subject_name": ex["subject_name"],
+            "class_id": ex["class_id"], "class_code": ex["class_code"], "class_name": ex["class_name"], "max_score": _f(ex["max_score"]), "num_questions": ex["num_questions"],
             "exported_on": date.today().isoformat(), "counts": {**dem, "students": len(dong)}, "rows": dong, "unmatched": roi}
 
 
@@ -106,6 +109,9 @@ def xuat_excel(conn, exam_id: int) -> tuple[bytes, str]:
     ws["A2"] = f"Ngày xuất: {b['exported_on']} · Điểm tối đa: {b['max_score']:g} · {b['num_questions']} câu"
     ws["A3"] = "Ghi chú: " + GHI_CHU_TAM + " Cột 'Điểm' chỉ có giá trị khi trạng thái là Chính thức."
     ws["A3"].font = Font(italic=True, color="9C5700")
+    ws["A4"] = f"Môn: {b['subject_code']} – {b['subject_name']}"          # hàng 4 đang trống: KHÔNG chèn dòng (hàng 5 = tiêu đề cột, dữ liệu từ hàng 6)
+    ws["F4"] = "Lớp: " + (f"{b['class_code']} – {b['class_name']}" if b["class_code"] else "(không gắn lớp)")
+    ws["A4"].font = ws["F4"].font = Font(bold=True)
     dau = ["STT", "SBD", "Họ tên", "Mã đề", "Số câu đúng", "Điểm", "Điểm tạm (chưa chính thức)", "Trạng thái", "Mã phiếu"]
     for j, t in enumerate(dau, 1):
         c = ws.cell(row=5, column=j, value=t)
