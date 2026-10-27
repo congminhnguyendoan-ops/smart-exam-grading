@@ -83,3 +83,47 @@ Chưa áp dụng cho bubble SBD / mã đề (chưa đo phân phối bubble, hai 
 **Ghi trung thực**: `omr.py` đã đổi SAU commit đăng ký test cuối `551b356` → kết quả test cuối 21/10 là của phiên bản cũ.
 KHÔNG chạy lại; kiểm lại phải ĐĂNG KÝ MỚI (người dùng quyết). Luật được chỉnh/đánh giá chỉ trên dev; 4 ô blank có hạt mực thật
 (0023 q26B, 0010 q25B) nằm dưới ngưỡng, không bị gắn cờ.
+
+### 6.4 Nợ "thang S_anh phụ thuộc cả tờ" – đo (28/10/2026) và QUYẾT ĐỊNH: CHƯA SỬA
+Công cụ `tools/omr_s_anh.py` (chỉ đọc, 56 ảnh train, mô hình OOF theo fold; ghi `data/_eval/omr/s_anh/`: `bang_tat_ca.md`, `o_ro_chac.csv`,
+`ld_thap.html`). Tái tạo: `python tools/omr_s_anh.py tat_ca`.
+
+**a) S_anh**: min 0,400 · p50 0,682 · max 0,804; **0/56 ảnh chạm sàn 0,20** (C1 0,52–0,78; C2 0,40–0,77; C3 0,44–0,79; C4 0,55–0,80).
+Mọi phiếu thật trong dev đều có đủ nét tô đậm, nên chưa quan sát được tờ "nhạt cả tờ" (đó là kịch bản cần phiếu 0105 ở đợt 2).
+
+**b) ld tuyệt đối (1 − TB lõi / giấy vành) của ô "rõ chắc"** (câu 1 ô, không cờ; n = 1 451): p0,1 / p1 / p5 / p50 = 0,350 / 0,419 / 0,494 / 0,730.
+Theo điều kiện: C1 0,515 / 0,532 / 0,556 / 0,740 · **C2 0,340 / 0,361 / 0,434 / 0,696** · C3 0,428 / 0,459 / 0,494 / 0,724 · C4 0,526 / 0,541 / 0,571 / 0,777.
+Ô nhãn faint (366) máy đọc faint (360): p0,1 0,167 · p1 0,202 · p5 0,250 · p50 0,424; đọc filled (6): 0,373 / 0,379 / 0,405 / 0,628.
+
+**c) Số ô "rõ chắc" ld < mức** (= câu thật bị gắn cờ thêm): < 0,35 → 2 (0,14%) · < 0,40 → 10 (0,69%) · < 0,45 → 24 (1,65%) · < 0,50 → 77 (5,31%).
+Gần như toàn bộ nằm ở C2 (< 0,40: 10/360 = 2,78%; < 0,45: 23 = 6,39%; < 0,50: 55 = 15,28%) rồi C3.
+
+**d) Ảnh giả** (nền đệm bút × vệt lạc 1 ô; ô = trạng thái / cờ [ld tuyệt đối của vệt]; ld vệt = 1 − xám/255: 120 → 0,53 · 150 → 0,41 · 170 → 0,33 ·
+190 → 0,25 · 210 → 0,18 · 230 → 0,10):
+| nền đệm (S_anh) | vệt 120 | vệt 150 | vệt 170 | vệt 190 | vệt 210 | vệt 230 |
+|---|---|---|---|---|---|---|
+| 30 (0,84) | mờ/XEM | mờ/XEM | mờ/XEM | mờ/XEM | mờ/XEM | trống/– |
+| 90 (0,60) | **rõ/–** | mờ/XEM | mờ/XEM | mờ/XEM | mờ/XEM | trống/– |
+| 150 (0,37) | **rõ/–** | **rõ/–** | **rõ/–** | **rõ/–** | mờ/XEM | trống/– |
+| 190 (0,21) | **rõ/–** | **rõ/–** | **rõ/–** | **rõ/–** | **rõ/–** | trống/XEM |
+Lỗ hổng xác nhận: vệt lạc xám 120–210 bị đọc "rõ chắc" không cờ trên nền đệm nhạt (in đậm ở trên).
+
+**Luật ứng viên `nhat_tuyet_doi` + tiêu chí (chốt trước khi đo, theo lệnh 28/10)**: ô xếp "rõ chắc" mà ld < X → câu `can_xem` (lý do mới, chỉ cộng cờ).
+(1) lỗi nặng 0 / 56 ảnh train; (2) cần xem thừa câu 1 ô không tăng quá +1,0 điểm % ở mỗi điều kiện so với bảng sau lệnh A (0,27 / 2,71 / 1,10 / 2,19 %);
+(3) ảnh giả: vệt lạc đơn xám ≥ 150 trên mọi nền (30 / 90 / 150 / 190) bị gắn cờ 100%, ô đậm xám ≤ 80 trên nền 30 không bị gắn cờ; (4) test cũ vẫn đạt.
+
+**Kết luận: KHÔNG có X thoả (2) và (3) – không nới tiêu chí, KHÔNG sửa `omr.py`.**
+- (3) cần X > 0,4118 (vệt xám 150 có ld 0,4118) trên cả nền 150 và 190. Tại X = 0,412: C1 0 · **C2 +13 câu** · C3 0 · C4 0 → C2 +13/369 = **+3,5 điểm %** (mức cho phép +1,0 ≈ 3 câu).
+- (2) cần X ≲ 0,355 (≤ 3 câu ở C2: ld thật p0,1 = 0,350 – chỉ 2 ô < 0,35) → không gắn cờ vệt xám 150 (ld 0,41).
+- Nguyên nhân: ô "rõ chắc" thật ở C2 (ảnh tối / tương phản thấp) có ld 0,34–0,5, TRÙNG dải ld của vệt lạc giả 0,25–0,41. Một ngưỡng ld tuyệt đối đơn lẻ không tách được; cần đặc trưng khác
+  (độ phủ đồng đều, so với mức nét của chính tờ…) – ngoài phạm vi luật ứng viên, chưa thử.
+- Ghi chú về (3): vệt xám 230 (ld 0,10) mô hình đã xếp "trống" nên không thuộc luật "rõ chắc" – không tính vào tiêu chí.
+
+**Giữ nợ kỹ thuật.** Việc kiểm tiếp: phiếu **0105 (tô nhạt cả tờ) ở đợt 2** (trên bản mã đóng băng, không chỉnh theo kết quả). Cần xem bằng mắt: `data/_eval/omr/s_anh/ld_thap.html`
+(20 ô "rõ chắc" thật có ld thấp nhất).
+
+### 6.5 Test chập chờn `test_val_bi_khoa_neu_khong_xac_nhan` (Bước 1, 28/10/2026) – ĐÃ TÌM RA, đã sửa (commit `5d99769`)
+Không phải chập chờn mà phụ thuộc môi trường: tái tạo tất định khi KHÔNG đặt `PYTHONIOENCODING` (Bash của harness; PowerShell / vòng lặp có đặt thì đạt: 10/10 chạy riêng + 3/3 cả bộ, `data/_eval/pytest_lap/`).
+Tiến trình con `eval_ocr.py` in thông báo có dấu "–" bằng cp1252 (byte 0x96); tiến trình cha `subprocess.run(text=True, encoding="utf-8")` giải mã lỗi trong luồng đọc → `r.stderr = None` → `None + str` = `TypeError`.
+Sửa test (không đổi công cụ / tiêu chí): chạy tiến trình con với `PYTHONUTF8=1`. Các `subprocess.run` khác trong `tests/` chỉ nhận ASCII (git, node) nên không bị.
+
