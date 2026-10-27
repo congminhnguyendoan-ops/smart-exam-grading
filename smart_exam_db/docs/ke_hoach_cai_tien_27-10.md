@@ -60,3 +60,26 @@ tuyệt đối ở mỗi điều kiện C1–C4 so với bảng gốc; (3) chấ
 vẫn đạt. Không đạt thì KHÔNG nới tiêu chí: ghi "chưa sửa được", giữ xfail.
 
 Giới hạn: phép thử vẽ giả phẳng, chưa nhiễu thật; chấm nhỏ nhạt hơn 0,6 × giấy vành không bị bắt.
+
+**KẾT QUẢ (27/10/2026) – luật `vet_nho` ĐẠT cả 4 tiêu chí** (mã: `cv_engine/omr.py` `vet_nho_px`, `them_vet_nho`; commit `673f8a3`).
+Luật chỉ CỘNG cờ `can_xem` + lý do `vet_nho` (mã mới trong `MA_LY_DO_OMR`); `trang_thai`, `dap_an`, `omr_m1.json` không đổi
+(SHA `F8F87577…60AF` trước = sau).
+| Chỉ số (56 ảnh train, `eval_omr.py run --phuong-phap m1`, OOF 7-fold) | Trước | Sau |
+|---|---|---|
+| Lỗi nặng (câu + cột) | 0 | 0 |
+| Lỗi nhẹ | 6 | 6 |
+| Cần xem thừa, câu rõ 1 ô: C1 / C2 / C3 / C4 / gộp | 0,27 / 2,71 / 1,10 / 2,19 / 1,57 % | giống hệt |
+| Cần xem thừa, câu trống | 0 / 226 | 0 / 226 |
+| Tổng câu cần xem | 563 (25,13%) | 563 (25,13%) |
+| Điểm chính thức khớp (`kiem_backend_dau_cuoi.py`) | 56 / 56 | 56 / 56 |
+| `doc_phieu` trung vị / max | 140,1 / 161,8 ms | 139,8 / 163,8 ms |
+(1) lỗi nặng 0 ✓. (2) cần xem thừa +0,00 điểm % ở mọi điều kiện ✓: `cau/cot/o_train.csv` giống từng byte trước/sau (luật gắn
+cờ 0 câu trên 56 ảnh, vì blank thật tối đa 65 px < 90). (3) chấm giả ≥ 0,3r xám 30 / 90 gắn cờ 100% ✓ (`tests/test_omr_ma_tran_o_to.py`:
+40/40 câu, cả 0,2r). (4) 232 test cũ đạt; thêm 22 → 254 đạt. Cách "trước": cùng `eval_omr.py` với `omr.VET_PX = 10**9` (vô hiệu luật).
+Tái tạo: `python -m pytest tests/test_omr_ma_tran_o_to.py` · `python tools/eval_omr.py run --phuong-phap m1` · `report` ·
+`python tools/kiem_backend_dau_cuoi.py`. Ca bị bỏ: chấm nhỏ < ~0,15r (diện tích < 90 px) và chấm nhạt hơn 0,6 × giấy vành.
+Chưa áp dụng cho bubble SBD / mã đề (chưa đo phân phối bubble, hai kênh bubble + CNN đã đối chiếu) → nợ kỹ thuật.
+
+**Ghi trung thực**: `omr.py` đã đổi SAU commit đăng ký test cuối `551b356` → kết quả test cuối 21/10 là của phiên bản cũ.
+KHÔNG chạy lại; kiểm lại phải ĐĂNG KÝ MỚI (người dùng quyết). Luật được chỉnh/đánh giá chỉ trên dev; 4 ô blank có hạt mực thật
+(0023 q26B, 0010 q25B) nằm dưới ngưỡng, không bị gắn cờ.

@@ -632,3 +632,13 @@ Chạy MỘT lần: `python tools/eval_omr.py run --phuong-phap m1 --split val -
 - **Đối chiếu dự đoán đăng ký**: lỗi nặng 0 ✓; thừa gộp 1,54% (dự đoán 0–4%) ✓; tổng cần xem 24,0% (22–28%) ✓; SBD / mã đề 0 sai ✓; vị trí 0 ✓; ca 0033:4 `mo` cần xem ✓; F1 mờ gộp 0,965 (0,90–0,98) ✓.
 - **Không đạt chỉ ở chỉ báo (không phải điều kiện ĐẠT)**: C2 riêng có cần xem thừa 5/111 = 4,50% (> 3%) và F1 mờ 0,884 (< 0,90): **cỡ mẫu rất nhỏ** (1 câu ≈ 0,9 điểm %; n mờ C2 = 19; CI F1 0,681–1,000), cùng chiều với điểm yếu C2 đã biết ở train (nested 2,98%, OOF 2,71%) – C2 vẫn là điều kiện sát ngưỡng. Không chỉnh gì sau khi thấy số.
 - Việc cần người dùng: xem bằng mắt `data/_eval/omr/m1/xem_bang_mat_val.html` (5 câu rõ→mờ ở C2, ca 0033:4) và `m1/xem_can_xem_can_thiet.html` (nay chứa các câu val).
+
+## 15. NỢ KỸ THUẬT THÊM (27/10/2026, giai đoạn cải tiến – `docs/ke_hoach_cai_tien_27-10.md` mục 6)
+
+- **Luật phụ `vet_nho` đã thêm** (ô không chọn có khối tối đặc ≥ 90 px → câu cần xem). Đổi `omr.py` sau mã đăng ký test cuối `551b356`: kết quả test
+  hệ thống 21/10 là của bản cũ; kiểm lại cần đăng ký mới (chưa làm).
+- **Nợ: `vet_nho` chưa áp dụng cho bubble SBD / mã đề** (chưa đo phân phối bubble; có kênh chữ viết tay đối chiếu).
+- **Nợ: thang `S_anh` phụ thuộc cả tờ** (`thang_anh`): tờ toàn bút chì nhạt thì ranh giới rõ/mờ dịch xuống, một vệt nhạt lạc trên tờ nhạt không
+  bị gắn cờ. Chỉ ghi, chưa sửa.
+- **Giới hạn của `vet_nho`**: chấm nhỏ < ~0,15r hoặc nhạt hơn 0,6 × giấy vành không bị bắt; phép thử vẽ giả phẳng, chưa có nhiễu thật.
+

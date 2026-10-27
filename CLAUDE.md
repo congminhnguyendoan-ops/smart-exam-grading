@@ -75,7 +75,7 @@ smart_exam_db/
 ├── models/                       # Tuần 5: omr_m1.json (logistic, train 0001–0028), omr_m0.json (ngưỡng) – trong git,
 │                                 #   kèm sieu_du_lieu (ngày, git, SHA dữ liệu, fold). Sinh: tools/huan_luyen_omr.py xuat
 │                                 #   Tuần 6: ocr_cnn.json (CNN chữ số, NumPy + JSON, xuất từ commit sạch b75453e). Sinh: tools/xuat_ocr.py
-├── tests/                        # pytest (232 test, ~73 s): python -m pytest tests (từ smart_exam_db/).
+├── tests/                        # pytest (254 test, ~95 s): python -m pytest tests (từ smart_exam_db/).
 │                                 #   Thiếu data/ → test cần dữ liệu tự SKIP
 ├── docs/                         # Tài liệu cho báo cáo (Tuần 1–3)
 │   ├── ke_hoach_tuan4.md         # Kế hoạch 8 bước (0–7) của preprocessing: việc, cách đo, tiêu chí xong,
@@ -228,7 +228,7 @@ omr.sbd, omr.sbd_can_xem, omr.sbd_cot, omr.ma_de, omr.ma_de_can_xem, omr.can_xem
 ```
 - `trang_thai` câu: `trong` / `ro` / `mo` / `nhieu` → DB `bubble_state` qua `sang_bubble_state` (blank/filled/faint/multiple);
   `dap_an` = `selected_options` ('' / 'A' / 'AC'); `xac_suat` = `option_probs`. Cột chữ số không đọc được → `chu_so = '?'`.
-- `MA_LY_DO_OMR` (5 mã): `o_mo`, `nhieu_o`, `khong_o_nao`, `tin_cay_thap`, `vi_tri`. Câu **trống chắc chắn KHÔNG cần xem**
+- `MA_LY_DO_OMR` (6 mã): `o_mo`, `nhieu_o`, `khong_o_nao`, `tin_cay_thap`, `vi_tri`, `vet_nho` (27/10/2026: ô KHÔNG chọn có khối tối đặc ≥ 90 px sau phép mở 7×7 → câu cần xem, chỉ cộng cờ; chưa áp dụng cho bubble; `docs/ke_hoach_cai_tien_27-10.md` mục 6.3). Câu **trống chắc chắn KHÔNG cần xem**
   (chốt 07/10); trống mà có ô sát ngưỡng → `tin_cay_thap`. Câu mờ / nhiều ô luôn cần xem.
 - Lúc chạy chỉ cần NumPy + OpenCV + `models/*.json` + `answer_sheet/output/phieu_trang_300dpi.png` (scikit-learn chỉ để huấn luyện).
   Định vị luôn trên `anh_nan`; nguồn đặc trưng theo mô hình (`anh_nan` – chọn bằng thí nghiệm A2). ~100 ms/ảnh.
@@ -518,6 +518,10 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       **Việc Tuần 7 (07/10/2026): `system_settings.min_blur_score` = 100 trong DB là thang Laplacian thô cũ** (của
       `check_photos.py` bản đầu) ≠ `blur_score` của `preprocess()` (`phan_tu_huong`, ngưỡng `MO_MIN` 0,012) – đổi sang thang
       `mo_huong` khi làm backend (backend dùng `kq.ok` / `kq.ly_do == 'anh_mo'`). Không sửa DB trước khi hỏi người dùng.
+- [ ] **GIAI ĐOẠN CẢI TIẾN (từ 27/10/2026)** – kế hoạch `docs/ke_hoach_cai_tien_27-10.md` (7 yêu cầu: tên môn/lớp, chụp–chấm liền, OCR thay CNN, ma trận ô tô, đủ 40 câu,
+      rà 0–255, đăng nhập + phân quyền). **Xong mục 4/6 (27/10)**: `tests/test_omr_ma_tran_o_to.py` (ma trận ô tô 0–255, 22 test) + luật `vet_nho` (lỗ hổng chấm nhỏ đậm → trống không cờ);
+      train: 0 thay đổi, lỗi nặng 0, điểm 56/56. **`omr.py` đã đổi sau commit đăng ký test cuối `551b356`** → kết quả test cuối 21/10 là của bản cũ; kiểm lại phải đăng ký mới (người dùng quyết).
+      Nợ: `vet_nho` cho bubble; thang `S_anh` phụ thuộc cả tờ (`ke_hoach_tuan5.md` mục 15).
 - [ ] (Hướng phát triển) Lưu các lần giáo viên sửa làm dữ liệu train thêm (human-in-the-loop).
 
 ## 8. Lỗi / rủi ro đã biết
