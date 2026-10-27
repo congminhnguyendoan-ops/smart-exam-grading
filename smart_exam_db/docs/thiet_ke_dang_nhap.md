@@ -38,5 +38,32 @@ Công cụ: `python -m backend.tai_khoan` (tạo / đặt lại mật khẩu / k
 Màn đăng nhập (khi `GET /me` trả 401 hoặc API trả 401 → quay về); thanh đầu: tên giáo viên + đăng xuất; "Hồ sơ" (xem / sửa họ tên, email; đổi mật khẩu); "Lớp của tôi" (danh sách lớp → bảng sinh viên có ô tìm);
 chọn kỳ thi hiện "Môn – Lớp – tên kỳ thi"; đầu bảng điểm hiện Môn và Lớp. Không dùng localStorage cho token.
 
-## 6. Bảng endpoint × quyền
-(Điền ở Bước 3 sau khi tự rà mã – xem mục 7.)
+## 6. Bảng endpoint × quyền (sinh từ danh sách route thật; kiểm tự động bởi `tests/test_xac_thuc_khong_csdl.py`)
+Chưa đăng nhập (AUTH_MODE=on) → **401** ở mọi endpoint không công khai. Header `X-User` bị BỎ QUA khi `on`. "Kiểm quyền" = `phan_quyen.kiem_*`; ngoài quyền → **404** cùng thông báo như id không tồn tại.
+| Endpoint | admin | teacher | student | Ghi chú |
+|---|---|---|---|---|
+| `GET /health`, `GET /meta/reject-reasons` | ✓ | ✓ | ✓ | công khai (không dữ liệu người dùng) |
+| `GET /` → `/app/…` | ✓ | ✓ | ✓ | trang tĩnh HTML/JS/CSS công khai |
+| `POST /auth/login` | ✓ | ✓ | ✓ | công khai; 401 một thông báo; 429 sau 5 lần sai / 15 phút; đặt cookie HttpOnly |
+| `POST /auth/logout` | ✓ | ✓ | ✓ | xoá cookie; không cần đăng nhập |
+| `GET /me`, `PATCH /me`, `POST /me/password` | ✓ | ✓ | ✓ | chỉ chính mình; PATCH chỉ đổi họ tên / email (không đổi vai trò) |
+| `GET /me/classes` | mọi lớp | lớp trong `teacher_classes` | 403 | |
+| `GET /classes/{id}/students` | ✓ mọi lớp | lớp của mình (kiểm quyền `kiem_lop`) | 403 | tìm `q`, phân trang |
+| `POST /exams` | ✓ lớp bất kỳ | ✓ lớp mình phụ trách (hoặc không lớp) | 403 | `class_id` / `class_code` không tồn tại hoặc không phụ trách → 422 cùng một thông báo; không tự tạo lớp |
+| `GET /exams` | tất cả | kỳ thi mình tạo + kỳ thi thuộc lớp mình dạy | 403 | lọc bằng SQL tham số |
+| `GET /exams/{id}`, `…/sheets`, `…/results`, `…/export.xlsx`, `…/review-questions` | ✓ | kiểm quyền kỳ thi | 403 | |
+| `POST /exams/{id}/sheets`, `…/sheets/batch` | ✓ | kiểm quyền kỳ thi | 403 | tải ảnh + chấm |
+| `GET /sheets/{id}`, `…/image`, `…/questions/{n}/image`, `…/digits/{f}/{p}/image`, `…/review-questions` | ✓ | kiểm quyền phiếu (qua kỳ thi) | 403 | |
+| `POST /sheets/{id}/questions/{n}/review`, `PUT /sheets/{id}/identity` | ✓ | kiểm quyền phiếu | 403 | ghi `reviewed_by` = người đăng nhập (không còn DEMO_USER) |
+Quyền kỳ thi của giáo viên = `created_by = mình` HOẶC `exams.class_id ∈ lớp mình dạy`. Quyền phiếu = quyền của kỳ thi chứa phiếu.
+
+## 7. Tự rà trước khi áp dụng (29/10/2026) – kết quả
+- **Endpoint thiếu xác thực / phân quyền**: không còn. 3 test không cần CSDL kiểm toán TOÀN BỘ route: (1) mọi route trừ công khai phụ thuộc `get_nguoi_dung`; (2) mọi route trừ `/me*` phụ thuộc `giao_vien` (chặn sinh viên);
+  (3) mọi route có `{exam_id}` / `{sheet_id}` / `{class_id}` gọi `phan_quyen.kiem_*` trong thân hàm; `GET /exams` lọc theo quyền, `POST /exams` kiểm lớp. Route mới thêm sau này mà quên → test đỏ.
+- **Nối chuỗi SQL**: chỉ hai chỗ có f-string, đều ghép HẰNG nội bộ (mệnh đề `dk` cố định trong `sinh_vien_lop`; `dieu_kien_ky_thi` sinh ở `phan_quyen`); mọi dữ liệu người dùng đi qua tham số `%s`. Tìm kiếm `q` thoát `% _ \` trước khi ghép vào mẫu LIKE (tham số).
+- **Log mật khẩu / token**: không có `log` / `print` nào chứa mật khẩu, token, khoá (test quét mã); chỉ `backend.tai_khoan --mau` in mật khẩu ngẫu nhiên MỘT lần cho người vận hành.
+- **Cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/`, `Secure` theo `COOKIE_SECURE`, `max-age` = hạn phiên; JS không đọc được token (test: JS không dùng `document.cookie`, `Authorization`, localStorage cho token).
+- **So sánh mật khẩu**: `hmac.compare_digest` trên đầu ra scrypt; chữ ký token cũng `compare_digest`.
+- **Lộ tồn tại username**: một thông báo duy nhất (kể cả tài khoản bị khoá / hash giả); tên không tồn tại vẫn tốn một phép scrypt; 429 áp cho cả tên không tồn tại. Đã sửa thêm: thông báo lớp "không tồn tại" và "không phụ trách" trùng nhau (không dò được mã lớp), kiểm quyền lớp trước khi so `class_id` với `class_code`.
+- **Hạn chế còn lại**: giới hạn thử sai ở bộ nhớ tiến trình (nhiều worker / khởi động lại thì đếm lại); không có CSRF token riêng (dựa SameSite=Lax; API không nhận form chéo trang); trang tĩnh `/app/` công khai (chỉ mã giao diện);
+  `/health` công khai lộ phiên bản mô hình (có từ trước); sau `AUTH_MODE=demo` mọi người thành "demo user" không kiểm quyền – KHÔNG dùng ngoài dev.

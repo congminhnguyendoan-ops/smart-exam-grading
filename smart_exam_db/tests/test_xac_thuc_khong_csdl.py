@@ -212,3 +212,16 @@ def test_duong_dan_api_moi_trong_js_co_trong_openapi():
         assert any(re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", p), chuan) for p in paths), f"JS gọi {m} nhưng API không có"
     for p in ("/auth/login", "/auth/logout", "/me", "/me/password", "/me/classes", "/classes/{class_id}/students"):
         assert p in paths
+
+
+def test_ket_noi_csdl_khong_doi_auth_secret(monkeypatch):
+    """backend.migrate / tai_khoan / công cụ CSDL chỉ cần DATABASE_URL: lấy URL không đòi AUTH_SECRET."""
+    from backend.config import lay_database_url
+    monkeypatch.setenv("DATABASE_URL", "postgresql://x:y@localhost/z")
+    monkeypatch.setenv("AUTH_MODE", "on")
+    monkeypatch.delenv("AUTH_SECRET", raising=False)
+    assert lay_database_url() == "postgresql://x:y@localhost/z"
+    monkeypatch.delenv("DATABASE_URL")
+    with pytest.raises(LoiCauHinh):
+        lay_database_url()
+    assert "lay_cau_hinh" not in inspect.getsource(__import__("backend.db", fromlist=["x"]))

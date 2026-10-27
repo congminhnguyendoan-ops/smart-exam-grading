@@ -7,11 +7,11 @@ from contextlib import contextmanager
 import psycopg
 from psycopg.rows import dict_row
 
-from .config import lay_cau_hinh
+from .config import lay_database_url
 
 
 def ket_noi(url: str | None = None) -> psycopg.Connection:
-    return psycopg.connect(url or lay_cau_hinh().database_url, row_factory=dict_row, connect_timeout=5)
+    return psycopg.connect(url or lay_database_url(), row_factory=dict_row, connect_timeout=5)
 
 
 @contextmanager

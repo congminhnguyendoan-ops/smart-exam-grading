@@ -32,11 +32,17 @@ class CauHinh:
     cookie_secure: bool = False  # bật khi chạy sau https (COOKIE_SECURE=1)
 
 
-def lay_cau_hinh() -> CauHinh:
+def lay_database_url() -> str:
+    """Chỉ cần DATABASE_URL (công cụ CSDL như backend.migrate không được đòi AUTH_SECRET)."""
     url = os.environ.get("DATABASE_URL", "").strip()
     if not url:
         raise LoiCauHinh("Chưa đặt DATABASE_URL. Sao chép .env.example thành .env (trong smart_exam_db/) "
                          "rồi điền thông tin kết nối.")
+    return url
+
+
+def lay_cau_hinh() -> CauHinh:
+    url = lay_database_url()
     kho = Path(os.environ.get("STORAGE_DIR", "storage"))
     mo_hinh = Path(os.environ.get("OMR_MODEL", "models/omr_m1.json"))
     mo_hinh_ocr = Path(os.environ.get("OCR_MODEL", "models/ocr_cnn.json"))
