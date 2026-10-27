@@ -125,13 +125,36 @@ def test_vung_to_du_to_la_ro(mo_hinh, kich):
     assert all((k.trang_thai, k.dap_an, k.can_xem) == ("ro", "B", False) for k in kq)
 
 
-@pytest.mark.xfail(strict=True, reason="LỖ HỔNG ĐÃ BIẾT (27/10/2026): chấm nhỏ đậm (bán kính 0,3r ≈ 11% diện tích lõi) "
-                   "bị đọc là TRỐNG và không gắn cần xem. Cần luật 'vết nhỏ' – xem docs/ke_hoach_cai_tien_27-10.md mục 6.3; "
-                   "khi sửa xong, bỏ xfail này.")
-def test_cham_nho_dam_phai_can_xem(mo_hinh):
+@pytest.mark.parametrize("kich", [0.2, 0.3])
+@pytest.mark.parametrize("xam", [30, 90])
+def test_cham_nho_dam_phai_can_xem(mo_hinh, kich, xam):
+    """Luật phụ 'vet_nho' (27/10/2026): chấm nhỏ đậm ở ô không chọn -> cần xem, KHÔNG đổi trạng thái / đáp án."""
     anh = omr.nap_mau().copy()
     for q in range(1, 41):
         cx, cy = ANS["centers"][str(q)]["B"]
-        cv2.circle(anh, (int(round(cx)), int(round(cy))), int(round(0.3 * R)), 30, -1)
+        cv2.circle(anh, (int(round(cx)), int(round(cy))), int(round(kich * R)), xam, -1)
     kq = omr.doc_phieu(SimpleNamespace(ok=True, anh_nan=anh, anh_chuan_hoa=anh), L, mo_hinh).cau
-    assert all(k.can_xem or k.dap_an == "B" for k in kq)
+    assert all(k.can_xem and "vet_nho" in k.ly_do for k in kq)
+    assert all((k.trang_thai, k.dap_an) == ("trong", "") for k in kq)
+
+
+def test_cham_nho_canh_dap_an_ro_van_can_xem(mo_hinh):
+    """A tô rõ + chấm nhỏ ở D: đáp án vẫn A (rõ) nhưng câu cần xem vì vết nhỏ ở ô khác."""
+    kq = omr.doc_phieu(SimpleNamespace(ok=True, anh_nan=_ve_cham_d(), anh_chuan_hoa=_ve_cham_d()), L, mo_hinh).cau
+    assert all((k.trang_thai, k.dap_an, k.can_xem, k.ly_do) == ("ro", "A", True, ("vet_nho",)) for k in kq)
+
+
+def _ve_cham_d():
+    anh = omr.nap_mau().copy()
+    for q in range(1, 41):
+        for o, kich in (("A", 0.85), ("D", 0.3)):
+            cx, cy = ANS["centers"][str(q)][o]
+            cv2.circle(anh, (int(round(cx)), int(round(cy))), int(round(kich * R)), 30, -1)
+    return anh
+
+
+def test_phieu_trang_khong_gan_co_vet_nho(mo_hinh):
+    """Nét chữ A–D và viền in sẵn không bị coi là vết nhỏ: phiếu trắng nguyên bản -> không câu nào 'vet_nho'."""
+    anh = omr.nap_mau().copy()
+    kq = omr.doc_phieu(SimpleNamespace(ok=True, anh_nan=anh, anh_chuan_hoa=anh), L, mo_hinh).cau
+    assert not any("vet_nho" in k.ly_do for k in kq)

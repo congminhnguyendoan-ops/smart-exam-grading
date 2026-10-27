@@ -11,13 +11,14 @@ Các khâu:
   2. dac_trung_o()  – đặc trưng từng ô (tương đối quanh ô, trong hàng, trong ảnh; tuyệt đối; kết cấu). Không dùng nhãn.
   3. mô hình        – JSON trong models/ (hồi quy logistic: chuẩn hoá + softmax, chỉ cần NumPy; hoặc ngưỡng cố định M0).
   4. luật ô -> câu / cột + "cần xem" (ap_luat_cau, ap_luat_cot).
+  5. luật phụ 'vet_nho' (vet_nho_px, 27/10/2026) – ô KHÔNG được chọn mà có khối tối đặc ≥ 90 px -> câu cần xem (chỉ cộng cờ).
 
 Lúc chạy chỉ cần NumPy + OpenCV + JSON (scikit-learn chỉ dùng trong tools/huan_luyen_omr.py).
 Toạ độ: pixel 300 DPI của layout.json, trên anh_nan / anh_chuan_hoa (2480×3508).
 """
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import cv2
@@ -391,6 +392,34 @@ def du_doan(mo_hinh: dict, loai: str, X: np.ndarray) -> np.ndarray:
     return e / e.sum(axis=1, keepdims=True)
 
 
+# ------------------------------------------------------------------------------------------------ luật phụ 'vet_nho'
+VET_MO_K = 7                # px, cạnh elip phép mở: nét chữ A–D in sẵn (dày ~3–4 px) bị xoá, khối đặc (vết bút) còn lại
+VET_TOI = 0.6               # điểm lõi "tối" = < 0,6 × giấy vành
+VET_PX = 90                 # ≥ 90 px (@300 DPI) -> 'vet_nho'. Blank thật (56 ảnh train) tối đa 65; chấm giả 0,2r = 119 px
+                            #   (docs/ke_hoach_cai_tien_27-10.md mục 6.3)
+
+
+def vet_nho_px(anh: np.ndarray, cx: float, cy: float, r: float) -> int:
+    """Diện tích (px) cụm liên thông lớn nhất của điểm lõi (0,75r) tối hơn VET_TOI × giấy vành, sau phép mở VET_MO_K."""
+    x0, y0 = int(round(cx - 1.5 * r)), int(round(cy - 1.5 * r))
+    n = int(round(3 * r)) + 1
+    patch = _cat(anh, x0, y0, x0 + n, y0 + n).astype(np.float32)
+    yy, xx = np.ogrid[:n, :n]
+    d2 = (xx + x0 - cx) ** 2 + (yy + y0 - cy) ** 2
+    giay = max(float(np.median(patch[(d2 >= (1.15 * r) ** 2) & (d2 <= (1.45 * r) ** 2)])), 1.0)
+    toi = ((d2 <= (0.75 * r) ** 2) & (patch < VET_TOI * giay)).astype(np.uint8)
+    mo = cv2.morphologyEx(toi, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (VET_MO_K, VET_MO_K)))
+    k, _, st, _ = cv2.connectedComponentsWithStats(mo, connectivity=8)
+    return int(st[1:, cv2.CC_STAT_AREA].max()) if k > 1 else 0
+
+
+def them_vet_nho(cau: "KetQuaCau", vet: np.ndarray, options=("A", "B", "C", "D")) -> "KetQuaCau":
+    """Luật phụ: ô không nằm trong đáp án mà vet ≥ VET_PX -> can_xem + 'vet_nho'. KHÔNG đổi trạng thái / đáp án."""
+    if "vet_nho" in cau.ly_do or not any(vet[j] >= VET_PX and o not in cau.dap_an for j, o in enumerate(options)):
+        return cau
+    return replace(cau, can_xem=True, ly_do=cau.ly_do + ("vet_nho",))
+
+
 # ------------------------------------------------------------------------------------------------ luật ô -> câu / cột
 MA_LY_DO_OMR = {
     "o_mo": "Ô được tô mờ – kiểm tra thí sinh có chọn đáp án / chữ số này không.",
@@ -398,6 +427,7 @@ MA_LY_DO_OMR = {
     "khong_o_nao": "Cột chữ số không tô ô nào – nhập chữ số bằng tay.",
     "tin_cay_thap": "Máy không chắc ô nào được tô (vết tô sát ngưỡng) – kiểm tra bằng mắt.",
     "vi_tri": "Không xác định chắc vị trí hàng / cột trên ảnh (giấy cong, lệch) – kiểm tra bằng mắt hoặc chụp lại.",
+    "vet_nho": "Có vết tối nhỏ trong một ô không được chọn (chấm bút, vết bẩn) – kiểm tra thí sinh có ý chọn ô đó không.",
 }
 TRANG_THAI_DB = {"trong": "blank", "ro": "filled", "mo": "faint", "nhieu": "multiple"}   # -> ENUM bubble_state
 
@@ -513,6 +543,10 @@ def doc_phieu(kq, layout: dict, mo_hinh: dict | None = None, mau: np.ndarray | N
     luat = mo_hinh["luat"]
     opts = tuple(layout["answers"]["options"])
     cau = tuple(ap_luat_cau(q + 1, P_cau[q], luat["cau"], opts, bool(dv.co[f"q{q + 1}"])) for q in range(P_cau.shape[0]))
+    ans, r_o = layout["answers"], layout["answers"]["bubble_radius"]
+    cau = tuple(them_vet_nho(k, np.array([vet_nho_px(anh, ans["centers"][str(q + 1)][o][0] + dv.dich[f"q{q + 1}"][0],
+                                                      ans["centers"][str(q + 1)][o][1] + dv.dich[f"q{q + 1}"][1], r_o)
+                                           for o in opts]), opts) for q, k in enumerate(cau))
     cot, c = {}, 0
     for kh, truong in TRUONG_KHOI.items():
         cot[kh] = []
