@@ -12,6 +12,18 @@
 | 6 | Xem lại code vùng đậm–nhạt 0–255 |
 | 7 | Đăng nhập giáo viên, phân quyền theo lớp (cá nhân, lớp dạy, học sinh) |
 
+## 2. Yêu cầu 2 – chụp từ điện thoại, chấm liền (nhánh `cai-tien-b`, 27/10/2026) – XONG phần mã; CHƯA thử điện thoại thật
+Thiết kế + kết quả chi tiết: `docs/thiet_ke_chup_dien_thoai.md` (mục 8). Commit `b9ae088` (thiết kế) · `687d13c` (công cụ chỉ kiểm migration) · `763c6ff` (tính năng) · `3cf69d3` (bản tập) · tường lửa + tài liệu sau đó.
+- Trang `/m` (HTML tĩnh, JS thuần): đăng nhập → chọn kỳ thi → `<input capture="environment">` (camera gốc, ảnh gốc không nén, không cần HTTPS) → `POST /exams/{id}/sheets` → thẻ kết quả
+  (điểm TẠM, câu cần xem, cảnh báo SBD / mã đề / tờ nhạt, ảnh trùng, từ chối + lời khuyên, lỗi mạng / hết giờ / quá lớn / 401) → Chụp tiếp; bộ đếm phiên + 5 phiếu gần nhất. Điện thoại KHÔNG duyệt câu.
+- Máy tính: nút "Kết nối điện thoại" (QR, `GET /meta/ket-noi` chỉ cho người đăng nhập); danh sách phiếu / hàng đợi tự làm mới 4 s khi tab hiện, phiếu mới nổi bật.
+- `tools/chay_server_lan.py` (IP LAN – `backend/mang.py`, QR terminal, lệnh tường lửa CHỈ IN, `--host 0.0.0.0`). Mặc định `uvicorn` vẫn 127.0.0.1.
+- Ảnh tạm: `backend/don_anh.py` + migration **003 (ĐÃ ÁP 27/10, người dùng đồng ý; sao lưu `data/_backup/smart_exam_20261027_184231_truoc_003.dump`)**: xoá ảnh của phiếu
+  `graded` / `rejected` sau `ANH_GIU_GIO` (24) giờ, giữ phiếu chờ duyệt và kỳ thi [DEMO…]; API ảnh → 410. Chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật).
+- Kỳ thi TẬP **1632 / 1633** `[DEMO-BV-TẬP]` (chỉ INSERT). Giả lập Pixel 7, ảnh 3024×4032: ROLLBACK p50 0,81 s / p95 0,85 s; ghi thật trên TẬP p50 1,13 s / p95 2,13 s (loopback, chưa gồm Wi‑Fi).
+- pytest 375 đạt + 1 skip có chủ đích; `kiem_backend_dau_cuoi.py` 56/56, 0 chấm sai không cờ. Tường lửa: `SmartExam-8000-LAN` (Public,Private + `LocalSubnet`), xoá sau demo.
+- **Còn lại**: thử điện thoại thật cùng mạng (người dùng); camera trực tiếp `getUserMedia` (cần HTTPS) = hướng nâng cấp.
+
 ## 5. Yêu cầu 5 – chấm đủ 40 câu: bộ demo bảo vệ [DEMO-BV] (nhánh `cai-tien-b`, 27/10/2026) – XONG
 Kịch bản demo: `docs/kich_ban_demo_bao_ve.md`. Nguồn: `answer_sheet/demo_bv/` (commit `5a46d89`); công cụ `tools/kiem_bo_demo.py`, `tools/nap_bo_demo.py` (`7d8bfed`), `tools/thu_bo_demo.py` (`5f07ff7`).
 - **Ghi CSDL (người dùng đồng ý, chỉ INSERT)**: sao lưu trước `data/_backup/smart_exam_20261027_175511_truoc_demo_bv.dump`; nạp E1 (exam_id 1380, gv_an, IT3080, CNTT-K22A, mã đề 101/102, dự thi 220001–220005)

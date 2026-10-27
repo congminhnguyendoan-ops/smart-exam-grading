@@ -58,6 +58,38 @@ Khớp 10/10; 0 câu chấm sai mà không gắn cần xem. Câu tô hai ô: GV 
 - BV07 thật (bút chì HB nhẹ tay) có thể KHÔNG kích hoạt `to_nhat` nếu nét đậm hơn ngưỡng (T ≥ 0,44, `ke_hoach_cai_tien_27-10.md` 6.6) – khi đó các ô mờ được gắn `o_mo` từng câu.
 - Ảnh bị từ chối (mờ, thiếu marker…) → thông báo + lời khuyên chụp lại; chụp lại rồi tải.
 
+## 5b. Luồng CHỤP BẰNG ĐIỆN THOẠI → chấm ngay (yêu cầu 2; `docs/thiet_ke_chup_dien_thoai.md`)
+**Chuẩn bị (một lần, trước buổi bảo vệ)**
+1. Mở cổng 8000 cho mạng nội bộ – PowerShell **quản trị** (hệ thống không tự chạy):
+   `New-NetFirewallRule -DisplayName "SmartExam-8000-LAN" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Public,Private -RemoteAddress LocalSubnet`
+   (chỉ máy cùng mạng con nội bộ vào được, không mở ra Internet). **Sau buổi demo xoá**: `Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"`.
+2. Chạy server cho mạng nội bộ (thay cho `uvicorn … --port 8000`): `python tools/chay_server_lan.py` – in địa chỉ `http://<IP>:8000/m` + mã QR + hai lệnh trên.
+   Lượt dọn ảnh tạm đầu tiên sẽ xoá ảnh của 3 phiếu kỳ thi `[THU] Kiểm giao diện F1-F4` (bản sao ảnh dev) – muốn giữ: `--khong-xoa-anh`.
+3. Điện thoại nối **cùng Wi‑Fi**; trên máy tính bấm **📱 Kết nối điện thoại** → quét QR → đăng nhập. Hộp thoại báo vàng "chỉ nghe 127.0.0.1" = đang chạy nhầm `uvicorn` thường.
+
+**Diễn tập trên kỳ thi TẬP, KHÔNG trên 1380 / 1381**: **1632** "Giữa kỳ Cơ sở dữ liệu – K22A [DEMO-BV-TẬP]" (gv_an) và **1633** "… K22B [DEMO-BV-TẬP]" (gv_binh) – cùng đáp án, môn,
+lớp, danh sách dự thi như E1 / E2. Đã có 21 phiếu thử của công cụ giả lập (27/10): chụp lại đúng tệp ảnh đó sẽ báo "ảnh đã tải trước đó"; ảnh chụp mới từ điện thoại luôn có SHA khác.
+Diễn tập không cần điện thoại: `python tools/thu_dien_thoai.py chay` (ROLLBACK, không ghi gì).
+
+**Trình tự trong buổi bảo vệ** (chèn sau bước 3 của mục 3, thay cho "Tải ảnh & chấm" trên máy tính):
+| # | Điện thoại | Máy tính (màn chiếu) |
+|---|---|---|
+| a | Mở `/m` bằng QR, đăng nhập `gv_an`, chọn "Giữa kỳ Cơ sở dữ liệu – K22A [DEMO-BV]" | "Danh sách phiếu" của kỳ thi đó đang mở |
+| b | **📷 Chụp phiếu** (camera gốc) → "Đang chấm…" → thẻ: tên SV, **điểm TẠM**, số câu cần xem | ≤ 4 s sau phiếu tự hiện, nhãn "mới" + thông báo – KHÔNG chép file, không tải lại trang |
+| c | **Chụp tiếp** BV02 … BV05 | Bấm **Duyệt** từng phiếu (màn lớn) → điểm chính thức |
+| d | Đăng xuất, đăng nhập `gv_binh`; chụp BV07 → cảnh báo "tô nhạt cả tờ"; BV10 → "SBD … không có trong danh sách" | như bước 9–10 mục 3 |
+Cảnh báo / thông điệp điện thoại có thể hiện: ảnh bị từ chối + lời khuyên chụp lại; "ảnh này đã tải trước đó"; "mất kết nối / quá thời gian chờ"; "phiên đăng nhập đã hết".
+
+**Phương án dự phòng**
+- QR không mở được dù đúng IP + đã mở tường lửa (Wi‑Fi trường chặn thiết bị nói chuyện với nhau) → bật **hotspot điện thoại**, máy tính nối vào, chạy lại `chay_server_lan.py` (IP mới, QR mới).
+- Ảnh chụp tại chỗ bị từ chối nhiều (thiếu sáng, nghiêng) → chụp lại theo lời khuyên; vẫn không được → máy tính "Tải ảnh & chấm" với ảnh chụp sẵn `data/_eval/demo_bv/gia_12mp/BVxx_v1.jpg`
+  (hoặc ảnh phẳng `gia/BVxx.jpg`).
+- Điện thoại không vào được mạng → toàn bộ demo vẫn chạy trên máy tính như mục 3.
+- Sau buổi demo: xoá luật tường lửa; xoá ảnh phiếu trong thư viện ảnh điện thoại (cả "Đã xoá gần đây").
+
+**Số đo (giả lập Pixel 7, ảnh 3024×4032, loopback – chưa gồm Wi‑Fi)**: ROLLBACK p50 0,81 s / p95 0,85 s; ghi thật trên kỳ thi TẬP p50 1,13 s / p95 2,13 s.
+CHƯA thử bằng điện thoại thật cùng mạng – thử trước buổi bảo vệ (đo lại thời gian thật qua Wi‑Fi).
+
 ## 6. Tái tạo
 `python tools/kiem_bo_demo.py` · `python tools/nap_bo_demo.py` (xem trước) · `python tools/thu_bo_demo.py chay` · `python -m pytest tests/test_bo_demo.py`.
 Kiểm quyền 5a (27/10, chỉ GET, `AUTH_MODE=on`, token dựng từ hash trong CSDL): 24/24 đạt – gv_an thấy E1, không thấy E2 (5 đường `/exams/1381…` → 404,

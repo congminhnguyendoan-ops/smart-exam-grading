@@ -70,7 +70,8 @@ smart_exam_db/
 ├── backend/                      # Backend demo (mục 4d): main.py (API), schemas.py, service.py (ảnh → OMR → chấm → CSDL, luồng giáo viên),
 │   │                             #   grading.py (chấm thuần), demo.py (dữ liệu mẫu), config.py (.env), db.py, migrate.py
 │   └── migrations/               #   001_backend_bo_sung.sql – chỉ thêm cột / chỉ mục, chạy lại được (python -m backend.migrate)
-├── frontend/                     # Giao diện demo (HTML + JS thuần): index.html, app.js, style.css – FastAPI phục vụ tại /app/ (mục 4d)
+├── frontend/                     # Giao diện demo (HTML + JS thuần): index.html, app.js, style.css – FastAPI phục vụ tại /app/ (mục 4d);
+│                                 #   m.html, m.js, m.css = trang điện thoại /m (mục 4f)
 ├── .env.example                  # mẫu cấu hình; .env thật (DATABASE_URL, STORAGE_DIR…) KHÔNG vào git. storage/ (ảnh phiếu) cũng không
 ├── models/                       # Tuần 5: omr_m1.json (logistic, train 0001–0028), omr_m0.json (ngưỡng) – trong git,
 │                                 #   kèm sieu_du_lieu (ngày, git, SHA dữ liệu, fold). Sinh: tools/huan_luyen_omr.py xuat
@@ -116,7 +117,8 @@ smart_exam_db/
 │   ├── xuat_ocr.py               # Tuần 6: xuất models/ocr_cnn.json TỪ COMMIT SẠCH + kiểm NumPy ↔ PyTorch (< 1e-4); cần torch
 │   ├── eval_ocr.py               # Tuần 6: đánh giá ĐỘC LẬP hai kênh SBD / mã đề (chỉ ocr.py + omr.py): run --tap dev | val (--xac-nhan-val) [--xem]
 │   ├── eval_he_thong.py          # Tuần 5–6: đánh giá cả hệ thống (nắn ảnh → OMR → CNN → chấm → giáo viên) độc lập; run --tap dev | test (--xac-nhan-test, đăng ký + khoá một lần)
-│   ├── kiem_bo_demo.py, nap_bo_demo.py, thu_bo_demo.py  # Bộ demo bảo vệ [DEMO-BV] (mục 4f): kiểm kịch bản / nạp (chỉ INSERT) / chấm thử ROLLBACK
+│   ├── kiem_bo_demo.py, nap_bo_demo.py, thu_bo_demo.py  # Bộ demo bảo vệ [DEMO-BV] (mục 4f): kiểm kịch bản / nạp (chỉ INSERT, --ban-tap) / chấm thử ROLLBACK
+│   ├── chay_server_lan.py, thu_dien_thoai.py  # Chụp điện thoại (mục 4f): chạy server LAN (URL + QR + lệnh tường lửa) / giả lập Pixel 7 + đo thời gian
 │   ├── eval_omr.py               # Tuần 5: đánh giá ĐỘC LẬP (chỉ gọi doc_phieu): run --phuong-phap m0|m1, report
 │   │                             #   -> data/_eval/omr/bao_cao_phan_a_train.md + <pp>/xem_bang_mat.html
 │   └── check_task_pdf.py         # Trích phieu_giao_viec.pdf, so với ground_truth.csv hiện tại, commit đầu
@@ -290,6 +292,19 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   220006–220009; 220010 cố ý ngoài danh sách = phiếu BV10). Công cụ: `tools/kiem_bo_demo.py` (kịch bản, chỉ đọc) · `tools/nap_bo_demo.py [--ap-dung]` (xem trước mặc định, chạy lại INSERT 0) ·
   `tools/thu_bo_demo.py tao-anh | chay` (ảnh giả hoá BV01–BV10 → API thật với token gv_an / gv_binh, ROLLBACK; 10/10 khớp; BV10 KHÔNG ghi điểm vì `sbd_not_found` – đúng thiết kế).
   Diễn tập bằng `thu_bo_demo.py`, KHÔNG tải ảnh thật lên 1380 / 1381 trước buổi bảo vệ (phiếu nằm lại; xoá phải hỏi).
+  **Kỳ thi TẬP** `[DEMO-BV-TẬP]` (`nap_bo_demo.py --ban-tap --ap-dung`, đã nạp 27/10): **1632** (gv_an, K22A), **1633** (gv_binh, K22B) – diễn tập chụp điện thoại ở đây.
+- **Chụp bằng điện thoại → chấm ngay** (27/10/2026, yêu cầu 2; `docs/thiet_ke_chup_dien_thoai.md`): trang **`/m`** (HTML tĩnh `frontend/m.html|js|css`, camera gốc `capture=environment`,
+  ảnh gốc không nén) → `POST /exams/{id}/sheets` → thẻ kết quả (điểm TẠM, câu cần xem, cảnh báo); điện thoại KHÔNG duyệt câu. Máy tính: nút "Kết nối điện thoại" (`GET /meta/ket-noi`, chỉ
+  người đăng nhập: IP LAN + QR), danh sách phiếu / hàng đợi tự làm mới 4 s khi tab hiện. **Chạy cho điện thoại**: `python tools/chay_server_lan.py` (`--host 0.0.0.0`, in URL + QR + lệnh tường lửa;
+  `--khong-xoa-anh`, `--chi-in`). Tường lửa (người dùng TỰ chạy, PowerShell quản trị; KHÔNG BAO GIỜ tự chạy lệnh mạng / tường lửa):
+  `New-NetFirewallRule -DisplayName "SmartExam-8000-LAN" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Public,Private -RemoteAddress LocalSubnet` · xoá sau demo:
+  `Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"` (Wi‑Fi máy người dùng ở hồ sơ Public). Wi‑Fi chặn thiết bị → hotspot điện thoại.
+  Giả lập: `python tools/thu_dien_thoai.py tao-anh | chay` (Pixel 7, ROLLBACK mặc định; `--ky-thi-tap 1632 1633 --ghi-that` chỉ trên TẬP) → `data/_eval/ui_m/`. CHƯA thử điện thoại thật.
+- **Ảnh tạm** (migration **003 ĐÃ ÁP** 27/10: `answer_sheets.image_deleted_at`): `backend/don_anh.py` xoá ảnh gốc + nắn + ô viết tay của phiếu `graded` / `rejected` sau `ANH_GIU_GIO` (24) giờ;
+  giữ phiếu `needs_review` và kỳ thi `[DEMO…]` (`ANH_GIU_DEMO=1`); chỉ tệp trong `STORAGE_DIR`; API ảnh → 410. Luồng dọn chỉ chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật;
+  `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Lượt đầu sẽ xoá 5 tệp của exam 115 `[THU]` (bản sao ảnh dev).
+- **Migration trong test / công cụ**: `migrate.chua_ap()` chỉ đọc; `migrate.TUY_CHON` (003) không chặn test; fixture `csdl_003`. `kiem_backend_dau_cuoi.py`, `eval_he_thong.py`, `thu_bo_demo.py`
+  chỉ KIỂM migration (trước 27/10 hai công cụ đầu tự áp). Nhánh này: **pytest 375 đạt + 1 skip có chủ đích**.
 
 ## 5. Cài đặt và chạy
 

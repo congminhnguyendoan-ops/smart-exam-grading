@@ -43,14 +43,20 @@ kết quả hiện ngay trên điện thoại; máy tính (giao diện giáo vi�
 - **Chọn IP** (`backend/mang.py`, liệt kê card bằng `ifaddr`): bỏ 127.x (loopback), 169.254.x (tự cấp, không có DHCP), IPv6; chỉ nhận dải riêng 10.x / 172.16–31.x / 192.168.x;
   card ảo theo tên (WSL / vEthernet / Hyper‑V / Docker / VirtualBox / VMware / VPN / TAP / Tailscale / ZeroTier / Bluetooth) xếp CUỐI và gắn nhãn "card ảo"; ưu tiên IP của tuyến mặc định
   (mở UDP tới 8.8.8.8 – không gửi gói nào). Liệt kê MỌI ứng viên (máy có thể nhiều mạng). "Microsoft Wi‑Fi Direct Virtual Adapter" KHÔNG bị loại: đó là card của điểm phát sóng Windows (192.168.137.1).
-- **Tường lửa** (chỉ IN, người dùng tự chạy bằng PowerShell quản trị; chỉ hồ sơ mạng Private):
-  `New-NetFirewallRule -DisplayName "Smart Exam 8000 (LAN)" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Private`
-  Wi‑Fi đang là "Public" thì đổi sang Private (Cài đặt → Mạng → Wi‑Fi → Loại hồ sơ mạng: Riêng tư) thay vì mở cổng cho Public. Gỡ: `Remove-NetFirewallRule -DisplayName "Smart Exam 8000 (LAN)"`.
-- **Wi‑Fi trường chặn thiết bị nói chuyện với nhau** (AP isolation – QR mở không được dù đúng IP): (1) bật điểm phát sóng trên điện thoại, máy tính nối vào đó; hoặc
-  (2) bật Mobile hotspot trên Windows (máy tính thành 192.168.137.1), điện thoại nối vào. Chạy lại `chay_server_lan.py` để lấy IP mới.
+- **Tường lửa** (chốt với người dùng 27/10/2026 – Wi‑Fi của máy đang ở hồ sơ **Public**). Hệ thống CHỈ IN, người dùng tự chạy bằng PowerShell **quản trị** (Run as Administrator):
+  ```powershell
+  New-NetFirewallRule -DisplayName "SmartExam-8000-LAN" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Public,Private -RemoteAddress LocalSubnet
+  Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"      # xoá luật sau buổi demo
+  ```
+  Luật chỉ nhận kết nối vào cổng 8000 từ máy **cùng mạng con nội bộ** (`LocalSubnet` – ví dụ 192.168.1.x khi máy là 192.168.1.142); máy ngoài Internet không tới được
+  (router cũng không chuyển cổng vào). Vì áp cho cả hồ sơ Public, ở mạng công cộng (quán cà phê, Wi‑Fi trường) người cùng mạng con cũng tới được trang đăng nhập →
+  **xoá luật khi không dùng** (lệnh thứ hai). Mọi API vẫn cần đăng nhập.
+- **Wi‑Fi trường chặn thiết bị nói chuyện với nhau** (AP / client isolation – QR mở không được dù đúng IP và đã mở tường lửa): bật **điểm phát sóng (hotspot) trên điện thoại**,
+  máy tính nối vào đó, rồi chạy lại `chay_server_lan.py` để lấy IP mới (điện thoại vẫn dùng chính hotspot của nó để mở `/m`). Cách khác: Mobile hotspot của Windows (máy tính thành 192.168.137.1).
 
 ## 5. Bảo mật
 - Chỉ trong mạng nội bộ; server KHÔNG mở ra Internet (không chuyển cổng router). Mọi API vẫn cần đăng nhập (cookie HttpOnly SameSite=Lax hoặc Bearer); `/m` chỉ là HTML tĩnh (như `/app/`).
+- Tường lửa: `-RemoteAddress LocalSubnet` (mục 4) – chỉ cùng mạng con; xoá luật sau buổi demo.
 - `COOKIE_SECURE` vẫn tắt vì chạy http (bật thì trình duyệt không gửi cookie qua http). Hệ quả: người cùng Wi‑Fi có thể nghe lén cookie / mật khẩu (http không mã hoá) – chấp nhận cho
   phòng thi / demo; giảm rủi ro: dùng hotspot riêng, đổi mật khẩu sau buổi demo, phiên hết hạn sau `SESSION_HOURS`. HTTPS nội bộ = hướng nâng cấp (đi cùng `getUserMedia`).
 - Ai cùng Wi‑Fi cũng thấy trang đăng nhập: đã có giới hạn 5 lần sai / 15 phút / (tên, IP), một thông báo lỗi chung, phân quyền theo lớp như giao diện máy tính.
@@ -70,3 +76,24 @@ trong "Đã xoá gần đây" (iPhone) / "Thùng rác" (Android). (Trên vài m�
 - Chạy: luồng nền nhẹ lúc khởi động + mỗi giờ, CHỈ khi `ANH_XOA_TU_DONG=1` – `chay_server_lan.py` bật sẵn (máy chủ thật); `uvicorn` gọi trực tiếp, pytest và công cụ
   `tools/*` (dùng TestClient trên CSDL thật) mặc định KHÔNG dọn → chạy test / đánh giá không bao giờ xoá ảnh thật. Thủ công: `python -m backend.don_anh` (xem trước) / `--ap-dung`.
   Chưa áp migration 003 → luồng dọn tự tắt, ghi cảnh báo; API ảnh vẫn chạy (đọc cột bằng `to_jsonb(...)`, không lỗi khi thiếu cột).
+- **Lượt dọn đầu tiên trên CSDL hiện tại** (xem trước 27/10, `python -m backend.don_anh`, chỉ đọc): 12 phiếu – 9 phiếu seed kỳ thi 1 (tệp không có trên đĩa → chỉ đánh dấu)
+  và 3 phiếu kỳ thi `[THU] Kiểm giao diện F1-F4` (exam 115, **5 tệp thật** = bản sao ảnh dev; `data/raw` không bị đụng). Muốn giữ: chạy `chay_server_lan.py --khong-xoa-anh`.
+
+## 8. Kết quả (27/10/2026)
+- **Migration 003 ĐÃ ÁP** (người dùng đồng ý; sao lưu trước `data/_backup/smart_exam_20261027_184231_truoc_003.dump`, `pg_restore -l` đọc được). Chạy lại: "không có migration mới".
+  Vân tay dòng cũ 15 bảng giống hệt trước khi áp; 31 phiếu cũ `image_deleted_at = NULL`.
+- **Kỳ thi TẬP** (`nap_bo_demo.py --ban-tap --ap-dung`, chỉ INSERT; lần hai INSERT 0): **1632** "Giữa kỳ Cơ sở dữ liệu – K22A [DEMO-BV-TẬP]" (gv_an) và **1633** "Giữa kỳ Trí tuệ nhân tạo – K22B [DEMO-BV-TẬP]" (gv_binh).
+- **Giả lập điện thoại** (`tools/thu_dien_thoai.py`, Playwright Chromium giả lập Pixel 7; ảnh giả hoá 3024×4032 JPEG ~2,3 MB có phối cảnh, nền bàn, ánh sáng không đều):
+  | Chế độ | n | p50 | p95 | max |
+  |---|---|---|---|---|
+  | ROLLBACK (một kết nối, ảnh vào thư mục tạm) | 20 | 0,81 s | 0,85 s | 0,91 s |
+  | Ghi thật trên kỳ thi TẬP 1632/1633 (mỗi yêu cầu một kết nối + commit, ảnh vào `storage/`) | 20 | 1,13 s | 2,13 s | 2,38 s |
+  Thời gian = bấm tải (chọn ảnh) → thẻ kết quả hiện, qua **loopback 127.0.0.1**: KHÔNG gồm thời gian truyền ~2–4 MB qua Wi‑Fi của điện thoại thật.
+  Ảnh màn hình: `data/_eval/ui_m/` (ROLLBACK, 01–13) và `data/_eval/ui_m/tap/` (kỳ thi TẬP). Máy tính tự hiện phiếu mới (nhãn "mới" + thông báo) không cần tải lại.
+  Sau lần chạy ROLLBACK, vân tay CSDL 15 bảng giống hệt trước; kỳ thi TẬP sau lần ghi thật: 1632 có 11 phiếu (10 cần xem, 1 ảnh trắng bị từ chối), 1633 có 10 (cần xem); 1380/1381: 0 phiếu.
+- **Dọn ảnh tạm**: `tests/test_dien_thoai.py::test_don_anh_dong_ho_gia` (đồng hồ giả +25 giờ, thư mục ảnh tạm, ROLLBACK): xoá đúng 12 tệp của phiếu đã chốt + phiếu bị từ chối,
+  giữ phiếu chờ duyệt và kỳ thi [DEMO…]; API ảnh → 410; điểm chính thức giữ nguyên; tải lại ảnh cũ vẫn nhận ra (SHA). Không chạy dọn thật trên kỳ thi nào.
+- pytest **375 đạt + 1 skip có chủ đích**; hồi quy `kiem_backend_dau_cuoi.py`: điểm chính thức 56/56, 0 câu chấm sai không cờ.
+- **Ghi trung thực**: ảnh chụp bằng camera gốc KHÔNG do hệ thống kiểm soát (ánh sáng, độ nghiêng, lấy nét) – ảnh xấu bị từ chối kèm lời khuyên, nhưng số ảnh bị từ chối
+  ngoài đời chưa đo. Đã thử bằng GIẢ LẬP điện thoại, **CHƯA thử bằng điện thoại thật cùng mạng** (người dùng sẽ thử và báo lại). Camera trực tiếp (`getUserMedia`, khung căn phiếu)
+  cần HTTPS → hướng nâng cấp, chưa làm.

@@ -202,3 +202,14 @@ SELECT crop_image_path, corrected_digit FROM ocr_digits WHERE corrected_digit IS
 - Mỗi giáo viên chỉ thấy lớp, sinh viên, kỳ thi, phiếu của lớp mình (trang "Lớp của tôi", "Hồ sơ"); admin thấy tất cả. Gán lớp mẫu: `python tools/nap_giao_vien_demo.py --ap-dung`.
 - Chi tiết thiết kế, bảng quyền và quy trình chạy test đợt 2 an toàn: `docs/thiet_ke_dang_nhap.md`.
 
+## Phụ lục – Chụp bằng điện thoại, chấm ngay (nhánh cai-tien-b, 27/10/2026)
+1. Một lần (PowerShell **quản trị**, hệ thống không tự chạy): `New-NetFirewallRule -DisplayName "SmartExam-8000-LAN" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Public,Private -RemoteAddress LocalSubnet`
+   – chỉ máy cùng mạng nội bộ vào được, không mở ra Internet. Không dùng nữa thì xoá: `Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"`.
+2. Chạy server cho điện thoại (từ `smart_exam_db\`): `python tools/chay_server_lan.py` (in địa chỉ `http://<IP>:8000/m` + mã QR). Lệnh `uvicorn backend.main:app --port 8000` cũ chỉ cho máy này.
+3. Điện thoại cùng Wi‑Fi → quét QR (hoặc nút **📱 Kết nối điện thoại** trên máy tính) → đăng nhập → chọn kỳ thi → **Chụp phiếu**. Kết quả (điểm TẠM, câu cần xem) hiện ngay trên điện thoại;
+   phiếu mới tự hiện ở "Danh sách phiếu" trên máy tính – giáo viên duyệt ở máy tính.
+4. Wi‑Fi trường chặn kết nối giữa các thiết bị → bật hotspot trên điện thoại, máy tính nối vào, chạy lại bước 2.
+5. Ảnh tạm: server ở bước 2 xoá ảnh của phiếu đã chốt (điểm chính thức) / bị từ chối sau 24 giờ (`ANH_GIU_GIO`), giữ phiếu chờ duyệt và kỳ thi `[DEMO…]`; điểm, đáp án, lý do
+   vẫn giữ. Không muốn xoá: `--khong-xoa-anh`. Xem trước: `python -m backend.don_anh`. Ảnh trong thư viện ảnh của điện thoại phải tự xoá tay.
+Chi tiết: `docs/thiet_ke_chup_dien_thoai.md`.
+
