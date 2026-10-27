@@ -67,3 +67,23 @@ Quyền kỳ thi của giáo viên = `created_by = mình` HOẶC `exams.class_id
 - **Lộ tồn tại username**: một thông báo duy nhất (kể cả tài khoản bị khoá / hash giả); tên không tồn tại vẫn tốn một phép scrypt; 429 áp cho cả tên không tồn tại. Đã sửa thêm: thông báo lớp "không tồn tại" và "không phụ trách" trùng nhau (không dò được mã lớp), kiểm quyền lớp trước khi so `class_id` với `class_code`.
 - **Hạn chế còn lại**: giới hạn thử sai ở bộ nhớ tiến trình (nhiều worker / khởi động lại thì đếm lại); không có CSRF token riêng (dựa SameSite=Lax; API không nhận form chéo trang); trang tĩnh `/app/` công khai (chỉ mã giao diện);
   `/health` công khai lộ phiên bản mô hình (có từ trước); sau `AUTH_MODE=demo` mọi người thành "demo user" không kiểm quyền – KHÔNG dùng ngoài dev.
+
+## 8. Sự cố đã biết
+**Migration 002 bị áp lên CSDL thật ngoài ý muốn (27/10/2026, 14:11:25 theo đồng hồ máy), trước khi người dùng đồng ý ghi CSDL.**
+- Nguyên nhân: fixture `csdl_san_sang` trong `tests/conftest.py` tự gọi `migrate.ap_dung()`; tôi chạy `tests/test_frontend.py` (có test dùng fixture `client`) khi 002 đã nằm trong `backend/migrations/` → 002 được áp.
+- Phạm vi: chỉ THÊM cột `exams.class_id`, bảng `teacher_classes` (lúc đó 0 dòng), 3 chỉ mục, 2 comment, 1 dòng `schema_migrations`. Không sửa / xoá dữ liệu cũ (kiểm: 0 kỳ thi có `class_id`, 0 dòng `teacher_classes` ngay sau sự cố).
+- Quyết định của người dùng (29/10): GIỮ NGUYÊN, không gỡ. Sau đó người dùng đồng ý ghi CSDL; đã `pg_dump` trước các thao tác ghi còn lại (`data/_backup/`).
+- Phòng ngừa: `csdl_san_sang` KHÔNG tự áp migration nữa – chỉ kiểm đã áp, chưa áp thì SKIP có thông báo rõ; muốn áp trong test phải đặt `SMART_EXAM_TEST_MIGRATE=1`. Áp bình thường: `python -m backend.migrate`.
+
+## 9. Vận hành
+- **Đặt lại mật khẩu khi quên** (nhập bằng getpass, không qua tham số): `python -m backend.tai_khoan dat-lai-mat-khau gv_an` · khoá / mở khoá: `khoa <username>` / `mo-khoa <username>` · tạo mới: `tao <username> --email … --ho-ten "…" [--vai-tro teacher|admin|student]` ·
+  tạo lại cả 3 tài khoản mẫu với mật khẩu ngẫu nhiên (in một lần): `python -m backend.tai_khoan --mau`. Tài khoản mẫu: `admin`, `gv_an` (CNTT-K22A, IT3080), `gv_binh` (CNTT-K22B, IT4040).
+- **`.env`** (không commit): `AUTH_SECRET` (đã sinh bằng `secrets.token_hex(32)`), `AUTH_MODE=on`. Công cụ `tools/*` tự đặt `AUTH_MODE=demo` trong tiến trình; `tests/conftest.py` cũng vậy.
+- **Quy trình chạy test đợt 2 AN TOÀN** (nhánh `cai-tien-b` KHÔNG dùng để chạy đợt 2; tag `dang-ky-dot2`, mã khoá `ma-dot2-dong-bang-v3`):
+  1. cây làm việc sạch (`git status` rỗng, commit mọi thứ trên `cai-tien-b`);
+  2. `git switch --detach dang-ky-dot2` NGAY trong thư mục hiện tại – KHÔNG `git worktree`, KHÔNG clone mới (`core.autocrlf=true` đổi xuống dòng của vài file đã đăng ký bằng LF → SHA lệch; chuyển nhánh tại chỗ giữ nguyên file không đổi);
+  3. `python -c "import sys; sys.path.insert(0,'tools'); import eval_dot2 as E; E.kiem_dang_ky()"` (hoặc để `run` tự kiểm);
+  4. chạy: `python tools/eval_dot2.py run --xac-nhan-dot2 --xem` (CSDL đã có migration 001 + 002; backend ở tag bỏ qua cột / bảng mới nên vẫn chạy);
+  5. `git switch cai-tien-b`.
+  Nếu `kiem_dang_ky` từ chối vì xuống dòng (SHA lệch ở file chỉ khác CRLF/LF): **DỪNG và báo người dùng**, không sửa file, không sửa SHA / đăng ký.
+

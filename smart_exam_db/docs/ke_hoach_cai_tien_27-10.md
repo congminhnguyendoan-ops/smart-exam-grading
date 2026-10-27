@@ -196,3 +196,10 @@ Không lộ ở lệnh A vì luật chưa từng gắn cờ câu nào trên 56 �
 Chạy thử công cụ trên ảnh giả hoá (`python tools/eval_dot2.py tao-gia` → `run --thu-gia --xem`, 20 ảnh): H2 / H3 / H4 / H5 = 0 lỗi, điểm cuối đúng 20/20; vết 60/60 gắn cờ; 0107 SBD "cần xem" (thieu_bubble) cả 2 ảnh;
 0105 mọi câu có ô được chọn đều có cờ. CHỈ là số tham chiếu của công cụ (ảnh vẽ phẳng, không chữ viết tay), không đưa vào tiêu chí.
 
+## 8. Yêu cầu 1 và 7 – tên môn / lớp + đăng nhập giáo viên + phân quyền theo lớp (nhánh `cai-tien-b`, 29/10/2026) – XONG
+Thiết kế, bảng endpoint × quyền, tự rà, sự cố 002 và quy trình chạy đợt 2 an toàn: `docs/thiet_ke_dang_nhap.md`. Làm trên nhánh `cai-tien-b` (từ `d3d0426`); **không gộp về `main`, không đổi tag**; đợt 2 chạy từ tag `dang-ky-dot2`.
+- Migration `002_lop_giao_vien.sql` (đã áp, chỉ thêm): `exams.class_id`, `teacher_classes`. Dữ liệu mẫu: `tools/nap_giao_vien_demo.py --ap-dung` (gv_an → CNTT-K22A / IT3080, gv_binh → CNTT-K22B / IT4040; 4 kỳ thi demo của gv_an gắn CNTT-K22A).
+- Kết quả: pytest **345 đạt + 1 skip có chủ đích** (test đăng ký trên nhánh), gồm 44 test đăng nhập / phân quyền cần CSDL (không skip) + 27 không cần CSDL; hồi quy `kiem_backend_dau_cuoi.py` 56/56, 0 câu chấm sai không cờ; `cv_engine/` và `models/` không đổi so với `d3d0426`.
+- Thử tay (token dựng từ hash trong CSDL, chỉ GET): gv_an thấy 5 kỳ thi + lớp CNTT-K22A (5 SV); gv_binh thấy 0 kỳ thi + lớp CNTT-K22B (5 SV); chéo lớp / chéo kỳ thi → 404; admin thấy tất cả; Excel có "Môn: …" (A4) và "Lớp: …" (F4). Ảnh chụp: `data/_eval/ui_b/`.
+- Tái tạo: `python -m backend.migrate` · `python -m pytest tests` · `python tools/kiem_backend_dau_cuoi.py`.
+

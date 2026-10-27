@@ -273,6 +273,17 @@ chắn (`is_correct = NULL`). Phiếu còn câu / SBD / mã đề cần xem: `st
 `fn_grade_sheet` trước khi ghi điểm). **Không dùng `fn_process_sheet`** (không biết lý do cần xem của OMR). Test API chạy trên CSDL thật trong giao
 dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `python tools/kiem_backend_dau_cuoi.py` (56 ảnh train: 0 câu chấm sai không gắn cần xem; 0 SBD / mã đề nhận sai so với chữ viết tay; 26/56 ảnh có SBD hoặc mã đề cần xem).
 
+### 4f. Đăng nhập + phân quyền theo lớp (nhánh `cai-tien-b`, 29/10/2026; chi tiết `docs/thiet_ke_dang_nhap.md`)
+- **Chỉ có trên nhánh `cai-tien-b`** (từ `d3d0426`); `main` và tag `dang-ky-dot2` (mã khoá `ma-dot2-dong-bang-v3`) KHÔNG có. **Test đợt 2 chạy từ tag, không từ nhánh này**: cây sạch → `git switch --detach dang-ky-dot2` NGAY trong thư mục hiện tại
+  (không worktree / clone mới vì `autocrlf=true` đổi xuống dòng → `kiem_dang_ky` lệch SHA) → `kiem_dang_ky` → chạy → `git switch cai-tien-b`. Nếu `kiem_dang_ky` từ chối vì xuống dòng: DỪNG, báo người dùng, không sửa file / SHA.
+- `AUTH_MODE=on` (mặc định) | `demo` (hành vi cũ DEMO_USER / X-User, không kiểm quyền; `conftest.py` và `tools/*` tự đặt demo). `.env`: `AUTH_SECRET` (bắt buộc khi on, không mặc định trong code), `SESSION_HOURS`, `COOKIE_SECURE`.
+  Phiên = cookie `se_session` HttpOnly + SameSite=Lax (hoặc `Authorization: Bearer`); mật khẩu scrypt; 5 lần sai / 15 phút → 429; mọi lỗi đăng nhập cùng một thông báo.
+- API mới: `POST /auth/login`, `POST /auth/logout`, `GET|PATCH /me`, `POST /me/password`, `GET /me/classes`, `GET /classes/{id}/students`. `POST /exams` nhận `class_id` / `class_code` (lớp phải có sẵn và thuộc lớp mình). Kỳ thi / bảng điểm / Excel có môn + lớp.
+  Phân quyền: admin tất cả; teacher = lớp trong `teacher_classes` + kỳ thi mình tạo hoặc thuộc lớp mình; student 403; ngoài quyền → 404 như không tồn tại; chưa đăng nhập 401.
+- Tài khoản: `python -m backend.tai_khoan` (`tao` / `dat-lai-mat-khau` / `khoa` / `mo-khoa` / `--mau`; mật khẩu nhập bằng getpass). Mẫu: `admin`, `gv_an`, `gv_binh`. Dữ liệu mẫu: `tools/nap_giao_vien_demo.py [--ap-dung]`.
+- **Test KHÔNG tự áp migration lên CSDL thật** (sự cố 27/10: 002 bị áp nhầm, giữ nguyên): `csdl_san_sang` chỉ kiểm migration đã áp (chưa áp → SKIP rõ); áp trong test cần `SMART_EXAM_TEST_MIGRATE=1`; áp thường: `python -m backend.migrate`.
+  Nhánh này: pytest 345 đạt + 1 skip có chủ đích.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:

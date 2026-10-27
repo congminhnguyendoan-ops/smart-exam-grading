@@ -74,14 +74,23 @@ def _dem_bang(conn) -> dict:
 
 @pytest.fixture(scope="session")
 def csdl_san_sang():
-    """Áp migration (chỉ thêm cột, idempotent) một lần; skip nếu không nối được CSDL."""
+    """KHÔNG tự áp migration lên CSDL thật (sự cố 27/10/2026: một lần chạy test đã áp nhầm 002). Chỉ KIỂM các migration đã áp; chưa áp thì
+    SKIP có thông báo rõ (không tính là đạt). Muốn áp trong test: đặt SMART_EXAM_TEST_MIGRATE=1. Áp bình thường: python -m backend.migrate."""
     try:
         from backend import migrate
-        from backend.config import lay_cau_hinh
-        lay_cau_hinh()
-        migrate.ap_dung()
+        from backend.config import lay_database_url
+        from backend.db import ket_noi
+        lay_database_url()
+        if os.environ.get("SMART_EXAM_TEST_MIGRATE") == "1":
+            migrate.ap_dung()
+        with ket_noi() as c:
+            c.execute("SET TRANSACTION READ ONLY")
+            da_ap = {r["filename"] for r in c.execute("SELECT filename FROM schema_migrations").fetchall()}
     except Exception as e:  # noqa: BLE001
-        pytest.skip(f"không nối được CSDL / thiếu .env: {type(e).__name__}: {e}")
+        pytest.skip(f"không nối được CSDL / thiếu .env / chưa có schema_migrations: {type(e).__name__}: {e}")
+    chua = [f.name for f in migrate.ds_file() if f.name not in da_ap]
+    if chua:
+        pytest.skip(f"SKIP: migration chưa áp lên CSDL: {chua} – chạy `python -m backend.migrate` (hoặc SMART_EXAM_TEST_MIGRATE=1); test KHÔNG tự áp")
     return True
 
 

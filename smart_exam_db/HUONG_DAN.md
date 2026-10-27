@@ -194,3 +194,11 @@ SELECT crop_image_path, corrected_digit FROM ocr_digits WHERE corrected_digit IS
 | Tiếng Việt bị lỗi font trong CMD | `chcp 65001` (đã có trong run_all.bat) hoặc dùng pgAdmin |
 | `password authentication failed for smart_exam_app` | Kiểm tra mật khẩu trong `00_create_database.sql` và `run_all.bat` giống nhau |
 | `database "smart_exam" is being accessed by other users` | Đóng pgAdmin/DBeaver đang mở DB rồi chạy lại |
+
+---
+## Phụ lục – Đăng nhập giáo viên (nhánh cai-tien-b, 29/10/2026)
+- Trong `.env` cần `AUTH_SECRET` (chuỗi bí mật ≥ 32 ký tự; sinh: `python -c "import secrets; print(secrets.token_hex(32))"`) và `AUTH_MODE=on`. Chạy server như cũ: `uvicorn backend.main:app --port 8000`, mở `http://127.0.0.1:8000/` → màn đăng nhập.
+- Tạo / đặt lại tài khoản: `python -m backend.tai_khoan --mau` (admin, gv_an, gv_binh với mật khẩu ngẫu nhiên, in MỘT lần) hoặc `python -m backend.tai_khoan dat-lai-mat-khau <username>` (nhập mật khẩu bằng bàn phím, không hiện trên màn hình).
+- Mỗi giáo viên chỉ thấy lớp, sinh viên, kỳ thi, phiếu của lớp mình (trang "Lớp của tôi", "Hồ sơ"); admin thấy tất cả. Gán lớp mẫu: `python tools/nap_giao_vien_demo.py --ap-dung`.
+- Chi tiết thiết kế, bảng quyền và quy trình chạy test đợt 2 an toàn: `docs/thiet_ke_dang_nhap.md`.
+
