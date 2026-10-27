@@ -159,6 +159,7 @@ class PhieuOut(BaseModel):
     score: Diem | None
     review: MucReview | None
     questions: list[CauOut]
+    image_deleted_at: datetime | None = Field(default=None, description="Ảnh đã được xoá (chính sách ảnh tạm) lúc này – API ảnh trả 410")
 
 
 class PhieuTomTat(BaseModel):
@@ -231,6 +232,24 @@ class DinhDanh(BaseModel):
 class LyDoTuChoi(BaseModel):
     message: str = Field(description="Thông báo cho giáo viên (MA_LY_DO của preprocess)")
     advice: str = Field(description="Lời khuyên chụp lại")
+
+
+class UngVienIp(BaseModel):
+    ip: str
+    card: str
+    ao: bool = Field(description="Card ảo (WSL / Docker / VPN …) – điện thoại thường không tới được")
+    mac_dinh: bool = Field(description="IP của tuyến mặc định")
+    hotspot: bool = Field(description="192.168.137.x – điểm phát sóng của Windows")
+    url: str
+
+
+class KetNoi(BaseModel):
+    lan_bat: bool = Field(description="Server khởi động cho mạng nội bộ (--host 0.0.0.0, tools/chay_server_lan.py)")
+    cong: int
+    url: str | None = Field(description="Địa chỉ trang điện thoại /m theo IP được chọn")
+    qr_svg: str = Field(description="Mã QR của url (SVG); rỗng nếu thiếu segno")
+    ung_vien: list[UngVienIp]
+    gioi_han_anh_mb: int
 
 
 # ------------------------------------------------------------------------------------------------ bảng điểm

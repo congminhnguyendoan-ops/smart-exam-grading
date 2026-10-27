@@ -30,6 +30,11 @@ class CauHinh:
     auth_secret: str = ""      # khoá ký phiên (HMAC); bắt buộc khi auth_mode = "on"; KHÔNG có giá trị mặc định trong code
     session_hours: float = 8.0
     cookie_secure: bool = False  # bật khi chạy sau https (COOKIE_SECURE=1)
+    # Ảnh tạm (docs/thiet_ke_chup_dien_thoai.md mục 7): xoá ảnh của phiếu đã chốt sau anh_giu_gio giờ. Luồng dọn CHỈ chạy khi anh_xoa_tu_dong
+    # (tools/chay_server_lan.py bật sẵn); pytest / tools/* dùng TestClient trên CSDL thật nên mặc định TẮT – không bao giờ xoá ảnh thật khi kiểm thử.
+    anh_xoa_tu_dong: bool = False
+    anh_giu_gio: float = 24.0
+    anh_giu_demo: bool = True    # không xoá ảnh của kỳ thi có "[DEMO" trong tên (demo / báo cáo cần ảnh)
 
 
 def lay_database_url() -> str:
@@ -61,5 +66,12 @@ def lay_cau_hinh() -> CauHinh:
         nguoi_dung_demo=os.environ.get("DEMO_USER", "gv_an"),
         gioi_han_anh_mb=int(os.environ.get("MAX_UPLOAD_MB", "25")),
         auth_mode=mode, auth_secret=secret, session_hours=float(os.environ.get("SESSION_HOURS", "8")),
-        cookie_secure=os.environ.get("COOKIE_SECURE", "0").strip().lower() in ("1", "true", "yes", "on"),
+        cookie_secure=_bat(os.environ.get("COOKIE_SECURE", "0")),
+        anh_xoa_tu_dong=_bat(os.environ.get("ANH_XOA_TU_DONG", "0")),
+        anh_giu_gio=float(os.environ.get("ANH_GIU_GIO", "24")),
+        anh_giu_demo=_bat(os.environ.get("ANH_GIU_DEMO", "1")),
     )
+
+
+def _bat(v: str) -> bool:
+    return v.strip().lower() in ("1", "true", "yes", "on")

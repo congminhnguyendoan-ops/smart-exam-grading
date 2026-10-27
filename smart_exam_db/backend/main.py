@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from urllib.parse import quote
 
-from . import auth, bang_diem, loi_khuyen, nguoi_dung, phan_quyen, schemas, service
+from . import auth, bang_diem, don_anh, loi_khuyen, mang, nguoi_dung, phan_quyen, schemas, service
 from .config import CauHinh, LoiCauHinh, lay_cau_hinh
 from .db import ket_noi
 
@@ -32,7 +32,11 @@ async def lifespan(app: FastAPI):
     app.state.cfg = cfg
     app.state.mo_hinh = service.nap_mo_hinh(cfg)          # nạp OMR + CNN chữ số một lần
     log.info("Đã nạp mô hình OMR %s, CNN chữ số %s", app.state.mo_hinh.phien_ban, app.state.mo_hinh.phien_ban_ocr)
+    # Dọn ảnh tạm CHỈ khi ANH_XOA_TU_DONG=1 (tools/chay_server_lan.py). pytest / tools/* (TestClient trên CSDL thật) để tắt.
+    luong = don_anh.LuongDon(cfg).bat() if cfg.anh_xoa_tu_dong else None
     yield
+    if luong:
+        luong.tat()
 
 
 app = FastAPI(
@@ -117,6 +121,13 @@ def health(request: Request):
 def ly_do_tu_choi():
     """Cho giao diện: mỗi mã `reject_code` (MA_LY_DO của preprocess) kèm thông báo tiếng Việt và lời khuyên chụp lại."""
     return loi_khuyen.danh_sach()
+
+
+@app.get("/meta/ket-noi", response_model=schemas.KetNoi, tags=["Hệ thống"], summary="Địa chỉ cho điện thoại (IP LAN, QR) – cần đăng nhập")
+def ket_noi_dien_thoai(request: Request, cfg: CauHinh = Depends(get_cau_hinh), nd: auth.NguoiDung = Depends(giao_vien)):
+    """Cho nút "Kết nối điện thoại": IP mạng nội bộ ứng viên, URL trang /m + mã QR. Chỉ người đã đăng nhập (không lộ thông tin mạng cho người lạ).
+    `lan_bat = false` nghĩa là server chỉ nghe 127.0.0.1 – điện thoại không vào được (khởi động bằng tools/chay_server_lan.py)."""
+    return {**mang.thong_tin_ket_noi(request.url.port or mang.CONG_MAC_DINH), "gioi_han_anh_mb": cfg.gioi_han_anh_mb}
 
 
 # ------------------------------------------------------------------------------------------------ đề thi
@@ -337,6 +348,12 @@ FRONTEND_DIR = DuongDan(__file__).resolve().parent.parent / "frontend"
 @app.get("/", include_in_schema=False)
 def trang_chu():
     return RedirectResponse("/app/")
+
+
+@app.get("/m", include_in_schema=False)
+def trang_dien_thoai():
+    """Trang chụp phiếu cho điện thoại – HTML TĨNH (không dữ liệu); mọi API nó gọi vẫn cần đăng nhập."""
+    return FileResponse(FRONTEND_DIR / "m.html", media_type="text/html", headers={"Cache-Control": "no-cache"})
 
 
 app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")   # đặt SAU các route API

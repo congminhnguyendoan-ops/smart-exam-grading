@@ -56,6 +56,20 @@ class DuLieuSai(LoiDichVu):
     ma_http = 422
 
 
+class AnhDaXoa(LoiDichVu):
+    """Ảnh của phiếu đã chốt bị xoá theo chính sách ảnh tạm (backend/don_anh.py) – không phải lỗi máy chủ."""
+    ma_http = 410
+
+
+THONG_BAO_ANH_DA_XOA = "Ảnh đã được xoá sau khi chốt phiếu (chính sách giữ ảnh tạm). Điểm, đáp án và lý do vẫn được giữ."
+
+
+def anh_da_xoa_luc(conn, sheet_id: int):
+    """Thời điểm ảnh của phiếu bị xoá, None nếu còn. Đọc qua to_jsonb để KHÔNG lỗi khi CSDL chưa áp migration 003 (chưa có cột)."""
+    r = conn.execute("SELECT to_jsonb(a) -> 'image_deleted_at' AS x FROM answer_sheets a WHERE sheet_id = %s", (sheet_id,)).fetchone()
+    return r["x"] if r else None
+
+
 # ------------------------------------------------------------------------------------------------ mô hình OMR
 @dataclass
 class MoHinhDichVu:
@@ -578,6 +592,7 @@ def xem_phieu(conn, sheet_id: int) -> dict:
                        "needs_review": r["needs_review"], "reasons": r["review_reasons"], "is_correct": r["is_correct"],
                        "manually_edited": r["manually_edited"], "omr_selected_options": r["omr_selected_options"],
                        "confidence": r["confidence"]} for r in rows],
+        "image_deleted_at": anh_da_xoa_luc(conn, sheet_id),
     }
 
 
@@ -611,6 +626,8 @@ def duong_dan_anh(conn, cfg: CauHinh, sheet_id: int, loai: str) -> Path:
     r = conn.execute("SELECT image_path, aligned_image_path FROM answer_sheets WHERE sheet_id = %s", (sheet_id,)).fetchone()
     if not r:
         raise KhongTimThay(f"Không có phiếu {sheet_id}.")
+    if anh_da_xoa_luc(conn, sheet_id):
+        raise AnhDaXoa(THONG_BAO_ANH_DA_XOA)
     rel = r["image_path"] if loai == "goc" else r["aligned_image_path"]
     if not rel:
         raise KhongTimThay("Phiếu không có ảnh đã nắn (ảnh bị từ chối).")
@@ -647,6 +664,8 @@ def anh_chu_so(conn, cfg: CauHinh, sheet_id: int, truong: str, vi_tri: int) -> P
     """Đường dẫn PNG ô viết tay (truong 'sbd' | 'exam_code') – để giáo viên so với chữ số bubble."""
     r = conn.execute("SELECT crop_image_path FROM ocr_digits WHERE sheet_id = %s AND field = %s::ocr_field AND position = %s",
                      (sheet_id, truong, vi_tri)).fetchone()
+    if anh_da_xoa_luc(conn, sheet_id):
+        raise AnhDaXoa(THONG_BAO_ANH_DA_XOA)
     if not r or not r["crop_image_path"]:
         raise KhongTimThay("Không có ảnh ô viết tay này (phiếu cũ hoặc bị từ chối).")
     p = (cfg.storage_dir / r["crop_image_path"]).resolve()

@@ -20,5 +20,8 @@ python-multipart>=0.0.9
 httpx>=0.27
 # Xuất Excel bảng điểm (backend/bang_diem.py)
 openpyxl>=3.1
+# Chụp bằng điện thoại (backend/mang.py): mã QR + liệt kê card mạng – cả hai thuần Python, nhẹ; thiếu thì chỉ mất QR / tên card
+segno>=1.6
+ifaddr>=0.2
 # Chỉ để HUẤN LUYỆN CNN chữ số (tools/huan_luyen_ocr.py, Tuần 6) – bản CPU; backend/cv_engine/ocr.py lúc chạy chỉ NumPy + JSON
 torch>=2.14

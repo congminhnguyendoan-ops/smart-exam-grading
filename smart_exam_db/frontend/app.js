@@ -5,7 +5,7 @@
 
 const $ = (s, r = document) => r.querySelector(s);
 const main = $("#main");
-const state = { examId: null, exams: [], exam: null, reasons: {}, me: null };
+const state = { examId: null, exams: [], exam: null, reasons: {}, me: null, biet: null, moi: new Set(), chuKy: "" };
 
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = (x) => (x === null || x === undefined ? "–" : Number(x).toFixed(2).replace(/\.00$/, ""));
@@ -85,7 +85,7 @@ async function napChiTietKyThi() {
   n.textContent = e ? e.sheets.can_xem : ""; n.classList.toggle("hidden", !e || !e.sheets.can_xem);
 }
 $("#exam-select").addEventListener("change", async (ev) => {
-  state.examId = Number(ev.target.value);
+  state.examId = Number(ev.target.value); state.biet = null; state.moi.clear();
   try { localStorage.setItem("examId", state.examId); } catch (_) { /* bỏ qua */ }
   await napChiTietKyThi(); route();
 });
@@ -138,7 +138,7 @@ function manDangNhap(thongBao) {
 }
 $("#logout").addEventListener("click", async () => {
   try { await api("/auth/logout", { method: "POST", khongChuyen: true }); } catch (_) { /* bỏ qua */ }
-  state.examId = null; state.exams = []; state.exam = null;
+  state.examId = null; state.exams = []; state.exam = null; state.biet = null; state.moi.clear();
   manDangNhap("Đã đăng xuất.");
 });
 async function manHoSo() {
@@ -255,7 +255,7 @@ async function manDanhSach() {
       ${[["", "Tất cả"], ["graded", "Chính thức"], ["needs_review", "Cần xem"], ["rejected", "Bị từ chối"]].map(([v, t]) => `<option value="${v}" ${v === loc ? "selected" : ""}>${t}</option>`).join("")}
     </select></label><span class="muted small">${ds.length} phiếu</span></div>
     <table><thead><tr><th>#</th><th>Ảnh</th><th>SBD</th><th>Mã đề</th><th>Sinh viên</th><th>Trạng thái</th><th>Điểm</th><th></th></tr></thead><tbody>
-    ${ds.map((p) => `<tr class="row-link" data-id="${p.sheet_id}"><td>${p.sheet_id}</td><td>${esc(p.original_filename)}</td>
+    ${ds.map((p) => `<tr class="row-link${state.moi.has(p.sheet_id) ? " moi" : ""}" data-id="${p.sheet_id}"><td>${p.sheet_id}${state.moi.has(p.sheet_id) ? ' <span class="tag ok">mới</span>' : ""}</td><td>${esc(p.original_filename)}</td>
       <td>${p.status === "rejected" ? "–" : esc(p.detected_sbd || "–")}</td><td>${p.status === "rejected" ? "–" : esc(p.detected_exam_code || "–")}</td>
       <td>${esc(p.student_name || "–")}</td>
       <td>${tag(p.status)}${p.status === "needs_review" ? ` <span class="muted small">${p.pending_questions} câu</span>` : ""}
@@ -308,6 +308,7 @@ async function manChiTiet(id) {
   main.innerHTML = `<p><a href="#/sheets">← Danh sách phiếu</a></p>
     <h2>Phiếu #${p.sheet_id} ${tag(p.status)}</h2>
     <div class="grid2"><div class="card"><h3>Ảnh đã nắn phẳng</h3>
+      ${p.image_deleted_at ? `<div class="alert warn">Ảnh đã được xoá lúc ${esc(new Date(p.image_deleted_at).toLocaleString("vi-VN"))} sau khi chốt phiếu (chính sách giữ ảnh tạm). Điểm, đáp án và lý do vẫn được giữ.</div>` : ""}
       ${rejected ? '<p class="muted">Ảnh bị từ chối nên không có ảnh nắn.</p>' : `<a href="/sheets/${id}/image?kind=aligned" target="_blank"><img class="sheetimg" src="/sheets/${id}/image?kind=aligned" alt="ảnh đã nắn"></a>`}
       <p class="small"><a href="/sheets/${id}/image?kind=original" target="_blank">Xem ảnh gốc</a> · ${esc(p.original_filename)}</p></div>
     <div><div class="card">${rejected ? await khoiTuChoi(p) : `
@@ -337,7 +338,7 @@ async function khoiTuChoi(p) {
 async function manHangDoi() {
   const ds = await api(`/exams/${state.examId}/sheets?status=needs_review`);
   main.innerHTML = `<h2>Hàng đợi duyệt (${ds.length})</h2><div class="card"><table><thead><tr><th>#</th><th>Ảnh</th><th>SBD</th><th>Mã đề</th><th>Câu cần xem</th><th>Điểm tạm</th><th></th></tr></thead><tbody>
-    ${ds.map((p) => `<tr><td>${p.sheet_id}</td><td>${esc(p.original_filename)}</td><td>${esc(p.detected_sbd || "–")}</td><td>${esc(p.detected_exam_code || "–")}</td>
+    ${ds.map((p) => `<tr class="${state.moi.has(p.sheet_id) ? "moi" : ""}"><td>${p.sheet_id}${state.moi.has(p.sheet_id) ? ' <span class="tag ok">mới</span>' : ""}</td><td>${esc(p.original_filename)}</td><td>${esc(p.detected_sbd || "–")}</td><td>${esc(p.detected_exam_code || "–")}</td>
       <td>${p.pending_questions}</td><td>${diemTomTat(p)}</td><td><a class="btn pri" href="#/review/${p.sheet_id}">Duyệt</a></td></tr>`).join("")
       || '<tr><td colspan="7" class="muted">Không còn phiếu nào cần duyệt.</td></tr>'}</tbody></table></div>`;
 }
@@ -454,6 +455,64 @@ async function manBangDiem() {
       ${b.unmatched.map((p) => `<tr><td><a href="#/sheet/${p.sheet_id}">#${p.sheet_id}</a></td><td>${esc(p.original_filename)}</td><td>${tag(p.status)}</td>
         <td>${p.status === "rejected" ? esc(p.reject_message || p.reject_code) : "SBD đọc: " + esc(p.detected_sbd || "–") + " – chưa khớp danh sách"}</td></tr>`).join("")}</tbody></table></div>` : ""}`;
 }
+
+/* ------------------------------------------------------------------ tự làm mới (phiếu chụp từ điện thoại) */
+/* Mỗi 4 s, CHỈ khi tab đang hiện: lấy danh sách phiếu của kỳ thi; có phiếu mới / đổi trạng thái thì báo + vẽ lại F2 / hàng đợi (không cuộn trang). */
+const CHU_KY_THAM_DO_MS = 4000;
+async function thamDo() {
+  if (document.hidden || !state.me || !state.examId) return;
+  const examId = state.examId;
+  let ds;
+  try { ds = await api(`/exams/${examId}/sheets`); } catch (_) { return; }        // lỗi mạng tạm thời: bỏ qua lượt này
+  if (examId !== state.examId) return;
+  const ids = ds.map((p) => p.sheet_id);
+  const chuKy = ds.map((p) => `${p.sheet_id}:${p.status}:${p.raw_score}:${p.official_score}`).join("|");
+  if (state.biet === null) { state.biet = new Set(ids); state.chuKy = chuKy; return; }   // lượt đầu: chỉ lấy mốc
+  const moi = ids.filter((i) => !state.biet.has(i));
+  moi.forEach((i) => { state.biet.add(i); state.moi.add(i); setTimeout(() => state.moi.delete(i), 30000); });
+  if (chuKy === state.chuKy) return;
+  state.chuKy = chuKy;
+  if (moi.length) toast(`${moi.length} phiếu mới vừa được chấm (phiếu #${moi.join(", #")}).`);
+  await napChiTietKyThi();
+  const [r, id] = (location.hash.replace(/^#\/?/, "") || "upload").split("/");
+  try {
+    if (r === "sheets") await manDanhSach();
+    else if (r === "review" && !id) await manHangDoi();
+  } catch (_) { /* bỏ qua */ }
+}
+setInterval(thamDo, CHU_KY_THAM_DO_MS);
+
+/* Ảnh của phiếu đã chốt có thể đã bị xoá (chính sách ảnh tạm – API trả 410): thay ảnh hỏng bằng dòng chữ, không vỡ bố cục. */
+document.addEventListener("error", (e) => {
+  const t = e.target;
+  if (t.tagName !== "IMG" || !/^\/sheets\//.test(t.getAttribute("src") || "")) return;
+  const s = document.createElement("span"); s.className = "muted small"; s.textContent = "(ảnh không còn – đã xoá sau khi chốt phiếu)";
+  t.replaceWith(s);
+}, true);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) thamDo(); });
+
+/* ------------------------------------------------------------------ kết nối điện thoại */
+async function moKetNoi() {
+  const dlg = $("#dlg-dt"), body = $("#dlg-dt-body");
+  dlg.classList.remove("hidden"); body.innerHTML = '<p class="muted">Đang lấy địa chỉ…</p>';
+  try {
+    const k = await api("/meta/ket-noi");
+    const khac = k.ung_vien.filter((u) => u.url !== k.url);
+    body.innerHTML = `${k.lan_bat ? "" : `<div class="alert warn"><b>Máy chủ đang chỉ nghe trên máy này (127.0.0.1)</b> – điện thoại chưa vào được.
+        Tắt máy chủ rồi chạy <code>python tools/chay_server_lan.py</code> (mở cho mạng nội bộ).</div>`}
+      ${k.url ? `<div class="qr">${k.qr_svg}</div><div class="url-big">${esc(k.url)}</div>` : '<div class="alert bad">Không tìm thấy địa chỉ mạng nội bộ (máy chưa nối Wi‑Fi / mạng LAN?).</div>'}
+      <ol><li>Điện thoại nối <b>cùng Wi‑Fi</b> với máy tính này.</li>
+        <li>Mở camera điện thoại, quét mã QR (hoặc gõ địa chỉ trên vào trình duyệt).</li>
+        <li>Đăng nhập → chọn kỳ thi → bấm <b>Chụp phiếu</b>. Phiếu mới tự hiện ở "Danh sách phiếu" trên máy tính.</li></ol>
+      ${khac.length ? `<p class="small muted">Địa chỉ khác (nếu mã trên không vào được): ${khac.map((u) => `<code>${esc(u.url)}</code> (${esc(u.card)}${u.ao ? ", card ảo" : ""}${u.hotspot ? ", điểm phát sóng" : ""})`).join(" · ")}</p>` : ""}
+      <p class="small muted">Không vào được dù cùng Wi‑Fi: tường lửa Windows chưa mở cổng ${k.cong} cho mạng Riêng tư, hoặc Wi‑Fi chặn thiết bị nói chuyện với nhau
+        → dùng điểm phát sóng của điện thoại hoặc của máy tính (xem <code>docs/thiet_ke_chup_dien_thoai.md</code> mục 4).</p>`;
+  } catch (e) { if (!e.dangNhap) body.innerHTML = `<div class="alert bad">${esc(e.message)}</div>`; }
+}
+$("#ket-noi-dt").addEventListener("click", moKetNoi);
+$("#dlg-dt-x").addEventListener("click", () => $("#dlg-dt").classList.add("hidden"));
+$("#dlg-dt").addEventListener("click", (e) => { if (e.target.id === "dlg-dt") $("#dlg-dt").classList.add("hidden"); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#dlg-dt").classList.add("hidden"); });
 
 /* ------------------------------------------------------------------ khởi động */
 async function khoiDong() {

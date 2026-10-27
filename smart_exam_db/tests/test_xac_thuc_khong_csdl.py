@@ -115,7 +115,7 @@ def test_mac_dinh_la_on_va_khong_co_khoa_mac_dinh_trong_code():
 
 
 # ------------------------------------------------------------------------------------------------ kiểm toán route
-CONG_KHAI = {"/", "/health", "/meta/reject-reasons", "/auth/login", "/auth/logout"}      # "/" chỉ chuyển hướng tới /app/ (HTML + JS + CSS tĩnh, không dữ liệu)
+CONG_KHAI = {"/", "/m", "/health", "/meta/reject-reasons", "/auth/login", "/auth/logout"}  # "/" chuyển hướng tới /app/, "/m" = HTML tĩnh điện thoại (không dữ liệu)
 
 
 def _phu_thuoc(dependant):

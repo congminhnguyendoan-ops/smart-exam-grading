@@ -27,10 +27,15 @@
   </label>
   <p class="exam-name" id="exam-name"></p>
   <p class="muted small" id="exam-info"></p>
+  <button type="button" id="ket-noi-dt" class="phone-btn">📱 Kết nối điện thoại</button>
   <p class="muted small foot">Cần đăng nhập để dùng.<br><a href="/docs" target="_blank">API (Swagger)</a></p>
 </aside>
 <main id="main"><p class="muted">Đang tải…</p></main>
 <div id="toast" class="toast hidden"></div>
+<div id="dlg-dt" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="dlg-dt-h"><div class="modal-box">
+  <button type="button" class="modal-x" id="dlg-dt-x" aria-label="Đóng">×</button>
+  <h2 id="dlg-dt-h">Kết nối điện thoại</h2><div id="dlg-dt-body"><p class="muted">Đang lấy địa chỉ…</p></div>
+</div></div>
 <script src="app.js"></script>
 </body>
 </html>

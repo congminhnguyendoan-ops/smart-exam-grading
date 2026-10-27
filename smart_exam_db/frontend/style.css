@@ -8,6 +8,13 @@ nav a.on{background:var(--pri);color:#fff;border-color:var(--pri)}
 .exam-pick{display:block;margin-top:16px;font-weight:600;font-size:13px}
 .exam-pick select{width:100%;margin-top:4px;padding:6px}
 .exam-name{margin:6px 0 0;font-size:13px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+.phone-btn{width:100%;margin-top:4px;padding:8px;font-weight:600}
+.modal{position:fixed;inset:0;z-index:50;background:rgba(20,24,33,.45);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.modal-box{position:relative;background:#fff;border-radius:12px;max-width:560px;width:100%;padding:20px 22px}
+.modal-x{position:absolute;right:10px;top:8px;border:0;background:none;font-size:26px;cursor:pointer;line-height:1}
+.qr{display:flex;justify-content:center;margin:8px 0}.qr svg{width:240px;height:240px}
+.url-big{font-size:20px;font-weight:700;text-align:center;overflow-wrap:anywhere;margin:4px 0 10px}
+tr.moi td{background:#e8f0ff;transition:background 2s}
 main{flex:1;padding:20px 24px;max-width:1200px;min-width:0}
 h2{margin:0 0 14px;font-size:22px}
 h3{margin:0 0 8px;font-size:16px}
