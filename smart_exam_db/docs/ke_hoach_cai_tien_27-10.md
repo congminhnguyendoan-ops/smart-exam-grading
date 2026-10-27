@@ -127,6 +127,35 @@ Không phải chập chờn mà phụ thuộc môi trường: tái tạo tất �
 Tiến trình con `eval_ocr.py` in thông báo có dấu "–" bằng cp1252 (byte 0x96); tiến trình cha `subprocess.run(text=True, encoding="utf-8")` giải mã lỗi trong luồng đọc → `r.stderr = None` → `None + str` = `TypeError`.
 Sửa test (không đổi công cụ / tiêu chí): chạy tiến trình con với `PYTHONUTF8=1`. Các `subprocess.run` khác trong `tests/` chỉ nhận ASCII (git, node) nên không bị.
 
+### 6.6 Luật mức tờ `to_nhat` (28/10/2026) – đo, chốt luật và tiêu chí TRƯỚC khi sửa code
+Lý do: ở tờ nhạt cả tờ, vệt lạc nhạt bằng nét đáp án thì không đặc trưng riêng một ô nào phân biệt được (mục 6.4); nhưng trung vị ld của các ô "rõ chắc" cả tờ
+(**T**) tách được. Quyết định người dùng 28/10: chưa có ảnh đợt 2 nào nên mở khoá đóng băng chưa làm mất tính khách quan; khoá lại v2 rồi không đổi mã cho tới khi chạy xong đợt 2.
+Công cụ `tools/omr_to_nhat.py` (chỉ đọc; ghi `data/_eval/omr/to_nhat/`: `bang_*.md`, `t_thap.html`). Tái tạo: `python tools/omr_to_nhat.py tat_ca`.
+
+**a) T trên 56 ảnh train** (T = trung vị ld của ô "rõ chắc" mỗi phiếu; n = số ô):
+| điều kiện | T min | T p5 | T p50 | n min | p10 min | p25 min |
+|---|---|---|---|---|---|---|
+| C1 | 0,575 | 0,592 | 0,740 | 19 | 0,532 | 0,552 |
+| C2 | **0,467** | 0,470 | 0,696 | 19 | 0,366 | 0,403 |
+| C3 | 0,491 | 0,520 | 0,725 | 20 | 0,458 | 0,465 |
+| C4 | 0,601 | 0,605 | 0,780 | 22 | 0,545 | 0,563 |
+| tất cả | 0,467 | 0,507 | 0,731 | 19 | 0,366 | 0,403 |
+5 ảnh T thấp nhất: 0022_C2 0,467 · 0010_C2 0,472 · 0022_C3 0,491 · 0025_C2 0,512 · 0013_C2 0,526 (đều ≥ 24 ô).
+
+**b) Tờ giả một độ đậm** (40 câu, mỗi câu 1 ô): xám 30 / 60 / 90 / 120 / 150 / 190 → T = 0,882 / 0,765 / 0,647 / 0,529 / **0,412** / **0,255**; cả 40 câu đều "rõ/không cờ" ở mọi mức (lỗ hổng xác nhận).
+**T giả chồng lấn T thật**: xám 120 (T 0,529) nằm TRONG dải T thật (0,467–0,80) → tờ bút nhạt vừa không tách được khỏi tờ thật bằng T; chỉ xám ≥ 150 tách được.
+**c) Tờ nhạt + vệt lạc** (nền 150 / 190; câu 1 vệt 1 ô): hiện tại vệt 170 và 190 là "rõ/không cờ" ở cả hai nền; vệt 210 là "mờ/XEM" ở nền 150 và "rõ/không cờ" ở nền 190.
+
+**Luật `to_nhat`**: sau khi có kết quả 40 câu (đã gồm `vet_nho`), tính T trên câu "rõ chắc"; nếu **n ≥ 10 và T < Xs** ⇒ phiếu "tô nhạt cả tờ": MỌI câu có ≥ 1 ô được chọn (rõ / mờ / nhiều ô)
+thêm `can_xem = True`, lý do `to_nhat` (mã mới trong `MA_LY_DO_OMR`: "Phiếu tô nhạt cả tờ – nên kiểm tra lại các câu đã chọn."), và `KetQuaOMR.to_nhat = True` + `KetQuaOMR.do_toi_to = T` (cảnh báo mức phiếu).
+Chỉ CỘNG cờ; không đổi trạng thái / đáp án; không đổi `models/*.json`.
+**Xs = 0,44**: nằm giữa T thật nhỏ nhất 0,467 (biên 0,027) và T tờ giả xám 150 = 0,412 (biên 0,028) – trung điểm khoảng trống (0,412; 0,467). Biên hẹp ở phía thật: một phiếu bút chì 2B ở C2 chụp tối ở đợt 2
+có thể rơi dưới 0,44 (sẽ là "cần xem thừa", không phải lỗi); ngược lại tờ nhạt thật có T ∈ [0,44; 0,53] không bị bắt (chồng lấn đã nêu ở b) – giới hạn đã biết.
+
+**Tiêu chí đạt (chốt trước)**: (1) lỗi nặng vẫn 0 / 56 ảnh train (OOF); (2) số phiếu thật bị gắn `to_nhat` ≤ 1 / 56 và cần xem thừa câu 1 ô không tăng quá +1,0 điểm % ở mỗi điều kiện
+so với bảng sau lệnh A (0,27 / 2,71 / 1,10 / 2,19 %); (3) tờ giả một độ đậm xám ≥ 150 bị gắn `to_nhat` 100% (mọi câu đã chọn có cờ), xám ≤ 80 KHÔNG gắn, xám 90–120 báo kết quả (không ràng buộc);
+(4) toàn bộ test cũ vẫn đạt. Không có Xs thoả (1)–(3) thì KHÔNG nới tiêu chí: ghi "chưa sửa", giữ nợ, kiểm bằng phiếu 0105 ở đợt 2, giữ tag cũ.
+
 ## 7. ĐÓNG BĂNG MÃ cho test đợt 2 (28/10/2026)
 Quyết định người dùng: giữ N = 90 px (không hạ theo dữ liệu dev); bubble SBD / mã đề giữ nợ; test cuối mới đăng ký trên **đợt 2** (phiếu 0101–0110, chụp bằng điện thoại,
 chưa có ảnh) ở lệnh sau. Mã đóng băng: tag cục bộ `ma-dot2-dong-bang` (commit `b53a343`); SHA-256 các file lõi + tham số: `docs/dong_bang_ma_dot2.json`.
