@@ -520,7 +520,7 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
       `mo_huong` khi làm backend (backend dùng `kq.ok` / `kq.ly_do == 'anh_mo'`). Không sửa DB trước khi hỏi người dùng.
 - [ ] **GIAI ĐOẠN CẢI TIẾN (từ 27/10/2026)** – kế hoạch `docs/ke_hoach_cai_tien_27-10.md` (7 yêu cầu: tên môn/lớp, chụp–chấm liền, OCR thay CNN, ma trận ô tô, đủ 40 câu,
       rà 0–255, đăng nhập + phân quyền). **Xong mục 4/6 (27/10)**: `tests/test_omr_ma_tran_o_to.py` (ma trận ô tô 0–255, 22 test) + luật `vet_nho` (lỗ hổng chấm nhỏ đậm → trống không cờ);
-      train: 0 thay đổi, lỗi nặng 0, điểm 56/56. **`omr.py` đã đổi sau commit đăng ký test cuối `551b356`** → kết quả test cuối 21/10 là của bản cũ; kiểm lại phải đăng ký mới (người dùng quyết).
+      train: 0 thay đổi, lỗi nặng 0, điểm 56/56. **28/10: thang `S_anh` đo xong, KHÔNG có X thoả → chưa sửa (6.4); test chập chờn = lỗi môi trường của test, đã sửa (6.5); MÃ ĐÓNG BĂNG cho test đợt 2 (tag `ma-dot2-dong-bang`, `docs/dong_bang_ma_dot2.json`; 6 file đợt 2 ở `answer_sheet/dot2/`) – chỉ đổi docs/ + CLAUDE.md cho tới khi chạy đợt 2.** **`omr.py` đã đổi sau commit đăng ký test cuối `551b356`** → kết quả test cuối 21/10 là của bản cũ; kiểm lại phải đăng ký mới (người dùng quyết).
       Nợ: `vet_nho` cho bubble; thang `S_anh` phụ thuộc cả tờ (`ke_hoach_tuan5.md` mục 15).
 - [ ] (Hướng phát triển) Lưu các lần giáo viên sửa làm dữ liệu train thêm (human-in-the-loop).
 
