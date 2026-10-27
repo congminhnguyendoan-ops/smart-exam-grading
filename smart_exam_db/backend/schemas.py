@@ -128,7 +128,7 @@ class CauOut(BaseModel):
     selected_options: str
     state: Literal["blank", "filled", "faint", "multiple"]
     needs_review: bool
-    reasons: list[str] = Field(description="o_mo | nhieu_o | tin_cay_thap | vi_tri (rỗng nếu chắc chắn)")
+    reasons: list[str] = Field(description="o_mo | nhieu_o | tin_cay_thap | vi_tri | vet_nho | to_nhat (rỗng nếu chắc chắn)")
     is_correct: bool | None = Field(description="None = chưa chấm (cần xem hoặc chưa biết mã đề)")
     manually_edited: bool
     omr_selected_options: str | None = Field(description="Cách máy đọc ban đầu")

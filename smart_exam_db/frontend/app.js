@@ -11,7 +11,7 @@ const fmt = (x) => (x === null || x === undefined ? "–" : Number(x).toFixed(2)
 
 const NHAN_TRANG_THAI = { graded: ["Chính thức", "ok"], needs_review: ["Cần xem", "warn"], rejected: ["Bị từ chối", "bad"],
   processing: ["Đang xử lý", "gray"], uploaded: ["Đã tải lên", "gray"], processed: ["Đã xử lý", "gray"], error: ["Lỗi", "bad"] };
-const LY_DO_CAU = { o_mo: "ô tô mờ", nhieu_o: "tô nhiều ô", khong_o_nao: "không thấy ô nào", tin_cay_thap: "máy chưa chắc", vi_tri: "chưa chắc vị trí hàng" };
+const LY_DO_CAU = { o_mo: "ô tô mờ", nhieu_o: "tô nhiều ô", khong_o_nao: "không thấy ô nào", tin_cay_thap: "máy chưa chắc", vi_tri: "chưa chắc vị trí hàng", vet_nho: "vết nhỏ trong ô không chọn", to_nhat: "phiếu tô nhạt cả tờ" };
 const LY_DO_CHU_SO = { lech_bubble: "chữ viết tay khác chữ số bubble", tin_cay_thap: "chữ viết tay khó đọc (máy chưa chắc)",
   thieu_bubble: "cột bubble không đọc được (không tô / tô nhiều ô)", bubble_cx: "cột bubble máy chưa chắc",
   o_trong_ngoai_ds: "ô viết tay trống và số này không có trong danh sách", o_trong_chua_biet_ds: "ô viết tay trống, chưa kiểm được danh sách",

@@ -33,7 +33,9 @@ from .config import ROOT, CauHinh, LoiCauHinh
 log = logging.getLogger("smart_exam.service")
 
 DUOI_ANH = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
-LY_DO_OMR_CAU = {"o_mo", "tin_cay_thap", "vi_tri"}          # -> review_reason low_omr_confidence
+LY_DO_OMR_CAU = {"o_mo", "tin_cay_thap", "vi_tri", "vet_nho", "to_nhat"}          # -> review_reason low_omr_confidence
+# (nhieu_o -> multiple_marks; khong_o_nao chỉ có ở cột chữ số. Mã câu MỚI của MA_LY_DO_OMR phải vào đây, nếu không câu cần xem bị bỏ qua
+#  ở danh_gia_phieu -> "hết lý do" -> RuntimeError chốt an toàn; tests/test_backend_ly_do_omr.py kiểm)
 PRIORITY = {"duplicate_sbd": 1, "sbd_not_found": 1, "low_ocr_confidence": 2, "exam_code_not_found": 2}
 
 
