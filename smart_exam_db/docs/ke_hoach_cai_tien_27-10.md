@@ -156,6 +156,22 @@ có thể rơi dưới 0,44 (sẽ là "cần xem thừa", không phải lỗi); 
 so với bảng sau lệnh A (0,27 / 2,71 / 1,10 / 2,19 %); (3) tờ giả một độ đậm xám ≥ 150 bị gắn `to_nhat` 100% (mọi câu đã chọn có cờ), xám ≤ 80 KHÔNG gắn, xám 90–120 báo kết quả (không ràng buộc);
 (4) toàn bộ test cũ vẫn đạt. Không có Xs thoả (1)–(3) thì KHÔNG nới tiêu chí: ghi "chưa sửa", giữ nợ, kiểm bằng phiếu 0105 ở đợt 2, giữ tag cũ.
 
+**KẾT QUẢ (28/10/2026) – luật `to_nhat` ĐẠT cả 4 tiêu chí** (mã `cv_engine/omr.py` `them_to_nhat`, `TO_NHAT_X` = 0,44, `TO_NHAT_N` = 10; commit `5e04d01`).
+| Chỉ số (56 ảnh train, `eval_omr.py run --phuong-phap m1`, OOF) | Trước (`TO_NHAT_X` = −1) | Sau |
+|---|---|---|
+| Lỗi nặng (câu + cột) | 0 | 0 |
+| Cần xem thừa câu rõ 1 ô: C1 / C2 / C3 / C4 / gộp | 0,27 / 2,71 / 1,10 / 2,19 / 1,57 % | giống hệt |
+| Tổng câu cần xem (`kiem_backend_dau_cuoi.py`) | 560 / 2240 | 560 / 2240 |
+| Phiếu thật bị gắn `to_nhat` | – | **0 / 56** (T min 0,467 ≥ 0,44) |
+| Điểm chính thức khớp độc lập | 56 / 56 | 56 / 56 |
+| `doc_phieu` trung vị / max | 144,6 / 179,3 ms | 144,5 / 159,8 ms |
+`cau/cot/o_train.csv` giống từng byte trước/sau. SHA `omr_m1.json` không đổi (`F8F87577…60AF`). Tiêu chí: (1) ✓; (2) ✓ (0 ≤ 1 phiếu; +0,00 điểm %);
+(3) ✓ `tests/test_omr_ma_tran_o_to.py::test_to_nhat_*`: tờ giả xám 150 / 190 → 40/40 câu có cờ `to_nhat`, xám 30 / 60 / 80 → không; vệt lạc trên tờ nhạt (150+170, 150+190, 190+190, 190+210) → có cờ;
+xám 90 (T 0,647) và 120 (T 0,529) KHÔNG bị gắn (T nằm trong dải T thật – giới hạn đã nêu ở b); (4) 264 test đạt (254 cũ + 10 mới).
+Cách "trước": cùng `eval_omr.py` với `omr.TO_NHAT_X = -1.0` (vô hiệu luật). Tái tạo: `python -m pytest tests/test_omr_ma_tran_o_to.py` · `python tools/eval_omr.py run --phuong-phap m1` · `report` · `python tools/kiem_backend_dau_cuoi.py`.
+Giới hạn: luật chưa từng được thử trên tờ nhạt THẬT (dev không có); chỉ bắt tờ có T < 0,44 (nhạt hơn xám ~143); tờ nhạt vừa (T 0,44–0,53) vẫn còn nợ cũ; n < 10 ô "rõ chắc" thì không đánh giá.
+**Đổi mã này xảy ra TRƯỚC khi có bất kỳ ảnh đợt 2 nào.**
+
 ## 7. ĐÓNG BĂNG MÃ cho test đợt 2 (28/10/2026)
 Quyết định người dùng: giữ N = 90 px (không hạ theo dữ liệu dev); bubble SBD / mã đề giữ nợ; test cuối mới đăng ký trên **đợt 2** (phiếu 0101–0110, chụp bằng điện thoại,
 chưa có ảnh) ở lệnh sau. Mã đóng băng: tag cục bộ `ma-dot2-dong-bang` (commit `b53a343`); SHA-256 các file lõi + tham số: `docs/dong_bang_ma_dot2.json`.
@@ -163,4 +179,9 @@ Từ đây chỉ được đổi `docs/` và `CLAUDE.md` cho tới khi chạy te
 - **Ghi trung thực**: `omr.py` đã đổi sau commit đăng ký `551b356` (luật `vet_nho`) nên kết quả test cuối 21/10 là của bản cũ; đợt 2 là phép kiểm MỚI trên bản đóng băng.
 - **Giới hạn `vet_nho`**: ngưỡng 90 px nằm sát chấm bút bi cỡ ~1 mm (~110 px ở 300 DPI); phiếu đợt 2 dùng chấm ~1,5 mm (~250 px).
 - Nợ `nhat_tuyet_doi` (mục 6.4) KHÔNG cài; đợt 2 kiểm bằng phiếu 0105 (tô nhạt cả tờ) – chỉ báo cáo, không chỉnh mã theo kết quả.
+
+### 7b. Khoá lại v2 (28/10/2026)
+Mở khoá để thêm `to_nhat` (mục 6.6), khoá lại: tag cục bộ `ma-dot2-dong-bang-v2`, SHA + tham số ở `docs/dong_bang_ma_dot2.json` (bản v1 giữ trong mục `lich_su`).
+Từ tag v2: không sửa file hiện có của `cv_engine/`, `models/`, `backend/`, `answer_sheet/output/`, `docs/dong_bang_ma_dot2.json`; chỉ được thêm FILE MỚI vào `tools/`, `tests/`, `docs/`, `answer_sheet/dot2/` trước đăng ký.
+Nợ `nhat_tuyet_doi` theo từng ô (mục 6.4) vẫn KHÔNG cài; luật mức tờ thay thế một phần.
 
