@@ -62,12 +62,20 @@ const patch = (p, data) => api(p, { method: "PATCH", headers: { "Content-Type": 
 const put = (p, data) => api(p, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
 
 /* ------------------------------------------------------------------ kỳ thi */
+/* Nhãn ô chọn kỳ thi: số phiếu PHẢI làm mới sau mỗi lần tải / duyệt (trước F3 chỉ nạp một lần nên hiện "(0 phiếu)" dù đã có phiếu). */
+const nhanKyThi = (e, soPhieu) => `${esc(e.exam_title)} · ${esc(e.class_code || "không lớp")} (${soPhieu} phiếu)`;
+function lamMoiNhanKyThi(e) {
+  const dm = state.exams.find((x) => x.exam_id === e.exam_id);
+  if (dm) dm.so_phieu = e.sheets.tong;
+  const opt = [...$("#exam-select").options].find((o) => Number(o.value) === e.exam_id);
+  if (opt && dm) opt.innerHTML = nhanKyThi(dm, e.sheets.tong);
+}
 async function napKyThi() {
   state.exams = await api("/exams");
   const sel = $("#exam-select");
   // Tên kỳ thi đứng ĐẦU: ô chọn trong thanh bên hẹp cắt phần cuối; đủ "Môn – Lớp – tên" ở title (rê chuột) và ở #exam-name (xuống dòng).
   sel.innerHTML = state.exams.map((e) => `<option value="${e.exam_id}" title="${esc(e.subject_name)} – ${esc(e.class_code || "không lớp")} – ${esc(e.exam_title)}">` +
-    `${esc(e.exam_title)} · ${esc(e.class_code || "không lớp")} (${e.so_phieu} phiếu)</option>`).join("");
+    `${nhanKyThi(e, e.so_phieu)}</option>`).join("");
   let saved = null; try { saved = localStorage.getItem("examId"); } catch (_) { /* bỏ qua */ }
   state.examId = state.exams.some((e) => String(e.exam_id) === saved) ? Number(saved)
     : (state.exams.find((e) => e.exam_title.startsWith("[DEMO]")) || state.exams[state.exams.length - 1] || {}).exam_id || null;
@@ -77,6 +85,7 @@ async function napKyThi() {
 async function napChiTietKyThi() {
   state.exam = state.examId ? await api(`/exams/${state.examId}`) : null;
   const e = state.exam;
+  if (e) lamMoiNhanKyThi(e);
   $("#exam-name").textContent = e ? e.exam_title : "";
   $("#exam-select").title = e ? `${e.subject_name} – ${e.class_code || "không lớp"} – ${e.exam_title}` : "";
   $("#exam-info").textContent = e ? `Môn ${e.subject_name} · lớp ${e.class_code || "(không gắn lớp)"} · ${e.num_questions} câu · ${e.max_score} điểm · mã đề ${e.codes.map((c) => c.code).join(", ")} · ` +
