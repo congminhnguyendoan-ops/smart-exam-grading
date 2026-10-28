@@ -303,12 +303,19 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   `Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"` (Wi‑Fi máy người dùng ở hồ sơ Public). Wi‑Fi chặn thiết bị → hotspot điện thoại.
   **Chụp LIÊN TỤC** (lệnh M): `frontend/m_hang_doi.js` (hàng đợi thuần logic, tối đa 2 song song, Gửi lại / Chụp lại / ảnh trùng / 401 tạm dừng; test `node --test tests/js/hang_doi.test.js`,
   pytest gọi qua `test_dien_thoai.py`) + nút "Chụp tiếp · Tờ N/tổng", "Chọn nhiều ảnh". Giả lập: `python tools/thu_dien_thoai.py tao-anh | chay` (Pixel 7, CHỈ ROLLBACK, kỳ thi gộp trong
-  giao dịch) → `data/_eval/ui_m/lien_tuc/`. CHƯA thử điện thoại thật. Camera trực tiếp getUserMedia (cần HTTPS): chỉ khảo sát `docs/khao_sat_camera_truc_tiep.md`, không làm trước bảo vệ.
+  giao dịch) → `data/_eval/ui_m/lien_tuc/`. **ĐÃ thử điện thoại thật 27/10/2026** (người dùng đo trực tiếp, MỘT iPhone / Safari, cùng Wi‑Fi với máy chủ; có ảnh chụp màn hình + nhật ký 27/10): chụp 1 tờ → kết quả **1,8 s**
+  (một tờ, một lần), chụp liên tục, rớt Wi‑Fi rồi gửi lại (~2 s, ước chừng), chụp mờ bị từ chối kèm lý do, chọn nhiều ảnh, xuất Excel, phân quyền (gv_binh không xem được phiếu K22A). **CHƯA thử Android; chưa đo 40 tờ liên tục qua Wi‑Fi thật.** Camera trực tiếp getUserMedia (cần HTTPS): chỉ khảo sát `docs/khao_sat_camera_truc_tiep.md`, không làm trước bảo vệ.
 - **Ảnh tạm** (migration **003 ĐÃ ÁP** 27/10: `answer_sheets.image_deleted_at`): `backend/don_anh.py` xoá ảnh gốc + nắn + ô viết tay của phiếu `graded` / `rejected` sau `ANH_GIU_GIO` (24) giờ;
   giữ phiếu `needs_review` và kỳ thi `[DEMO…]` (`ANH_GIU_DEMO=1`); chỉ tệp trong `STORAGE_DIR`; API ảnh → 410. Luồng dọn chỉ chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật;
   `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Không có `--khong-xoa-anh` thì lượt đầu xoá 5 tệp của exam 115 `[THU]` (người dùng muốn GIỮ).
 - **Migration trong test / công cụ**: `migrate.chua_ap()` chỉ đọc; `migrate.TUY_CHON` (003) không chặn test; fixture `csdl_003`. `kiem_backend_dau_cuoi.py`, `eval_he_thong.py`, `thu_bo_demo.py`
   chỉ KIỂM migration (trước 27/10 hai công cụ đầu tự áp). Nhánh này: **pytest 377 đạt + 1 skip có chủ đích** (cây sạch; cây bẩn thì `test_eval_he_thong` đỏ / skip – không phải lỗi mã).
+
+- **So sánh OCR / CNN / M0 (lệnh D, 28/10/2026; `docs/so_sanh_ocr_cnn.md`, chỉ đo DEV, không sửa hệ thống)**: thư viện OCR (PP-OCRv6 nhận dạng + onnxruntime, venv riêng `data/_eval/so_sanh_ocr/venv_ocr`) **ĐỌC ĐÚNG HƠN CNN**
+  (504 chữ số phiếu dev: 98,2% so với 92,7%, p < 0,001; 3 872 chữ số trang D người lạ: 96,9% so với 95,8%, p = 0,003) nhưng **nặng hơn nhiều** (~5,3 triệu tham số ×50, +71 MB phụ thuộc, +54 MB RAM, 54 ms so với 3,8 ms
+  cho 9 chữ số) và **lắp NGUYÊN TRẠNG làm số ảnh SBD / mã đề cần xem TĂNG** (53,6% so với 46,4%) vì điểm tin cậy OCR chưa hiệu chỉnh; cả ba ứng viên 0 lỗi im lặng mức trường nhờ đối chiếu hai kênh.
+  **Quyết định: GIỮ CNN cho buổi bảo vệ**; OCR = hướng cải tiến (hiệu chỉnh điểm, chọn lại τ_khop, mô phỏng tô sai bubble, đánh giá lại theo đăng ký mới). Chưa đo val / test / đợt 2.
+- **Phiếu trùng SBD + làm mới số đếm + khôi phục danh sách `/m` (lệnh F, 28/10/2026)**: xem các mục cập nhật ở cuối mục 4f này (F2 / F3 / F4). Phân quyền theo lớp và chính sách ảnh tạm: các mục ở trên (không đổi).
 
 ## 5. Cài đặt và chạy
 
