@@ -16,9 +16,23 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from . import phieu_trung
-from .service import KhongTimThay
+from .service import KhongTimThay, tim_sinh_vien
 
 NHAN = {"official": "Chính thức", "pending": "Chưa duyệt xong – điểm tạm", "rejected": "Bị từ chối", "no_sheet": "Chưa có phiếu"}
+
+def ly_do_chua_ghep(conn, exam_id: int, sbd: str | None, sbd_can_xem: bool) -> str:
+    """Câu giải thích vì sao phiếu `needs_review` CHƯA ghép được thí sinh (chỉ đổi câu chữ, không đổi trạng thái / chấm – lệnh G3).
+    (b) máy đọc SBD chưa chắc (`can_xem`) -> KHÔNG kết luận "ngoài danh sách": giáo viên cần chốt; (a) SBD đọc chắc nhưng không có trong danh sách -> câu cũ."""
+    sbd = sbd or ""
+    if sbd_can_xem or "?" in sbd:
+        if sbd.isdigit():
+            return f"SBD đọc được {sbd} nhưng chưa chắc, cần giáo viên chốt"
+        return f"SBD chưa đọc đủ ({sbd or '–'}), cần giáo viên chốt"
+    if sbd.isdigit() and tim_sinh_vien(conn, exam_id, sbd) is None:
+        return f"SBD đọc: {sbd} – chưa khớp danh sách"
+    return f"SBD đọc: {sbd or '–'} – chưa ghép được thí sinh, cần giáo viên xem"
+
+
 GHI_CHU_TAM = "Điểm tạm chưa phải điểm chính thức: chỉ tính các câu máy đọc chắc chắn, phiếu còn mục giáo viên chưa duyệt."
 
 
@@ -73,9 +87,14 @@ def bang_diem(conn, exam_id: int) -> dict:
         d["status_label"] = NHAN[d["status"]]
         dong.append(d)
     roi = conn.execute(
-        "SELECT a.sheet_id, a.status::text AS status, a.original_filename, a.detected_sbd, a.reject_code, a.error_message AS reject_message "
+        "SELECT a.sheet_id, a.exam_id, a.status::text AS status, a.original_filename, a.detected_sbd, a.reject_code, a.error_message AS reject_message, "
+        "COALESCE((a.omr_detail->'sbd'->>'can_xem')::boolean, FALSE) AS sbd_can_xem "
         "FROM answer_sheets a WHERE a.exam_id = %s AND a.matched_student_id IS NULL AND a.status IN ('rejected', 'needs_review') "
         "ORDER BY a.sheet_id", (exam_id,)).fetchall()
+    for p in roi:                                           # phiếu cần xem chưa ghép được: câu giải thích đúng nguyên nhân (đi qua trường reject_message sẵn có)
+        if p["status"] == "needs_review":
+            p["reject_message"] = ly_do_chua_ghep(conn, p["exam_id"], p["detected_sbd"], p["sbd_can_xem"])
+        p.pop("exam_id", None); p.pop("sbd_can_xem", None)
     dem = {k: sum(d["status"] == k for d in dong) for k in ("official", "pending", "no_sheet")}
     dem["rejected"] = sum(p["status"] == "rejected" for p in roi)
     dem["unmatched_review"] = sum(p["status"] == "needs_review" for p in roi)
