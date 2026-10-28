@@ -110,3 +110,40 @@ test("chụp lại tờ bị từ chối: giữ số tờ, tờ cũ không còn 
   m.cho[2].ok({ sheet_id: 3, status: "needs_review" }); await nghi();
   assert.deepEqual(hd.tong(), { daChup: 2, chamDuoc: 2, canXem: 1, tuChoi: 0, dangCho: 0, loi: 0, trung: 0 });
 });
+
+// ------------------------------------------------------------------------------------------------ F4: khôi phục danh sách sau khi tải lại trang
+test("F4: xuất siêu dữ liệu (không ảnh) rồi khôi phục: tờ đã chấm hỏi lại API, tờ chưa gửi xong thành 'mat'", async () => {
+  const m = mayChuGia();
+  const hd = new HangDoi({ gui: m.gui, toiDa: 2 });
+  hd.them([tep("1.jpg"), tep("2.jpg"), tep("3.jpg")], { examId: 7 });
+  m.cho[0].ok({ sheet_id: 11, status: "graded", official_score: 8 });
+  m.cho[1].ok({ sheet_id: 12, status: "needs_review", pending_questions: 3 });
+  await nghi();                                                    // tờ 3 đang gửi (chưa xong)
+  const meta = JSON.parse(JSON.stringify(hd.xuatSieuDuLieu()));    // đi qua JSON như sessionStorage
+  assert.ok(meta.every((x) => !("file" in x)));                    // không có ảnh trong siêu dữ liệu
+  assert.deepEqual(meta.map((x) => [x.soTo, x.trangThai, x.sheetId, x.examId]), [[1, "xong", 11, 7], [2, "xong", 12, 7], [3, "gui", null, 7]]);
+
+  const moi = new HangDoi({ gui: m.gui });                         // trang tải lại: hàng đợi mới, rỗng
+  const hoi = [];
+  const kq = await moi.khoiPhuc(meta, async (id) => { hoi.push(id); return { sheet_id: id, status: id === 11 ? "graded" : "needs_review" }; });
+  assert.deepEqual(hoi, [11, 12]);                                 // chỉ hỏi lại tờ đã có phiếu
+  assert.deepEqual(kq, { phucHoi: 2, mat: 1 });
+  assert.deepEqual(moi.ds.map((t) => [t.soTo, t.trangThai]), [[1, "xong"], [2, "xong"], [3, "mat"]]);
+  assert.equal(moi.soMat(), 1);
+  assert.equal(moi.tong().chamDuoc, 2);
+  assert.equal(moi.soToKeTiep(), 4);                               // số tờ tiếp theo không trùng
+  const t4 = moi.them([tep("4.jpg")], { examId: 7 })[0];
+  assert.ok(t4.stt > Math.max(...meta.map((x) => x.stt)));         // stt mới không đè stt đã khôi phục
+});
+
+test("F4: tờ 'mat' chụp lại giữ số tờ, hết bị tính là mất; lỗi 401 khi hỏi lại thì ném ra; lỗi khác -> mat", async () => {
+  const m = mayChuGia();
+  const hd = new HangDoi({ gui: m.gui });
+  await hd.khoiPhuc([{ stt: 1, soTo: 1, trangThai: "cham", sheetId: null, examId: 7 }, { stt: 2, soTo: 2, trangThai: "xong", sheetId: 5, examId: 7 }],
+    async () => { throw loiMa(404, "không có"); });
+  assert.deepEqual(hd.ds.map((t) => t.trangThai), ["mat", "mat"]);
+  const moi = hd.chupLai(1, tep("chup_lai.jpg"), { examId: 7 });
+  assert.equal(moi.soTo, 1); assert.equal(hd.soMat(), 1);          // tờ 1 đã chụp lại thay; còn tờ 2 mất
+  const h2 = new HangDoi({ gui: m.gui });
+  await assert.rejects(h2.khoiPhuc([{ stt: 1, soTo: 1, trangThai: "xong", sheetId: 9 }], async () => { throw loiMa(401, "hết phiên"); }), (e) => e.ma === 401);
+});

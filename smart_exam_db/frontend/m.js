@@ -87,6 +87,7 @@ $("#tong-to").addEventListener("change", () => { try { sessionStorage.setItem("m
 
 function nhanTrangThai(t) {
   const k = t.ketQua;
+  if (t.trangThai === "mat") return ['<span class="tag bad">chưa gửi xong · mất khi tải lại</span>', ""];
   if (t.trangThai === "cho") return ['<span class="tag gray">chờ gửi</span>', ""];
   if (t.trangThai === "gui") return [`<span class="tag blue">đang gửi ${Math.round(t.tienTrinh * 100)}%</span>`, ""];
   if (t.trangThai === "cham") return ['<span class="tag blue">đang chấm…</span>', ""];
@@ -109,6 +110,7 @@ function canhBao(v) {
 }
 function dongTo(t) {
   const [nhan] = nhanTrangThai(t), k = t.ketQua, v = k && k.chiTiet;
+  const daKhoiPhuc = t.khoiPhuc ? ' <span class="small muted">(khôi phục)</span>' : "";
   let giua = "", duoi = "";
   if (k && k.status !== "rejected" && t.trangThai === "xong") {
     const ten = v && v.student ? `${esc(v.student.full_name)} · SBD ${esc(v.student.student_code)}` : `Chưa ghép SV · SBD ${esc((v && v.sbd && v.sbd.detected) || "?")}`;
@@ -120,6 +122,10 @@ function dongTo(t) {
     giua = `<div class="ten">${esc(k.reject_message || ly.message || k.reject_code)}</div>`;
     duoi = `<div class="cb">Cách chụp lại: ${esc(ly.advice || "chụp rõ nét, đủ sáng, thấy đủ 4 ô vuông đen.")}</div>` +
       (t.thayBang ? `<div class="small muted">→ đã chụp lại</div>` : `<label class="nut-dong pri">📷 Chụp lại tờ ${t.soTo}<input type="file" accept="image/*" capture="environment" data-chup-lai="${t.stt}"></label>`);
+  } else if (t.trangThai === "mat") {
+    giua = `<div class="ten">${esc(t.ten || "ảnh")} · ${esc(t.loi)}</div>`;
+    duoi = t.thayBang ? `<div class="small muted">→ đã chụp lại</div>`
+      : `<div class="cb">Ảnh chưa gửi xong nên không khôi phục được – phải chụp lại tờ này.</div><label class="nut-dong pri">📷 Chụp lại tờ ${t.soTo}<input type="file" accept="image/*" capture="environment" data-chup-lai="${t.stt}"></label>`;
   } else if (t.trangThai === "loi") {
     giua = `<div class="ten">${esc(t.loi)}</div>`;
     duoi = t.maLoi === 413 ? `<label class="nut-dong pri">📷 Chụp lại tờ ${t.soTo}<input type="file" accept="image/*" capture="environment" data-chup-lai="${t.stt}"></label>`
@@ -129,17 +135,18 @@ function dongTo(t) {
   } else {
     giua = `<div class="ten muted">${esc(t.ten || "ảnh")} · ${(t.kichThuoc / 1048576).toFixed(1)} MB</div>`;
   }
-  return `<li class="to ${t.trangThai}${t.thayBang ? " da-thay" : ""}" data-stt="${t.stt}"><div class="dau"><b>Tờ ${t.soTo}</b>${t.thayCho ? ' <span class="small muted">(chụp lại)</span>' : ""}${nhan}</div>${giua}${duoi}</li>`;
+  return `<li class="to ${t.trangThai}${t.thayBang ? " da-thay" : ""}" data-stt="${t.stt}"><div class="dau"><b>Tờ ${t.soTo}</b>${t.thayCho ? ' <span class="small muted">(chụp lại)</span>' : ""}${daKhoiPhuc}${nhan}</div>${giua}${duoi}</li>`;
 }
 function veHangDoi() {
   const k = hd.tong(), tong = tongTo();
   $("#tk-so").innerHTML = `<span><b>${k.daChup}</b>${tong ? `/${tong}` : ""} đã chụp</span><span class="ok"><b>${k.chamDuoc}</b> chấm được</span>
     <span class="warn"><b>${k.canXem}</b> cần xem</span><span class="bad"><b>${k.tuChoi}</b> từ chối</span>`;
-  $("#tk-cho").textContent = [k.dangCho ? `${k.dangCho} đang chờ` : "", k.loi ? `${k.loi} lỗi mạng` : "", k.trung ? `${k.trung} ảnh trùng` : "",
+  $("#tk-cho").textContent = [hd.soMat() ? `${hd.soMat()} tờ mất khi tải lại (chụp lại)` : "", k.dangCho ? `${k.dangCho} đang chờ` : "", k.loi ? `${k.loi} lỗi mạng` : "", k.trung ? `${k.trung} ảnh trùng` : "",
     hd.tamDung ? "tạm dừng – cần đăng nhập" : ""].filter(Boolean).join(" · ") || "Không có tờ nào đang chờ.";
   const n = hd.soToKeTiep();
   $("#cam-txt").textContent = `📷 Chụp tiếp · Tờ ${n}${tong ? `/${tong}` : ""}`;
   veDanhSach();
+  luuPhien();
   $("#goi-y").classList.toggle("hidden", hd.ds.length > 0);
 }
 /* Vẽ TỪNG DÒNG: chỉ thay dòng có nội dung đổi. Không vẽ lại cả danh sách – nếu không, ô "Chụp lại" của một dòng bị thay giữa lúc camera đang mở
@@ -170,6 +177,32 @@ $("#ds-to").addEventListener("change", (ev) => {
   hd.chupLai(Number(i.dataset.chupLai), i.files[0], { examId: st.exam.exam_id });
 });
 
+/* F4 – tải lại trang không làm mất danh sách tờ: siêu dữ liệu (số tờ, tên tệp, mã phiếu) lưu ở sessionStorage của TAB này, KHÔNG có ảnh, KHÔNG có token;
+   sau đăng nhập hỏi lại trạng thái từng phiếu qua GET /sheets/{id}. Tờ chưa gửi xong thì ảnh đã mất (nằm trong bộ nhớ trang) → hiện "mất khi tải lại", phải chụp lại. */
+const KHOA_PHIEN = "m_hang_doi";
+let daKhoiPhucPhien = false;
+function luuPhien() {
+  if (!daKhoiPhucPhien || !st.me) return;                              // chưa khôi phục xong: KHÔNG ghi đè bản đã lưu bằng danh sách rỗng
+  try { sessionStorage.setItem(KHOA_PHIEN, JSON.stringify({ nguoi: st.me.username, ds: hd.xuatSieuDuLieu() })); } catch (_) { /* bỏ qua */ }
+}
+async function traCuuPhieu(id, meta) {
+  const p = await api(`/sheets/${id}`);
+  const sc = p.score || {};
+  return { sheet_id: p.sheet_id, da_ton_tai: !!meta.daTonTai, status: p.status, reject_code: p.reject_code, reject_message: p.reject_message,
+    pending_questions: sc.pending_questions || 0, provisional_score: sc.provisional ?? null, official_score: sc.official ?? null, chiTiet: p };
+}
+async function khoiPhucPhien() {
+  let p = null;
+  try { p = JSON.parse(sessionStorage.getItem(KHOA_PHIEN) || "null"); } catch (_) { p = null; }
+  if (p && p.nguoi !== st.me.username) { try { sessionStorage.removeItem(KHOA_PHIEN); } catch (_) { /* bỏ qua */ } p = null; }   // người khác đăng nhập: bỏ
+  if (p && Array.isArray(p.ds) && p.ds.length && !hd.ds.length) {
+    const kq = await hd.khoiPhuc(p.ds, traCuuPhieu);
+    if (kq.mat) toast(`${kq.mat} tờ chưa gửi xong khi tải lại trang – ảnh không còn, hãy chụp lại.`);
+    else toast(`Đã khôi phục danh sách ${kq.phucHoi} tờ.`);
+  }
+  daKhoiPhucPhien = true;
+}
+
 /* Hết phiên (401) giữa chừng: hàng đợi TẠM DỪNG, giữ nguyên các tờ; đăng nhập lại thì tiếp tục gửi. */
 setInterval(() => {
   if (hd.tamDung && st.me) { st.me = null; manDangNhap("Phiên đăng nhập đã hết – đăng nhập lại để gửi tiếp các tờ đang chờ (ảnh vẫn giữ trên máy)."); }
@@ -197,6 +230,7 @@ $("#f-login").addEventListener("submit", async (ev) => {
 $("#logout").addEventListener("click", async () => {
   if (hd.dangBan() && !confirm("Còn tờ đang gửi / đang chấm. Đăng xuất sẽ dừng gửi. Vẫn đăng xuất?")) return;
   try { await api("/auth/logout", { method: "POST" }); } catch (_) { /* bỏ qua */ }
+  try { sessionStorage.removeItem(KHOA_PHIEN); } catch (_) { /* bỏ qua */ }
   st.me = null; manDangNhap("Đã đăng xuất.");
 });
 
@@ -236,7 +270,8 @@ async function khoiDong() {
   try {
     st.reasons = await api("/meta/reject-reasons");
     try { st.gioiHanMb = (await api("/meta/ket-noi")).gioi_han_anh_mb || st.gioiHanMb; } catch (_) { /* giữ mặc định */ }
-    if (st.exam && hd.ds.length) { hien("v-cap"); hd.tiepTuc(); veHangDoi(); return; }     // đăng nhập lại giữa phiên: gửi tiếp
+    if (st.exam && hd.ds.length) { daKhoiPhucPhien = true; hien("v-cap"); hd.tiepTuc(); veHangDoi(); return; }     // đăng nhập lại giữa phiên: gửi tiếp
+    await khoiPhucPhien();                                                              // tải lại trang: dựng lại danh sách tờ
     await manKyThi();
     let id = null; try { id = Number(sessionStorage.getItem("m_exam")); } catch (_) { /* bỏ qua */ }
     if (id && st.exams.some((e) => e.exam_id === id)) chonKyThi(id);

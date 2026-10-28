@@ -59,10 +59,10 @@ def test_js_dung_cu_phap(ten):
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="không có node để chạy test hàng đợi JS")
 def test_hang_doi_chup_lien_tuc_node():
-    """tests/js/hang_doi.test.js (node:test): thứ tự, tối đa 2 song song, lỗi mạng giữ ảnh để gửi lại, ảnh trùng, 401 tạm dừng, chụp lại."""
+    """tests/js/hang_doi.test.js (node:test): thứ tự, tối đa 2 song song, lỗi mạng giữ ảnh để gửi lại, ảnh trùng, 401 tạm dừng, chụp lại; F4 khôi phục sau khi tải lại trang (8 test)."""
     r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "hang_doi.test.js")], capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert re.search(r"pass 6\b", r.stdout) and re.search(r"fail 0\b", r.stdout), r.stdout
+    assert re.search(r"pass 8\b", r.stdout) and re.search(r"fail 0\b", r.stdout), r.stdout
 
 
 def test_app_js_co_nut_ket_noi_va_tham_do_khi_tab_hien():

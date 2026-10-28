@@ -6,7 +6,10 @@
      - loi  : lỗi mạng / máy chủ – GIỮ File để "Gửi lại" (không bắt chụp lại nếu chỉ rớt mạng).
      - trung: máy chủ báo ảnh đã tải trước đó (da_ton_tai) – không tính là chấm được; nếu phiếu đó đã có dòng trong phiên thì `an = true` (không lặp dòng).
      - Lỗi 401 (hết phiên): tờ quay về "cho", hàng đợi TẠM DỪNG cho tới khi tiepTuc() (sau khi đăng nhập lại).
-   Chụp lại một tờ bị từ chối: chupLai(stt, file) – tờ cũ gắn `thayBang`, tờ mới mang `thayCho` và giữ số thứ tự tờ (soTo) của tờ cũ. */
+   Chụp lại một tờ bị từ chối: chupLai(stt, file) – tờ cũ gắn `thayBang`, tờ mới mang `thayCho` và giữ số thứ tự tờ (soTo) của tờ cũ.
+   Tải lại trang (F4): xuatSieuDuLieu() lưu danh sách tờ KHÔNG kèm ảnh; khoiPhuc() dựng lại danh sách và hỏi lại trạng thái từng phiếu qua API.
+     - tờ đã có kết quả (xong / trung): khôi phục đủ từ máy chủ.
+     - tờ chưa gửi xong (cho / gui / cham / loi): ảnh nằm trong bộ nhớ trang nên MẤT khi tải lại → trạng thái `mat`, bắt chụp lại (giới hạn đã biết). */
 "use strict";
 
 (function (goc) {
@@ -60,6 +63,37 @@
     }
 
     soToKeTiep() { return this._soTo + 1; }
+
+    /** Số tờ MẤT sau khi tải lại trang (chưa gửi xong, ảnh không còn) và chưa được chụp lại thay. */
+    soMat() { return this.ds.filter((t) => t.trangThai === "mat" && !t.thayBang).length; }
+
+    /** Siêu dữ liệu để lưu (sessionStorage): số thứ tự, tên tệp, mã phiếu nếu đã có – KHÔNG có ảnh, KHÔNG có token. */
+    xuatSieuDuLieu() {
+      return this.ds.map((t) => ({ stt: t.stt, soTo: t.soTo, ten: t.ten || null, kichThuoc: t.kichThuoc || null, examId: t.examId || null,
+        trangThai: t.trangThai, sheetId: t.ketQua ? t.ketQua.sheet_id : null, daTonTai: !!(t.ketQua && t.ketQua.da_ton_tai),
+        thayCho: t.thayCho, thayBang: t.thayBang, an: t.an }));
+    }
+
+    /** Dựng lại danh sách từ siêu dữ liệu. `traCuu(sheetId, meta)` -> Promise<ketQua> (hỏi API); lỗi 401 ném ra để đăng nhập lại; lỗi khác -> tờ `mat`. */
+    async khoiPhuc(meta, traCuu) {
+      let phucHoi = 0, mat = 0;
+      for (const m of meta) {
+        const t = { stt: m.stt, soTo: m.soTo, file: null, ten: m.ten, kichThuoc: m.kichThuoc, examId: m.examId, trangThai: "cho", tienTrinh: 1, ketQua: null,
+          loi: null, lanGui: 1, tChup: this.bayGio(), tBatDau: null, tXong: this.bayGio(), an: !!m.an, thayCho: m.thayCho ?? null, thayBang: m.thayBang ?? null,
+          khoiPhuc: true };
+        if (m.sheetId && (m.trangThai === "xong" || m.trangThai === "trung")) {
+          try { t.ketQua = await traCuu(m.sheetId, m); t.trangThai = m.trangThai; phucHoi++; }
+          catch (e) {
+            if (e && e.ma === 401) throw e;
+            t.trangThai = "mat"; t.loi = (e && e.message) || "Không hỏi lại được trạng thái phiếu."; mat++;
+          }
+        } else { t.trangThai = "mat"; t.loi = "Tờ này chưa gửi xong khi trang được tải lại, ảnh không còn trên máy."; mat++; }
+        this.ds.push(t);
+        this._stt = Math.max(this._stt, t.stt); this._soTo = Math.max(this._soTo, t.soTo);
+      }
+      this.khiDoi();
+      return { phucHoi, mat };
+    }
 
     dangBan() { return this.ds.some((t) => ["cho", "gui", "cham"].includes(t.trangThai)); }
 
