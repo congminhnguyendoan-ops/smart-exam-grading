@@ -2,7 +2,7 @@
 
 **CHỈ KHẢO SÁT – chưa cài gì, không đổi cấu hình máy / mạng.** Hiện trạng (lệnh M Phần 1): `/m` mở **ứng dụng camera gốc** qua `<input capture>` (chạy trên http),
 ảnh vào hàng đợi gửi nền – giáo viên không phải chờ kết quả. Mỗi tờ vẫn cần ~2 lần chạm trên điện thoại (nút chụp của camera + "Dùng ảnh" / "OK") và camera mở lại mỗi tờ.
-Ghi chú độ tin cậy: mục đánh dấu **[cần thử]** là hành vi trình duyệt tôi KHÔNG kiểm được ở đây (không có điện thoại thật) – phải thử trên đúng máy trước khi dựa vào.
+Ghi chú độ tin cậy: mục đánh dấu **[cần thử]** là hành vi trình duyệt tôi KHÔNG kiểm được ở đây (khi viết khảo sát này không có điện thoại thật; từ 27/10/2026 đã thử luồng `capture` trên một iPhone nhưng CHƯA thử `getUserMedia`) – phải thử trên đúng máy trước khi dựa vào.
 
 ## 1. Vì sao cần HTTPS
 `navigator.mediaDevices.getUserMedia` chỉ có trong **ngữ cảnh an toàn** (secure context): `https://…` hoặc `http://localhost`. Trang `http://192.168.1.142:8000/m`

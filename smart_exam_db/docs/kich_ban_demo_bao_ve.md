@@ -89,7 +89,7 @@ Cảnh báo / thông điệp điện thoại có thể hiện: ảnh bị từ c
 - Sau buổi demo: xoá luật tường lửa; xoá ảnh phiếu trong thư viện ảnh điện thoại (cả "Đã xoá gần đây").
 
 **Số đo (giả lập Pixel 7, ảnh 3024×4032, loopback – chưa gồm Wi‑Fi)**: ROLLBACK p50 0,81 s / p95 0,85 s; ghi thật trên kỳ thi TẬP p50 1,13 s / p95 2,13 s.
-CHƯA thử bằng điện thoại thật cùng mạng – thử trước buổi bảo vệ (đo lại thời gian thật qua Wi‑Fi).
+ĐÃ thử điện thoại thật 27/10/2026 (một iPhone, Safari, cùng Wi‑Fi: chụp 1 tờ 1,8 s, chụp liên tục, rớt Wi‑Fi rồi gửi lại ~2 s, chụp mờ bị từ chối, chọn nhiều ảnh, xuất Excel, phân quyền). CHƯA thử Android; chưa đo 40 tờ liên tục qua Wi‑Fi thật – thử lại trước buổi bảo vệ.
 
 ## 6. Tái tạo
 `python tools/kiem_bo_demo.py` · `python tools/nap_bo_demo.py` (xem trước) · `python tools/thu_bo_demo.py chay` · `python -m pytest tests/test_bo_demo.py`.

@@ -104,12 +104,12 @@ trong "Đã xoá gần đây" (iPhone) / "Thùng rác" (Android). (Trên vài m�
   |---|---|---|---|---|
   | ROLLBACK (một kết nối, ảnh vào thư mục tạm) | 20 | 0,81 s | 0,85 s | 0,91 s |
   | Ghi thật trên kỳ thi TẬP 1632/1633 (mỗi yêu cầu một kết nối + commit, ảnh vào `storage/`) | 20 | 1,13 s | 2,13 s | 2,38 s |
-  Thời gian = bấm tải (chọn ảnh) → thẻ kết quả hiện, qua **loopback 127.0.0.1**: KHÔNG gồm thời gian truyền ~2–4 MB qua Wi‑Fi của điện thoại thật.
+  Thời gian = bấm tải (chọn ảnh) → thẻ kết quả hiện, qua **loopback 127.0.0.1**: KHÔNG gồm thời gian truyền ~2–4 MB qua Wi‑Fi của điện thoại thật (số đo điện thoại thật: xem ghi chú "ĐÃ thử bằng điện thoại thật ngày 27/10/2026" ở cuối mục 8).
   Ảnh màn hình: `data/_eval/ui_m/` (ROLLBACK, 01–13) và `data/_eval/ui_m/tap/` (kỳ thi TẬP). Máy tính tự hiện phiếu mới (nhãn "mới" + thông báo) không cần tải lại.
   Sau lần chạy ROLLBACK, vân tay CSDL 15 bảng giống hệt trước; kỳ thi TẬP sau lần ghi thật: 1632 có 11 phiếu (10 cần xem, 1 ảnh trắng bị từ chối), 1633 có 10 (cần xem); 1380/1381: 0 phiếu.
 - **Dọn ảnh tạm**: `tests/test_dien_thoai.py::test_don_anh_dong_ho_gia` (đồng hồ giả +25 giờ, thư mục ảnh tạm, ROLLBACK): xoá đúng 12 tệp của phiếu đã chốt + phiếu bị từ chối,
   giữ phiếu chờ duyệt và kỳ thi [DEMO…]; API ảnh → 410; điểm chính thức giữ nguyên; tải lại ảnh cũ vẫn nhận ra (SHA). Không chạy dọn thật trên kỳ thi nào.
 - pytest **375 đạt + 1 skip có chủ đích**; hồi quy `kiem_backend_dau_cuoi.py`: điểm chính thức 56/56, 0 câu chấm sai không cờ.
 - **Ghi trung thực**: ảnh chụp bằng camera gốc KHÔNG do hệ thống kiểm soát (ánh sáng, độ nghiêng, lấy nét) – ảnh xấu bị từ chối kèm lời khuyên, nhưng số ảnh bị từ chối
-  ngoài đời chưa đo. Đã thử bằng GIẢ LẬP điện thoại, **CHƯA thử bằng điện thoại thật cùng mạng** (người dùng sẽ thử và báo lại). Camera trực tiếp (`getUserMedia`, khung căn phiếu)
+  ngoài đời chưa đo. Đã thử bằng GIẢ LẬP điện thoại, **ĐÃ thử bằng điện thoại thật ngày 27/10/2026** (người dùng đo trực tiếp trên MỘT iPhone, Safari, cùng Wi‑Fi với máy chủ; có ảnh chụp màn hình điện thoại và nhật ký làm việc 27/10): chụp 1 tờ (từ chụp đến hiện kết quả **1,8 giây**, một tờ, một lần đo), chụp liên tục, rớt Wi‑Fi rồi gửi lại (**khoảng 2 giây**, ước chừng), chụp mờ bị từ chối kèm lý do, chọn nhiều ảnh, xuất Excel, phân quyền (gv_binh không xem được phiếu K22A). **Chưa thử Android; chưa đo thời gian 40 tờ liên tục qua Wi‑Fi thật.** Camera trực tiếp (`getUserMedia`, khung căn phiếu)
   cần HTTPS → hướng nâng cấp, chưa làm.

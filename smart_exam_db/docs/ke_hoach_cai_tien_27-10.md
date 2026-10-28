@@ -12,7 +12,7 @@
 | 6 | Xem lại code vùng đậm–nhạt 0–255 |
 | 7 | Đăng nhập giáo viên, phân quyền theo lớp (cá nhân, lớp dạy, học sinh) |
 
-## 2. Yêu cầu 2 – chụp từ điện thoại, chấm liền (nhánh `cai-tien-b`, 27/10/2026) – XONG phần mã; CHƯA thử điện thoại thật
+## 2. Yêu cầu 2 – chụp từ điện thoại, chấm liền (nhánh `cai-tien-b`, 27/10/2026) – XONG phần mã; ĐÃ thử điện thoại thật 27/10 (một iPhone, Safari; chưa thử Android)
 Thiết kế + kết quả chi tiết: `docs/thiet_ke_chup_dien_thoai.md` (mục 8). Commit `b9ae088` (thiết kế) · `687d13c` (công cụ chỉ kiểm migration) · `763c6ff` (tính năng) · `3cf69d3` (bản tập) · tường lửa + tài liệu sau đó.
 - Trang `/m` (HTML tĩnh, JS thuần): đăng nhập → chọn kỳ thi → `<input capture="environment">` (camera gốc, ảnh gốc không nén, không cần HTTPS) → `POST /exams/{id}/sheets` → thẻ kết quả
   (điểm TẠM, câu cần xem, cảnh báo SBD / mã đề / tờ nhạt, ảnh trùng, từ chối + lời khuyên, lỗi mạng / hết giờ / quá lớn / 401) → Chụp tiếp; bộ đếm phiên + 5 phiếu gần nhất. Điện thoại KHÔNG duyệt câu.
@@ -22,7 +22,8 @@ Thiết kế + kết quả chi tiết: `docs/thiet_ke_chup_dien_thoai.md` (mục
   `graded` / `rejected` sau `ANH_GIU_GIO` (24) giờ, giữ phiếu chờ duyệt và kỳ thi [DEMO…]; API ảnh → 410. Chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật).
 - Kỳ thi TẬP **1632 / 1633** `[DEMO-BV-TẬP]` (chỉ INSERT). Giả lập Pixel 7, ảnh 3024×4032: ROLLBACK p50 0,81 s / p95 0,85 s; ghi thật trên TẬP p50 1,13 s / p95 2,13 s (loopback, chưa gồm Wi‑Fi).
 - pytest 375 đạt + 1 skip có chủ đích; `kiem_backend_dau_cuoi.py` 56/56, 0 chấm sai không cờ. Tường lửa: `SmartExam-8000-LAN` (Public,Private + `LocalSubnet`), xoá sau demo.
-- **Còn lại**: thử điện thoại thật cùng mạng (người dùng); camera trực tiếp `getUserMedia` (cần HTTPS) = hướng nâng cấp.
+- **Đã thử điện thoại thật 27/10/2026** (người dùng đo trực tiếp, một iPhone / Safari, cùng Wi‑Fi; có ảnh chụp màn hình và nhật ký làm việc 27/10): chụp 1 tờ → kết quả **1,8 s** (một tờ, một lần đo); chụp liên tục; rớt Wi‑Fi rồi gửi lại ~2 s (ước chừng); chụp mờ bị từ chối kèm lý do; chọn nhiều ảnh; xuất Excel; gv_binh không xem được phiếu K22A.
+- **Còn lại**: thử Android; đo thời gian 40 tờ liên tục qua Wi‑Fi thật; camera trực tiếp `getUserMedia` (cần HTTPS) = hướng nâng cấp.
 - **Dọn kỳ thi TẬP (27/10, người dùng đồng ý)**: sao lưu `data/_backup/smart_exam_20261027_190525_truoc_xoa_tap.dump` (`pg_restore -l` đọc được) → một giao dịch xoá 21 phiếu của 1632 / 1633:
   answer_sheets 21, sheet_answers 800, review_queue 20, ocr_digits 180, results 0, score_audit_logs 0 → kiểm lại: 1632 / 1633 / 1380 / 1381 đều 0 phiếu; vân tay 13 bảng (loại dòng đã xoá)
   giống hệt trước → xoá 221 tệp ảnh (đường dẫn lấy từ chính các dòng vừa xoá, chỉ trong `storage/`). 5 ảnh của exam 115 `[THU]` giữ nguyên (người dùng chọn giữ; chạy với `--khong-xoa-anh`).

@@ -3,7 +3,7 @@
 Bản gốc (CHỈ ĐỌC, không sửa, không ghi đè): `C:\Users\MSI\Desktop\kì 7\đồ án chuyên ngành cntt\BaoCao_DoAnChuyenNganh.docx` (136 951 byte, sửa lần cuối 23/10).
 Cách xuất: **đoạn Markdown kèm vị trí để dán tay** (người dùng chọn; không tạo `_sua.docx` vì sửa trực tiếp Word dễ vỡ định dạng/mục lục).
 Vị trí: tìm theo **chuỗi trích dẫn** (chắc chắn nhất). Số `#n` = thứ tự phần tử trong thân tài liệu khi trích văn bản bằng script; chỉ để tham khảo, có thể lệch vài đơn vị so với Word.
-Mọi số liệu có nguồn ở `docs/nhat_ky_sua_bao_cao.md`. Chỗ ghi **[HỎI]** = chưa quyết, chờ người dùng.
+Mọi số liệu có nguồn ở `docs/nhat_ky_sua_bao_cao.md`. Chỗ ghi `[ĐIỀN SAU – nhóm xác nhận: …]` = ô để nhóm điền một lần (danh sách đầy đủ ở `nhat_ky_sua_bao_cao.md`). Cập nhật theo lệnh E2 (28/10/2026).
 
 ---
 
@@ -18,25 +18,24 @@ Chỉ có **một** chỗ ghi 23 trong báo cáo. Nguồn: `data/_eval/bao_cao_c
 
 Đã rà các nơi có thể mang số này (tóm tắt Mở đầu #34, Bảng 3.6, đoạn nhận xét sau Bảng 3.6 #139/#143, Danh mục bảng): **không có chỗ nào khác ghi 23**; các chỗ còn lại đã dùng 19 + 3 hoặc 59/19/0 và 9/3/0, nhất quán với 22.
 
-## B. Đồng bộ số kiểm thử (phát hiện thêm khi rà; số cũ đã lỗi thời)
+## B. Đồng bộ số kiểm thử (đã chốt theo lệnh E2)
 
-Báo cáo ghi **232** kiểm thử ở hai chỗ. Chạy lại 28/10/2026 trên nhánh `cai-tien-b`: `python -m pytest tests` → **380 đạt, 1 skip (có chủ đích), 109,73 s**.
+Quy ước chốt: viết **"380 (tính đến 28/10/2026; 232 tại 21/10/2026)"** ở mọi chỗ liên quan, kèm một câu giải thích số tăng. Số 380 = `python -m pytest tests` chạy 28/10/2026 trên `cai-tien-b`: **380 đạt, 1 bỏ qua có chủ đích, 109,73 s**.
 
 | # | Vị trí | Trước | Sau |
 |---|---|---|---|
-| B1 | Mục 1.5 "Phương pháp thực nghiệm", đoạn #56, câu cuối | "Toàn bộ mã nguồn có 232 kiểm thử tự động (pytest)." | "Toàn bộ mã nguồn có 380 kiểm thử tự động (pytest) đạt, 1 kiểm thử bỏ qua có chủ đích (số đo ngày 28/10/2026, nhánh cai-tien-b)." |
-| B2 | Bảng 3.5, dòng "Kiểm thử" | "232 kiểm thử tự động (pytest)" | "380 kiểm thử tự động (pytest), 1 bỏ qua có chủ đích" |
-
-Ghi chú: 232 là số tại thời điểm test cuối 21/10; 380 là số hiện tại (gồm các cải tiến 27–28/10). Nếu muốn giữ 232 vì báo cáo mô tả mốc 21/10, thì thêm chú thích "tại thời điểm kiểm tra cuối 21/10" thay vì đổi số. **[HỎI]** chọn cách nào.
+| B1 | Mục 1.5 "Phương pháp thực nghiệm", đoạn #56, câu cuối | "Toàn bộ mã nguồn có 232 kiểm thử tự động (pytest)." | "Toàn bộ mã nguồn có 380 kiểm thử tự động (pytest) đạt, 1 kiểm thử bỏ qua có chủ đích (tính đến 28/10/2026; 232 tại 21/10/2026). Số kiểm thử tăng do các cải tiến sau góp ý (đăng nhập và phân quyền, chụp bằng điện thoại, luật `vet_nho` và `to_nhat`, ma trận ô tô, môn và lớp) đều kèm kiểm thử mới." |
+| B2 | Bảng 3.5, dòng "Kiểm thử" | "232 kiểm thử tự động (pytest)" | "380 kiểm thử tự động (pytest), 1 bỏ qua có chủ đích (tính đến 28/10/2026; 232 tại 21/10/2026)" |
+| B3 | Mục 3.5.8 (bảng kiểm tra lại) và Kết luận Ý 1 | – | dùng đúng cách viết trên; Kết luận nêu "380 (tính đến 28/10/2026; 232 tại 21/10/2026)" |
 
 ## C. Mục mới (việc 5) — đặt sau mục 3.4.3 "Nhận xét", trước "KẾT LUẬN"
 
 Đánh số **3.5**. Cập nhật Mục lục; thêm vào "Danh mục bảng" các bảng 3.15–3.16 bên dưới nếu giữ bảng.
-Câu văn dùng giọng trung tính ("đề tài", "hệ thống"), không chủ ngữ "nhóm/em/tôi" (xem mục E).
+Câu văn dùng giọng trung tính ("đề tài", "hệ thống"), không gán việc cho một người cụ thể; ngôi chung của báo cáo là **"nhóm"** (đồ án nhóm theo bìa), xem mục F.
 
 ### 3.5. Các cải tiến sau góp ý (27–28/10/2026)
 
-Sau buổi góp ý, đề tài bổ sung bảy cải tiến trên nhánh `cai-tien-b`. Phần này ghi, với mỗi cải tiến: đã làm gì, đo được gì, giới hạn. Mọi số do script/tài liệu trong dự án tái tạo được; số nào chưa có tệp nguồn được ghi rõ. Kết quả kiểm tra cuối cả hệ thống ở mục 3.4 **không** được chạy lại sau các cải tiến này (xem 3.5.9).
+Sau buổi góp ý, đề tài bổ sung bảy cải tiến trên nhánh `cai-tien-b`. Phần này ghi, với mỗi cải tiến: đã làm gì, đo được gì, giới hạn. Mọi số do script/tài liệu trong dự án tái tạo được; số đo điện thoại thật ghi rõ thiết bị và ngày đo. Kết quả kiểm tra cuối cả hệ thống ở mục 3.4 **không** được chạy lại sau các cải tiến này (xem 3.5.9).
 
 **3.5.1. Hiển thị tên môn và tên lớp của kỳ thi**
 - *Đã làm:* kỳ thi gắn với một môn và một lớp (thêm cột `exams.class_id` và bảng `teacher_classes`, migration 002). Tạo kỳ thi nhận `class_id` hoặc `class_code`; lớp phải có sẵn, hệ thống không tự tạo lớp (lớp không tồn tại → mã 422). Danh sách kỳ thi, bảng điểm và tệp Excel hiện môn và lớp (ô A4 "Môn:", ô F4 "Lớp:").
@@ -46,10 +45,11 @@ Sau buổi góp ý, đề tài bổ sung bảy cải tiến trên nhánh `cai-ti
 **3.5.2. Chụp bằng điện thoại và chấm ngay, gồm chụp liên tục**
 - *Đã làm:* trang `/m` dùng camera gốc của điện thoại (`<input capture="environment">`, ảnh gốc không nén) gửi thẳng lên API chấm, hiện thẻ kết quả (điểm tạm, số câu cần xem, cảnh báo). Điện thoại không duyệt câu; giáo viên duyệt trên máy tính, danh sách tự làm mới mỗi 4 giây. Chế độ chụp liên tục dùng hàng đợi gửi nền (tối đa 2 yêu cầu song song), có "Gửi lại" khi lỗi mạng và "Chụp lại" khi ảnh bị từ chối. Công cụ `tools/chay_server_lan.py` chạy máy chủ trong mạng nội bộ, in địa chỉ và mã QR.
 - *Đo được:*
-  - Điện thoại thật qua Wi‑Fi, một tờ, một lần đo: **1,8 giây** từ lúc chụp đến lúc hiện kết quả. *(Số do người thực hiện đo trực tiếp; chưa có tệp ghi lại trong dự án — xem mục F.)*
+  - Điện thoại thật qua Wi‑Fi, một tờ, một lần đo: **1,8 giây** từ lúc chụp đến lúc hiện kết quả. *(Đo trực tiếp ngày 27/10/2026 trên **một** iPhone, trình duyệt Safari, cùng Wi‑Fi với máy chủ; có ảnh chụp màn hình điện thoại và nhật ký làm việc 27/10. Chưa thử Android. `[ĐIỀN SAU – nhóm xác nhận: người đo]`)*
+  - Cũng ngày 27/10 trên iPhone đó đã thử: chụp liên tục, chọn nhiều ảnh, chụp mờ bị từ chối kèm lý do, xuất Excel, và phân quyền (tài khoản gv_binh không xem được phiếu lớp K22A).
   - Giả lập Pixel 7 (ảnh 3024×4032, ~2,3 MB), chụp liên tục 20 tờ, mỗi 2 giây một tờ: **0 tờ lỗi**, thời gian xử lý mỗi tờ trung vị 0,79 s, p95 0,83 s, tổng 39,5 s (`docs/thiet_ke_chup_dien_thoai.md` mục 9; chạy qua mạng loopback, không gồm Wi‑Fi).
-  - Rớt Wi‑Fi rồi gửi lại: khoảng **2 giây**. *(Số do người thực hiện đo trực tiếp; chưa có tệp nguồn. Bản giả lập ngắt mạng 2 tờ: cả 2 tờ chấm được ở lần gửi lại thứ hai.)*
-- *Giới hạn:* chạy bằng http trong mạng nội bộ (chưa HTTPS); điện thoại và máy tính phải cùng mạng, tường lửa phải mở cổng 8000 do người dùng tự thực hiện; camera trực tiếp bằng `getUserMedia` (tự bắt khung phiếu) mới được khảo sát, **chưa làm** (cần HTTPS); số đo điện thoại thật chỉ là một tờ, một lần. Ảnh tạm bị xoá sau 24 giờ khi chạy `chay_server_lan.py` không kèm `--khong-xoa-anh` (phiếu còn chờ duyệt và kỳ thi `[DEMO…]` được giữ).
+  - Rớt Wi‑Fi rồi gửi lại: khoảng **2 giây** (ước chừng, cùng lần thử 27/10 trên iPhone). Bản giả lập ngắt mạng 2 tờ: cả 2 tờ chấm được ở lần gửi lại thứ hai.
+- *Giới hạn:* chạy bằng http trong mạng nội bộ (chưa HTTPS); điện thoại và máy tính phải cùng mạng, tường lửa phải mở cổng 8000 do người dùng tự thực hiện; camera trực tiếp bằng `getUserMedia` (tự bắt khung phiếu) mới được khảo sát, **chưa làm** (cần HTTPS); số đo điện thoại thật chỉ là **một thiết bị (iPhone/Safari), một tờ, một lần đo**; **chưa thử Android; chưa đo thời gian 40 tờ liên tục qua Wi‑Fi thật**. Ảnh tạm bị xoá sau 24 giờ khi chạy `chay_server_lan.py` không kèm `--khong-xoa-anh` (phiếu còn chờ duyệt và kỳ thi `[DEMO…]` được giữ).
 
 **3.5.3. So sánh OCR với CNN đọc chữ số** (nguồn: `docs/so_sanh_ocr_cnn.md`, kể cả mục 5b; chỉ dùng dữ liệu phát triển, không chạm tập kiểm định/kiểm tra)
 - *Đã làm:* đo ba ứng viên trên cùng tập và cùng thước đo: M0 (HOG + hồi quy logistic), CNN của hệ thống, và một thư viện OCR (mô hình nhận dạng PP‑OCRv6 chạy bằng onnxruntime, môi trường riêng, không huấn luyện thêm).
@@ -71,7 +71,7 @@ Sau buổi góp ý, đề tài bổ sung bảy cải tiến trên nhánh `cai-ti
 
 **3.5.4. Phủ các trường hợp ô tô** (nguồn: `docs/ke_hoach_cai_tien_27-10.md` mục 6; `tests/test_omr_ma_tran_o_to.py`)
 - *Đã làm:* bộ kiểm thử ma trận vẽ ô bằng điểm ảnh thật với mức xám cho trước (0–255), chạy qua cả chuỗi `doc_phieu`: một ô, một đậm một nhạt, 2–4 ô cùng mức, vùng tô to nhỏ, 40 câu đủ, chấm nhỏ. Bổ sung luật `vet_nho` (ô không được chọn mà có khối tối đặc ≥ 90 px sau phép mở 7×7 → câu cần xem; lấp lỗ hổng "chấm nhỏ đậm bị đọc là trống mà không báo") và luật mức tờ `to_nhat` (tờ tô nhạt cả tờ → mọi câu đã chọn cần xem). Cả hai luật chỉ cộng cờ "cần xem", không đổi đáp án máy đọc, không đổi tệp mô hình.
-- *Đo được* (56 ảnh phát triển, tiêu chí chốt trước khi sửa mã): lỗi nặng 0; "cần xem thừa" ở câu rõ một ô không đổi (C1/C2/C3/C4 = 0,27 / 2,71 / 1,10 / 2,19%); `vet_nho` gắn cờ 0 câu thật, `to_nhat` gắn 0/56 phiếu thật; chấm giả bán kính ≥ 0,3r gắn cờ 100%; điểm chính thức khớp độc lập 56/56. Bộ kiểm thử ma trận hiện có 32 ca. *[HỎI: bản mô tả gốc của người thực hiện ghi "ma trận 16 nhóm"; tôi không tìm được chữ "16 nhóm" ở tệp nào nên không đưa con số này vào — xem mục F.]*
+- *Đo được* (56 ảnh phát triển, tiêu chí chốt trước khi sửa mã): lỗi nặng 0; "cần xem thừa" ở câu rõ một ô không đổi (C1/C2/C3/C4 = 0,27 / 2,71 / 1,10 / 2,19%); `vet_nho` gắn cờ 0 câu thật, `to_nhat` gắn 0/56 phiếu thật; chấm giả bán kính ≥ 0,3r gắn cờ 100%; điểm chính thức khớp độc lập 56/56. Bộ kiểm thử ma trận ô tô hiện có **32 ca** (đếm lại 28/10/2026: `python -m pytest --collect-only -q tests/test_omr_ma_tran_o_to.py` → "32 tests collected"; gồm 22 ca ban đầu và 10 ca của luật `to_nhat`).
 - *Giới hạn:* phép thử vẽ giả phẳng, chưa có nhiễu thật; tờ nhạt thật chưa từng có trong dữ liệu phát triển nên luật `to_nhat` chưa được thử trên tờ nhạt thật; `to_nhat` chỉ bắt tờ có độ tối trung vị T < 0,44, tờ nhạt vừa (T 0,44–0,53) chưa bắt được; luật `vet_nho` **chưa áp dụng cho bubble SBD và mã đề** (nợ kỹ thuật đã biết, hai kênh bubble + chữ viết tay vẫn đối chiếu nhau); chấm rất nhỏ (< ~0,15 bán kính) và chấm nhạt hơn 0,6 lần giấy vành không bị bắt; bút chì nhạt xem 3.5.6.
 
 **3.5.5. Chấm đủ 40 câu**
@@ -109,53 +109,77 @@ Sau buổi góp ý, đề tài bổ sung bảy cải tiến trên nhánh `cai-ti
 
 Đề tài xây dựng được hệ thống chấm thi trắc nghiệm chạy trọn vòng từ ảnh chụp bằng điện thoại đến bảng điểm Excel: nắn phẳng ảnh phiếu, đọc 40 câu bằng mô hình hồi quy logistic, đọc SBD và mã đề bằng hai kênh độc lập (CNN chữ viết tay và ô tô) rồi đối chiếu, chấm điểm tạm, để giáo viên duyệt các chỗ máy không chắc, lưu điểm chính thức vào PostgreSQL. Nguyên tắc "AI hỗ trợ, con người kiểm soát" được giữ ở mọi khâu: chỗ nào không chắc thì gắn cờ "cần xem" thay vì đoán.
 
-Về an toàn, trên tập kiểm tra cuối (12 ảnh của 6 phiếu, chạy một lần theo tiêu chí đăng ký trước) cả năm tiêu chí bắt buộc H1–H5 đều đạt: nắn ảnh đúng 12/12 (bản nắn cũ chỉ đúng 9/12, lỗi im lặng 3/12; gộp cả tập phát triển, bản cũ nắn sai im lặng 22/90 ảnh, bản mới 0/90), lỗi nặng của OMR 0/588 (cận trên 95% là 0,63%), không SBD hay mã đề nào nhận sai, không câu nào chấm sai mà không gắn cờ, điểm chính thức sau duyệt khớp điểm tính độc lập 12/12. Sau các cải tiến 27–28/10, kiểm tra lại cho kết quả: 380 kiểm thử tự động đạt (1 bỏ qua có chủ đích) và điểm chính thức khớp 56/56 trên tập phát triển.
+Về an toàn, trên tập kiểm tra cuối (12 ảnh của 6 phiếu, chạy một lần theo tiêu chí đăng ký trước) cả năm tiêu chí bắt buộc H1–H5 đều đạt: nắn ảnh đúng 12/12 (bản nắn cũ chỉ đúng 9/12, lỗi im lặng 3/12; gộp cả tập phát triển, bản cũ nắn sai im lặng 22/90 ảnh, bản mới 0/90), lỗi nặng của OMR 0/588 (cận trên 95% là 0,63%), không SBD hay mã đề nào nhận sai, không câu nào chấm sai mà không gắn cờ, điểm chính thức sau duyệt khớp điểm tính độc lập 12/12. Sau các cải tiến 27–28/10, kiểm tra lại cho kết quả: 380 kiểm thử tự động đạt (1 bỏ qua có chủ đích; tính đến 28/10/2026, còn 232 tại 21/10/2026, số tăng do các cải tiến đều kèm kiểm thử mới) và điểm chính thức khớp 56/56 trên tập phát triển.
 
-Sau góp ý, hệ thống được bổ sung: tên môn và lớp của kỳ thi, chụp bằng điện thoại và chấm ngay (kể cả chụp liên tục; một lần đo trên điện thoại thật từ chụp đến hiện kết quả là 1,8 giây), đăng nhập giáo viên và phân quyền theo lớp, bộ kiểm thử các trường hợp ô tô thang 0–255 cùng hai luật cảnh báo mới (`vet_nho`, `to_nhat`), và phép so sánh OCR với CNN trên dữ liệu phát triển.
+Sau góp ý, hệ thống được bổ sung: tên môn và lớp của kỳ thi, chụp bằng điện thoại và chấm ngay (kể cả chụp liên tục; một lần đo trên một iPhone thật, ngày 27/10/2026, từ chụp đến hiện kết quả là 1,8 giây), đăng nhập giáo viên và phân quyền theo lớp, bộ kiểm thử các trường hợp ô tô thang 0–255 cùng hai luật cảnh báo mới (`vet_nho`, `to_nhat`), và phép so sánh OCR với CNN trên dữ liệu phát triển.
 
 **Những chỉ báo chưa đạt (ghi nguyên trạng):** độ đúng chữ số của CNN 92,6% (mục tiêu ≥ 97%); tỉ lệ ảnh có SBD hoặc mã đề cần xem 58,3% (mục tiêu ≤ 10%); "cần xem thừa" ở câu rõ một ô 3,68% (mục tiêu ≤ 3%); F1 lớp ô tô mờ gộp 0,897 (mục tiêu ≥ 0,90), riêng điều kiện thiếu sáng C2 là 0,70. Các chỉ số này ảnh hưởng khối lượng việc của giáo viên chứ không gây ghi sai điểm.
 
 **Ý 2: Hạn chế và hướng phát triển**
 
-*Hạn chế.* Tập kiểm tra chỉ có 12 ảnh của 6 phiếu, toàn bộ một người viết, kỳ thi và đáp án là mô phỏng nên khoảng tin cậy rộng. Kết quả kiểm tra cuối 21/10 là của phiên bản trước luật `vet_nho` và `to_nhat`; kiểm lại cần đăng ký tiêu chí mới. Hệ thống chạy trong mạng nội bộ qua http; số đo điện thoại thật mới là một tờ, một lần. Luật `vet_nho` chưa áp dụng cho SBD và mã đề; tờ tô nhạt cả tờ chưa từng được thử với ảnh thật. Phép so sánh OCR chỉ ở mức dữ liệu phát triển.
+*Hạn chế.* Tập kiểm tra chỉ có 12 ảnh của 6 phiếu, toàn bộ một người viết, kỳ thi và đáp án là mô phỏng nên khoảng tin cậy rộng. Kết quả kiểm tra cuối 21/10 là của phiên bản trước luật `vet_nho` và `to_nhat`; kiểm lại cần đăng ký tiêu chí mới. Hệ thống chạy trong mạng nội bộ qua http; số đo điện thoại thật mới là một tờ, một lần, trên một thiết bị (iPhone/Safari), chưa thử Android và chưa đo 40 tờ liên tục qua Wi‑Fi thật. Luật `vet_nho` chưa áp dụng cho SBD và mã đề; tờ tô nhạt cả tờ chưa từng được thử với ảnh thật. Phép so sánh OCR chỉ ở mức dữ liệu phát triển.
 
 *Đang chờ.* Kiểm tra đợt 2 (phiếu 0101–0110, chụp bằng điện thoại, trên mã đã đóng băng): **đang chờ chạy**. Ô cập nhật: `[kết quả đợt 2 và nhận xét: ……]`.
 
 *Hướng phát triển.* (1) Thay kênh chữ viết tay bằng OCR sau khi hiệu chỉnh điểm tin cậy, chọn lại ngưỡng, mô phỏng rủi ro tô sai bubble và đánh giá lại; vẫn giữ quy tắc chỉ nhận khi hai kênh khớp. (2) Thu thêm người viết để cải thiện độ đúng chữ số với người viết lạ. (3) Áp luật `vet_nho` cho SBD, mã đề và xử lý nợ thang độ tối phụ thuộc cả tờ. (4) Camera trực tiếp bằng `getUserMedia` (cần HTTPS). (5) Cảnh báo trên bảng điểm khi có phiếu thứ hai cùng SBD đang chờ duyệt. (6) Lưu các lần giáo viên sửa làm dữ liệu huấn luyện thêm.
 
-## E. Chú thích lược đồ CSDL/ERD (việc 3)
+## E. Chú thích lược đồ CSDL/ERD và số bảng thật (đã chốt theo lệnh E2)
 
-**Vị trí:** mục 3.1.4, ngay sau Bảng 3.4 (đoạn #125 bắt đầu "Cơ sở dữ liệu có các ràng buộc khóa ngoại…") — thêm đoạn chú thích; có thể đặt cùng chú thích dưới hình ERD nếu báo cáo có hình.
+**Số liệu đếm từ CSDL thật** (chỉ `SELECT` trên `information_schema.tables`, schema `public`, kết nối chỉ-đọc, 28/10/2026; không ghi, không migration):
+**30 đối tượng = 22 bảng + 8 view.**
 
-> **Chú thích.** Ngoài các bảng nghiệp vụ, cơ sở dữ liệu còn có bảng `schema_migrations`. Đây là bảng kỹ thuật dùng để theo dõi các tệp migration đã được áp (mỗi dòng ghi tên một tệp migration), giúp chạy lại lệnh migrate nhiều lần mà không áp trùng. Bảng này không thuộc nghiệp vụ chấm thi và không xuất hiện trong ERD.
+| Nhóm | Số | Tên |
+|---|---|---|
+| Bảng nghiệp vụ gốc (ERD thiết kế) | **20** | `answer_keys`, `answer_sheets`, `classes`, `exam_codes`, `exam_students`, `exams`, `ml_models`, `ocr_digits`, `questions`, `results`, `review_queue`, `scan_batches`, `score_audit_logs`, `sheet_answers`, `sheet_templates`, `student_imports`, `students`, `subjects`, `system_settings`, `users` |
+| Bảng nghiệp vụ thêm sau cải tiến (migration 002) | **1** | `teacher_classes` (quan hệ giáo viên–lớp) |
+| Bảng kỹ thuật | **1** | `schema_migrations` (3 dòng: 001, 002, 003) |
+| View | **8** | `v_exam_results`, `v_exam_summary`, `v_missing_results`, `v_ocr_correction_stats`, `v_question_difficulty`, `v_review_pending`, `v_score_distribution`, `v_student_transcript` |
 
-**Cần đồng bộ thêm (phát hiện khi rà):** migration 002 (27/10) thêm bảng nghiệp vụ `teacher_classes` (quan hệ giáo viên–lớp) và cột `exams.class_id`. Báo cáo và ERD hiện ghi "20 bảng". Đề xuất: Bảng 3.4 thêm `teacher_classes` vào nhóm "Người dùng", đổi "20 bảng" thành "21 bảng nghiệp vụ (cộng bảng kỹ thuật `schema_migrations`)" **hoặc** giữ "20 bảng" và ghi rõ "ERD vẽ ở giai đoạn thiết kế, trước các bảng bổ sung bằng migration". Số 21 cần kiểm trong CSDL thật (tôi không truy cập CSDL theo ràng buộc lệnh E). **[HỎI]** chọn cách nào và/hoặc tự kiểm số bảng.
+Đối chiếu migration 001–003 (`backend/migrations/`): 001 chỉ thêm cột/chỉ mục vào `sheet_answers` (`needs_review`, `review_reasons`, `omr_state`, `omr_selected_options`, `reviewed_by`, `reviewed_at`) và `answer_sheets` (`reject_code`, `omr_detail`, `original_filename`); **002 thêm bảng `teacher_classes` + cột `exams.class_id`** (+ chỉ mục); **003 thêm cột `answer_sheets.image_deleted_at`** (+ chỉ mục). Kiểm tra trực tiếp: `exams.class_id` và `answer_sheets.image_deleted_at` đều tồn tại. Không bảng nào ngoài `teacher_classes` và `schema_migrations` được thêm bằng migration: 22 − 20 = 2, khớp.
+ERD gốc (20 bảng) **không đổi**.
 
-## F. Rà soát "cá nhân" và "nhóm" (việc 4) — chỉ liệt kê và đề xuất, KHÔNG tự quyết
+**Cách viết trong báo cáo (vị trí: mục 3.1.4, đoạn #121 và ngay sau Bảng 3.4):**
+- Đoạn #121: giữ "20 bảng" cho thiết kế ban đầu và thêm: "…gồm 20 bảng nghiệp vụ theo thiết kế ban đầu; sau các cải tiến 27–28/10/2026, cơ sở dữ liệu có thêm bảng nghiệp vụ `teacher_classes` và bảng kỹ thuật `schema_migrations` (tổng 22 bảng, 8 khung nhìn)."
+- Bảng 3.4, nhóm "Người dùng": thêm `teacher_classes (thêm sau cải tiến)`. Chú thích dưới bảng:
 
-**Mâu thuẫn tìm được**
+> **Chú thích.** `schema_migrations` là bảng kỹ thuật theo dõi các tệp migration đã được áp (mỗi dòng ghi tên một tệp), giúp chạy lại lệnh migrate nhiều lần mà không áp trùng; bảng này không thuộc nghiệp vụ chấm thi và không có trong ERD. Bảng `teacher_classes` và các cột `exams.class_id`, `answer_sheets.image_deleted_at` (cùng các cột bổ sung ở `sheet_answers` và `answer_sheets` từ migration 001) được thêm sau khi vẽ ERD gốc nên ERD 20 bảng không thể hiện; ERD gốc được giữ nguyên.
 
-| # | Chỗ | Nội dung | Vấn đề |
+## F. Ngôi "nhóm" và phân công (đã chốt theo lệnh E2: đồ án NHÓM, theo bìa)
+
+**Quy ước:** thống nhất ngôi **"nhóm"** toàn báo cáo; câu hay bảng gán một người cụ thể cho một phần việc → thay bằng câu trung tính hoặc ô `[ĐIỀN SAU – nhóm xác nhận: …]`. Không điền tên, không suy từ lịch sử commit. Giữ nguyên sự thật: **cả nhóm tham gia thu dữ liệu (tô và viết phiếu); đợt 2 do 5 người cùng tô.** `CLAUDE.md` không sửa.
+
+| # | Chỗ (mục / đoạn) | Trước | Sau |
 |---|---|---|---|
-| 1 | Bìa (2 bảng bìa) | "Sinh viên/ Nhóm sinh viên thực hiện: Nhóm 12" + bảng 5 thành viên (Nhóm trưởng: Nguyễn Bùi Nhựt Hoàng) | Báo cáo mang tư cách **nhóm 5 người** |
-| 2 | `CLAUDE.md` mục đầu của dự án | "Đồ án chuyên ngành CNTT, **làm cá nhân**, kế hoạch 12 tuần" | Hồ sơ dự án nói **cá nhân** — trái với bìa |
-| 3 | Thân báo cáo: #33, #49, #50, #54, #55, #56, #111, #115, #151, #160, #164, #191 | "nhóm tự thiết kế phiếu", "nhóm thu 40 phiếu", "Nhóm đọc tài liệu", "nhóm tự tô và viết, tự chụp, tự gán nhãn", "nhóm ưu tiên không có lỗi im lặng"… | Xưng "nhóm" nhất quán với bìa, nhưng mâu thuẫn với (2); và mô tả **mọi** khâu (thiết kế, chụp, gán nhãn, huấn luyện) là việc của nhóm nói chung — không cho biết ai làm phần nào |
-| 4 | #191, #193 | "**Người thực hiện** xem mù ảnh trước, kết luận bằng mắt…" / "kết luận bằng mắt của **người thực hiện**" | Số ít, như thể một người làm; lệch với "nhóm" quanh nó |
-| 5 | #204 | "toàn bộ do **một người viết** (người mà nét chữ đã có trong dữ liệu huấn luyện)" | Đây là dữ liệu (một người viết tay), không phải xưng hô; dễ bị đọc nhầm là một người làm cả đề tài. Nên viết rõ "một người viết tay" |
-| 6 | `docs/so_sanh_ocr_cnn.md` mục 5b | Trả lời giảng viên bằng ngôi **"em"** ("CNN của em…") | Nếu dán nguyên mục 5b vào báo cáo sẽ lệch văn phong; mục 3.5.3 ở trên đã viết lại ở giọng trung tính |
-| 7 | Tờ thuyết trình / tiến độ ngoài báo cáo (`ToThuyetTrinh_1…5`, 5 tệp theo từng thành viên) | Tồn tại 5 tờ thuyết trình riêng cho 5 người | Gợi ý đồ án có phân công nhóm — càng cần làm rõ với (2). *(Tôi chưa mở các tệp này.)* |
+| 1 | Bìa; Danh sách nhóm (bảng 5 thành viên, cột Ghi chú "Nhóm Trưởng") | Nhóm 12, 5 thành viên | **Giữ nguyên** (sự thật trên bìa; vai trò nhóm trưởng không phải phân công kỹ thuật) |
+| 2 | `CLAUDE.md` mục 1 ("làm cá nhân") | – | **Không sửa** theo yêu cầu; chỉ ghi nhận là chỗ lệch với bìa |
+| 3 | #33, #49, #50, #54, #55, #56, #111, #115, #151, #160, #164 ("nhóm tự thiết kế…", "nhóm thu 40 phiếu"…) | "nhóm" | **Giữ nguyên** – đã đúng ngôi; không câu nào nêu tên người |
+| 4 | Mục 3.4.1 (#191) và 3.4.2 (#193) | "Người thực hiện xem mù ảnh trước, kết luận bằng mắt rồi mới mở kết quả của máy." / "kết luận bằng mắt của người thực hiện" | "Ảnh được xem mù trước: nhóm ghi kết luận bằng mắt rồi mới mở kết quả của máy." / "kết luận bằng mắt của nhóm". Ô điền: `[ĐIỀN SAU – nhóm xác nhận: thành viên xem mù ảnh kiểm tra cuối]` (đặt trong ngoặc ở cuối #191 nếu cần nêu tên) |
+| 5 | #204 | "toàn bộ do một người viết" | "toàn bộ do một người viết tay" (làm rõ đây là dữ liệu, không phải phân công) |
+| 6 | Văn phong "em" (`so_sanh_ocr_cnn.md` mục 5b) | "CNN của em…" | Không dán nguyên vào báo cáo; mục 3.5.3 đã viết ở giọng trung tính. (`so_sanh_ocr_cnn.md` là tài liệu nội bộ, không đổi) |
+| 7 | 5 tờ thuyết trình theo từng thành viên (ngoài báo cáo) | – | Không thuộc báo cáo, không sửa; chỉ nhắc: phần phân công của báo cáo cần khớp các tờ này |
+| 8 | Mục 3.5.2 (đo điện thoại) | – | Ghi "đo trực tiếp ngày 27/10/2026 trên một iPhone", không nêu ai đo. Ô điền: `[ĐIỀN SAU – nhóm xác nhận: người đo]` |
+| 9 | **Mới** – bảng "Phân công công việc" (đề xuất đặt cuối Chương 1, sau mục 1.6, hoặc Phụ lục) | (chưa có) | Bảng bên dưới, mọi ô người phụ trách để trống trừ hai sự thật đã biết |
 
-**Đề xuất sửa (chưa áp dụng)**
-- Nếu đồ án thực tế là **nhóm**: giữ "nhóm" nhất quán; sửa #191/#193 "người thực hiện" → "thành viên thực hiện kiểm tra" hoặc nêu tên vai trò; thêm bảng/đoạn "Phân công công việc" (ai làm tiền xử lý, OMR, CNN, backend, giao diện, thu dữ liệu, báo cáo); `CLAUDE.md` và các tài liệu `docs/` nên đổi "làm cá nhân" cho khớp.
-- Nếu đồ án thực tế là **cá nhân** (như `CLAUDE.md`): sửa bìa thành một sinh viên; đổi "nhóm" → "đề tài"/"tác giả" hoặc "tôi/em" theo quy định văn phong của khoa; bỏ bảng 5 thành viên.
-- Phương án trung gian (nếu một người phụ trách kỹ thuật, nhóm ký tên chung): ghi rõ phân công thật ở mục "Phân công", và dùng chủ ngữ trung tính ("đề tài", "hệ thống") ở phần kỹ thuật.
+Bảng đề xuất (mục 9):
 
-**[HỎI]** Đồ án này là cá nhân hay nhóm, và ai thực sự làm phần nào? Tôi **không** sửa bất kỳ câu nào liên quan phân công cho tới khi được trả lời.
+| Hạng mục | Người phụ trách |
+|---|---|
+| Thiết kế phiếu và bố cục | `[ĐIỀN SAU – nhóm xác nhận]` |
+| Thu dữ liệu: tô và viết phiếu | Cả nhóm cùng tham gia |
+| Chụp ảnh phiếu | `[ĐIỀN SAU – nhóm xác nhận]` |
+| Tiền xử lý ảnh (nắn phẳng) | `[ĐIỀN SAU – nhóm xác nhận]` |
+| Nhận dạng ô tô (OMR) | `[ĐIỀN SAU – nhóm xác nhận]` |
+| Nhận dạng chữ số (CNN) và so sánh OCR | `[ĐIỀN SAU – nhóm xác nhận]` |
+| Cơ sở dữ liệu | `[ĐIỀN SAU – nhóm xác nhận]` |
+| Backend, đăng nhập và phân quyền | `[ĐIỀN SAU – nhóm xác nhận]` |
+| Giao diện web và trang điện thoại | `[ĐIỀN SAU – nhóm xác nhận]` |
+| Đánh giá, kiểm thử, xem mù | `[ĐIỀN SAU – nhóm xác nhận]` |
+| Kiểm tra đợt 2 (tô phiếu) | Cả 5 thành viên cùng tô |
+| Viết báo cáo | `[ĐIỀN SAU – nhóm xác nhận]` |
 
----
+## G. Điều còn chưa kiểm chứng
 
-## G. Số liệu / chỗ chưa kiểm chứng được (cần bạn xác nhận)
-
-1. **"1,8 giây" (điện thoại thật qua Wi‑Fi)** và **"rớt Wi‑Fi rồi gửi lại ~2 giây"**: do bạn cung cấp; trong dự án **không có tệp ghi lại** (các tài liệu hiện ghi "CHƯA thử điện thoại thật"). Đã đưa vào 3.5.2 kèm chú "do người thực hiện đo trực tiếp, chưa có tệp nguồn". Nếu có ảnh chụp màn hình/ghi chép, hãy cho đường dẫn để tôi trỏ nguồn; nếu không, nên giữ chú thích này hoặc bỏ số khỏi báo cáo.
-2. **"Ma trận 16 nhóm"**: không tìm thấy cụm này trong tài liệu hay mã (bộ test ma trận có 32 ca, nhóm theo hàm test). Chưa đưa con số 16 vào báo cáo.
-3. "Khoảng 2 giây" ở mục rớt Wi‑Fi: không phân biệt được do đo từ giao diện hay do ước lượng.
+1. **Số đo điện thoại thật (1,8 s; ~2 s):** nguồn do người dùng khai (đo trực tiếp 27/10/2026, một iPhone/Safari, cùng Wi‑Fi; có ảnh chụp màn hình điện thoại và nhật ký làm việc 27/10). Hai thứ đó không nằm trong dự án (không thấy trong `data/_eval/ui_m/` hay `docs/`) nên tôi chưa tự đối chiếu được; "~2 s" là ước chừng. Các tài liệu `docs/` còn ghi "CHƯA thử điện thoại thật" đã được sửa cho khớp (xem nhật ký).
+2. Chưa thử Android; chưa đo 40 tờ liên tục qua Wi‑Fi thật.
+3. Đã bỏ cụm "ma trận 16 nhóm"; số thật là 32 ca (đã đếm lại).
+4. Các ô `[ĐIỀN SAU]` còn trống – chờ nhóm.
