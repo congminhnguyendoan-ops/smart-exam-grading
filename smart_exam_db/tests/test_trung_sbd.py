@@ -1,7 +1,8 @@
-"""Lệnh D – việc phụ: HAI phiếu cùng SBD trong CÙNG kỳ thi. MÔ TẢ hành vi HIỆN TẠI (không sửa gì) – CSDL thật trong giao dịch ROLLBACK.
+"""Lệnh D – việc phụ: HAI phiếu cùng SBD trong CÙNG kỳ thi – CSDL thật trong giao dịch ROLLBACK. (Lệnh F2 28/10: Bảng điểm / Excel đã có cảnh báo, màn duyệt có
+hai lựa chọn xử lý – xem test_trung_sbd_xu_ly.py; các test dưới đây vẫn là bất biến "đúng MỘT điểm chính thức".)
 
 Kết luận (docs/so_sanh_ocr_cnn.md mục "Việc phụ"): không bao giờ có 2 điểm chính thức cho một thí sinh (service gắn duplicate_sbd + chỉ mục
-uq_results_exam_student); phiếu sau kẹt ở "cần xem"; Bảng điểm / Excel lấy phiếu chính thức và KHÔNG cảnh báo có phiếu trùng đang chờ."""
+uq_results_exam_student); phiếu sau kẹt ở "cần xem"; Bảng điểm / Excel lấy phiếu chính thức."""
 import io
 
 import psycopg
@@ -52,17 +53,18 @@ def test_csdl_chan_diem_chinh_thuc_thu_hai(conn_thu, hai_phieu):
                              (eid, sid, b))
 
 
-def test_bang_diem_va_excel_lay_phieu_chinh_thuc_khong_canh_bao(client, hai_phieu):
+def test_bang_diem_va_excel_lay_phieu_chinh_thuc_va_canh_bao_phieu_trung(client, hai_phieu):
+    """Điểm ở Bảng điểm / Excel vẫn là của phiếu chính thức (A); từ lệnh F2 có CẢNH BÁO phiếu trùng chờ duyệt (chi tiết: test_trung_sbd_xu_ly.py)."""
     eid, a, b, va = hai_phieu
     giai_quyet_het(client, b)
     bd = client.get(f"/exams/{eid}/results").json()
     d = next(r for r in bd["rows"] if r["sbd"] == SBD_0002)
     assert d["status"] == "official" and d["sheet_id"] == a and d["score"] == float(va["score"]["official"])
-    assert d["sheets"] == 2                                                # API CÓ đếm 2 phiếu …
-    assert all(p["sheet_id"] != b for p in bd["unmatched"])                # … nhưng phiếu B không nằm ở "chưa ghép được"
+    assert d["sheets"] == 2 and d["duplicate_pending"] == 1 and d["duplicate_sheet_ids"] == [b]
+    assert all(p["sheet_id"] != b for p in bd["unmatched"])                # phiếu B vẫn không nằm ở "chưa ghép được"
     wb = load_workbook(io.BytesIO(client.get(f"/exams/{eid}/export.xlsx").content))
     chu = " ".join(str(c.value) for ws in wb.worksheets for row in ws.iter_rows() for c in row if c.value is not None).lower()
-    assert "trùng" not in chu and "duplicate" not in chu                    # HIỆN TẠI: Excel không cảnh báo có phiếu trùng SBD đang chờ
+    assert "trùng sbd" in chu
     from conftest import ROOT
     js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
-    assert "d.sheets" not in js                                            # HIỆN TẠI: màn Bảng điểm không hiện số phiếu của thí sinh
+    assert "duplicate_pending" in js and "/duplicate/replace" in js and "/duplicate/discard" in js     # màn Bảng điểm + màn duyệt có xử lý phiếu trùng

@@ -327,6 +327,8 @@ async function manChiTiet(id) {
       <div class="qgrid">${p.questions.map((q) => cauHtml(q, dapAn ? dapAn[q.question_no - 1] : null)).join("")}</div></div>`}`;
 }
 async function khoiTuChoi(p) {
+  if (p.reject_code === "bi_thay_the" || p.reject_code === "chup_lai_bi_bo")      // phiếu trùng SBD đã xử lý (không phải lỗi ảnh)
+    return `<div class="alert warn"><b>${p.reject_code === "bi_thay_the" ? "Phiếu cũ đã bị thay bằng phiếu khác (trùng SBD)." : "Ảnh chụp lại đã bị bỏ (giữ phiếu cũ, trùng SBD)."}</b><br>${esc(p.reject_message)}</div>`;
   if (!Object.keys(state.reasons).length) state.reasons = await api("/meta/reject-reasons");
   const ly = state.reasons[p.reject_code] || {};
   return `<div class="alert bad"><b>Ảnh bị từ chối – không có điểm.</b><br>${esc(p.reject_message || ly.message)}<br>
@@ -352,21 +354,55 @@ async function manDuyet(id) {
   const dinhDanhCan = p.status === "needs_review" && p.sbd && p.exam_code &&
     (p.sbd.can_xem || p.exam_code.can_xem || !p.exam_code.matched_code || !p.student);
   const rv = p.review;
+  const trung = p.status === "needs_review" && rv && rv.reasons.includes("duplicate_sbd") && rv.details && rv.details.duplicate_with_sheet_id ? rv.details.duplicate_with_sheet_id : null;
+  let phieuCu = null;
+  if (trung) { try { phieuCu = await api(`/sheets/${trung}`); } catch (_) { /* không đọc được: vẫn cho xử lý, chỉ thiếu thông tin so sánh */ } }
   main.innerHTML = `<p><a href="#/review">← Hàng đợi</a> · <a href="#/sheet/${id}">Chi tiết phiếu</a></p>
     <h2>Duyệt phiếu #${id} ${tag(p.status)}</h2>
     <div class="card"><div class="score">${diemHtml(p.score, p.status)}</div>
       ${p.status === "graded" ? '<div class="alert ok">Đã chốt điểm chính thức – phiếu duyệt xong. <a href="#/review">Sang phiếu tiếp theo →</a></div>' : ""}
       ${rv && p.status === "needs_review" ? `<div class="alert warn">Còn lại: ${rv.reasons.map((r) => LY_DO_PHIEU[r] || r).join("; ")}</div>` : ""}
       <p class="muted small">Sinh viên: ${p.student ? esc(p.student.full_name) + " (" + esc(p.student.student_code) + ")" : "chưa ghép được"} · Mã đề: ${esc((p.exam_code && p.exam_code.matched_code) || "chưa xác định")}</p></div>
+    ${trung ? khungTrung(p, trung, phieuCu) : ""}
     ${dinhDanhCan ? khungDinhDanh(p) : ""}
     <h3>Câu cần xem (${p.questions.filter((q) => q.needs_review).length} còn lại)</h3>
     ${the.map((q) => theCau(id, q)).join("") || '<p class="muted">Không có câu nào cần xem.</p>'}`;
+  if (trung) {
+    $("#trung-bo").addEventListener("click", () => boPhieuTrung(id, trung));
+    $("#trung-thay").addEventListener("click", () => thayPhieuCu(id, trung, phieuCu));
+  }
   if (dinhDanhCan) {
     $("#luu-dd").addEventListener("click", () => luuDinhDanh(id));
     main.querySelectorAll("button[data-fill]").forEach((b) => b.addEventListener("click", () => { $("#" + b.dataset.fill).value = b.dataset.val; }));
   }
   main.querySelectorAll(".rcard").forEach((el) => gan(el, id));
   await napChiTietKyThi();
+}
+/* Phiếu bị giữ vì trùng SBD với một phiếu đã có điểm chính thức: giáo viên chọn giữ phiếu cũ hay dùng phiếu này. Không bao giờ tự động. */
+function khungTrung(p, cu, pc) {
+  const diemCu = pc && pc.score && pc.score.official !== null ? `${fmt(pc.score.official)} / ${fmt(pc.score.max_score)}` : "–";
+  return `<div class="card" id="khung-trung"><h3>Trùng SBD với phiếu #${cu}</h3>
+    <div class="alert warn">Thí sinh <b>${p.student ? esc(p.student.full_name) + " (" + esc(p.student.student_code) + ")" : "?"}</b> đã có phiếu <a href="#/sheet/${cu}">#${cu}</a>
+      với điểm chính thức <b>${diemCu}</b>. Mỗi thí sinh chỉ được MỘT điểm chính thức, nên phiếu này đang bị giữ lại. Hãy chọn:</div>
+    <div class="row"><button id="trung-bo">Bỏ phiếu chụp lại (giữ phiếu cũ #${cu})</button>
+      <button class="pri" id="trung-thay">Dùng phiếu này thay phiếu cũ #${cu}</button></div>
+    <p class="small muted">"Bỏ phiếu chụp lại": phiếu này bị loại, điểm của phiếu cũ không đổi. "Dùng phiếu này thay phiếu cũ": điểm chính thức của phiếu cũ bị rút
+      (ghi vào nhật ký điểm: ai, lúc nào, phiếu nào thay phiếu nào), phiếu này duyệt tiếp rồi mới có điểm chính thức.</p></div>`;
+}
+async function boPhieuTrung(id, cu) {
+  if (!confirm(`Bỏ phiếu #${id} (ảnh chụp lại) và GIỮ phiếu cũ #${cu}?
+Điểm của phiếu cũ không đổi.`)) return;
+  try { await post(`/sheets/${id}/duplicate/discard`, {}); toast(`Đã bỏ phiếu #${id}, giữ phiếu cũ #${cu}.`); await napChiTietKyThi(); location.hash = "#/review"; }
+  catch (e) { toast(e.message, true); }
+}
+async function thayPhieuCu(id, cu, pc) {
+  const diem = pc && pc.score && pc.score.official !== null ? ` (điểm chính thức ${fmt(pc.score.official)})` : "";
+  if (!confirm(`DÙNG phiếu #${id} THAY phiếu cũ #${cu}${diem}?
+
+Điểm chính thức của phiếu #${cu} sẽ bị RÚT và phiếu #${cu} không còn được tính.
+Việc này được ghi vào nhật ký điểm (người làm, thời điểm).`)) return;
+  try { await post(`/sheets/${id}/duplicate/replace`, { old_sheet_id: cu, confirm: true }); toast(`Đã thay phiếu #${cu} bằng phiếu #${id}.`); await manDuyet(id); }
+  catch (e) { toast(e.message, true); }
 }
 const chuoiCot = (tr, f) => { const v = tr.columns.map(f); return v.every((d) => /^\d$/.test(d || "")) ? v.join("") : ""; };
 function khungDinhDanh(p) {
@@ -437,20 +473,23 @@ async function manBangDiem() {
     const [t, c] = NHAN_BD[d.status];
     const diem = d.score !== null ? `<b>${fmt(d.score)}</b>` : '<span class="muted">–</span>';
     const tam = d.provisional_score !== null ? `${fmt(d.provisional_score)} <span class="muted small">(${d.pending_questions} câu chờ)</span>` : '<span class="muted">–</span>';
+    const canhBao = d.duplicate_pending ? `<span class="tag bad">Còn ${d.duplicate_pending} phiếu trùng chờ duyệt</span> ${d.duplicate_sheet_ids.map((s) => `<a href="#/review/${s}">#${s}</a>`).join(" ")}` : "";
     return `<tr><td>${d.stt}</td><td>${esc(d.sbd)}</td><td>${esc(d.full_name)}</td><td>${esc(d.exam_code || "–")}</td>
       <td>${d.num_correct ?? "–"}</td><td>${diem}</td><td>${tam}</td><td><span class="tag ${c}">${esc(t)}</span></td>
-      <td>${d.sheet_id ? `<a href="#/sheet/${d.sheet_id}">#${d.sheet_id}</a>` : "–"}</td></tr>`;
+      <td>${d.sheet_id ? `<a href="#/sheet/${d.sheet_id}">#${d.sheet_id}</a>` : "–"}</td><td>${canhBao}</td></tr>`;
   };
   main.innerHTML = `<h2>Bảng điểm</h2>
     <p><b>Môn:</b> ${esc(b.subject_code)} – ${esc(b.subject_name)} · <b>Lớp:</b> ${b.class_code ? esc(b.class_code + " – " + b.class_name) : "(không gắn lớp)"} · <b>Kỳ thi:</b> ${esc(b.exam_title)}</p>
     <div class="card"><div class="row" style="margin:0 0 10px">
       <span class="tag ok">Chính thức: ${k.official}</span><span class="tag warn">Chưa duyệt xong: ${k.pending}</span>
       <span class="tag bad">Bị từ chối: ${k.rejected}</span><span class="tag gray">Chưa có phiếu: ${k.no_sheet}</span>
+      ${k.students_duplicate_pending ? `<span class="tag bad">Thí sinh có phiếu trùng SBD chờ duyệt: ${k.students_duplicate_pending}</span>` : ""}
       <a class="btn pri" href="/exams/${state.examId}/export.xlsx" download>Xuất Excel</a></div>
+      ${k.students_duplicate_pending ? `<div class="alert warn">${k.students_duplicate_pending} thí sinh còn phiếu <b>trùng SBD</b> đang chờ duyệt. Điểm ở bảng là của phiếu đã chính thức; hãy xử lý các phiếu trùng ở cột "Cảnh báo" trước khi xuất Excel chốt.</div>` : ""}
       <p class="muted small">Cột <b>Điểm</b> chỉ có điểm chính thức. Điểm của phiếu chưa duyệt xong nằm ở cột <b>Điểm tạm</b> và chưa phải điểm chính thức.
         Phiếu bị từ chối là ảnh không dùng được nên không biết của thí sinh nào (chụp lại).</p>
-      <table><thead><tr><th>STT</th><th>SBD</th><th>Họ tên</th><th>Mã đề</th><th>Số câu đúng</th><th>Điểm</th><th>Điểm tạm</th><th>Trạng thái</th><th>Phiếu</th></tr></thead>
-      <tbody>${b.rows.map(hang).join("") || '<tr><td colspan="9" class="muted">Kỳ thi chưa có danh sách thí sinh.</td></tr>'}</tbody></table></div>
+      <table><thead><tr><th>STT</th><th>SBD</th><th>Họ tên</th><th>Mã đề</th><th>Số câu đúng</th><th>Điểm</th><th>Điểm tạm</th><th>Trạng thái</th><th>Phiếu</th><th>Cảnh báo</th></tr></thead>
+      <tbody>${b.rows.map(hang).join("") || '<tr><td colspan="10" class="muted">Kỳ thi chưa có danh sách thí sinh.</td></tr>'}</tbody></table></div>
     ${b.unmatched.length ? `<div class="card"><h3>Phiếu chưa ghép được thí sinh (${b.unmatched.length})</h3><table><thead><tr><th>Phiếu</th><th>Ảnh</th><th>Trạng thái</th><th>Lý do</th></tr></thead><tbody>
       ${b.unmatched.map((p) => `<tr><td><a href="#/sheet/${p.sheet_id}">#${p.sheet_id}</a></td><td>${esc(p.original_filename)}</td><td>${tag(p.status)}</td>
         <td>${p.status === "rejected" ? esc(p.reject_message || p.reject_code) : "SBD đọc: " + esc(p.detected_sbd || "–") + " – chưa khớp danh sách"}</td></tr>`).join("")}</tbody></table></div>` : ""}`;

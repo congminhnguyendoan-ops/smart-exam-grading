@@ -38,7 +38,7 @@ def test_bang_diem_du_bon_trang_thai(client, conn_thu):
     assert d["795125"]["status"] == "pending" and d["795125"]["score"] is None and d["795125"]["num_correct"] is None
     assert d["795125"]["provisional_score"] is not None and d["795125"]["pending_questions"] > 0 and d["795125"]["sheet_id"] == s2
     assert d["111111"]["status"] == "no_sheet" and d["062384"]["status"] == "no_sheet"       # 0001 chưa chốt SBD nên chưa ghép
-    assert b["counts"] == {"official": 0, "pending": 1, "no_sheet": 2, "rejected": 1, "unmatched_review": 1, "students": 3}
+    assert b["counts"] == {"official": 0, "pending": 1, "no_sheet": 2, "rejected": 1, "unmatched_review": 1, "students": 3, "students_duplicate_pending": 0}
     kh = {p["status"]: p for p in b["unmatched"]}
     assert set(kh) == {"needs_review", "rejected"} and kh["needs_review"]["detected_sbd"] == "06238?" and kh["rejected"]["reject_code"] == "thieu_marker"
     # giáo viên duyệt hết -> chính thức, điểm = điểm tính độc lập
@@ -85,7 +85,7 @@ def test_khong_co_phieu_chua_duyet_trong_cot_diem_chinh_thuc(client, conn_thu, m
     xl = [[c.value for c in row] for row in ws.iter_rows(min_row=6, max_row=5 + len(api))]
     for dong, row in zip(api, xl):
         assert row == [dong["stt"], dong["sbd"], dong["full_name"], dong["exam_code"], dong["num_correct"], dong["score"],
-                       dong["provisional_score"], dong["status_label"], dong["sheet_id"]]
+                       dong["provisional_score"], dong["status_label"], dong["sheet_id"], None]    # cột J "Cảnh báo" trống khi không có phiếu trùng
     assert next(r for r in xl if r[1] == "222222")[5] is None and next(r for r in xl if r[1] == "222222")[6] == pytest.approx(9.75)
     ct = list(wb["Chi tiết"].iter_rows(min_row=2, values_only=True))
     assert len(ct) == 40 and {x[0] for x in ct} == {"795125"} and sum(x[7] == "Đúng" for x in ct) == dung     # chỉ phiếu chính thức

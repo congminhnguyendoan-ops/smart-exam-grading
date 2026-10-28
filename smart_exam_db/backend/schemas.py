@@ -216,6 +216,18 @@ class TaiNhieuOut(BaseModel):
 
 
 # ------------------------------------------------------------------------------------------------ giáo viên
+class ThayPhieuCu(BaseModel):
+    old_sheet_id: int = Field(description="Phiếu cũ (đang giữ điểm chính thức) mà giáo viên đã thấy và xác nhận thay. Đổi trong lúc chờ -> 409")
+    confirm: Literal[True] = Field(description="Phải là true: giáo viên đã bấm xác nhận ở hộp thoại")
+
+
+class KetQuaTrung(BaseModel):
+    hanh_dong: Literal["bo_phieu_moi", "thay_phieu_cu"]
+    phieu: PhieuOut
+    phieu_cu: int | None = Field(default=None, description="Phiếu cũ: bị thay (thay_phieu_cu) hoặc được giữ (bo_phieu_moi)")
+    diem_cu_da_rut: float | None = None
+
+
 class XuLyCau(BaseModel):
     action: Literal["confirm", "set"] = Field(
         description="confirm = nhận cách máy đọc (không dùng cho câu cần xem vì vị trí); set = giáo viên chốt lựa chọn")
@@ -268,6 +280,8 @@ class DongBangDiem(BaseModel):
     status_label: str
     sheet_id: int | None
     sheets: int = Field(description="Số phiếu đã ghép thí sinh này (>1: tải nhiều lần / trùng SBD)")
+    duplicate_pending: int = Field(default=0, description="Số phiếu TRÙNG SBD của thí sinh này đang chờ giáo viên duyệt (lý do duplicate_sbd)")
+    duplicate_sheet_ids: list[int] = Field(default_factory=list, description="Mã các phiếu trùng đang chờ")
 
 
 class PhieuKhongGhep(BaseModel):
@@ -286,6 +300,7 @@ class TongBangDiem(BaseModel):
     rejected: int = Field(description="Phiếu bị từ chối (ảnh không dùng được – không biết của thí sinh nào)")
     unmatched_review: int = Field(description="Phiếu cần xem nhưng chưa ghép được thí sinh")
     students: int
+    students_duplicate_pending: int = Field(default=0, description="Số thí sinh còn phiếu trùng SBD đang chờ duyệt")
 
 
 class BangDiemOut(BaseModel):

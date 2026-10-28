@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from urllib.parse import quote
 
-from . import auth, bang_diem, don_anh, loi_khuyen, mang, nguoi_dung, phan_quyen, schemas, service
+from . import auth, bang_diem, don_anh, loi_khuyen, mang, nguoi_dung, phan_quyen, phieu_trung, schemas, service
 from .config import CauHinh, LoiCauHinh, lay_cau_hinh
 from .db import ket_noi
 
@@ -270,6 +270,26 @@ def sua_dinh_danh(sheet_id: int, body: schemas.DinhDanh, conn=Depends(get_conn),
     phan_quyen.kiem_phieu(conn, nd, sheet_id)
     service.sua_dinh_danh(conn, sheet_id, body.sbd, body.exam_code, nd.user_id, body.note)
     return service.xem_phieu(conn, sheet_id)
+
+
+@app.post("/sheets/{sheet_id}/duplicate/discard", response_model=schemas.KetQuaTrung, tags=["Review"],
+          summary="Phiếu bị giữ vì trùng SBD: BỎ phiếu chụp lại này, giữ phiếu cũ")
+def bo_phieu_trung(sheet_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
+    """Phiếu này (`duplicate_sbd`) bị loại (`rejected`, mã `chup_lai_bi_bo`); phiếu cũ và điểm chính thức không đổi. 409 nếu phiếu không còn bị giữ vì trùng."""
+    phan_quyen.kiem_phieu(conn, nd, sheet_id)
+    r = phieu_trung.bo_phieu_chup_lai(conn, sheet_id, nd.user_id, nd.username)
+    return {"hanh_dong": r["hanh_dong"], "phieu": service.xem_phieu(conn, sheet_id), "phieu_cu": r["giu_phieu"]}
+
+
+@app.post("/sheets/{sheet_id}/duplicate/replace", response_model=schemas.KetQuaTrung, tags=["Review"],
+          summary="Phiếu bị giữ vì trùng SBD: DÙNG phiếu này thay phiếu cũ (rút điểm cũ, ghi nhật ký)")
+def thay_phieu_trung(sheet_id: int, body: schemas.ThayPhieuCu, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
+    """MỘT giao dịch: điểm chính thức của phiếu cũ bị rút (`results.status = void`, `score_audit_logs` ghi ai / lúc nào / phiếu nào thay phiếu nào), phiếu cũ không
+    còn tính, phiếu này được đánh giá lại để duyệt tiếp hoặc chốt. `old_sheet_id` phải là phiếu cũ giáo viên đã xác nhận, đổi trong lúc chờ -> 409. Không bao giờ có hai điểm chính thức."""
+    phan_quyen.kiem_phieu(conn, nd, sheet_id)
+    phan_quyen.kiem_phieu(conn, nd, body.old_sheet_id)
+    r = phieu_trung.thay_phieu_cu(conn, sheet_id, body.old_sheet_id, nd.user_id, nd.username)
+    return {"hanh_dong": r["hanh_dong"], "phieu": service.xem_phieu(conn, sheet_id), "phieu_cu": r["phieu_cu"], "diem_cu_da_rut": r["diem_cu"]}
 
 
 # ------------------------------------------------------------------------------------------------ bảng điểm

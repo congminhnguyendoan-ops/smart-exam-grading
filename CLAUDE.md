@@ -316,6 +316,11 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   cho 9 chữ số) và **lắp NGUYÊN TRẠNG làm số ảnh SBD / mã đề cần xem TĂNG** (53,6% so với 46,4%) vì điểm tin cậy OCR chưa hiệu chỉnh; cả ba ứng viên 0 lỗi im lặng mức trường nhờ đối chiếu hai kênh.
   **Quyết định: GIỮ CNN cho buổi bảo vệ**; OCR = hướng cải tiến (hiệu chỉnh điểm, chọn lại τ_khop, mô phỏng tô sai bubble, đánh giá lại theo đăng ký mới). Chưa đo val / test / đợt 2.
 - **Phiếu trùng SBD + làm mới số đếm + khôi phục danh sách `/m` (lệnh F, 28/10/2026)**: xem các mục cập nhật ở cuối mục 4f này (F2 / F3 / F4). Phân quyền theo lớp và chính sách ảnh tạm: các mục ở trên (không đổi).
+  **F2 – phiếu TRÙNG SBD** (`backend/phieu_trung.py`, KHÔNG đổi `service.danh_gia_phieu`): Bảng điểm / Excel có cột + cảnh báo "Còn N phiếu trùng SBD chờ duyệt" và dòng tổng hợp số thí sinh có phiếu trùng chờ
+  (`rows[].duplicate_pending`, `counts.students_duplicate_pending`). Màn duyệt phiếu bị giữ vì `duplicate_sbd` có 2 nút: `POST /sheets/{id}/duplicate/discard` (bỏ phiếu chụp lại, giữ phiếu cũ: phiếu mới `rejected` mã
+  `chup_lai_bi_bo`) và `POST /sheets/{id}/duplicate/replace` {old_sheet_id, confirm:true} (hộp xác nhận; MỘT giao dịch: `results` phiếu cũ → `void` kèm `score_audit_logs` ai / lúc nào / "Thay phiếu #A bằng phiếu #B", phiếu cũ
+  `rejected` mã `bi_thay_the`, phiếu mới đánh giá lại bằng `danh_gia_phieu`). Chỉ mục `uq_results_exam_student` giữ nguyên; thua cuộc đua → 409. Test `tests/test_trung_sbd_xu_ly.py`. Lưu ý: `service.py` / `schemas.py` nằm trong danh sách SHA đóng băng
+  đợt 2 (`docs/dong_bang_ma_dot2.json`) – `schemas.py` đã thêm trường (nhánh này); test đợt 2 vẫn chạy từ TAG, không từ nhánh.
 
 ## 5. Cài đặt và chạy
 
