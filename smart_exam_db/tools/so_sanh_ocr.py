@@ -51,7 +51,8 @@ def wilson(k: int, n: int, z: float = 1.959964) -> list[float]:
 
 
 def bo_nho_tien_trinh_mb() -> float | None:
-    """Working set của tiến trình (Windows, psapi) – MB; khác Windows -> None."""
+    """Working set của tiến trình (Windows, K32GetProcessMemoryInfo) – MB; khác Windows / lỗi -> None.
+    (Bản 27/10 gọi psapi không khai báo kiểu handle 64-bit -> lời gọi thất bại, luôn trả 0: số RAM working set bản đó KHÔNG hợp lệ.)"""
     try:
         class PMC(ctypes.Structure):
             _fields_ = [("cb", ctypes.c_ulong), ("PageFaultCount", ctypes.c_ulong), ("PeakWorkingSetSize", ctypes.c_size_t),
@@ -60,7 +61,11 @@ def bo_nho_tien_trinh_mb() -> float | None:
                         ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t)]
         c = PMC()
         c.cb = ctypes.sizeof(PMC)
-        ctypes.windll.psapi.GetProcessMemoryInfo(ctypes.windll.kernel32.GetCurrentProcess(), ctypes.byref(c), c.cb)
+        k = ctypes.windll.kernel32
+        k.GetCurrentProcess.restype = ctypes.c_void_p
+        k.K32GetProcessMemoryInfo.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong]
+        if not k.K32GetProcessMemoryInfo(k.GetCurrentProcess(), ctypes.byref(c), c.cb):
+            return None
         return c.WorkingSetSize / 2 ** 20
     except Exception:  # noqa: BLE001
         return None
@@ -158,12 +163,12 @@ def mcnemar(y, pa, pb) -> dict:
     return {"A_dung_B_sai": a_dung_b_sai, "A_sai_B_dung": a_sai_b_dung, "p": round(binomtest(a_dung_b_sai, n, 0.5).pvalue, 4) if n else 1.0}
 
 
-def tac_dong_he_thong(prob_p: np.ndarray, meta_p: list[dict]) -> dict:
+def tac_dong_he_thong(prob_p: np.ndarray, meta_p: list[dict], tau_khop: float | None = None) -> dict:
     """Áp LUẬT SẢN XUẤT (đối chiếu hai kênh Q3, τ_khop 0,5 – tools/ocr_cai_tien.doi_chieu_dev, bubble OMR dev data/_ocr/omr_dev.json)
     với xác suất của mô hình chữ số: T4 = % ảnh (56) có SBD hoặc mã đề "cần xem"; IL = trường được NHẬN mà SAI (lỗi thầm lặng)."""
     import ocr_cai_tien as CT
     omr = json.loads((H.OCR / "omr_dev.json").read_text(encoding="utf-8"))
-    dc = CT.doi_chieu_dev(prob_p, meta_p, omr)
+    dc = CT.doi_chieu_dev(prob_p, meta_p, omr) if tau_khop is None else CT.doi_chieu_dev(prob_p, meta_p, omr, tau_khop)
     anhs = sorted({k[0] for k in dc})
     gan = sum(any(not dc[(a, lo)][1] for lo in ("sbd", "ma_de")) for a in anhs)
     nhan = [v for v in dc.values() if v[1]]
@@ -240,10 +245,32 @@ def so_sanh() -> dict:
                          "ms_1_chu_so": {"p50": pct(t1, 50), "p95": pct(t1, 95)}, "ms_9_chu_so": {"p50": pct(t9, 50), "p95": pct(t9, 95)},
                          "phu_thuoc": "huấn luyện: scikit-learn; suy luận: NumPy được (HOG NumPy + tích ma trận) – đo ở đây qua sklearn"}
 
-    # --- OCR (nếu đã chạy trong môi trường riêng, ghi du_doan_ocr.csv: tap, i, chu_so ('' = không đọc), tin_cay)
-    f_ocr = RA / "du_doan_ocr.csv"
-    if f_ocr.exists():
-        ket["OCR"] = doc_ocr(f_ocr, P["y"], D["y"])
+    # --- OCR A' (đã chạy trong môi trường riêng bằng tools/so_sanh_ocr_rapid.py: du_doan_ocr_<bien>_<giai_ma>.csv)
+    #     Chọn biến thể chính theo tập D (3 872 chữ số, OCR không học gì của D) – KHÔNG chọn theo P để P vẫn là phép đo không lạc quan.
+    bt = {}
+    for f in sorted(RA.glob("du_doan_ocr_*_*.csv")):
+        ten = f.stem.removeprefix("du_doan_ocr_")
+        bt[ten] = doc_ocr(f, P["y"], D["y"])
+    if bt:
+        chinh = max(bt, key=lambda k: bt[k]["D"]["acc"])
+        o = bt[chinh]
+        ket["OCR"] = {"bien_the": bt, "chinh_chon_theo_D": chinh,
+                      "mcnemar": {"P: CNN vs OCR": mcnemar(P["y"], am(q_cnn), o["P"]["_doc"]), "P: M0 vs OCR": mcnemar(P["y"], am(q_m0), o["P"]["_doc"]),
+                                  "D: CNN OOF vs OCR": mcnemar(D["y"], am(q_oof_d), o["D"]["_doc"]), "D: M0 OOF vs OCR": mcnemar(D["y"], am(q_m0_d), o["D"]["_doc"])},
+                      "he_thong_P": {k: tac_dong_he_thong(v["P"]["_q"], P["meta"]) for k, v in bt.items()},
+                      # chẩn đoán (KHÔNG chỉnh ngưỡng theo P): τ_khop 0,5 được hiệu chỉnh cho CNN (nhiệt độ T); điểm OCR không hiệu chỉnh.
+                      # Cùng một cổng τ_khop = 0 (nhận khi chữ viết tay TRÙNG bubble, bỏ cổng tin cậy) cho mọi ứng viên:
+                      "he_thong_P_tau0": {"CNN": tac_dong_he_thong(q_cnn, P["meta"], 0.0), "M0": tac_dong_he_thong(q_m0, P["meta"], 0.0),
+                                          "OCR_" + chinh: tac_dong_he_thong(o["P"]["_q"], P["meta"], 0.0)},
+                      "dung_ma_p_duoi_0_5": {"P CNN": int(((am(q_cnn) == P["y"]) & (q_cnn.max(1) < 0.5)).sum()),
+                                             "P OCR": int(((o["P"]["_doc"] == P["y"]) & (o["P"]["_q"].max(1) < 0.5)).sum()),
+                                             "D CNN OOF": int(((am(q_oof_d) == D["y"]) & (q_oof_d.max(1) < 0.5)).sum()),
+                                             "D OCR": int(((o["D"]["_doc"] == D["y"]) & (o["D"]["_q"].max(1) < 0.5)).sum())},
+                      "chi_phi": json.loads((RA / "ocr_chi_phi.json").read_text(encoding="utf-8")) if (RA / "ocr_chi_phi.json").exists() else None}
+        for v in bt.values():
+            for tap in ("P", "D"):
+                for k in ("_doc", "_q"):
+                    v[tap].pop(k)
 
     for tap, d, cot in (("P", P, {"M0": q_m0, "CNN": q_cnn, "CNN_OOF": q_oof_p, "M0_OOF": q_m0_poof}), ("D", D, {"M0_OOF": q_m0_d, "CNN_OOF": q_oof_d})):
         for i, r in enumerate(d["meta"]):
@@ -258,30 +285,72 @@ def so_sanh() -> dict:
     return ket
 
 
+def xuat_o() -> dict:
+    """Bước OCR-1 (venv chính): xuất ô chữ số cho môi trường OCR riêng (chỉ numpy + onnxruntime, không cv2) -> o_chu_so.npz.
+    Hai biến thể đầu vào, CÙNG thứ tự với tap_do (P, D): x28 = ảnh MNIST 28×28 đã có; goc_* = ô cắt GỐC đã bỏ viền (mực 0–255 ở độ phân giải
+    ảnh nắn 300 DPI, trước khi co về 28×28). Cắt lại bằng đúng ocr.cat_anh + thứ tự của tools/ocr_du_lieu.py cat; kiểm x28 trùng bộ đệm từng byte."""
+    import ocr_du_lieu as OD
+    from cv_engine.preprocessing import nap_layout, preprocess
+    t = H.tap_do(NGUON)
+    lay_t, lay_p = nap_layout("chu_so"), nap_layout("phieu")
+    nhan = OD._doc_nhan_phieu()
+    goc = {}                                                     # (anh, loai, vi_tri) -> (anh28, ink uint8)
+    for path, ten, loai in OD._liet_ke():
+        if loai != "trang" and (ma_phieu(ten) or 0) not in PHIEU_TRAIN:
+            continue                                             # val 0029–0034: không cắt
+        kq = preprocess(str(path), lay_t if loai == "trang" else lay_p)
+        if not kq.ok:
+            continue
+        nhoms = OD._nhom_cua_anh(ten, loai, lay_t, lay_p, nhan)
+        for (lo, nhom), cac_o in zip(nhoms, ocr.cat_anh(kq.anh_nan, [[r for _, _, r in nh] for _, nh in nhoms])):
+            for (vt, _, _), o in zip(nhom, cac_o):
+                goc[(ten, lo, str(vt))] = (o.anh28, np.clip(o.ink * 255 + 0.5, 0, 255).astype(np.uint8))
+        print(f"  cắt {ten}")
+    ra = {}
+    for tap, d in (("P", t["phieu"]), ("D", t["trang"])):
+        x28, inks = d["x"], []
+        for i, r in enumerate(d["meta"]):
+            a28, ink = goc[(r["anh"], r["loai"], r["vi_tri"])]
+            assert np.array_equal(a28 if a28 is not None else np.zeros((28, 28), np.uint8), x28[i]), (tap, i)
+            inks.append(ink)
+        ra[f"{tap}_x28"], ra[f"{tap}_y"] = x28, d["y"]
+        ra[f"{tap}_goc"] = np.concatenate([o.ravel() for o in inks])
+        ra[f"{tap}_goc_hw"] = np.array([o.shape for o in inks], np.int32)
+        ra[f"{tap}_trong"] = np.array([r["trong"] == "1" for r in d["meta"]])
+    np.savez_compressed(RA / "o_chu_so.npz", **ra)
+    return {"tep": str((RA / "o_chu_so.npz").relative_to(ROOT)), "P": len(ra["P_y"]), "D": len(ra["D_y"]),
+            "co_goc_P_trung_vi_hw": np.median(ra["P_goc_hw"], 0).tolist(), "kiem_x28_trung_bo_dem": True}
+
+
 def doc_ocr(f: Path, yP, yD) -> dict:
+    """Một biến thể OCR: độ đúng (∅ = không đọc được tính là SAI), cặp nhầm, sai mà tự tin (đọc ra chữ số SAI và tin cậy ≥ ngưỡng).
+    Kèm _doc (nhãn đọc, -1 = ∅) và _q (ma trận 10 cột: tin cậy ở chữ số đọc được, 0 nếu ∅) cho McNemar / luật đối chiếu – bỏ trước khi ghi."""
     rows = list(csv.DictReader(f.open(encoding="utf-8-sig")))
     out = {}
     for tap, y in (("P", yP), ("D", yD)):
         r = sorted((x for x in rows if x["tap"] == tap), key=lambda x: int(x["i"]))
-        if len(r) != len(y):
-            continue
+        assert len(r) == len(y), (f, tap)
         doc = np.array([int(x["chu_so"]) if x["chu_so"].isdigit() else -1 for x in r])
         tc = np.array([float(x["tin_cay"] or 0) for x in r])
         sai = doc != y
         k = int((~sai).sum())
         cap = Counter((int(a), int(b)) for a, b in zip(y, doc) if a != b)
-        out[tap] = {"n": len(y), "dung": k, "acc": round(k / len(y), 4), "wilson95": wilson(k, len(y)), "khong_doc_duoc": int((doc < 0).sum()),
+        q = np.zeros((len(y), 10))
+        q[doc >= 0, doc[doc >= 0]] = tc[doc >= 0]
+        out[tap] = {"n": len(y), "dung": k, "acc": round(k / len(y), 4), "wilson95": wilson(k, len(y)), "sai": int(sai.sum()), "khong_doc_duoc": int((doc < 0).sum()),
                     "cap_nham_nhieu_nhat": [f"{a}→{'∅' if b < 0 else b}: {c}" for (a, b), c in cap.most_common(6)],
-                    "sai_ma_tu_tin": {t: int((sai & (doc >= 0) & (tc >= t)).sum()) for t in (0.5, 0.9, 0.99)}}
+                    "sai_ma_tu_tin": {str(t): int((sai & (doc >= 0) & (tc >= t)).sum()) for t in (0.5, 0.9, 0.9995)},
+                    "ti_le_sai_tu_tin_0_5_tren_so_sai": round(float((sai & (doc >= 0) & (tc >= 0.5)).sum() / max(1, sai.sum())), 4),
+                    "_doc": doc, "_q": q}
     return out
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("lenh", choices=["do-cnn", "so-sanh"])
+    ap.add_argument("lenh", choices=["do-cnn", "xuat-o", "so-sanh"])
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
-    kq = do_cnn() if a.lenh == "do-cnn" else so_sanh()
+    kq = {"do-cnn": do_cnn, "xuat-o": xuat_o, "so-sanh": so_sanh}[a.lenh]()
     print(json.dumps(kq, ensure_ascii=False, indent=1))
     return 0
 
