@@ -75,3 +75,5 @@ body.logged-out .side{display:none}
 .login input,.formcol input{display:block;width:100%;margin-top:4px;padding:7px 8px;border:1px solid var(--line);border-radius:6px;font:inherit}
 .formcol{max-width:420px}
 .pager{display:flex;gap:8px;align-items:center;margin-top:10px}
+/* G2: tên tệp ảnh rút gọn – không làm giãn dòng bảng; tên đầy đủ ở title */
+.tentep{display:inline-block;max-width:26ch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}

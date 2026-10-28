@@ -33,3 +33,21 @@ def test_f4_m_js_luu_sieu_du_lieu_o_session_storage_khong_token_khong_anh():
     assert "localStorage" not in js
     assert "removeItem(KHOA_PHIEN)" in js                                  # đăng xuất / người khác đăng nhập: xoá
     assert "/sheets/${id}" in js                                           # hỏi lại trạng thái qua API sẵn có
+
+
+# ------------------------------------------------------------------------------------------------ G2: rút gọn tên tệp khi hiển thị
+def test_g2_ten_tep_node_va_gan_dung_cho():
+    import shutil
+    import subprocess
+    import pytest
+    if shutil.which("node") is None:
+        pytest.skip("không có node")
+    r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "ten_tep.test.js")], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0 and re.search(r"pass 5\b", r.stdout), r.stdout + r.stderr
+    app = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    m = (ROOT / "frontend" / "m.js").read_text(encoding="utf-8")
+    assert "esc(p.original_filename)" not in app and "esc(f.name)" not in app           # mọi chỗ hiện tên tệp đều qua tenTepHtml
+    assert app.count("tenTepHtml(") >= 6 and m.count("tenTepHtml(") >= 2
+    for html, ref in (("index.html", 'src="ten_tep.js"'), ("m.html", 'src="/app/ten_tep.js"')):
+        h = (ROOT / "frontend" / html).read_text(encoding="utf-8")
+        assert ref in h and h.index("ten_tep.js") < h.index("app.js" if html == "index.html" else "m.js")     # nạp trước mã dùng nó

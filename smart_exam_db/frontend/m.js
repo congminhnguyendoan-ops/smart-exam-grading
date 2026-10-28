@@ -123,7 +123,7 @@ function dongTo(t) {
     duoi = `<div class="cb">Cách chụp lại: ${esc(ly.advice || "chụp rõ nét, đủ sáng, thấy đủ 4 ô vuông đen.")}</div>` +
       (t.thayBang ? `<div class="small muted">→ đã chụp lại</div>` : `<label class="nut-dong pri">📷 Chụp lại tờ ${t.soTo}<input type="file" accept="image/*" capture="environment" data-chup-lai="${t.stt}"></label>`);
   } else if (t.trangThai === "mat") {
-    giua = `<div class="ten">${esc(t.ten || "ảnh")} · ${esc(t.loi)}</div>`;
+    giua = `<div class="ten">${tenTepHtml(t.ten || "ảnh")} · ${esc(t.loi)}</div>`;
     duoi = t.thayBang ? `<div class="small muted">→ đã chụp lại</div>`
       : `<div class="cb">Ảnh chưa gửi xong nên không khôi phục được – phải chụp lại tờ này.</div><label class="nut-dong pri">📷 Chụp lại tờ ${t.soTo}<input type="file" accept="image/*" capture="environment" data-chup-lai="${t.stt}"></label>`;
   } else if (t.trangThai === "loi") {
@@ -133,7 +133,7 @@ function dongTo(t) {
   } else if (t.trangThai === "trung") {
     giua = `<div class="ten">Ảnh này đã tải trước đó – phiếu #${k.sheet_id}, không chấm lại.</div>`;
   } else {
-    giua = `<div class="ten muted">${esc(t.ten || "ảnh")} · ${(t.kichThuoc / 1048576).toFixed(1)} MB</div>`;
+    giua = `<div class="ten muted">${tenTepHtml(t.ten || "ảnh")} · ${(t.kichThuoc / 1048576).toFixed(1)} MB</div>`;
   }
   return `<li class="to ${t.trangThai}${t.thayBang ? " da-thay" : ""}" data-stt="${t.stt}"><div class="dau"><b>Tờ ${t.soTo}</b>${t.thayCho ? ' <span class="small muted">(chụp lại)</span>' : ""}${daKhoiPhuc}${nhan}</div>${giua}${duoi}</li>`;
 }

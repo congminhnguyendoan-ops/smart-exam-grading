@@ -226,14 +226,14 @@ async function manUpload() {
     const rows = $("#rows"); rows.innerHTML = "";
     for (let i = 0; i < danhSach.length; i++) {
       const f = danhSach[i];
-      $("#st").textContent = `Đang xử lý ảnh ${i + 1}/${danhSach.length}: ${f.name} …`;
+      $("#st").textContent = `Đang xử lý ảnh ${i + 1}/${danhSach.length}: ${rutGonTen(f.name)} …`;
       $("#bar > div").style.width = `${(i / danhSach.length) * 100}%`;
-      const tr = document.createElement("tr"); tr.innerHTML = `<td>${esc(f.name)}</td><td colspan="4" class="muted">Đang xử lý…</td>`; rows.prepend(tr);
+      const tr = document.createElement("tr"); tr.innerHTML = `<td>${tenTepHtml(f.name)}</td><td colspan="4" class="muted">Đang xử lý…</td>`; rows.prepend(tr);
       try {
         const fd = new FormData(); fd.append("file", f, f.name);
         const r = await api(`/exams/${state.examId}/sheets`, { method: "POST", body: fd });
         tr.innerHTML = hangKetQuaTai(f.name, r);
-      } catch (e) { tr.innerHTML = `<td>${esc(f.name)}</td><td>${tag("error")}</td><td colspan="3">${esc(e.message)}</td>`; }
+      } catch (e) { tr.innerHTML = `<td>${tenTepHtml(f.name)}</td><td>${tag("error")}</td><td colspan="3">${esc(e.message)}</td>`; }
     }
     $("#bar > div").style.width = "100%"; $("#st").textContent = `Xong ${danhSach.length} ảnh.`;
     go.disabled = false; await napChiTietKyThi();
@@ -251,7 +251,7 @@ function hangKetQuaTai(ten, r) {
     : r.provisional_score !== null ? `<b>${fmt(r.provisional_score)}</b> <span class="tag warn">tạm</span>` : "–";
   const lien = r.status === "needs_review" ? `<a class="btn pri" href="#/review/${r.sheet_id}">Duyệt</a>`
     : r.status === "rejected" ? `<a class="btn" href="#/sheet/${r.sheet_id}">Chi tiết</a>` : `<a class="btn" href="#/sheet/${r.sheet_id}">Xem</a>`;
-  return `<td>${esc(ten)}</td><td>${tag(r.status)}</td><td>${chiTiet}</td><td>${diem}</td><td>${lien}</td>`;
+  return `<td>${tenTepHtml(ten)}</td><td>${tag(r.status)}</td><td>${chiTiet}</td><td>${diem}</td><td>${lien}</td>`;
 }
 
 /* ------------------------------------------------------------------ F2: danh sách phiếu */
@@ -264,7 +264,7 @@ async function manDanhSach() {
       ${[["", "Tất cả"], ["graded", "Chính thức"], ["needs_review", "Cần xem"], ["rejected", "Bị từ chối"]].map(([v, t]) => `<option value="${v}" ${v === loc ? "selected" : ""}>${t}</option>`).join("")}
     </select></label><span class="muted small">${ds.length} phiếu</span></div>
     <table><thead><tr><th>#</th><th>Ảnh</th><th>SBD</th><th>Mã đề</th><th>Sinh viên</th><th>Trạng thái</th><th>Điểm</th><th></th></tr></thead><tbody>
-    ${ds.map((p) => `<tr class="row-link${state.moi.has(p.sheet_id) ? " moi" : ""}" data-id="${p.sheet_id}"><td>${p.sheet_id}${state.moi.has(p.sheet_id) ? ' <span class="tag ok">mới</span>' : ""}</td><td>${esc(p.original_filename)}</td>
+    ${ds.map((p) => `<tr class="row-link${state.moi.has(p.sheet_id) ? " moi" : ""}" data-id="${p.sheet_id}"><td>${p.sheet_id}${state.moi.has(p.sheet_id) ? ' <span class="tag ok">mới</span>' : ""}</td><td>${tenTepHtml(p.original_filename)}</td>
       <td>${p.status === "rejected" ? "–" : esc(p.detected_sbd || "–")}</td><td>${p.status === "rejected" ? "–" : esc(p.detected_exam_code || "–")}</td>
       <td>${esc(p.student_name || "–")}</td>
       <td>${tag(p.status)}${p.status === "needs_review" ? ` <span class="muted small">${p.pending_questions} câu</span>` : ""}
@@ -319,7 +319,7 @@ async function manChiTiet(id) {
     <div class="grid2"><div class="card"><h3>Ảnh đã nắn phẳng</h3>
       ${p.image_deleted_at ? `<div class="alert warn">Ảnh đã được xoá lúc ${esc(new Date(p.image_deleted_at).toLocaleString("vi-VN"))} sau khi chốt phiếu (chính sách giữ ảnh tạm). Điểm, đáp án và lý do vẫn được giữ.</div>` : ""}
       ${rejected ? '<p class="muted">Ảnh bị từ chối nên không có ảnh nắn.</p>' : `<a href="/sheets/${id}/image?kind=aligned" target="_blank"><img class="sheetimg" src="/sheets/${id}/image?kind=aligned" alt="ảnh đã nắn"></a>`}
-      <p class="small"><a href="/sheets/${id}/image?kind=original" target="_blank">Xem ảnh gốc</a> · ${esc(p.original_filename)}</p></div>
+      <p class="small"><a href="/sheets/${id}/image?kind=original" target="_blank">Xem ảnh gốc</a> · ${tenTepHtml(p.original_filename)}</p></div>
     <div><div class="card">${rejected ? await khoiTuChoi(p) : `
       <div class="score">${diemHtml(p.score, p.status)}</div>
       ${p.score && p.score.official === null && p.score.pending_questions ? `<p class="muted small">Điểm tạm chỉ tính các câu máy chắc chắn. Điểm chính thức có sau khi giáo viên xem hết ${p.score.pending_questions} câu cần xem.</p>` : ""}
@@ -349,7 +349,7 @@ async function khoiTuChoi(p) {
 async function manHangDoi() {
   const ds = await api(`/exams/${state.examId}/sheets?status=needs_review`);
   main.innerHTML = `<h2>Hàng đợi duyệt (${ds.length})</h2><div class="card"><table><thead><tr><th>#</th><th>Ảnh</th><th>SBD</th><th>Mã đề</th><th>Câu cần xem</th><th>Điểm tạm</th><th></th></tr></thead><tbody>
-    ${ds.map((p) => `<tr class="${state.moi.has(p.sheet_id) ? "moi" : ""}"><td>${p.sheet_id}${state.moi.has(p.sheet_id) ? ' <span class="tag ok">mới</span>' : ""}</td><td>${esc(p.original_filename)}</td><td>${esc(p.detected_sbd || "–")}</td><td>${esc(p.detected_exam_code || "–")}</td>
+    ${ds.map((p) => `<tr class="${state.moi.has(p.sheet_id) ? "moi" : ""}"><td>${p.sheet_id}${state.moi.has(p.sheet_id) ? ' <span class="tag ok">mới</span>' : ""}</td><td>${tenTepHtml(p.original_filename)}</td><td>${esc(p.detected_sbd || "–")}</td><td>${esc(p.detected_exam_code || "–")}</td>
       <td>${p.pending_questions}</td><td>${diemTomTat(p)}</td><td><a class="btn pri" href="#/review/${p.sheet_id}">Duyệt</a></td></tr>`).join("")
       || '<tr><td colspan="7" class="muted">Không còn phiếu nào cần duyệt.</td></tr>'}</tbody></table></div>`;
 }
@@ -500,8 +500,8 @@ async function manBangDiem() {
       <table><thead><tr><th>STT</th><th>SBD</th><th>Họ tên</th><th>Mã đề</th><th>Số câu đúng</th><th>Điểm</th><th>Điểm tạm</th><th>Trạng thái</th><th>Phiếu</th><th>Cảnh báo</th></tr></thead>
       <tbody>${b.rows.map(hang).join("") || '<tr><td colspan="10" class="muted">Kỳ thi chưa có danh sách thí sinh.</td></tr>'}</tbody></table></div>
     ${b.unmatched.length ? `<div class="card"><h3>Phiếu chưa ghép được thí sinh (${b.unmatched.length})</h3><table><thead><tr><th>Phiếu</th><th>Ảnh</th><th>Trạng thái</th><th>Lý do</th></tr></thead><tbody>
-      ${b.unmatched.map((p) => `<tr><td><a href="#/sheet/${p.sheet_id}">#${p.sheet_id}</a></td><td>${esc(p.original_filename)}</td><td>${tag(p.status)}</td>
-        <td>${p.status === "rejected" ? esc(p.reject_message || p.reject_code) : "SBD đọc: " + esc(p.detected_sbd || "–") + " – chưa khớp danh sách"}</td></tr>`).join("")}</tbody></table></div>` : ""}`;
+      ${b.unmatched.map((p) => `<tr><td><a href="#/sheet/${p.sheet_id}">#${p.sheet_id}</a></td><td>${tenTepHtml(p.original_filename)}</td><td>${tag(p.status)}</td>
+        <td>${p.status === "rejected" ? esc(p.reject_message || p.reject_code) : esc(p.reject_message || ("SBD đọc: " + (p.detected_sbd || "–") + " – chưa ghép được thí sinh"))}</td></tr>`).join("")}</tbody></table></div>` : ""}`;
 }
 
 /* ------------------------------------------------------------------ tự làm mới (phiếu chụp từ điện thoại) */

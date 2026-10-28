@@ -67,3 +67,4 @@ button:disabled,.big.off{opacity:.55;pointer-events:none}
 .kv span:last-child{text-align:right;font-weight:600}
 code{font-size:14px;overflow-wrap:anywhere}
 .toast{position:fixed;left:16px;right:16px;top:64px;z-index:9;background:#1c2230;color:#fff;padding:12px 14px;border-radius:10px;font-size:16px}
+.tentep{display:inline-block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
