@@ -231,7 +231,7 @@ def g2() -> dict:
             ket["kiem"]["G2_rut_gon_va_title"] = bool(sp) and all(x["txt"] == "att.pc5ziE….jpeg" and x["title"] == TEN_DAI for x in sp)
             ket["kiem"]["G2_dong_khong_gian"] = all(x["cao"] < 70 for x in sp)
             pg.goto(url + "/app/#/results"); pg.wait_for_selector("text=Bảng điểm"); pg.wait_for_timeout(500); chup("03_bang_diem.png")
-            ket["bang_diem_chua_ghep"] = pg.evaluate("() => [...document.querySelectorAll('h3')].filter(h => /chưa ghép/.test(h.textContent)).map(h => h.parentElement.innerText.replace(/\s+/g,' ').slice(0,400))")
+            ket["bang_diem_chua_ghep"] = pg.evaluate("() => [...document.querySelectorAll('h3')].filter(h => /chưa ghép/.test(h.textContent)).map(h => h.parentElement.innerText.replace(/\\s+/g,' ').slice(0,400))")
             first = mc.conn.execute("SELECT min(sheet_id) AS s FROM answer_sheets WHERE exam_id = %s", (eid,)).fetchone()["s"]
             pg.goto(url + f"/app/#/sheet/{first}"); pg.wait_for_selector(".tentep"); chup("04_chi_tiet_phieu.png")
             ket["kiem"]["G2_chi_tiet_rut_gon"] = pg.locator(".tentep").first.inner_text() == "att.pc5ziE….jpeg"
