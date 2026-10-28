@@ -309,7 +309,7 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   giữ phiếu `needs_review` và kỳ thi `[DEMO…]` (`ANH_GIU_DEMO=1`); chỉ tệp trong `STORAGE_DIR`; API ảnh → 410. Luồng dọn chỉ chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật;
   `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Không có `--khong-xoa-anh` thì lượt đầu xoá 5 tệp của exam 115 `[THU]` (người dùng muốn GIỮ).
 - **Migration trong test / công cụ**: `migrate.chua_ap()` chỉ đọc; `migrate.TUY_CHON` (003) không chặn test; fixture `csdl_003`. `kiem_backend_dau_cuoi.py`, `eval_he_thong.py`, `thu_bo_demo.py`
-  chỉ KIỂM migration (trước 27/10 hai công cụ đầu tự áp). Nhánh này: **pytest 391 đạt + 1 skip có chủ đích (28/10/2026, sau lệnh F)** (cây sạch; cây bẩn thì `test_eval_he_thong` đỏ / skip – không phải lỗi mã).
+  chỉ KIỂM migration (trước 27/10 hai công cụ đầu tự áp). Nhánh này: **pytest 402 đạt + 1 skip có chủ đích (28/10/2026, sau lệnh G)** (cây sạch; cây bẩn thì `test_eval_he_thong` đỏ / skip – không phải lỗi mã).
 
 - **So sánh OCR / CNN / M0 (lệnh D, 28/10/2026; `docs/so_sanh_ocr_cnn.md`, chỉ đo DEV, không sửa hệ thống)**: thư viện OCR (PP-OCRv6 nhận dạng + onnxruntime, venv riêng `data/_eval/so_sanh_ocr/venv_ocr`) **ĐỌC ĐÚNG HƠN CNN**
   (504 chữ số phiếu dev: 98,2% so với 92,7%, p < 0,001; 3 872 chữ số trang D người lạ: 96,9% so với 95,8%, p = 0,003) nhưng **nặng hơn nhiều** (~5,3 triệu tham số ×50, +71 MB phụ thuộc, +54 MB RAM, 54 ms so với 3,8 ms
@@ -324,6 +324,9 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   **F3**: ô chọn kỳ thi (`/app/`) làm mới số phiếu mỗi lần `napChiTietKyThi()` (sau tải / duyệt / thăm dò 4 s) – hết "(0 phiếu)" khi đã có phiếu. **F4**: `/m` lưu siêu dữ liệu tờ (số tờ, tên tệp, mã phiếu; KHÔNG ảnh, KHÔNG token)
   ở `sessionStorage` (`m_hang_doi`), sau tải lại trang hỏi lại `GET /sheets/{id}` để dựng lại danh sách; tờ CHƯA gửi xong thì ảnh đã mất (nằm trong bộ nhớ trang) → trạng thái "mất khi tải lại", phải chụp lại (giới hạn còn lại; vẫn có
   cảnh báo khi rời trang). Thử trình duyệt thật (Pixel 7 / máy tính, chỉ ROLLBACK): `python tools/thu_lenh_f.py f4 | f23` → `data/_eval/ui_m/f4/`, `data/_eval/ui_f/`.
+  **Lệnh G (28/10/2026)**: G1 `tools/don_du_lieu_test.py` – dọn phiếu test thừa ở kỳ thi 1632 / 1633 (mặc định XEM TRƯỚC chỉ đọc; `--thuc-hien` = sao lưu CSV + ảnh vào `data/_eval/sao_luu_don_du_lieu/`, gõ "XOA", MỘT giao dịch, lệch số dòng
+  thì ROLLBACK, rồi xoá tệp ảnh; `--ids` / `--giu`; giữ mọi phiếu `graded` có điểm chính thức hợp lệ). G2 `frontend/ten_tep.js` – tên tệp ảnh > 24 ký tự hiển thị "10 ký tự đầu…đuôi" (title = tên đầy đủ), dùng ở /app/ và /m. G3 `bang_diem.ly_do_chua_ghep`
+  – Bảng điểm: phiếu cần xem chưa ghép được thí sinh nói đúng nguyên nhân (SBD máy chưa chắc → "cần giáo viên chốt"; ngoài danh sách → câu cũ), chỉ đổi câu chữ. Thử trình duyệt: `python tools/thu_lenh_f.py g2` → `data/_eval/ui_g/`.
 
 ## 5. Cài đặt và chạy
 

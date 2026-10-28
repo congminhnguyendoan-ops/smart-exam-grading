@@ -194,9 +194,70 @@ def f23() -> dict:
     return ket
 
 
+OUT_G = ROOT / "data" / "_eval" / "ui_g"
+TEN_DAI = "att.pc5ziEjVdDSu9zNPSpp9Llr1udeCi1EQjzdpGAIhgWQ.jpeg"
+
+
+def g2() -> dict:
+    """Lệnh G2/G3: tên tệp dài được rút gọn (title = tên đầy đủ), dòng bảng không giãn; câu lý do phiếu chưa ghép (Bảng điểm)."""
+    from playwright.sync_api import sync_playwright
+    from backend import demo, service
+    OUT_G.mkdir(parents=True, exist_ok=True)
+    ket = {"che_do": "rollback (0 dòng ghi vào CSDL thật)", "kiem": {}}
+    with T.MayChuThu() as mc:
+        url = f"http://127.0.0.1:{mc.cong}"
+        dl = T.dung_du_lieu_tam(mc.conn)
+        uid = mc.conn.execute("SELECT user_id FROM users WHERE username = %s", (dl["username"],)).fetchone()["user_id"]
+        lop = mc.conn.execute("SELECT class_id FROM classes WHERE class_code = 'CNTT-K22A'").fetchone()["class_id"]
+        eid = service.tao_ky_thi(mc.conn, {"exam_title": "Thử G2-G3 [THỬ TRÌNH DUYỆT]", "subject_code": "IT3080", "num_questions": 40, "max_score": 10, "pass_score": 5,
+                                           "class_id": lop, "codes": [{"code": m, "answers": demo.khoa_demo(m, 40)} for m in ("101", "102", "103", "104")]}, uid)
+        anh = lambda f: {"name": TEN_DAI, "mimeType": "image/jpeg", "buffer": f.read_bytes()}   # noqa: E731
+        with sync_playwright() as pw:
+            b = pw.chromium.launch()
+            ctx = b.new_context(viewport={"width": 1280, "height": 900}, locale="vi-VN")
+            pg = ctx.new_page()
+            chup = lambda ten: (pg.wait_for_timeout(500), pg.screenshot(path=str(OUT_G / ten), full_page=True))   # noqa: E731
+            pg.goto(url + "/app/"); pg.wait_for_selector("#lg-user")
+            pg.fill("#lg-user", dl["username"]); pg.fill("#lg-pass", dl["mat_khau"]); pg.click("#f-login button")
+            pg.wait_for_selector("#exam-select"); pg.select_option("#exam-select", str(eid))
+            pg.goto(url + "/app/#/upload"); pg.wait_for_selector("#files", state="attached")
+            pg.set_input_files("#files", [anh(RAW / "0002_C2.jpg"), anh(RAW / "0001_C1.jpg")])
+            pg.click("#go")
+            pg.wait_for_function("() => /Xong 2/.test(document.querySelector('#st').textContent)", timeout=180000)
+            chup("01_ket_qua_tai.png")
+            pg.goto(url + "/app/#/sheets"); pg.wait_for_selector("table tbody tr.row-link"); chup("02_danh_sach_phieu.png")
+            sp = pg.evaluate("() => [...document.querySelectorAll('.tentep')].map(e => ({txt: e.textContent, title: e.title, rong: e.getBoundingClientRect().width, cao: e.closest('tr') ? e.closest('tr').getBoundingClientRect().height : 0}))")
+            ket["danh_sach_phieu"] = sp
+            ket["kiem"]["G2_rut_gon_va_title"] = bool(sp) and all(x["txt"] == "att.pc5ziE….jpeg" and x["title"] == TEN_DAI for x in sp)
+            ket["kiem"]["G2_dong_khong_gian"] = all(x["cao"] < 70 for x in sp)
+            pg.goto(url + "/app/#/results"); pg.wait_for_selector("text=Bảng điểm"); pg.wait_for_timeout(500); chup("03_bang_diem.png")
+            ket["bang_diem_chua_ghep"] = pg.evaluate("() => [...document.querySelectorAll('h3')].filter(h => /chưa ghép/.test(h.textContent)).map(h => h.parentElement.innerText.replace(/\s+/g,' ').slice(0,400))")
+            first = mc.conn.execute("SELECT min(sheet_id) AS s FROM answer_sheets WHERE exam_id = %s", (eid,)).fetchone()["s"]
+            pg.goto(url + f"/app/#/sheet/{first}"); pg.wait_for_selector(".tentep"); chup("04_chi_tiet_phieu.png")
+            ket["kiem"]["G2_chi_tiet_rut_gon"] = pg.locator(".tentep").first.inner_text() == "att.pc5ziE….jpeg"
+            # /m trên điện thoại
+            dt = b.new_context(**pw.devices["Pixel 7"], locale="vi-VN"); pm = dt.new_page()
+            pm.goto(url + "/m"); pm.wait_for_selector("#v-login:not(.hidden)")
+            pm.fill("#lg-user", dl["username"]); pm.fill("#lg-pass", dl["mat_khau"]); pm.tap("#f-login button")
+            pm.wait_for_selector(f".exam[data-id='{eid}']"); pm.click(f".exam[data-id='{eid}']"); pm.wait_for_selector("#v-cap:not(.hidden)")
+            pm.route("**/exams/*/sheets", lambda r: r.abort())
+            pm.set_input_files("#cam", {"name": TEN_DAI, "mimeType": "image/jpeg", "buffer": (T.GIA_12 / "BV01_v1.jpg").read_bytes()})
+            pm.wait_for_function("() => window.__hangDoi.ds.some(t => t.trangThai === 'loi')", timeout=30000)
+            pm.unroute("**/exams/*/sheets")
+            pm.reload(); pm.wait_for_selector("#ds-to .to.mat", timeout=30000); pm.wait_for_timeout(500)
+            pm.screenshot(path=str(OUT_G / "05_m_the_to.png"), full_page=True)
+            ket["m_the_to"] = pm.evaluate("() => [...document.querySelectorAll('#ds-to .tentep')].map(e => ({txt: e.textContent, title: e.title}))")
+            ket["kiem"]["G2_m_rut_gon"] = bool(ket["m_the_to"]) and ket["m_the_to"][0]["txt"] == "att.pc5ziE….jpeg" and ket["m_the_to"][0]["title"] == TEN_DAI
+            b.close()
+        ket["dong_da_ghi_vao_csdl_that"] = 0
+    ket["dat"] = all(ket["kiem"].values())
+    (OUT_G / "ket_qua.json").write_text(json.dumps(ket, ensure_ascii=False, indent=1), encoding="utf-8")
+    return ket
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("viec", choices=["f4", "f23"])
-    kq = {"f4": f4, "f23": f23}[ap.parse_args().viec]()
+    ap.add_argument("viec", choices=["f4", "f23", "g2"])
+    kq = {"f4": f4, "f23": f23, "g2": g2}[ap.parse_args().viec]()
     print(json.dumps(kq, ensure_ascii=False, indent=1, default=str)[:4000])
     sys.exit(0 if kq["dat"] else 1)
