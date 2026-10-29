@@ -142,6 +142,20 @@ def test_xoa_chi_khi_chua_co_phieu(qt):
     assert c.delete(f"/admin/exams/{rong}", headers=h["ad"]).status_code == 404
 
 
+def test_khong_xoa_ky_thi_demo_hoac_co_danh_sach_du_thi(qt):
+    c, conn, h, idA, _, _ = qt
+    demo_id = c.post("/admin/exams", headers=h["ad"], json=than(teacher_user_id=idA, exam_title="Giữa kỳ [DEMO-BV] thử")).json()["exam_id"]
+    r = c.delete(f"/admin/exams/{demo_id}", headers=h["ad"])
+    assert r.status_code == 409 and "DEMO" in r.json()["detail"]
+    co_ds = c.post("/admin/exams", headers=h["ad"], json=than(teacher_user_id=idA)).json()["exam_id"]
+    sv = conn.execute("INSERT INTO students (student_code, full_name) VALUES (%s, 'SV dự thi') RETURNING student_id",
+                      (str(uuid.uuid4().int)[:12],)).fetchone()["student_id"]
+    conn.execute("INSERT INTO exam_students (exam_id, student_id) VALUES (%s, %s)", (co_ds, sv))
+    r = c.delete(f"/admin/exams/{co_ds}", headers=h["ad"])
+    assert r.status_code == 409 and "danh sách dự thi" in r.json()["detail"]
+    assert c.get(f"/exams/{co_ds}", headers=h["ad"]).status_code == 200
+
+
 def test_lop_khong_ton_tai_va_lop_co_san(qt):
     c, conn, h, idA, _, _ = qt
     lop = tao_lop(conn)

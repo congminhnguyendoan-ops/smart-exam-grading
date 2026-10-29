@@ -81,8 +81,13 @@ def dat_dong_mo(conn, exam_id: int, dong: bool) -> dict:
 
 
 def xoa_ky_thi(conn, exam_id: int) -> None:
-    """Chỉ xoá kỳ thi CHƯA có phiếu / lô tải / kết quả (CSDL xoá dây chuyền phiếu theo kỳ thi – nên phải chặn ở đây). Đã có phiếu: chỉ đóng."""
-    mot_ky_thi(conn, exam_id)
+    """Chỉ xoá kỳ thi CHƯA có phiếu / lô tải / kết quả (CSDL xoá dây chuyền phiếu theo kỳ thi – nên phải chặn ở đây). Đã có phiếu: chỉ đóng.
+    An toàn thêm: không xoá kỳ thi đã có danh sách dự thi (exam_students cũng bị xoá dây chuyền) hoặc kỳ thi [DEMO…] (bộ demo bảo vệ)."""
+    e = mot_ky_thi(conn, exam_id)
+    if "[DEMO" in e["exam_title"].upper():
+        raise XungDot("Kỳ thi [DEMO…] dùng cho demo / bảo vệ – không xoá qua web (chỉ đóng).")
+    if conn.execute("SELECT 1 FROM exam_students WHERE exam_id = %s LIMIT 1", (exam_id,)).fetchone():
+        raise XungDot("Kỳ thi đã có danh sách dự thi – xoá sẽ mất danh sách. Hãy ĐÓNG kỳ thi thay vì xoá.")
     n = conn.execute("SELECT (SELECT count(*) FROM answer_sheets WHERE exam_id = %(e)s) + (SELECT count(*) FROM scan_batches WHERE exam_id = %(e)s) "
                      "+ (SELECT count(*) FROM results WHERE exam_id = %(e)s) AS n", {"e": exam_id}).fetchone()["n"]
     if n:
