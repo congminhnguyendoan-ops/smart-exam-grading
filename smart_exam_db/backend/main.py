@@ -13,6 +13,9 @@ from pathlib import Path as DuongDan
 
 import psycopg
 from fastapi import Depends, FastAPI, File, Header, Path, Query, Request, UploadFile
+from fastapi.encoders import jsonable_encoder
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -95,6 +98,18 @@ def chi_admin(nd: auth.NguoiDung = Depends(get_nguoi_dung)) -> auth.NguoiDung:
 @app.exception_handler(service.LoiDichVu)
 def _loi_dich_vu(_: Request, e: service.LoiDichVu):
     return JSONResponse({"detail": str(e)}, status_code=e.ma_http)
+
+
+_CO_MAT_KHAU = ("/auth/", "/me", "/admin/users")
+
+
+@app.exception_handler(RequestValidationError)
+async def _loi_dau_vao(request: Request, e: RequestValidationError):
+    """Như mặc định của FastAPI, NHƯNG với đường dẫn có trường mật khẩu thì bỏ "input" / "ctx" (pydantic chép lại giá trị gửi lên -> lộ mật khẩu)."""
+    if not request.url.path.startswith(_CO_MAT_KHAU):
+        return await request_validation_exception_handler(request, e)          # hành vi mặc định, không đổi
+    loi = [{k: v for k, v in x.items() if k not in ("input", "ctx")} for x in e.errors()]
+    return JSONResponse({"detail": jsonable_encoder(loi)}, status_code=422)
 
 
 @app.exception_handler(psycopg.errors.IntegrityError)
@@ -412,6 +427,41 @@ def qt_xoa_ky_thi(exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Dep
 @app.get("/admin/users", response_model=list[schemas.TaiKhoan], tags=["Quản trị"], summary="Tài khoản admin + giáo viên")
 def qt_ds_tai_khoan(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     return quan_tri.ds_tai_khoan(conn)
+
+
+@app.post("/admin/users", status_code=201, response_model=schemas.TaiKhoan, tags=["Quản trị"], summary="Tạo tài khoản giáo viên")
+def qt_tao_tai_khoan(body: schemas.TaiKhoanMoi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    """Vai trò luôn là teacher. Mật khẩu băm scrypt; phản hồi / nhật ký không bao giờ chứa mật khẩu. Trùng tên / email -> 409."""
+    return quan_tri.tao_giao_vien(conn, nd, body.username, body.full_name, body.email, body.password)
+
+
+@app.post("/admin/users/{user_id}/password", status_code=204, tags=["Quản trị"], summary="Đặt lại mật khẩu giáo viên")
+def qt_dat_lai_mat_khau(user_id: int, body: schemas.DatMatKhau, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    """Mọi phiên cũ của giáo viên đó hết hiệu lực. Chỉ tài khoản giáo viên (admin khác: dùng `python -m backend.tai_khoan`)."""
+    quan_tri.dat_lai_mat_khau(conn, nd, user_id, body.new_password)
+    return Response(status_code=204)
+
+
+@app.post("/admin/users/{user_id}/active", response_model=schemas.TaiKhoan, tags=["Quản trị"], summary="Vô hiệu hoá / kích hoạt lại giáo viên")
+def qt_kich_hoat(user_id: int, body: schemas.KichHoat, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.dat_hoat_dong(conn, nd, user_id, body.is_active)
+
+
+@app.get("/admin/users/{user_id}/exams", response_model=list[schemas.KyThiCuaGiaoVien], tags=["Quản trị"], summary="Kỳ thi giáo viên thấy")
+def qt_ky_thi_cua_gv(user_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.ky_thi_cua_giao_vien(conn, user_id)
+
+
+@app.put("/admin/users/{user_id}/exams/{exam_id}", response_model=list[schemas.KyThiCuaGiaoVien], tags=["Quản trị"],
+         summary="Gán kỳ thi cho giáo viên (thành người phụ trách)")
+def qt_gan_ky_thi(user_id: int, exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.gan_ky_thi(conn, nd, user_id, exam_id)
+
+
+@app.delete("/admin/users/{user_id}/exams/{exam_id}", response_model=list[schemas.KyThiCuaGiaoVien], tags=["Quản trị"],
+            summary="Bỏ gán kỳ thi (người phụ trách chuyển về admin đang thao tác)")
+def qt_bo_gan_ky_thi(user_id: int, exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.bo_gan_ky_thi(conn, nd, user_id, exam_id)
 
 
 # ------------------------------------------------------------------------------------------------ giao diện (HTML + JS thuần)

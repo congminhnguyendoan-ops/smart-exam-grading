@@ -123,6 +123,31 @@ class TaiKhoan(BaseModel):
     lop: str | None = Field(description="Các lớp được gán (teacher_classes)")
 
 
+# Trường mật khẩu KHÔNG có ràng buộc độ dài ở pydantic: lỗi 422 của pydantic chép lại giá trị gửi lên ("input") vào phản hồi.
+# Độ dài kiểm ở dịch vụ (auth.mat_khau_hop_le) với thông báo không chứa mật khẩu; main.py còn bỏ "input" khỏi lỗi 422 của các đường dẫn có mật khẩu.
+class TaiKhoanMoi(BaseModel):
+    username: str = Field(description="3–50 ký tự: chữ không dấu, số, . _ -")
+    full_name: str
+    email: str | None = Field(default=None, description="Bỏ trống = <username>@smartexam.local")
+    password: str = Field(description="Mật khẩu ban đầu, tối thiểu 8 ký tự – giáo viên nên đổi ở trang Hồ sơ")
+
+
+class DatMatKhau(BaseModel):
+    new_password: str = Field(description="Tối thiểu 8 ký tự; mọi phiên cũ của tài khoản hết hiệu lực")
+
+
+class KichHoat(BaseModel):
+    is_active: bool = Field(description="false = vô hiệu hoá (không đăng nhập được, phiên đang có bị từ chối ngay ở lần gọi kế tiếp)")
+
+
+class KyThiCuaGiaoVien(BaseModel):
+    exam_id: int
+    exam_title: str
+    status: str
+    class_code: str | None
+    nguon: Literal["phu_trach", "lop"] = Field(description="phu_trach = được gán (gán / bỏ gán ở đây); lop = thấy vì dạy lớp của kỳ thi")
+
+
 # ------------------------------------------------------------------------------------------------ phiếu
 class ChuVietTay(BaseModel):
     """Chữ số CNN đọc từ ô VIẾT TAY của cột (kênh thứ hai, độc lập với bubble)."""

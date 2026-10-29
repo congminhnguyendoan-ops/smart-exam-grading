@@ -91,12 +91,98 @@ function qtSuaKyThi(e) {
   k.scrollIntoView({ block: "nearest" });
 }
 
-/* ------------------------------------------------------------------ tài khoản (chỉ xem ở Việc 1; thao tác thêm ở Việc 2) */
+/* ------------------------------------------------------------------ tài khoản giáo viên */
+function matKhauNgauNhien() {
+  const bang = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789", so = new Uint32Array(14);
+  crypto.getRandomValues(so);
+  return [...so].map((x) => bang[x % bang.length]).join("");
+}
 async function qtTaiKhoan() {
   const ds = await api("/admin/users");
-  $("#qt").innerHTML = `<div class="card"><h3>Tài khoản (${ds.length})</h3><table><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th>
-      <th>Trạng thái</th><th>Lớp</th><th>Kỳ thi phụ trách</th></tr></thead><tbody>
+  const qt = $("#qt");
+  qt.innerHTML = `<div class="card"><h3>Tạo tài khoản giáo viên</h3><form id="f-qt-tk" class="formcol" autocomplete="off">
+      <div class="row"><label>Tên đăng nhập<input id="tk-user" required minlength="3" maxlength="50" pattern="[A-Za-z0-9._\\-]+" autocomplete="off"></label>
+        <label>Họ tên<input id="tk-ten" required maxlength="150"></label><label>Email (tuỳ chọn)<input id="tk-mail" maxlength="255"></label></div>
+      <div class="row"><label>Mật khẩu ban đầu (≥ 8 ký tự)<input id="tk-mk" type="password" required minlength="8" autocomplete="new-password"></label>
+        <button type="button" id="tk-sinh">Sinh ngẫu nhiên</button><label class="small"><input type="checkbox" id="tk-hien"> hiện</label></div>
+      <p class="muted small">Đưa mật khẩu ban đầu cho giáo viên qua kênh riêng; giáo viên đổi ngay ở trang Hồ sơ. Hệ thống không lưu / không hiện lại mật khẩu.</p>
+      <button class="pri" type="submit">Tạo tài khoản</button></form></div>
+    <div class="card" id="tk-khung"></div>
+    <div class="card"><h3>Tài khoản (${ds.length})</h3><table><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th>
+      <th>Lớp</th><th>Kỳ thi phụ trách</th><th>Đăng nhập gần nhất</th><th></th></tr></thead><tbody>
       ${ds.map((u) => `<tr><td>${esc(u.username)}</td><td>${esc(u.full_name)}</td><td>${esc(NHAN_VAI_TRO[u.role] || u.role)}</td>
-        <td>${u.is_active ? '<span class="tag ok">hoạt động</span>' : '<span class="tag bad">vô hiệu hoá</span>'}</td><td>${esc(u.lop || "–")}</td><td>${u.so_ky_thi}</td></tr>`).join("")}
+        <td>${u.is_active ? '<span class="tag ok">hoạt động</span>' : '<span class="tag bad">vô hiệu hoá</span>'}</td><td>${esc(u.lop || "–")}</td><td>${u.so_ky_thi}</td>
+        <td class="small">${u.last_login_at ? esc(new Date(u.last_login_at).toLocaleString("vi-VN")) : "chưa"}</td>
+        <td class="nowrap">${u.role === "teacher" ? `<button type="button" data-kt="${u.user_id}">Kỳ thi</button>
+          <button type="button" data-mk="${u.user_id}">Đặt lại mật khẩu</button>
+          <button type="button" data-hd="${u.user_id}" data-bat="${u.is_active ? "0" : "1"}" class="${u.is_active ? "bad" : ""}">${u.is_active ? "Vô hiệu hoá" : "Kích hoạt lại"}</button>`
+          : '<span class="muted small">quản lý bằng backend.tai_khoan</span>'}</td></tr>`).join("")}
       </tbody></table></div>`;
+  $("#tk-khung").classList.add("hidden");
+  $("#tk-sinh").addEventListener("click", () => { $("#tk-mk").value = matKhauNgauNhien(); $("#tk-mk").type = "text"; $("#tk-hien").checked = true; });
+  $("#tk-hien").addEventListener("change", (e) => { $("#tk-mk").type = e.target.checked ? "text" : "password"; });
+  $("#f-qt-tk").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try {
+      const u = await post("/admin/users", { username: $("#tk-user").value.trim(), full_name: $("#tk-ten").value.trim(),
+        email: $("#tk-mail").value.trim() || null, password: $("#tk-mk").value });
+      $("#tk-mk").value = ""; toast(`Đã tạo tài khoản ${u.username}.`); await qtTaiKhoan();
+    } catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  });
+  const tim = (id) => ds.find((u) => u.user_id === Number(id));
+  qt.querySelectorAll("[data-hd]").forEach((b) => b.addEventListener("click", async () => {
+    const bat = b.dataset.bat === "1", u = tim(b.dataset.hd);
+    if (!bat && !confirm(`Vô hiệu hoá ${u.username}? Tài khoản không đăng nhập được nữa và phiên đang mở bị đăng xuất ngay.`)) return;
+    try { await post(`/admin/users/${u.user_id}/active`, { is_active: bat }); toast(bat ? "Đã kích hoạt lại." : "Đã vô hiệu hoá."); await qtTaiKhoan(); }
+    catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  }));
+  qt.querySelectorAll("[data-mk]").forEach((b) => b.addEventListener("click", () => qtDatLaiMatKhau(tim(b.dataset.mk))));
+  qt.querySelectorAll("[data-kt]").forEach((b) => b.addEventListener("click", () => qtKyThiCuaGv(tim(b.dataset.kt)).catch((e) => toast(e.message, true))));
+}
+function qtDatLaiMatKhau(u) {
+  const k = $("#tk-khung");
+  k.classList.remove("hidden");
+  k.innerHTML = `<h3>Đặt lại mật khẩu – ${esc(u.username)}</h3><form id="f-tk-mk" class="formcol" autocomplete="off">
+      <div class="row"><label>Mật khẩu mới (≥ 8 ký tự)<input id="tkm-mk" type="password" required minlength="8" autocomplete="new-password"></label>
+        <button type="button" id="tkm-sinh">Sinh ngẫu nhiên</button></div>
+      <p class="muted small">Mọi phiên đang mở của ${esc(u.username)} sẽ bị đăng xuất.</p>
+      <div class="row"><button class="pri" type="submit">Đặt lại</button><button type="button" id="tkm-huy">Huỷ</button></div></form>`;
+  $("#tkm-sinh").addEventListener("click", () => { $("#tkm-mk").value = matKhauNgauNhien(); $("#tkm-mk").type = "text"; });
+  $("#tkm-huy").addEventListener("click", () => { k.innerHTML = ""; k.classList.add("hidden"); });
+  $("#f-tk-mk").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try { await post(`/admin/users/${u.user_id}/password`, { new_password: $("#tkm-mk").value }); k.innerHTML = ""; k.classList.add("hidden"); toast(`Đã đặt lại mật khẩu cho ${u.username}.`); }
+    catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  });
+  k.scrollIntoView({ block: "nearest" });
+}
+async function qtKyThiCuaGv(u) {
+  const [ds, tatCa] = await Promise.all([api(`/admin/users/${u.user_id}/exams`), api("/admin/exams")]);
+  const daCo = new Set(ds.filter((e) => e.nguon === "phu_trach").map((e) => e.exam_id));
+  const k = $("#tk-khung");
+  k.classList.remove("hidden");
+  k.innerHTML = `<h3>Kỳ thi của ${esc(u.full_name)} (${esc(u.username)})</h3>
+    <table><thead><tr><th>#</th><th>Kỳ thi</th><th>Lớp</th><th>Trạng thái</th><th>Vì sao thấy</th><th></th></tr></thead><tbody>
+    ${ds.map((e) => `<tr><td>${e.exam_id}</td><td>${esc(e.exam_title)}</td><td>${esc(e.class_code || "–")}</td><td>${tagKyThi(e.status)}</td>
+      <td>${e.nguon === "phu_trach" ? "được gán phụ trách" : "dạy lớp của kỳ thi"}</td>
+      <td>${e.nguon === "phu_trach" ? `<button type="button" data-bo="${e.exam_id}">Bỏ gán</button>` : ""}</td></tr>`).join("")
+      || '<tr><td colspan="6" class="muted">Chưa có kỳ thi nào.</td></tr>'}</tbody></table>
+    ${u.is_active ? `<form id="f-gan" class="row"><select id="gan-kt">${tatCa.filter((e) => !daCo.has(e.exam_id)).map((e) =>
+      `<option value="${e.exam_id}">#${e.exam_id} ${esc(e.exam_title)} (đang: ${esc(e.teacher_username)})</option>`).join("")}</select>
+      <button class="pri" type="submit">Gán phụ trách</button></form>
+      <p class="muted small">Mỗi kỳ thi có MỘT giáo viên phụ trách: gán cho người này thì người cũ thôi phụ trách (họ vẫn thấy nếu dạy lớp của kỳ thi). Bỏ gán: quyền phụ trách về admin.</p>`
+      : '<p class="muted small">Tài khoản đang bị vô hiệu hoá – kích hoạt lại trước khi gán kỳ thi.</p>'}
+    <button type="button" id="gan-dong">Đóng</button>`;
+  $("#gan-dong").addEventListener("click", () => { k.innerHTML = ""; k.classList.add("hidden"); });
+  const f = $("#f-gan");
+  if (f) f.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try { await api(`/admin/users/${u.user_id}/exams/${$("#gan-kt").value}`, { method: "PUT" }); toast("Đã gán."); await qtKyThiCuaGv(u); }
+    catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  });
+  k.querySelectorAll("[data-bo]").forEach((b) => b.addEventListener("click", async () => {
+    try { await api(`/admin/users/${u.user_id}/exams/${b.dataset.bo}`, { method: "DELETE" }); toast("Đã bỏ gán."); await qtKyThiCuaGv(u); }
+    catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  }));
+  k.scrollIntoView({ block: "nearest" });
 }
