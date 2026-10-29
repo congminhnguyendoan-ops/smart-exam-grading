@@ -142,7 +142,7 @@ def test_sao_luu_va_xoa_tep(the_gioi, tmp_path):
     assert {"answer_sheets.csv", "sheet_answers.csv", "review_queue.csv", "ocr_digits.csv", "results.csv", "score_audit_logs.csv", "ke_hoach.json"} <= ten
     assert (tmp_path / "sl" / "answer_sheets.csv").read_text(encoding="utf-8").count("\n") >= 5          # tiêu đề + 4 phiếu
     kho_ngoai = tmp_path / "ngoai.txt"
-    kho_ngoai.write_text("không được xoá")
+    kho_ngoai.write_text("không được xoá", encoding="utf-8")                # ghi rõ UTF-8: mã hoá mặc định cp1252 (Windows, không UTF-8 mode) không chứa được chữ Việt
     ket = D.xoa_tep(g["kho"], kh["tep"] + ["../ngoai.txt", "khong/co/tep.jpg"])
     assert ket["bo_qua_ngoai_kho"] == 1 and ket["khong_ton_tai"] >= 1 and ket["da_xoa"] >= 3
     assert kho_ngoai.exists()                                                # tệp ngoài kho không bao giờ bị xoá
