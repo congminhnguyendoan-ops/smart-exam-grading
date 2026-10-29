@@ -474,6 +474,33 @@ def qt_bo_gan_ky_thi(user_id: int, exam_id: int, conn=Depends(get_conn), nd: aut
     return quan_tri.bo_gan_ky_thi(conn, nd, user_id, exam_id)
 
 
+@app.get("/admin/classes", response_model=list[schemas.LopQuanTri], tags=["Quản trị"], summary="Mọi lớp (số giáo viên, sinh viên, kỳ thi)")
+def qt_ds_lop(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.ds_lop(conn)
+
+
+@app.post("/admin/classes", status_code=201, response_model=schemas.LopQuanTri, tags=["Quản trị"], summary="Tạo lớp")
+def qt_tao_lop(body: schemas.LopMoi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    """Mã lớp trùng (không phân biệt hoa thường) -> 409."""
+    return quan_tri.tao_lop(conn, nd, body.class_code, body.class_name, body.academic_year)
+
+
+@app.patch("/admin/classes/{class_id}", response_model=schemas.LopQuanTri, tags=["Quản trị"], summary="Sửa tên / năm học của lớp")
+def qt_sua_lop(class_id: int, body: schemas.SuaLop, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.sua_lop(conn, class_id, {k: getattr(body, k) for k in body.model_fields_set})
+
+
+@app.post("/admin/classes/{class_id}/status", response_model=schemas.LopQuanTri, tags=["Quản trị"], summary="Vô hiệu hoá / kích hoạt lại lớp")
+def qt_trang_thai_lop(class_id: int, body: schemas.KichHoatLop, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.dat_hoat_dong_lop(conn, nd, class_id, body.is_active)
+
+
+@app.delete("/admin/classes/{class_id}", status_code=204, tags=["Quản trị"], summary="Xoá lớp CHƯA gắn kỳ thi và chưa có sinh viên")
+def qt_xoa_lop(class_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    quan_tri.xoa_lop(conn, nd, class_id)
+    return Response(status_code=204)
+
+
 # ------------------------------------------------------------------------------------------------ giao diện (HTML + JS thuần)
 FRONTEND_DIR = DuongDan(__file__).resolve().parent.parent / "frontend"
 

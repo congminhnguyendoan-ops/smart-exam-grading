@@ -196,6 +196,90 @@ def bo_gan_ky_thi(conn, nd: NguoiDung, user_id: int, exam_id: int) -> list[dict]
     return ky_thi_cua_giao_vien(conn, user_id)
 
 
+# ------------------------------------------------------------------------------------------------ lớp học (lệnh I)
+# Chỉ lớp + giáo viên của lớp. KHÔNG quản lý sinh viên (số sinh viên chỉ để xem). Trạng thái lớp: classes.is_active (migration 004).
+# Lớp vô hiệu hoá: không chọn được cho kỳ thi mới / gán giáo viên mới; giáo viên ĐÃ gán vẫn xem kỳ thi cũ của lớp (giữ điểm, lịch sử).
+MA_LOP_RE = re.compile(r"^[A-Za-z0-9._-]{2,30}$")
+_DS_LOP = ("SELECT c.class_id, c.class_code, c.class_name, c.academic_year, c.is_active, c.created_at, "
+           "(SELECT count(*) FROM teacher_classes tc WHERE tc.class_id = c.class_id) AS so_giao_vien, "
+           "(SELECT count(*) FROM students s WHERE s.class_id = c.class_id) AS so_sinh_vien, "
+           "(SELECT count(*) FROM exams e WHERE e.class_id = c.class_id) AS so_ky_thi, "
+           "(SELECT string_agg(u.username, ', ' ORDER BY u.username) FROM teacher_classes tc JOIN users u ON u.user_id = tc.user_id "
+           " WHERE tc.class_id = c.class_id) AS giao_vien FROM classes c")
+
+
+def ds_lop(conn) -> list[dict]:
+    return conn.execute(f"{_DS_LOP} ORDER BY c.is_active DESC, c.class_code").fetchall()
+
+
+def mot_lop(conn, class_id: int) -> dict:
+    r = conn.execute(f"{_DS_LOP} WHERE c.class_id = %s", (class_id,)).fetchone()
+    if not r:
+        raise KhongTimThay(f"Không có lớp {class_id}.")
+    return r
+
+
+def _ten_nam_hoc(class_name: str | None, academic_year: str | None) -> tuple[str | None, str | None]:
+    ten = class_name.strip() if class_name is not None else None
+    if ten is not None and not 1 <= len(ten) <= 150:
+        raise DuLieuSai("Tên lớp không được để trống (tối đa 150 ký tự).")
+    nam = (academic_year or "").strip() or None
+    if nam is not None and len(nam) > 20:
+        raise DuLieuSai("Năm học tối đa 20 ký tự (vd 2026-2027).")
+    return ten, nam
+
+
+def tao_lop(conn, nd: NguoiDung, class_code: str, class_name: str, academic_year: str | None) -> dict:
+    ma = class_code.strip()
+    if not MA_LOP_RE.match(ma):
+        raise DuLieuSai("Mã lớp 2–30 ký tự, chỉ gồm chữ không dấu, số, dấu chấm, gạch dưới, gạch ngang (vd CNTT-K22A).")
+    ten, nam = _ten_nam_hoc(class_name, academic_year)
+    if conn.execute("SELECT 1 FROM classes WHERE lower(class_code) = lower(%s)", (ma,)).fetchone():
+        raise XungDot(f"Mã lớp '{ma}' đã có (không phân biệt hoa thường).")
+    cid = conn.execute("INSERT INTO classes (class_code, class_name, academic_year) VALUES (%s, %s, %s) RETURNING class_id",
+                       (ma, ten, nam)).fetchone()["class_id"]
+    log.info("Quản trị %s tạo lớp %s (class_id %s)", nd.username, ma, cid)
+    return mot_lop(conn, cid)
+
+
+def sua_lop(conn, class_id: int, thay: dict) -> dict:
+    """Sửa tên và / hoặc năm học (mã lớp không đổi: kỳ thi, giao diện, trang bìa đã dùng nó)."""
+    mot_lop(conn, class_id)
+    if not thay:
+        raise DuLieuSai("Cần class_name và / hoặc academic_year.")
+    if "class_name" in thay:
+        ten, _ = _ten_nam_hoc(thay["class_name"] or "", None)
+        conn.execute("UPDATE classes SET class_name = %s WHERE class_id = %s", (ten, class_id))
+    if "academic_year" in thay:
+        _, nam = _ten_nam_hoc(None, thay["academic_year"])
+        conn.execute("UPDATE classes SET academic_year = %s WHERE class_id = %s", (nam, class_id))
+    return mot_lop(conn, class_id)
+
+
+def dat_hoat_dong_lop(conn, nd: NguoiDung, class_id: int, hoat_dong: bool) -> dict:
+    l = mot_lop(conn, class_id)
+    conn.execute("UPDATE classes SET is_active = %s WHERE class_id = %s", (hoat_dong, class_id))
+    log.info("Quản trị %s %s lớp %s", nd.username, "kích hoạt lại" if hoat_dong else "vô hiệu hoá", l["class_code"])
+    return mot_lop(conn, class_id)
+
+
+def xoa_lop(conn, nd: NguoiDung, class_id: int) -> None:
+    """Chỉ xoá lớp CHƯA gắn kỳ thi và CHƯA có sinh viên (giáo viên của lớp bị bỏ gán theo). Còn lại: vô hiệu hoá."""
+    l = mot_lop(conn, class_id)
+    if l["so_ky_thi"] or l["so_sinh_vien"]:
+        raise XungDot(f"Lớp đã gắn {l['so_ky_thi']} kỳ thi và có {l['so_sinh_vien']} sinh viên – không xoá được. Hãy VÔ HIỆU HOÁ lớp thay vì xoá.")
+    conn.execute("DELETE FROM classes WHERE class_id = %s", (class_id,))
+    log.info("Quản trị %s xoá lớp %s (chưa có kỳ thi / sinh viên)", nd.username, l["class_code"])
+
+
+def lop_dang_hoat_dong(conn, class_id: int) -> dict:
+    """Lớp chọn cho kỳ thi mới / gán giáo viên mới phải tồn tại và đang hoạt động."""
+    l = mot_lop(conn, class_id)
+    if not l["is_active"]:
+        raise DuLieuSai(f"Lớp {l['class_code']} đã bị vô hiệu hoá – kích hoạt lại trước khi dùng.")
+    return l
+
+
 def kiem_dang_mo(conn, exam_id: int) -> None:
     """Tải ảnh: kỳ thi đã đóng -> 409. Gọi SAU phan_quyen.kiem_ky_thi (ngoài quyền vẫn là 404, không lộ trạng thái)."""
     r = conn.execute("SELECT status::text AS s FROM exams WHERE exam_id = %s", (exam_id,)).fetchone()

@@ -16,11 +16,78 @@ function docMaDe(txt) {
 
 async function manQuanTri(tab) {
   if (!state.me || state.me.role !== "admin") { main.innerHTML = '<div class="alert bad">Chỉ quản trị viên dùng được trang này.</div>'; return; }
-  const t = tab === "users" ? "users" : "exams";
+  const t = ["users", "classes"].includes(tab) ? tab : "exams";
   main.innerHTML = `<h2>Quản trị</h2><div class="row" style="margin:0 0 12px">
       <a class="btn ${t === "exams" ? "pri" : ""}" href="#/admin/exams">Quản lý kỳ thi</a>
+      <a class="btn ${t === "classes" ? "pri" : ""}" href="#/admin/classes">Lớp học</a>
       <a class="btn ${t === "users" ? "pri" : ""}" href="#/admin/users">Tài khoản giáo viên</a></div><div id="qt"></div>`;
-  if (t === "exams") await qtKyThi(); else await qtTaiKhoan();
+  if (t === "exams") await qtKyThi(); else if (t === "classes") await qtLop(); else await qtTaiKhoan();
+}
+
+/* ------------------------------------------------------------------ lớp học (lệnh I) – chỉ lớp + giáo viên của lớp, KHÔNG quản lý sinh viên */
+async function qtLop() {
+  const ds = await api("/admin/classes");
+  const qt = $("#qt");
+  qt.innerHTML = `<div class="card"><h3>Tạo lớp</h3><form id="f-qt-lop" class="formcol"><div class="row">
+      <label>Mã lớp<input id="lop-ma" required minlength="2" maxlength="30" placeholder="CNTT-K23A"></label>
+      <label>Tên lớp<input id="lop-ten" required maxlength="150" placeholder="Công nghệ thông tin K23 - Lớp A"></label>
+      <label>Năm học<input id="lop-nam" maxlength="20" placeholder="2026-2027"></label></div>
+      <button class="pri" type="submit">Tạo lớp</button></form></div>
+    <div class="card" id="lop-khung"></div>
+    <div class="card"><h3>Lớp (${ds.length})</h3><table><thead><tr><th>Mã lớp</th><th>Tên lớp</th><th>Năm học</th><th>Giáo viên</th>
+      <th>Sinh viên</th><th>Kỳ thi</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+      ${ds.map((l) => `<tr><td>${esc(l.class_code)}</td><td>${esc(l.class_name)}</td><td>${esc(l.academic_year || "–")}</td>
+        <td>${l.so_giao_vien} <span class="muted small">${esc(l.giao_vien || "")}</span></td><td>${l.so_sinh_vien}</td><td>${l.so_ky_thi}</td>
+        <td>${l.is_active ? '<span class="tag ok">hoạt động</span>' : '<span class="tag bad">vô hiệu hoá</span>'}</td>
+        <td class="nowrap"><button type="button" data-lop-gv="${l.class_id}">Giáo viên</button>
+          <button type="button" data-lop-sua="${l.class_id}">Sửa</button>
+          <button type="button" data-lop-hd="${l.class_id}" data-bat="${l.is_active ? "0" : "1"}" class="${l.is_active ? "bad" : ""}">${l.is_active ? "Vô hiệu hoá" : "Kích hoạt lại"}</button>
+          ${l.so_ky_thi || l.so_sinh_vien ? "" : `<button type="button" class="bad" data-lop-xoa="${l.class_id}">Xoá</button>`}</td></tr>`).join("")
+      || '<tr><td colspan="8" class="muted">Chưa có lớp.</td></tr>'}</tbody></table>
+      <p class="muted small">Số sinh viên chỉ để xem (không quản lý sinh viên ở đây). Lớp đã gắn kỳ thi hoặc có sinh viên không xoá được – chỉ vô hiệu hoá.
+        Lớp vô hiệu hoá không chọn được cho kỳ thi / gán giáo viên mới; giáo viên đã gán vẫn xem được kỳ thi cũ của lớp.</p></div>`;
+  $("#lop-khung").classList.add("hidden");
+  const tim = (id) => ds.find((l) => l.class_id === Number(id));
+  $("#f-qt-lop").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try {
+      const l = await post("/admin/classes", { class_code: $("#lop-ma").value.trim(), class_name: $("#lop-ten").value.trim(), academic_year: $("#lop-nam").value.trim() || null });
+      toast(`Đã tạo lớp ${l.class_code}.`); await qtLop();
+    } catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  });
+  qt.querySelectorAll("[data-lop-sua]").forEach((b) => b.addEventListener("click", () => qtSuaLop(tim(b.dataset.lopSua))));
+  qt.querySelectorAll("[data-lop-hd]").forEach((b) => b.addEventListener("click", async () => {
+    const bat = b.dataset.bat === "1", l = tim(b.dataset.lopHd);
+    if (!bat && !confirm(`Vô hiệu hoá lớp ${l.class_code}? Lớp không chọn được cho kỳ thi / gán giáo viên mới (kích hoạt lại được).`)) return;
+    try { await post(`/admin/classes/${l.class_id}/status`, { is_active: bat }); toast(bat ? "Đã kích hoạt lại lớp." : "Đã vô hiệu hoá lớp."); await qtLop(); }
+    catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  }));
+  qt.querySelectorAll("[data-lop-xoa]").forEach((b) => b.addEventListener("click", async () => {
+    const l = tim(b.dataset.lopXoa);
+    if (!confirm(`Xoá hẳn lớp ${l.class_code}? Giáo viên của lớp bị bỏ gán. Không hoàn tác được.`)) return;
+    try { await api(`/admin/classes/${l.class_id}`, { method: "DELETE" }); toast("Đã xoá lớp."); await qtLop(); }
+    catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  }));
+  qt.querySelectorAll("[data-lop-gv]").forEach((b) => b.addEventListener("click", () => qtGiaoVienLop(tim(b.dataset.lopGv)).catch((e) => toast(e.message, true))));
+}
+function qtSuaLop(l) {
+  const k = $("#lop-khung");
+  k.classList.remove("hidden");
+  k.innerHTML = `<h3>Sửa lớp ${esc(l.class_code)}</h3><form id="f-lop-sua" class="formcol">
+      <label>Tên lớp<input id="ls-ten" value="${esc(l.class_name)}" required maxlength="150"></label>
+      <label>Năm học (để trống = xoá)<input id="ls-nam" value="${esc(l.academic_year || "")}" maxlength="20"></label>
+      <p class="muted small">Mã lớp không đổi được (kỳ thi và trang bìa đang dùng).</p>
+      <div class="row"><button class="pri" type="submit">Lưu</button><button type="button" id="ls-huy">Huỷ</button></div></form>`;
+  $("#ls-huy").addEventListener("click", () => { k.innerHTML = ""; k.classList.add("hidden"); });
+  $("#f-lop-sua").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try { await patch(`/admin/classes/${l.class_id}`, { class_name: $("#ls-ten").value.trim(), academic_year: $("#ls-nam").value.trim() || null }); toast("Đã lưu."); await qtLop(); }
+    catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  });
+  k.scrollIntoView({ block: "nearest" });
+}
+async function qtGiaoVienLop(l) {          // bổ sung ở Việc 2 (gán giáo viên vào lớp)
+  toast(`Lớp ${l.class_code}: ${l.giao_vien || "chưa có giáo viên"}`);
 }
 
 /* ------------------------------------------------------------------ kỳ thi */

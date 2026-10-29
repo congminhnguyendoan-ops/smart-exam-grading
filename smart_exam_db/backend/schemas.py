@@ -140,6 +140,33 @@ class KichHoat(BaseModel):
     is_active: bool = Field(description="false = vô hiệu hoá (không đăng nhập được, phiên đang có bị từ chối ngay ở lần gọi kế tiếp)")
 
 
+class LopQuanTri(BaseModel):
+    class_id: int
+    class_code: str
+    class_name: str
+    academic_year: str | None
+    is_active: bool
+    so_giao_vien: int
+    so_sinh_vien: int = Field(description="Chỉ để xem – hệ thống không quản lý sinh viên ở đây")
+    so_ky_thi: int
+    giao_vien: str | None = Field(description="Tên đăng nhập các giáo viên của lớp")
+
+
+class LopMoi(BaseModel):
+    class_code: str = Field(description="Duy nhất (không phân biệt hoa thường), 2–30 ký tự: chữ không dấu, số, . _ -")
+    class_name: str
+    academic_year: str | None = Field(default=None, description="vd 2026-2027")
+
+
+class SuaLop(BaseModel):
+    class_name: str | None = None
+    academic_year: str | None = Field(default=None, description="Gửi null để xoá năm học")
+
+
+class KichHoatLop(BaseModel):
+    is_active: bool = Field(description="false = vô hiệu hoá (không chọn được cho kỳ thi / gán giáo viên mới)")
+
+
 class KyThiCuaGiaoVien(BaseModel):
     exam_id: int
     exam_title: str
