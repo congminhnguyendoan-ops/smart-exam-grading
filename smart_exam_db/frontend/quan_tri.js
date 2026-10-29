@@ -86,9 +86,46 @@ function qtSuaLop(l) {
   });
   k.scrollIntoView({ block: "nearest" });
 }
-async function qtGiaoVienLop(l) {          // bổ sung ở Việc 2 (gán giáo viên vào lớp)
-  toast(`Lớp ${l.class_code}: ${l.giao_vien || "chưa có giáo viên"}`);
+async function qtGiaoVienLop(l) {
+  const [ds, users] = await Promise.all([api(`/admin/classes/${l.class_id}/teachers`), api("/admin/users")]);
+  const co = new Set(ds.map((u) => u.user_id));
+  const chon = users.filter((u) => u.role === "teacher" && u.is_active && !co.has(u.user_id));
+  const k = $("#lop-khung");
+  k.classList.remove("hidden");
+  k.innerHTML = `<h3>Giáo viên của lớp ${esc(l.class_code)} – ${esc(l.class_name)}</h3>
+    <table><thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Trạng thái</th><th>Môn dạy</th><th></th></tr></thead><tbody>
+    ${ds.map((u) => `<tr><td>${esc(u.username)}</td><td>${esc(u.full_name)}</td>
+      <td>${u.is_active ? '<span class="tag ok">hoạt động</span>' : '<span class="tag bad">vô hiệu hoá</span>'}</td><td>${esc(u.subject_code || "–")}</td>
+      <td><button type="button" data-bo-gv="${u.user_id}">Bỏ khỏi lớp</button></td></tr>`).join("") || '<tr><td colspan="5" class="muted">Lớp chưa có giáo viên.</td></tr>'}
+    </tbody></table>
+    ${l.is_active ? (chon.length ? `<form id="f-them-gv" class="row"><select id="them-gv">${chon.map((u) => `<option value="${u.user_id}">${esc(u.full_name)} (${esc(u.username)})</option>`).join("")}</select>
+      <button class="pri" type="submit">Thêm vào lớp</button></form>` : '<p class="muted small">Không còn giáo viên đang hoạt động nào để thêm.</p>')
+      : '<p class="muted small">Lớp đang bị vô hiệu hoá – kích hoạt lại trước khi thêm giáo viên.</p>'}
+    <p class="muted small">Giáo viên của lớp thấy mọi kỳ thi gắn lớp này (cùng với kỳ thi mình phụ trách). Bỏ khỏi lớp: mất quyền ngay ở thao tác kế tiếp.
+      "Môn dạy" không sửa trên web.</p>
+    <button type="button" id="gvl-dong">Đóng</button>`;
+  $("#gvl-dong").addEventListener("click", () => { k.innerHTML = ""; k.classList.add("hidden"); });
+  const f = $("#f-them-gv");
+  if (f) f.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try { await api(`/admin/classes/${l.class_id}/teachers/${$("#them-gv").value}`, { method: "PUT" }); toast("Đã thêm giáo viên vào lớp."); await qtLop(); await qtGiaoVienLop(l); }
+    catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  });
+  k.querySelectorAll("[data-bo-gv]").forEach((b) => b.addEventListener("click", async () => {
+    if (!confirm("Bỏ giáo viên này khỏi lớp? Họ mất quyền xem kỳ thi của lớp (trừ kỳ thi họ phụ trách).")) return;
+    try { await api(`/admin/classes/${l.class_id}/teachers/${b.dataset.boGv}`, { method: "DELETE" }); toast("Đã bỏ khỏi lớp."); await qtLop(); await qtGiaoVienLop(l); }
+    catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  }));
+  k.scrollIntoView({ block: "nearest" });
 }
+/* Ô tick lớp: lớp đang hoạt động tick tự do; lớp vô hiệu hoá chỉ hiện nếu đã gán (bỏ tick được, không tick mới được). */
+function oTickLop(lops, daCo) {
+  const hien = lops.filter((l) => l.is_active || daCo.has(l.class_id));
+  return hien.length ? `<div class="tick-lop">${hien.map((l) => `<label class="small"><input type="checkbox" name="lop" value="${l.class_id}"
+      ${daCo.has(l.class_id) ? "checked" : ""} ${!l.is_active && !daCo.has(l.class_id) ? "disabled" : ""}> ${esc(l.class_code)}${l.is_active ? "" : " (vô hiệu)"}</label>`).join(" ")}</div>`
+    : '<p class="muted small">Chưa có lớp nào – tạo ở thẻ Lớp học.</p>';
+}
+const lopDaTick = (goc) => [...goc.querySelectorAll('input[name="lop"]:checked')].map((x) => Number(x.value));
 
 /* ------------------------------------------------------------------ kỳ thi */
 async function qtKyThi() {
@@ -166,13 +203,14 @@ function matKhauNgauNhien() {
   return [...so].map((x) => bang[x % bang.length]).join("");
 }
 async function qtTaiKhoan() {
-  const ds = await api("/admin/users");
+  const [ds, lops] = await Promise.all([api("/admin/users"), api("/admin/classes")]);
   const qt = $("#qt");
   qt.innerHTML = `<div class="card"><h3>Tạo tài khoản giáo viên</h3><form id="f-qt-tk" class="formcol" autocomplete="off">
       <div class="row"><label>Tên đăng nhập<input id="tk-user" required minlength="3" maxlength="50" pattern="[A-Za-z0-9._\\-]+" autocomplete="off"></label>
         <label>Họ tên<input id="tk-ten" required maxlength="150"></label><label>Email (tuỳ chọn)<input id="tk-mail" maxlength="255"></label></div>
       <div class="row"><label>Mật khẩu ban đầu (≥ 8 ký tự)<input id="tk-mk" type="password" required minlength="8" autocomplete="new-password"></label>
         <button type="button" id="tk-sinh">Sinh ngẫu nhiên</button><label class="small"><input type="checkbox" id="tk-hien"> hiện</label></div>
+      <div id="tk-lop"><span class="small">Lớp (tuỳ chọn, tick nhiều lớp):</span> ${oTickLop(lops, new Set())}</div>
       <p class="muted small">Đưa mật khẩu ban đầu cho giáo viên qua kênh riêng; giáo viên đổi ngay ở trang Hồ sơ. Hệ thống không lưu / không hiện lại mật khẩu.</p>
       <button class="pri" type="submit">Tạo tài khoản</button></form></div>
     <div class="card" id="tk-khung"></div>
@@ -181,7 +219,8 @@ async function qtTaiKhoan() {
       ${ds.map((u) => `<tr><td>${esc(u.username)}</td><td>${esc(u.full_name)}</td><td>${esc(NHAN_VAI_TRO[u.role] || u.role)}</td>
         <td>${u.is_active ? '<span class="tag ok">hoạt động</span>' : '<span class="tag bad">vô hiệu hoá</span>'}</td><td>${esc(u.lop || "–")}</td><td>${u.so_ky_thi}</td>
         <td class="small">${u.last_login_at ? esc(new Date(u.last_login_at).toLocaleString("vi-VN")) : "chưa"}</td>
-        <td class="nowrap">${u.role === "teacher" ? `<button type="button" data-kt="${u.user_id}">Kỳ thi</button>
+        <td class="nowrap">${u.role === "teacher" ? `<button type="button" data-lop-tk="${u.user_id}">Lớp</button>
+          <button type="button" data-kt="${u.user_id}">Kỳ thi</button>
           <button type="button" data-mk="${u.user_id}">Đặt lại mật khẩu</button>
           <button type="button" data-hd="${u.user_id}" data-bat="${u.is_active ? "0" : "1"}" class="${u.is_active ? "bad" : ""}">${u.is_active ? "Vô hiệu hoá" : "Kích hoạt lại"}</button>`
           : '<span class="muted small">quản lý bằng backend.tai_khoan</span>'}</td></tr>`).join("")}
@@ -193,7 +232,7 @@ async function qtTaiKhoan() {
     ev.preventDefault();
     try {
       const u = await post("/admin/users", { username: $("#tk-user").value.trim(), full_name: $("#tk-ten").value.trim(),
-        email: $("#tk-mail").value.trim() || null, password: $("#tk-mk").value });
+        email: $("#tk-mail").value.trim() || null, password: $("#tk-mk").value, class_ids: lopDaTick($("#tk-lop")) });
       $("#tk-mk").value = ""; toast(`Đã tạo tài khoản ${u.username}.`); await qtTaiKhoan();
     } catch (e) { if (!e.dangNhap) toast(e.message, true); }
   });
@@ -206,6 +245,23 @@ async function qtTaiKhoan() {
   }));
   qt.querySelectorAll("[data-mk]").forEach((b) => b.addEventListener("click", () => qtDatLaiMatKhau(tim(b.dataset.mk))));
   qt.querySelectorAll("[data-kt]").forEach((b) => b.addEventListener("click", () => qtKyThiCuaGv(tim(b.dataset.kt)).catch((e) => toast(e.message, true))));
+  qt.querySelectorAll("[data-lop-tk]").forEach((b) => b.addEventListener("click", () => qtLopCuaGv(tim(b.dataset.lopTk), lops).catch((e) => toast(e.message, true))));
+}
+async function qtLopCuaGv(u, lops) {
+  const ds = await api(`/admin/users/${u.user_id}/classes`);
+  const k = $("#tk-khung");
+  k.classList.remove("hidden");
+  k.innerHTML = `<h3>Lớp của ${esc(u.full_name)} (${esc(u.username)})</h3><form id="f-lop-gv" class="formcol">
+      ${oTickLop(lops, new Set(ds.map((l) => l.class_id)))}
+      <p class="muted small">Tick / bỏ tick rồi Lưu. Bỏ tick: giáo viên mất quyền xem kỳ thi của lớp đó ngay ở thao tác kế tiếp (trừ kỳ thi họ phụ trách).</p>
+      <div class="row"><button class="pri" type="submit">Lưu</button><button type="button" id="lgv-huy">Huỷ</button></div></form>`;
+  $("#lgv-huy").addEventListener("click", () => { k.innerHTML = ""; k.classList.add("hidden"); });
+  $("#f-lop-gv").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    try { await put(`/admin/users/${u.user_id}/classes`, { class_ids: lopDaTick($("#f-lop-gv")) }); toast("Đã lưu lớp."); await qtTaiKhoan(); }
+    catch (e) { if (!e.dangNhap) toast(e.message, true); }
+  });
+  k.scrollIntoView({ block: "nearest" });
 }
 function qtDatLaiMatKhau(u) {
   const k = $("#tk-khung");

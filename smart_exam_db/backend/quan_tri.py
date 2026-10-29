@@ -126,8 +126,10 @@ def _mat_khau_hop_le(mat_khau: str) -> None:
         raise DuLieuSai(loi)                                  # thông báo KHÔNG chứa mật khẩu
 
 
-def tao_giao_vien(conn, nd: NguoiDung, username: str, full_name: str, email: str | None, mat_khau: str) -> dict:
-    """Tài khoản vai trò teacher (không tạo admin / sinh viên qua web). Mật khẩu băm scrypt (auth.bam_mat_khau); không trả / không log mật khẩu."""
+def tao_giao_vien(conn, nd: NguoiDung, username: str, full_name: str, email: str | None, mat_khau: str,
+                  class_ids: list[int] | None = None) -> dict:
+    """Tài khoản vai trò teacher (không tạo admin / sinh viên qua web). Mật khẩu băm scrypt (auth.bam_mat_khau); không trả / không log mật khẩu.
+    class_ids (lệnh I): gán luôn các lớp (đang hoạt động) lúc tạo – lỗi lớp thì cả yêu cầu ROLLBACK (không còn tài khoản dở dang)."""
     username, full_name = username.strip(), full_name.strip()
     if not TEN_DANG_NHAP_RE.match(username):
         raise DuLieuSai("Tên đăng nhập 3–50 ký tự, chỉ gồm chữ không dấu, số, dấu chấm, gạch dưới, gạch ngang.")
@@ -141,9 +143,16 @@ def tao_giao_vien(conn, nd: NguoiDung, username: str, full_name: str, email: str
         raise XungDot("Tên đăng nhập đã được dùng.")
     if conn.execute("SELECT 1 FROM users WHERE lower(email) = lower(%s)", (email,)).fetchone():
         raise XungDot("Email đã được dùng cho tài khoản khác.")
+    if class_ids:                                           # kiểm lớp TRƯỚC khi ghi tài khoản (không để tài khoản dở dang)
+        hop_le = {r["class_id"] for r in conn.execute("SELECT class_id FROM classes WHERE class_id = ANY(%s) AND is_active",
+                                                      (list(set(class_ids)),)).fetchall()}
+        if set(class_ids) - hop_le:
+            raise DuLieuSai(f"Lớp không tồn tại hoặc đã bị vô hiệu hoá: {', '.join(map(str, sorted(set(class_ids) - hop_le)))}.")
     uid = conn.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (%s, %s, %s, %s, 'teacher') RETURNING user_id",
                        (username, email, auth.bam_mat_khau(mat_khau), full_name)).fetchone()["user_id"]
     log.info("Quản trị %s tạo tài khoản giáo viên %s (user_id %s)", nd.username, username, uid)
+    if class_ids:
+        dat_lop_cho_giao_vien(conn, nd, uid, class_ids)
     return _mot_tai_khoan(conn, uid)
 
 
@@ -278,6 +287,65 @@ def lop_dang_hoat_dong(conn, class_id: int) -> dict:
     if not l["is_active"]:
         raise DuLieuSai(f"Lớp {l['class_code']} đã bị vô hiệu hoá – kích hoạt lại trước khi dùng.")
     return l
+
+
+# ------------------------------------------------------------------------------------------------ giáo viên – lớp (nhiều – nhiều, teacher_classes)
+# Quyền theo lớp tính lại MỖI yêu cầu từ teacher_classes (phan_quyen.py) -> thêm / bỏ gán có hiệu lực ở lần gọi kế tiếp.
+# subject_id ("Môn tôi dạy") KHÔNG nhập được từ web: dòng giữ nguyên khi đặt lại danh sách lớp; dòng mới để NULL.
+def giao_vien_cua_lop(conn, class_id: int) -> list[dict]:
+    mot_lop(conn, class_id)
+    return conn.execute("SELECT u.user_id, u.username, u.full_name, u.is_active, sj.subject_code, tc.assigned_at "
+                        "FROM teacher_classes tc JOIN users u ON u.user_id = tc.user_id LEFT JOIN subjects sj ON sj.subject_id = tc.subject_id "
+                        "WHERE tc.class_id = %s ORDER BY lower(u.username)", (class_id,)).fetchall()
+
+
+def them_giao_vien_vao_lop(conn, nd: NguoiDung, class_id: int, user_id: int) -> list[dict]:
+    l = lop_dang_hoat_dong(conn, class_id)
+    u = giao_vien_hop_le(conn, user_id)
+    conn.execute("INSERT INTO teacher_classes (user_id, class_id) VALUES (%s, %s) ON CONFLICT (user_id, class_id) DO NOTHING", (user_id, class_id))
+    log.info("Quản trị %s gán %s vào lớp %s", nd.username, u["username"], l["class_code"])
+    return giao_vien_cua_lop(conn, class_id)
+
+
+def bo_giao_vien_khoi_lop(conn, nd: NguoiDung, class_id: int, user_id: int) -> list[dict]:
+    l = mot_lop(conn, class_id)
+    n = conn.execute("DELETE FROM teacher_classes WHERE class_id = %s AND user_id = %s", (class_id, user_id)).rowcount
+    if not n:
+        raise KhongTimThay(f"Giáo viên {user_id} không thuộc lớp {l['class_code']}.")
+    log.info("Quản trị %s bỏ user_id %s khỏi lớp %s", nd.username, user_id, l["class_code"])
+    return giao_vien_cua_lop(conn, class_id)
+
+
+def lop_cua_giao_vien(conn, user_id: int) -> list[dict]:
+    _giao_vien(conn, user_id)
+    return conn.execute("SELECT c.class_id, c.class_code, c.class_name, c.academic_year, c.is_active, sj.subject_code "
+                        "FROM teacher_classes tc JOIN classes c ON c.class_id = tc.class_id LEFT JOIN subjects sj ON sj.subject_id = tc.subject_id "
+                        "WHERE tc.user_id = %s ORDER BY c.class_code", (user_id,)).fetchall()
+
+
+def dat_lop_cho_giao_vien(conn, nd: NguoiDung, user_id: int, class_ids: list[int]) -> list[dict]:
+    """Đặt ĐÚNG danh sách lớp của giáo viên (tick nhiều lớp). Lớp THÊM mới phải đang hoạt động và giáo viên phải đang hoạt động;
+    lớp giữ lại không đổi (giữ môn); lớp bỏ đi bị xoá khỏi teacher_classes. Id lớp không tồn tại -> 422, không đổi gì."""
+    u = _giao_vien(conn, user_id)
+    muon = set(class_ids)
+    co = {r["class_id"]: r for r in conn.execute("SELECT class_id, class_code, is_active FROM classes WHERE class_id = ANY(%s)", (list(muon),)).fetchall()}
+    thieu = sorted(muon - set(co))
+    if thieu:
+        raise DuLieuSai(f"Không có lớp: {', '.join(map(str, thieu))}.")
+    dang = {r["class_id"] for r in conn.execute("SELECT class_id FROM teacher_classes WHERE user_id = %s", (user_id,)).fetchall()}
+    them, bo = muon - dang, dang - muon
+    if them and not u["is_active"]:
+        raise DuLieuSai("Tài khoản đang bị vô hiệu hoá – kích hoạt lại trước khi gán lớp.")
+    tat = sorted(co[c]["class_code"] for c in them if not co[c]["is_active"])
+    if tat:
+        raise DuLieuSai(f"Lớp đã bị vô hiệu hoá, không gán thêm được: {', '.join(tat)}.")
+    if bo:
+        conn.execute("DELETE FROM teacher_classes WHERE user_id = %s AND class_id = ANY(%s)", (user_id, list(bo)))
+    for c in sorted(them):
+        conn.execute("INSERT INTO teacher_classes (user_id, class_id) VALUES (%s, %s)", (user_id, c))
+    if them or bo:
+        log.info("Quản trị %s đặt lớp cho %s: thêm %s, bỏ %s", nd.username, u["username"], sorted(them), sorted(bo))
+    return lop_cua_giao_vien(conn, user_id)
 
 
 def kiem_dang_mo(conn, exam_id: int) -> None:

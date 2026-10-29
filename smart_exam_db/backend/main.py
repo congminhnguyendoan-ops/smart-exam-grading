@@ -442,7 +442,7 @@ def qt_ds_tai_khoan(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_adm
 @app.post("/admin/users", status_code=201, response_model=schemas.TaiKhoan, tags=["Quản trị"], summary="Tạo tài khoản giáo viên")
 def qt_tao_tai_khoan(body: schemas.TaiKhoanMoi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     """Vai trò luôn là teacher. Mật khẩu băm scrypt; phản hồi / nhật ký không bao giờ chứa mật khẩu. Trùng tên / email -> 409."""
-    return quan_tri.tao_giao_vien(conn, nd, body.username, body.full_name, body.email, body.password)
+    return quan_tri.tao_giao_vien(conn, nd, body.username, body.full_name, body.email, body.password, body.class_ids)
 
 
 @app.post("/admin/users/{user_id}/password", status_code=204, tags=["Quản trị"], summary="Đặt lại mật khẩu giáo viên")
@@ -499,6 +499,36 @@ def qt_trang_thai_lop(class_id: int, body: schemas.KichHoatLop, conn=Depends(get
 def qt_xoa_lop(class_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     quan_tri.xoa_lop(conn, nd, class_id)
     return Response(status_code=204)
+
+
+@app.get("/admin/classes/{class_id}/teachers", response_model=list[schemas.GiaoVienCuaLop], tags=["Quản trị"], summary="Giáo viên của lớp")
+def qt_gv_cua_lop(class_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.giao_vien_cua_lop(conn, class_id)
+
+
+@app.put("/admin/classes/{class_id}/teachers/{user_id}", response_model=list[schemas.GiaoVienCuaLop], tags=["Quản trị"],
+         summary="Thêm giáo viên (đang hoạt động) vào lớp (đang hoạt động)")
+def qt_them_gv_vao_lop(class_id: int, user_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    """Một giáo viên nhiều lớp, một lớp nhiều giáo viên. Có hiệu lực ở lần gọi kế tiếp của giáo viên."""
+    return quan_tri.them_giao_vien_vao_lop(conn, nd, class_id, user_id)
+
+
+@app.delete("/admin/classes/{class_id}/teachers/{user_id}", response_model=list[schemas.GiaoVienCuaLop], tags=["Quản trị"],
+            summary="Bỏ giáo viên khỏi lớp (mất quyền theo lớp ngay ở lần gọi kế tiếp)")
+def qt_bo_gv_khoi_lop(class_id: int, user_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.bo_giao_vien_khoi_lop(conn, nd, class_id, user_id)
+
+
+@app.get("/admin/users/{user_id}/classes", response_model=list[schemas.LopCuaGiaoVienQT], tags=["Quản trị"], summary="Lớp của giáo viên")
+def qt_lop_cua_gv(user_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.lop_cua_giao_vien(conn, user_id)
+
+
+@app.put("/admin/users/{user_id}/classes", response_model=list[schemas.LopCuaGiaoVienQT], tags=["Quản trị"],
+         summary="Đặt danh sách lớp của giáo viên (tick nhiều lớp)")
+def qt_dat_lop_cho_gv(user_id: int, body: schemas.DatLop, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    """Lớp thêm mới phải đang hoạt động; lớp giữ lại giữ nguyên môn dạy; id lớp không có -> 422 (không đổi gì)."""
+    return quan_tri.dat_lop_cho_giao_vien(conn, nd, user_id, body.class_ids)
 
 
 # ------------------------------------------------------------------------------------------------ giao diện (HTML + JS thuần)

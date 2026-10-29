@@ -130,6 +130,7 @@ class TaiKhoanMoi(BaseModel):
     full_name: str
     email: str | None = Field(default=None, description="Bỏ trống = <username>@smartexam.local")
     password: str = Field(description="Mật khẩu ban đầu, tối thiểu 8 ký tự – giáo viên nên đổi ở trang Hồ sơ")
+    class_ids: list[int] = Field(default_factory=list, max_length=200, description="Gán luôn các lớp (đang hoạt động) lúc tạo")
 
 
 class DatMatKhau(BaseModel):
@@ -165,6 +166,28 @@ class SuaLop(BaseModel):
 
 class KichHoatLop(BaseModel):
     is_active: bool = Field(description="false = vô hiệu hoá (không chọn được cho kỳ thi / gán giáo viên mới)")
+
+
+class GiaoVienCuaLop(BaseModel):
+    user_id: int
+    username: str
+    full_name: str
+    is_active: bool
+    subject_code: str | None = Field(description="Môn dạy ở lớp này (chỉ đặt bằng công cụ / SQL; web không sửa)")
+    assigned_at: datetime | None
+
+
+class LopCuaGiaoVienQT(BaseModel):
+    class_id: int
+    class_code: str
+    class_name: str
+    academic_year: str | None
+    is_active: bool
+    subject_code: str | None
+
+
+class DatLop(BaseModel):
+    class_ids: list[int] = Field(max_length=200, description="ĐÚNG danh sách lớp của giáo viên sau khi lưu (rỗng = bỏ mọi lớp)")
 
 
 class KyThiCuaGiaoVien(BaseModel):
