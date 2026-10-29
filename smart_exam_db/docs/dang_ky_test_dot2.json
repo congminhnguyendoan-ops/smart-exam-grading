@@ -70,7 +70,12 @@
   "chạy MỘT LẦN; có lỗi thì ghi nguyên trạng, không chỉnh mã rồi đo lại; đổi mã về sau => đợt 2 thành dev, thu đợt 3"
  ],
  "lenh_chay_that": "python tools/eval_dot2.py run --xac-nhan-dot2 --xem (chỉ khi người dùng gõ 'chạy test đợt 2')",
- "bo_sung": {},
+ "bo_sung": {
+  "ground_truth_dot2_da_sua.csv": "0a262f754e372d7c5504b654ca8cef11e63d96088dedd88381ec01892484af4e",
+  "cell_labels_dot2_da_sua.csv": "c3766560618decf8bd043de5914d70ff986c791ff44c2eaa7f9a443090f12174",
+  "sua_nhan.csv": "743d8855cb8cfb1185bdda0ddf95bf69f0676b91cc762899eee7cf1d7355c459",
+  "ghi_chu": "Sửa nhãn 0103 theo giấy thật (docs/sai_lech_dot2.md trên cai-tien-b): sbd_bubble 183954 -> 183354, q3 - -> B, q5 B -> C. Nhóm khai 29/10/2026; người dùng xác nhận trên giấy thật 29/10/2026, TRƯỚC khi máy đọc ảnh đợt 2. data/dot2/sua_nhan.csv -> tools/eval_dot2.py ap-dung-sua."
+ },
  "tai_lieu_tham_khao_sha256": {
   "smart_exam_db/docs/ke_hoach_test_dot2.md": "0815421e3f2253d7cedae0c98a4f21738826381d45b9bbb5d12856ef88bf1f1d",
   "ghi_chu": "chỉ để đối chiếu, KHÔNG ép khi chạy (docs/ được phép đổi sau đăng ký, ví dụ ghi kết quả)"
