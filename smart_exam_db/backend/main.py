@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from urllib.parse import quote
 
-from . import auth, bang_diem, don_anh, loi_khuyen, mang, nguoi_dung, phan_quyen, phieu_trung, schemas, service
+from . import auth, bang_diem, don_anh, loi_khuyen, mang, nguoi_dung, phan_quyen, phieu_trung, quan_tri, schemas, service
 from .config import CauHinh, LoiCauHinh, lay_cau_hinh
 from .db import ket_noi
 
@@ -85,6 +85,13 @@ def giao_vien(nd: auth.NguoiDung = Depends(get_nguoi_dung)) -> auth.NguoiDung:
     return nd
 
 
+def chi_admin(nd: auth.NguoiDung = Depends(get_nguoi_dung)) -> auth.NguoiDung:
+    """API quản trị (/admin/...): CHỈ vai trò admin – giáo viên / sinh viên -> 403 (kể cả AUTH_MODE=demo: X-User phải là admin)."""
+    if nd.role != "admin":
+        raise nguoi_dung.KhongCoQuyen("Chỉ quản trị viên dùng được chức năng này.")
+    return nd
+
+
 @app.exception_handler(service.LoiDichVu)
 def _loi_dich_vu(_: Request, e: service.LoiDichVu):
     return JSONResponse({"detail": str(e)}, status_code=e.ma_http)
@@ -133,7 +140,10 @@ def ket_noi_dien_thoai(request: Request, cfg: CauHinh = Depends(get_cau_hinh), n
 # ------------------------------------------------------------------------------------------------ đề thi
 @app.post("/exams", status_code=201, response_model=schemas.KyThiTao, tags=["Đề thi"], summary="Tạo kỳ thi + mã đề + đáp án")
 def tao_ky_thi(body: schemas.KyThiMoi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
-    """`class_id` / `class_code` tuỳ chọn: phải là lớp ĐÃ CÓ và thuộc lớp bạn phụ trách (admin: bất kỳ); không tự tạo lớp."""
+    """CHỈ quản trị viên (lệnh H, 29/10/2026): giáo viên không tự tạo kỳ thi -> 403; admin tạo + gán giáo viên phụ trách ở POST /admin/exams.
+    (AUTH_MODE=demo giữ hành vi cũ cho công cụ / test cũ.) `class_id` / `class_code` tuỳ chọn: phải là lớp ĐÃ CÓ; không tự tạo lớp."""
+    if not nd.demo and not nd.la_admin:
+        raise nguoi_dung.KhongCoQuyen("Giáo viên không tự tạo kỳ thi – nhờ quản trị viên tạo (trang Quản trị) và gán bạn phụ trách.")
     d = body.model_dump()
     d["class_id"] = phan_quyen.giai_lop_cho_ky_thi(conn, nd, body.class_id, body.class_code)
     return {"exam_id": service.tao_ky_thi(conn, d, nd.user_id)}
@@ -164,8 +174,10 @@ def _tom_tat_tai(conn, sheet_id: int, da_ton_tai: bool) -> dict:
           summary="Tải MỘT ảnh phiếu và chấm ngay")
 def tai_mot_anh(exam_id: int, file: UploadFile = File(description="Ảnh phiếu (JPG / PNG / HEIC)"), conn=Depends(get_conn),
                 cfg: CauHinh = Depends(get_cau_hinh), mh=Depends(get_mo_hinh), nd: auth.NguoiDung = Depends(giao_vien)):
-    """Ảnh không dùng được (mờ, thiếu marker, ...) vẫn trả 201 với `status = rejected` + `reject_code` + thông báo – không có điểm."""
+    """Ảnh không dùng được (mờ, thiếu marker, ...) vẫn trả 201 với `status = rejected` + `reject_code` + thông báo – không có điểm.
+    Kỳ thi đã đóng (quản trị viên đóng) -> 409, không nhận ảnh."""
     phan_quyen.kiem_ky_thi(conn, nd, exam_id)
+    quan_tri.kiem_dang_mo(conn, exam_id)
     sheet_id, da_co = service.nhan_anh(conn, cfg, mh, exam_id, file.file.read(), file.filename, nd.user_id)
     return _tom_tat_tai(conn, sheet_id, da_co)
 
@@ -179,6 +191,7 @@ def tai_nhieu_anh(exam_id: int, files: list[UploadFile] = File(description="Nhi�
     phan_quyen.kiem_ky_thi(conn, nd, exam_id)
     if not conn.execute("SELECT 1 FROM exams WHERE exam_id = %s", (exam_id,)).fetchone():
         raise service.KhongTimThay(f"Không có kỳ thi {exam_id}.")
+    quan_tri.kiem_dang_mo(conn, exam_id)
     batch_id = conn.execute("INSERT INTO scan_batches (exam_id, uploaded_by, total_sheets) VALUES (%s, %s, %s) RETURNING batch_id",
                             (exam_id, user_id, len(files))).fetchone()["batch_id"]
     ket_qua = []
@@ -359,6 +372,46 @@ def sinh_vien_lop(class_id: int, q: str | None = Query(default=None, max_length=
     phan_quyen.kiem_lop(conn, nd, class_id)
     r = nguoi_dung.sinh_vien_lop(conn, class_id, q, page, page_size)
     return {"lop": r["class"], "tong": r["tong"], "trang": r["trang"], "co_trang": r["co_trang"], "sinh_vien": r["sinh_vien"]}
+
+
+# ------------------------------------------------------------------------------------------------ quản trị (chỉ admin)
+@app.get("/admin/exams", response_model=list[schemas.KyThiQuanTri], tags=["Quản trị"], summary="Mọi kỳ thi (kèm giáo viên phụ trách, trạng thái)")
+def qt_ds_ky_thi(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.ds_ky_thi(conn)
+
+
+@app.post("/admin/exams", status_code=201, response_model=schemas.KyThiQuanTri, tags=["Quản trị"],
+          summary="Tạo kỳ thi + mã đề + đáp án, gán giáo viên phụ trách")
+def qt_tao_ky_thi(body: schemas.KyThiQuanTriMoi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    """Cùng quy tắc kiểm đáp án với POST /exams. `teacher_user_id`: giáo viên phụ trách (thấy và chụp phiếu cho kỳ thi này)."""
+    d = body.model_dump(exclude={"teacher_user_id"})
+    d["class_id"] = phan_quyen.giai_lop_cho_ky_thi(conn, nd, body.class_id, body.class_code)
+    return quan_tri.mot_ky_thi(conn, quan_tri.tao_ky_thi_qt(conn, nd, d, body.teacher_user_id))
+
+
+@app.patch("/admin/exams/{exam_id}", response_model=schemas.KyThiQuanTri, tags=["Quản trị"], summary="Sửa tên / ngày thi")
+def qt_sua_ky_thi(exam_id: int, body: schemas.SuaKyThi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    """Chỉ sửa trường có gửi; `exam_date: null` xoá ngày. Không đổi đáp án (đáp án sửa sau khi đã có phiếu là nợ kỹ thuật – cần chấm lại)."""
+    return quan_tri.sua_ky_thi(conn, exam_id, {k: getattr(body, k) for k in body.model_fields_set})
+
+
+@app.post("/admin/exams/{exam_id}/status", response_model=schemas.KyThiQuanTri, tags=["Quản trị"], summary="Đóng / mở lại kỳ thi")
+def qt_dong_mo(exam_id: int, body: schemas.DongMoKyThi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    """Đóng: không nhận ảnh mới (409 khi tải). Duyệt phiếu, bảng điểm, Excel vẫn dùng được."""
+    return quan_tri.dat_dong_mo(conn, exam_id, body.closed)
+
+
+@app.delete("/admin/exams/{exam_id}", status_code=204, tags=["Quản trị"], summary="Xoá kỳ thi CHƯA có phiếu")
+def qt_xoa_ky_thi(exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    """Đã có phiếu / lô tải / kết quả -> 409 (chỉ đóng được)."""
+    quan_tri.xoa_ky_thi(conn, exam_id)
+    log.info("Quản trị %s xoá kỳ thi %s (chưa có phiếu)", nd.username, exam_id)
+    return Response(status_code=204)
+
+
+@app.get("/admin/users", response_model=list[schemas.TaiKhoan], tags=["Quản trị"], summary="Tài khoản admin + giáo viên")
+def qt_ds_tai_khoan(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    return quan_tri.ds_tai_khoan(conn)
 
 
 # ------------------------------------------------------------------------------------------------ giao diện (HTML + JS thuần)

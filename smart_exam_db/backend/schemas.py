@@ -52,6 +52,7 @@ class KyThiOut(BaseModel):
     num_questions: int
     max_score: float
     pass_score: float
+    status: str | None = Field(default=None, description="draft | published | grading | closed (closed = đã đóng, không nhận ảnh mới)")
     codes: list[MaDeOut]
     sheets: SoPhieu
 
@@ -68,10 +69,58 @@ class KyThiTomTat(BaseModel):
     max_score: float
     exam_date: date | None
     so_phieu: int
+    status: str | None = Field(default=None, description="closed = đã đóng (không nhận ảnh mới)")
 
 
 class KyThiTao(BaseModel):
     exam_id: int
+
+
+# ------------------------------------------------------------------------------------------------ quản trị (chỉ admin)
+class KyThiQuanTriMoi(KyThiMoi):
+    teacher_user_id: int | None = Field(default=None, description="Giáo viên phụ trách (tài khoản teacher đang hoạt động); bỏ trống = chính admin")
+
+
+class SuaKyThi(BaseModel):
+    exam_title: str | None = Field(default=None, min_length=3, max_length=200)
+    exam_date: date | None = Field(default=None, description="Gửi null để xoá ngày thi")
+
+
+class DongMoKyThi(BaseModel):
+    closed: bool = Field(description="true = đóng (không nhận ảnh mới), false = mở lại")
+
+
+class KyThiQuanTri(BaseModel):
+    exam_id: int
+    exam_title: str
+    exam_date: date | None
+    status: str
+    num_questions: int
+    subject_code: str
+    subject_name: str
+    class_id: int | None
+    class_code: str | None
+    class_name: str | None
+    teacher_user_id: int
+    teacher_username: str
+    teacher_name: str
+    teacher_role: str
+    so_phieu: int
+    ma_de: str | None
+
+
+class TaiKhoan(BaseModel):
+    """Tài khoản cho trang quản trị – KHÔNG bao giờ có mật khẩu / hash."""
+    user_id: int
+    username: str
+    full_name: str
+    email: str
+    role: Literal["admin", "teacher", "student"]
+    is_active: bool
+    last_login_at: datetime | None
+    created_at: datetime | None
+    so_ky_thi: int = Field(description="Số kỳ thi đang phụ trách (exams.created_by)")
+    lop: str | None = Field(description="Các lớp được gán (teacher_classes)")
 
 
 # ------------------------------------------------------------------------------------------------ phiếu

@@ -164,8 +164,10 @@ def gv_ky_thi(client_on, bang_moi):
     lop = tao_lop(bang_moi)
     gan(bang_moi, uid, lop["id"])
     h = dn(client_on, u)
-    r = client_on.post("/exams", headers=h, json={"exam_title": "Đề thử điện thoại", "subject_code": "TDT1", "subject_name": "Môn thử", "num_questions": 40,
-                                                  "class_id": lop["id"], "codes": [{"code": m, "answers": "ABCD" * 10} for m in ("101", "102", "103", "104")]})
+    ad, _ = tao_user(bang_moi, vai_tro="admin")                       # lệnh H: kỳ thi do admin tạo, gán giáo viên phụ trách
+    r = client_on.post("/admin/exams", headers=dn(client_on, ad), json={"exam_title": "Đề thử điện thoại", "subject_code": "TDT1", "subject_name": "Môn thử",
+                                                                        "num_questions": 40, "class_id": lop["id"], "teacher_user_id": uid,
+                                                                        "codes": [{"code": m, "answers": "ABCD" * 10} for m in ("101", "102", "103", "104")]})
     assert r.status_code == 201, r.text
     return h, r.json()["exam_id"]
 

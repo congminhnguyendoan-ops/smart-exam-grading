@@ -88,7 +88,7 @@ async function napChiTietKyThi() {
   if (e) lamMoiNhanKyThi(e);
   $("#exam-name").textContent = e ? e.exam_title : "";
   $("#exam-select").title = e ? `${e.subject_name} – ${e.class_code || "không lớp"} – ${e.exam_title}` : "";
-  $("#exam-info").textContent = e ? `Môn ${e.subject_name} · lớp ${e.class_code || "(không gắn lớp)"} · ${e.num_questions} câu · ${e.max_score} điểm · mã đề ${e.codes.map((c) => c.code).join(", ")} · ` +
+  $("#exam-info").textContent = e ? `${e.status === "closed" ? "ĐÃ ĐÓNG (không nhận ảnh mới) · " : ""}Môn ${e.subject_name} · lớp ${e.class_code || "(không gắn lớp)"} · ${e.num_questions} câu · ${e.max_score} điểm · mã đề ${e.codes.map((c) => c.code).join(", ")} · ` +
     `${e.sheets.tong} phiếu (${e.sheets.da_cham} chính thức, ${e.sheets.can_xem} cần xem, ${e.sheets.bi_tu_choi} từ chối)` : "Chưa có kỳ thi.";
   const n = $("#nav-count");
   n.textContent = e ? e.sheets.can_xem : ""; n.classList.toggle("hidden", !e || !e.sheets.can_xem);
@@ -115,6 +115,7 @@ async function route() {
     else if (r === "results") await manBangDiem();
     else if (r === "classes") { if (id) await manSinhVienLop(Number(id)); else await manLop(); }
     else if (r === "profile") await manHoSo();
+    else if (r === "admin") await manQuanTri(id);
     else main.innerHTML = '<p class="muted">Không có trang này.</p>';
   } catch (e) { if (!e.dangNhap) main.innerHTML = `<div class="alert bad">${esc(e.message)}</div>`; }
 }
@@ -126,6 +127,7 @@ function hienNguoiDung() {
   const me = state.me;
   $("#userbox").classList.toggle("hidden", !me);
   document.body.classList.toggle("logged-out", !me);
+  $("#nav-admin").classList.toggle("hidden", !me || me.role !== "admin");      // chỉ ẩn / hiện – máy chủ vẫn trả 403 cho người không phải admin
   if (me) { $("#u-name").textContent = me.full_name; $("#u-role").textContent = `${NHAN_VAI_TRO[me.role] || me.role} · ${me.username}`; }
 }
 function manDangNhap(thongBao) {

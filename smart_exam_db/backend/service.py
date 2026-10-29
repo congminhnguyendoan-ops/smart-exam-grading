@@ -205,13 +205,13 @@ def doc_ky_thi(conn, exam_id: int) -> dict:
     return {"exam_id": e["exam_id"], "exam_title": e["exam_title"], "subject_code": e["subject_code"],
             "subject_name": e["subject_name"], "class_id": e["class_id"], "class_code": e["class_code"], "class_name": e["class_name"],
             "exam_date": e["exam_date"], "num_questions": e["num_questions"],
-            "max_score": e["max_score"], "pass_score": e["pass_score"], "codes": codes, "sheets": dict(th)}
+            "max_score": e["max_score"], "pass_score": e["pass_score"], "status": str(e["status"]), "codes": codes, "sheets": dict(th)}
 
 
 def ds_ky_thi(conn, dieu_kien: str = "TRUE", tham_so: tuple = ()) -> list[dict]:
     """`dieu_kien` + `tham_so` do phan_quyen.dieu_kien_ky_thi sinh (mệnh đề có tham số, KHÔNG nối dữ liệu người dùng)."""
     return conn.execute(
-        "SELECT e.exam_id, e.exam_title, e.num_questions, e.max_score, e.exam_date, sj.subject_code, sj.subject_name, "
+        "SELECT e.exam_id, e.exam_title, e.num_questions, e.max_score, e.exam_date, e.status::text AS status, sj.subject_code, sj.subject_name, "
         "e.class_id, c.class_code, c.class_name, "
         "(SELECT count(*) FROM answer_sheets a WHERE a.exam_id = e.exam_id) AS so_phieu "
         "FROM exams e JOIN subjects sj ON sj.subject_id = e.subject_id LEFT JOIN classes c ON c.class_id = e.class_id "

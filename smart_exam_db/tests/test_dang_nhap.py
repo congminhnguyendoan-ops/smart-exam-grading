@@ -76,7 +76,8 @@ def dn(client, username, mk=MK) -> dict:
 
 
 def ky_thi(client, h, **them) -> int:
-    r = client.post("/exams", headers=h, json={"exam_title": "Đề thử phân quyền", "subject_code": "T" + uuid.uuid4().hex[:8].upper(),
+    """Có `teacher_user_id` -> admin tạo qua /admin/exams và gán giáo viên phụ trách (lệnh H: giáo viên không tự tạo kỳ thi)."""
+    r = client.post("/admin/exams" if "teacher_user_id" in them else "/exams", headers=h, json={"exam_title": "Đề thử phân quyền", "subject_code": "T" + uuid.uuid4().hex[:8].upper(),
                                                "subject_name": "Môn thử", "num_questions": 10,
                                                "codes": [{"code": "101", "answers": demo.khoa_demo("101", 10)}], **them})
     assert r.status_code == 201, r.text
@@ -102,9 +103,9 @@ def the_gioi(client_on, bang_moi):
     gan(conn, idA, lopA["id"], mon)
     gan(conn, idB, lopB["id"])
     hA, hB, hAd, hSv = dn(c, uA), dn(c, uB), dn(c, uAd), dn(c, uSv)
-    EA = ky_thi(c, hA, class_code=lopA["ma"])
-    EB = ky_thi(c, hB, class_id=lopB["id"])
-    E_cu = ky_thi(c, hA)
+    EA = ky_thi(c, hAd, class_code=lopA["ma"], teacher_user_id=idA)
+    EB = ky_thi(c, hAd, class_id=lopB["id"], teacher_user_id=idB)
+    E_cu = ky_thi(c, hAd, teacher_user_id=idA)
     SA = tai_trang(c, hA, EA).json()["sheet_id"]
     return SimpleNamespace(c=c, conn=conn, lopA=lopA, lopB=lopB, uA=uA, idA=idA, uB=uB, idB=idB, hA=hA, hB=hB, hAd=hAd, hSv=hSv, EA=EA, EB=EB, E_cu=E_cu,
                            SA=SA, mon=mon)
@@ -283,14 +284,14 @@ def test_tao_ky_thi_voi_lop(the_gioi):
     so_lop = g.conn.execute("SELECT count(*) AS n FROM classes").fetchone()["n"]
     body = {"exam_title": "Đề lớp", "subject_code": "TL" + uuid.uuid4().hex[:6].upper(), "num_questions": 10,
             "codes": [{"code": "101", "answers": demo.khoa_demo("101", 10)}]}
-    ok = g.c.post("/exams", headers=g.hA, json={**body, "class_id": g.lopA["id"], "class_code": g.lopA["ma"].lower()})
+    # lệnh H: giáo viên KHÔNG tự tạo kỳ thi (kể cả với lớp của mình) -> 403; quy tắc lớp vẫn áp cho admin
+    for them in ({"class_id": g.lopA["id"]}, {"class_id": g.lopB["id"]}, {"class_code": "KHONG-CO-LOP-NAY"}, {}):
+        assert g.c.post("/exams", headers=g.hA, json={**body, **them}).status_code == 403, them
+    ok = g.c.post("/exams", headers=g.hAd, json={**body, "class_id": g.lopA["id"], "class_code": g.lopA["ma"].lower()})
     assert ok.status_code == 201                                                                  # class_id + class_code cùng lớp (không phân biệt hoa thường)
-    for them in ({"class_id": g.lopB["id"]}, {"class_code": g.lopB["ma"]}):
-        r = g.c.post("/exams", headers=g.hA, json={**body, **them})
-        assert r.status_code == 422 and r.json()["detail"] == MA_LOP_KHONG_DUNG, them
-    r = g.c.post("/exams", headers=g.hA, json={**body, "class_code": "KHONG-CO-LOP-NAY"})
-    assert r.status_code == 422 and r.json()["detail"] == MA_LOP_KHONG_DUNG          # cùng thông báo như lớp của người khác (không dò được mã lớp)
-    assert g.c.post("/exams", headers=g.hA, json={**body, "class_id": g.lopA["id"], "class_code": g.lopB["ma"]}).status_code == 422
+    r = g.c.post("/exams", headers=g.hAd, json={**body, "class_code": "KHONG-CO-LOP-NAY"})
+    assert r.status_code == 422 and r.json()["detail"] == MA_LOP_KHONG_DUNG
+    assert g.c.post("/exams", headers=g.hAd, json={**body, "class_id": g.lopA["id"], "class_code": g.lopB["ma"]}).status_code == 422
     assert g.c.post("/exams", headers=g.hAd, json={**body, "class_id": g.lopB["id"]}).status_code == 201     # admin: lớp bất kỳ
     assert g.conn.execute("SELECT count(*) AS n FROM classes").fetchone()["n"] == so_lop                     # KHÔNG tự tạo lớp
 
