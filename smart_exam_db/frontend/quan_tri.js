@@ -5,6 +5,13 @@
 const NHAN_TT_KY_THI = { closed: ["Đã đóng", "bad"], draft: ["Đang mở", "ok"], published: ["Đang mở", "ok"], grading: ["Đang mở", "ok"] };
 const tagKyThi = (s) => { const [t, c] = NHAN_TT_KY_THI[s] || [s, "gray"]; return `<span class="tag ${c}">${esc(t)}</span>`; };
 
+/* Danh sách chọn lớp cho kỳ thi: lớp đang hoạt động (+ lớp hiện tại của kỳ thi, kể cả khi đã vô hiệu hoá); để trống = không gắn lớp. */
+function chonLopHtml(lops, hienTai) {
+  const ds = lops.filter((l) => l.is_active || l.class_id === hienTai);
+  return `<option value="">(không gắn lớp)</option>` + ds.map((l) => `<option value="${l.class_id}" ${l.class_id === hienTai ? "selected" : ""}>` +
+    `${esc(l.class_code)} – ${esc(l.class_name)}${l.is_active ? "" : " (vô hiệu)"}</option>`).join("");
+}
+
 /* "101: ABCD…" mỗi dòng một mã đề -> [{code, answers}] (bỏ khoảng trắng; máy chủ kiểm độ dài + chữ cái như POST /exams). */
 function docMaDe(txt) {
   return txt.split(/\r?\n/).map((d) => d.trim()).filter(Boolean).map((d) => {
@@ -129,8 +136,9 @@ const lopDaTick = (goc) => [...goc.querySelectorAll('input[name="lop"]:checked')
 
 /* ------------------------------------------------------------------ kỳ thi */
 async function qtKyThi() {
-  const [ds, users] = await Promise.all([api("/admin/exams"), api("/admin/users")]);
+  const [ds, users, lops] = await Promise.all([api("/admin/exams"), api("/admin/users"), api("/admin/classes")]);
   const gv = users.filter((u) => u.role === "teacher" && u.is_active);
+  qtKyThi.lops = lops;
   const qt = $("#qt");
   qt.innerHTML = `<div class="card"><h3>Tạo kỳ thi</h3><form id="f-qt-tao" class="formcol">
       <label>Tên kỳ thi<input id="qt-ten" required minlength="3" maxlength="200"></label>
@@ -138,7 +146,7 @@ async function qtKyThi() {
         <label>Tên môn<input id="qt-ten-mon" maxlength="150" placeholder="Cơ sở dữ liệu"></label>
         <label>Ngày thi<input id="qt-ngay" type="date"></label></div>
       <div class="row"><label>Số câu<input id="qt-so-cau" type="number" min="1" max="40" value="40" required></label>
-        <label>Mã lớp (tuỳ chọn)<input id="qt-lop" maxlength="30" placeholder="CNTT-K22A"></label>
+        <label>Lớp (tuỳ chọn)<select id="qt-lop">${chonLopHtml(lops, null)}</select></label>
         <label>Giáo viên phụ trách<select id="qt-gv"><option value="">(chính tôi – admin)</option>
           ${gv.map((u) => `<option value="${u.user_id}">${esc(u.full_name)} (${esc(u.username)})</option>`).join("")}</select></label></div>
       <label>Đáp án theo mã đề – mỗi dòng một mã đề, dạng <code>101: ABCD…</code> (đủ số câu)
@@ -160,10 +168,10 @@ async function qtKyThi() {
   $("#f-qt-tao").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     try {
-      const lop = $("#qt-lop").value.trim(), gvId = $("#qt-gv").value;
+      const lop = $("#qt-lop").value, gvId = $("#qt-gv").value;
       const e = await post("/admin/exams", { exam_title: $("#qt-ten").value.trim(), subject_code: $("#qt-mon").value.trim(),
         subject_name: $("#qt-ten-mon").value.trim() || null, exam_date: $("#qt-ngay").value || null, num_questions: Number($("#qt-so-cau").value),
-        class_code: lop || null, teacher_user_id: gvId ? Number(gvId) : null, codes: docMaDe($("#qt-dap-an").value) });
+        class_id: lop ? Number(lop) : null, teacher_user_id: gvId ? Number(gvId) : null, codes: docMaDe($("#qt-dap-an").value) });
       toast(`Đã tạo kỳ thi #${e.exam_id}.`); await qtKyThi(); await napKyThi();
     } catch (e) { if (!e.dangNhap) toast(e.message, true); }
   });
@@ -186,11 +194,15 @@ function qtSuaKyThi(e) {
   k.innerHTML = `<h3>Sửa kỳ thi #${e.exam_id}</h3><form id="f-qt-sua" class="formcol">
       <label>Tên kỳ thi<input id="qs-ten" value="${esc(e.exam_title)}" required minlength="3" maxlength="200"></label>
       <label>Ngày thi (để trống = xoá ngày)<input id="qs-ngay" type="date" value="${esc(e.exam_date || "")}"></label>
+      <label>Lớp<select id="qs-lop">${chonLopHtml(qtKyThi.lops || [], e.class_id)}</select></label>
+      <p class="muted small">Đổi lớp: giáo viên của lớp mới thấy kỳ thi, giáo viên của lớp cũ thôi thấy (trừ người phụ trách).</p>
       <div class="row"><button class="pri" type="submit">Lưu</button><button type="button" id="qs-huy">Huỷ</button></div></form>`;
   $("#qs-huy").addEventListener("click", () => k.classList.add("hidden"));
   $("#f-qt-sua").addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    try { await patch(`/admin/exams/${e.exam_id}`, { exam_title: $("#qs-ten").value.trim(), exam_date: $("#qs-ngay").value || null }); toast("Đã lưu."); await qtKyThi(); await napKyThi(); }
+    const lop = $("#qs-lop").value;
+    try { await patch(`/admin/exams/${e.exam_id}`, { exam_title: $("#qs-ten").value.trim(), exam_date: $("#qs-ngay").value || null, class_id: lop ? Number(lop) : null });
+      toast("Đã lưu."); await qtKyThi(); await napKyThi(); }
     catch (er) { if (!er.dangNhap) toast(er.message, true); }
   });
   k.scrollIntoView({ block: "nearest" });

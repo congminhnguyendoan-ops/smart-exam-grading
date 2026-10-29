@@ -52,16 +52,24 @@ def giao_vien_hop_le(conn, user_id: int) -> dict:
 def tao_ky_thi_qt(conn, nd: NguoiDung, d: dict, teacher_user_id: int | None) -> int:
     """d đã qua phan_quyen.giai_lop_cho_ky_thi (class_id). Người phụ trách = giáo viên được chọn, không chọn thì chính admin."""
     chu = giao_vien_hop_le(conn, teacher_user_id)["user_id"] if teacher_user_id is not None else nd.user_id
+    if d.get("class_id") is not None:
+        lop_dang_hoat_dong(conn, d["class_id"])               # lệnh I: kỳ thi mới chỉ gắn lớp đang hoạt động
     exam_id = tao_ky_thi(conn, d, chu)
     log.info("Quản trị %s tạo kỳ thi %s (phụ trách user_id %s)", nd.username, exam_id, chu)
     return exam_id
 
 
 def sua_ky_thi(conn, exam_id: int, thay: dict) -> dict:
-    """thay: chỉ các khoá người dùng gửi – exam_title (3–200 ký tự) và / hoặc exam_date (None = xoá ngày)."""
-    mot_ky_thi(conn, exam_id)
+    """thay: chỉ các khoá người dùng gửi – exam_title (3–200 ký tự), exam_date (None = xoá ngày), class_id (None = bỏ lớp; lớp MỚI phải
+    đang hoạt động). Đổi lớp đổi luôn giáo viên thấy kỳ thi QUA LỚP (người phụ trách giữ nguyên) – hiệu lực ở lần gọi kế tiếp."""
+    e = mot_ky_thi(conn, exam_id)
     if not thay:
-        raise DuLieuSai("Cần exam_title và / hoặc exam_date.")
+        raise DuLieuSai("Cần exam_title, exam_date và / hoặc class_id.")
+    if "class_id" in thay:
+        moi = thay["class_id"]
+        if moi is not None and moi != e["class_id"]:
+            lop_dang_hoat_dong(conn, moi)
+        conn.execute("UPDATE exams SET class_id = %s, updated_at = now() WHERE exam_id = %s", (moi, exam_id))
     if "exam_title" in thay:
         ten = (thay["exam_title"] or "").strip()
         if not 3 <= len(ten) <= 200:

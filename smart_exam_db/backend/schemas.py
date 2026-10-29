@@ -84,6 +84,7 @@ class KyThiQuanTriMoi(KyThiMoi):
 class SuaKyThi(BaseModel):
     exam_title: str | None = Field(default=None, min_length=3, max_length=200)
     exam_date: date | None = Field(default=None, description="Gửi null để xoá ngày thi")
+    class_id: int | None = Field(default=None, description="Lớp của kỳ thi (lớp đang hoạt động); gửi null để bỏ lớp")
 
 
 class DongMoKyThi(BaseModel):
