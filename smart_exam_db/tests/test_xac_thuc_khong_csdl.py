@@ -136,14 +136,25 @@ def test_moi_endpoint_tru_cong_khai_deu_co_xac_thuc():
 def test_moi_endpoint_chi_danh_cho_giao_vien_tru_tai_khoan_ca_nhan():
     """/me, /me (PATCH), /me/password dùng được cho mọi vai trò đã đăng nhập; còn lại: admin / teacher (sinh viên 403)."""
     ca_nhan = {"/me", "/me/password"}
-    sai = [r.path for r in _routes_api() if r.path not in CONG_KHAI | ca_nhan and main.giao_vien not in set(_phu_thuoc(r.dependant))]
+    sai = [r.path for r in _routes_api() if r.path not in CONG_KHAI | ca_nhan and not {main.giao_vien, main.chi_admin} & set(_phu_thuoc(r.dependant))]
     assert not sai, f"endpoint chưa chặn sinh viên: {sai}"
 
 
+def test_moi_endpoint_quan_tri_chi_admin():
+    """Lệnh H: MỌI route /admin/... phụ thuộc chi_admin (giáo viên / sinh viên 403); không route nào khác dùng chi_admin thay cho kiểm quyền đối tượng."""
+    qt = [r for r in _routes_api() if r.path.startswith("/admin/")]
+    assert len(qt) >= 11
+    assert not [r.path for r in qt if main.chi_admin not in set(_phu_thuoc(r.dependant))]
+    assert not [r.path for r in _routes_api() if not r.path.startswith("/admin/") and main.chi_admin in set(_phu_thuoc(r.dependant))]
+
+
 def test_moi_endpoint_theo_id_co_kiem_quyen_doi_tuong():
-    """Mọi route có {exam_id} / {sheet_id} / {class_id} phải gọi phan_quyen.kiem_* trong thân hàm (chống IDOR)."""
+    """Mọi route có {exam_id} / {sheet_id} / {class_id} phải gọi phan_quyen.kiem_* trong thân hàm (chống IDOR).
+    Ngoại lệ: route quản trị (chỉ admin – chi_admin, xem test_moi_endpoint_quan_tri_chi_admin): admin được thấy mọi đối tượng."""
     thieu = []
     for r in _routes_api():
+        if main.chi_admin in set(_phu_thuoc(r.dependant)):
+            continue
         for tham, ham in (("{exam_id}", "kiem_ky_thi"), ("{sheet_id}", "kiem_phieu"), ("{class_id}", "kiem_lop")):
             if tham in r.path and f"phan_quyen.{ham}(" not in inspect.getsource(r.endpoint):
                 thieu.append(f"{r.path} thiếu phan_quyen.{ham}")
