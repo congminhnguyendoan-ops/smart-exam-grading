@@ -328,7 +328,13 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   Giáo viên KHÔNG tự tạo kỳ thi (`POST /exams` 403 khi AUTH_MODE=on; demo giữ cũ). **Không migration mới**: giáo viên phụ trách = `exams.created_by` (gán / bỏ gán = đổi cột này, bỏ gán về admin);
   đóng / mở = `exams.status` `closed` / `draft` (đóng: tải ảnh 409, duyệt / bảng điểm / Excel vẫn được). Không xoá kỳ thi có phiếu / danh sách dự thi / `[DEMO…]`. Tài khoản: chỉ quản lý vai trò teacher
   (tạo, đặt lại mật khẩu, vô hiệu hoá); lỗi 422 của đường dẫn có mật khẩu bỏ `input`. Trang bìa `GET /exams/{id}/cover.pdf` (QR `/m?kythi=<id>`, không in đáp án; gốc = `PUBLIC_BASE_URL` hoặc request);
-  `/m` đọc `?kythi` (`frontend/m_kythi.js`). Thử trình duyệt (ROLLBACK): `python tools/thu_lenh_h.py`. **pytest 436 đạt + 1 skip có chủ đích; hồi quy đầu-cuối 56/56 (29/10/2026, sau lệnh H).**
+  `/m` đọc `?kythi` (`frontend/m_kythi.js`). Thử trình duyệt (ROLLBACK): `python tools/thu_lenh_h.py`.
+  **Lệnh I (29/10/2026) – Lớp học**: Quản trị → Lớp học, API `/admin/classes` (tạo; sửa tên / năm học – mã không đổi; vô hiệu hoá / kích hoạt; xoá chỉ khi chưa gắn kỳ thi và chưa có sinh viên),
+  gán giáo viên vào lớp (`/admin/classes/{id}/teachers`, `/admin/users/{id}/classes`, `POST /admin/users` nhận `class_ids`) – dùng lại `teacher_classes` (đã nhiều – nhiều). KHÔNG quản lý sinh viên.
+  **Migration 004 (`classes.is_active`, chỉ thêm) ĐÃ ÁP 29/10/2026** (sao lưu `data/_backup/smart_exam_20261029_220658_truoc_004.dump`; chạy thử trong giao dịch ROLLBACK vì `smart_exam_app` không có CREATEDB).
+  Lớp vô hiệu: không chọn cho kỳ thi mới / gán mới; giáo viên đã gán vẫn xem kỳ thi cũ. Lớp của kỳ thi chọn từ danh sách (PATCH `/admin/exams` nhận `class_id`).
+  Quyền xem kỳ thi = phụ trách (`created_by`) HỢP thuộc lớp (không đổi `phan_quyen.py`). Thử trình duyệt: `python tools/thu_lenh_i.py`.
+  **pytest 452 đạt + 1 skip có chủ đích; hồi quy đầu-cuối 56/56 (29/10/2026, sau lệnh I).**
   **Lệnh G (28/10/2026)**: G1 `tools/don_du_lieu_test.py` – dọn phiếu test thừa ở kỳ thi 1632 / 1633 (mặc định XEM TRƯỚC chỉ đọc; `--thuc-hien` = sao lưu CSV + ảnh vào `data/_eval/sao_luu_don_du_lieu/`, gõ "XOA", MỘT giao dịch, lệch số dòng
   thì ROLLBACK, rồi xoá tệp ảnh; `--ids` / `--giu`; giữ mọi phiếu `graded` có điểm chính thức hợp lệ). G2 `frontend/ten_tep.js` – tên tệp ảnh > 24 ký tự hiển thị "10 ký tự đầu…đuôi" (title = tên đầy đủ), dùng ở /app/ và /m. G3 `bang_diem.ly_do_chua_ghep`
   – Bảng điểm: phiếu cần xem chưa ghép được thí sinh nói đúng nguyên nhân (SBD máy chưa chắc → "cần giáo viên chốt"; ngoài danh sách → câu cũ), chỉ đổi câu chữ. Thử trình duyệt: `python tools/thu_lenh_f.py g2` → `data/_eval/ui_g/`.

@@ -1,4 +1,4 @@
-# Hướng dẫn quản trị – Smart Exam (lệnh H, 29/10/2026)
+# Hướng dẫn quản trị – Smart Exam (lệnh H + lệnh I, 29/10/2026)
 
 Áp dụng cho nhánh `cai-tien-b`. Mọi thao tác dưới đây làm trên web, ở mục **Quản trị** (`/app/#/admin`).
 Mục này chỉ hiện với tài khoản vai trò **admin**. Máy chủ cũng tự kiểm tra: giáo viên gọi `/admin/...` sẽ nhận lỗi 403.
@@ -13,9 +13,28 @@ Mục này chỉ hiện với tài khoản vai trò **admin**. Máy chủ cũng 
 - Chạy cho điện thoại trong mạng LAN: đặt `PUBLIC_BASE_URL=http://<IP-LAN>:8000` trong `.env`. Khi deploy lên web thì đặt địa chỉ https thật.
   Nếu để trống, mã QR trên trang bìa lấy địa chỉ từ trình duyệt đang mở trang. Mở bằng `localhost` thì điện thoại không vào được, và trang bìa sẽ in cảnh báo màu đỏ.
 
+## 0b. Lớp học (Quản trị → Lớp học) – lệnh I
+Phần này chỉ quản lý **lớp** và **giáo viên của lớp**. Không quản lý sinh viên: số sinh viên chỉ hiển thị để xem.
+1. **Tạo lớp**: nhập mã lớp, tên lớp, năm học.
+   - Mã lớp 2–30 ký tự, ví dụ `CNTT-K23A`. Mã phải duy nhất và không phân biệt hoa thường: trùng mã sẽ bị từ chối.
+   - Năm học có thể bỏ trống.
+2. **Sửa**: chỉ sửa được tên lớp và năm học. Mã lớp không đổi được vì kỳ thi và trang bìa đang dùng nó.
+3. **Vô hiệu hoá / Kích hoạt lại**:
+   - Lớp bị vô hiệu hoá không chọn được cho kỳ thi mới, không gán thêm giáo viên mới được.
+   - Giáo viên **đã** được gán vẫn xem được kỳ thi cũ của lớp, nên điểm và lịch sử được giữ.
+4. **Xoá**: chỉ xoá được lớp **chưa gắn kỳ thi và chưa có sinh viên**. Các lớp còn lại thì vô hiệu hoá.
+5. **Giáo viên** (nút trên mỗi dòng lớp):
+   - Xem danh sách giáo viên của lớp.
+   - Thêm giáo viên: chọn từ danh sách giáo viên đang hoạt động.
+   - Bỏ giáo viên khỏi lớp: giáo viên mất quyền theo lớp **ngay ở thao tác kế tiếp**, không cần đăng xuất.
+6. Quan hệ giáo viên – lớp là **nhiều – nhiều**: một giáo viên dạy nhiều lớp, một lớp có nhiều giáo viên (bảng `teacher_classes`).
+7. Cột "Môn tôi dạy" ở trang "Lớp của tôi" chưa nhập được từ web, chỉ đặt bằng công cụ / SQL. Khi đổi lớp trên web, môn của lớp được giữ lại sẽ không bị mất.
+
 ## 1. Tạo tài khoản giáo viên (Quản trị → Tài khoản giáo viên)
 1. Nhập tên đăng nhập (3–50 ký tự: chữ không dấu, số, `.` `_` `-`), họ tên, email (có thể bỏ trống), mật khẩu ban đầu (tối thiểu 8 ký tự).
    Có thể bấm "Sinh ngẫu nhiên" để tạo mật khẩu.
+   Có thể **tick luôn các lớp** của giáo viên ngay lúc tạo. Nếu một lớp không hợp lệ thì tài khoản không được tạo.
+   Sau này muốn sửa lớp của giáo viên: bấm nút **Lớp** trên dòng tài khoản, tick / bỏ tick nhiều lớp rồi Lưu.
 2. Đưa mật khẩu ban đầu cho giáo viên qua kênh riêng. Giáo viên tự đổi ở trang Hồ sơ.
    Hệ thống chỉ lưu bản băm scrypt: không lưu mật khẩu gốc, không hiện lại, không ghi vào nhật ký.
 3. Trên mỗi dòng tài khoản có các nút:
@@ -28,11 +47,18 @@ Mục này chỉ hiện với tài khoản vai trò **admin**. Máy chủ cũng 
 ## 2. Tạo kỳ thi (Quản trị → Quản lý kỳ thi)
 1. Điền các thông tin sau:
    - tên kỳ thi, mã môn, tên môn (môn chưa có sẽ được tạo), ngày thi, số câu (tối đa 40);
-   - mã lớp: lớp phải có sẵn, hệ thống không tự tạo lớp;
+   - **lớp**: chọn từ danh sách các lớp đang hoạt động, hoặc để trống;
    - **giáo viên phụ trách**.
 2. Đáp án nhập mỗi dòng một mã đề, dạng `101: ABCDABCD…`, đủ số câu, mỗi câu một chữ A–D.
    Quy tắc kiểm tra giống hệt API tạo kỳ thi cũ.
-3. Giáo viên phụ trách thấy kỳ thi này ở `/app/` và `/m`. Giáo viên dạy lớp của kỳ thi cũng thấy. Giáo viên khác nhận lỗi "không tìm thấy" (404).
+3. **Ai thấy kỳ thi** — quy tắc là **HỢP** (một trong hai là đủ), không phải giao:
+   - giáo viên **phụ trách** kỳ thi;
+   - **hoặc** giáo viên **thuộc lớp** của kỳ thi.
+
+   Giáo viên không thuộc trường hợp nào nhận lỗi "không tìm thấy" (404), và tên kỳ thi không bị lộ.
+   Quy tắc này áp dụng cho `/app/`, trang `/m` (kể cả `/m?kythi=`), trang bìa, danh sách phiếu và bảng điểm. Admin thấy tất cả.
+   - **Sửa** lớp của kỳ thi: giáo viên của lớp mới thấy kỳ thi, giáo viên của lớp cũ thôi thấy. Người phụ trách giữ nguyên.
+   - Bỏ phụ trách một giáo viên vẫn thuộc lớp của kỳ thi: họ **vẫn thấy** kỳ thi qua lớp.
    Mỗi kỳ thi có **một** người phụ trách: gán cho người mới thì người cũ thôi phụ trách. Bỏ gán thì quyền phụ trách chuyển về admin đang thao tác.
 4. Các thao tác khác:
    - **Sửa**: đổi tên và ngày thi. Đáp án không sửa ở đây: sửa đáp án khi đã có phiếu cần chấm lại, đây là việc còn nợ.
@@ -69,7 +95,17 @@ Mục này chỉ hiện với tài khoản vai trò **admin**. Máy chủ cũng 
   - `tests/test_quan_tri_tai_khoan.py`: tài khoản, mật khẩu không lộ, vô hiệu hoá, gán kỳ thi.
   - `tests/test_trang_bia.py`: QR được giải mã lại từ PDF; `PUBLIC_BASE_URL`; `kythi` ngoài quyền.
   - `tests/js/m_kythi.test.js`.
-- Thử bằng trình duyệt thật (chỉ ROLLBACK, không ghi CSDL): `python tools/thu_lenh_h.py`, kết quả ở `data/_eval/ui_h/`.
+  - Lệnh I:
+    - `tests/test_quan_tri_lop.py`: lớp, trùng mã, gán nhiều – nhiều, bỏ gán có hiệu lực ngay.
+    - `tests/test_quan_tri_lop_ky_thi.py`: quy tắc phụ trách HỢP lớp.
+- Thử bằng trình duyệt thật (chỉ ROLLBACK, không ghi CSDL):
+  - `python tools/thu_lenh_h.py`, kết quả ở `data/_eval/ui_h/`;
+  - `python tools/thu_lenh_i.py`, kết quả ở `data/_eval/ui_i/`.
+- **Migration 004** (lệnh I, CHỈ THÊM cột `classes.is_active`, mặc định TRUE):
+  - Đã áp lên CSDL thật 29/10/2026.
+  - Sao lưu trước khi áp: `data/_backup/smart_exam_20261029_220658_truoc_004.dump`.
+  - Đã chạy thử trong một giao dịch ROLLBACK trước khi áp.
+  - Máy khác cần chạy `python -m backend.migrate`.
 - Quyết định thiết kế (lệnh H):
   - **Không thêm migration**: giáo viên phụ trách dùng cột `exams.created_by` có sẵn (phân quyền đã cho người tạo thấy kỳ thi); đóng / mở dùng `exams.status` có sẵn (`closed` / `draft`).
   - Chưa có bảng nhật ký thao tác quản trị riêng: chỉ ghi log máy chủ (ai làm gì, không có mật khẩu).
