@@ -1,0 +1,468 @@
+anh,muc,ket_luan,ghi_chu
+0101_C1
+0101_C1,sbd,864325,
+0101_C1,ma_de,101,
+0101_C1,cau_1,*B,chấm nhỏ ở B
+0101_C1,cau_2, tô mờ ở B
+0101_C1,cau_3, tô đậm ở A
+0101_C1,cau_4, tô mờ ở D
+0101_C1,cau_8, tô đậm A,B,D
+0101_C1,cau_10, chấm nhỏ ở B
+0101_C1,cau_11, tô đậm ở A và D
+0101_C1,cau_14, tô đậm ở B và D
+0101_C1,cau_17, tô mờ ở D
+0101_C1,cau_18, chấm nhỏ ở A
+0101_C1,cau_22,B mờ, D đậm
+0101_C1,cau_25, A và D đều mờ
+0101_C1,cau_28, C mở
+0101_C1,cau_29, A mờ, B đậm
+0101_C1,cau_31, C mờ
+0101_C1,cau_32, D mờ
+0101_C1,cau_33, C và D đều đậm
+0101_C1,cau_39, B và D đều mờ
+0101_C1,cau_49, B mờ 
+
+0102_C2
+0102_C2,sbd,097160
+0102_C2,ma_de,102
+0102_C2,cau 1, B mờ
+0102_C2, cau 2, A,B,D đậm
+0102_C2,cau 3, B và D đều mờ
+0102_C2, cau 4, C mờ
+0102_C2, cau 5, chấm nhỏ C
+0102_C2, cau 8, B mờ, D đậm
+0102_C2, cau 10, chấm nhỏ B
+0102_C2, cau 12, A mờ
+0102_C2, cau 13, A mờ
+0102_C2, cau 15, A và D đậm
+0102_C2, cau 16, C mờ
+0102_C2, cau 18, C mờ
+0102_C2, cau 21, A và B mờ
+0102_C2, cau 25, B và C đậm
+0102_C2, cau 26, C và D mờ
+0102_C2, cau 31, A và D đậm
+0102_C2, cau 34, B mờ
+0102_C2, cau 35, chám nhỏ B
+0102_C2, cau 36, A và C mờ
+
+0102_C3
+0102_C3,sbd,097160
+0102_C3,ma_de,102
+0102_C3, cau 1, B mờ
+0102_C3, cau 2, A,B,D đậm
+0102_C3, cau 3, B và D mờ
+0102_C3, cau 4, C mờ
+0102_C3, cau 5, chấm nhỏ C
+0102_C3, cau 8, B mờ , D đậm
+0102_C3, cau 10, chấm nhỏ B
+0102_C3, cau 12, A mờ
+0102_C3, cau 13, A mờ
+0102_C3, cau 15, A và D đều đậm
+0102_C3, cau 16, C mờ
+0102_C3, cau 18, C mờ
+0102_C3, cau 21, A và B đều mờ
+0102_C3, cau 25, B và C đều đậm
+0102_C3, cau 26, C và D đều mờ
+0102_C3, cau 31, A và D đều đậm
+0102_C3, cau 34, B mờ
+0102_C3, cau 35, chấm nhỏ B
+0102_C3, cau 36, A và C dều mờ
+
+0103_C3
+0103_C3,sbd, 183954
+0103_C3, ma_de, 103
+cau 1, C mờ
+cau 8, B mờ, D đậm
+cau 9, A mờ
+cau 10, A đậm, B mờ
+cau 11, A,B,D đều đậm
+cau 14, chấm nhỏ C
+cau 19, B và C đều chấm nhỏ
+cau 20, C và D đều đậm
+cau 22, C chấm nhỏ
+cau 23, B mờ
+cau 26, D mờ
+cau 28, A mờ
+cau 31, B và D đều đậm
+cau 32, A đậm và D mờ
+cau 34, B mờ
+cau 36, A và C đều mờ
+cau 38, B và D đều mờ 
+cau 39, C mờ
+cau 40, B và C đều đậm 
+
+0103_C4
+0103_C4,sbd, 183954
+0103_C4, ma_de, 103
+cau 1, C mờ
+cau 8, B mờ, D đậm
+cau 9, A mờ
+cau 10, A đậm, B mờ
+cau 11, A,B,D đều đậm
+cau 14, chấm nhỏ C
+cau 19, B và C đều chấm nhỏ
+cau 20, C và D đều đậm
+cau 22, C chấm nhỏ
+cau 23, B mờ
+cau 26, D mờ
+cau 28, A mờ
+cau 31, B và D đều đậm
+cau 32, A đậm và D mờ
+cau 34, B mờ
+cau 36, A và C đều mờ
+cau 38, B và D đều mờ 
+cau 39, C mờ
+cau 40, B và C đều đậm 
+
+0104_C4
+0104_C4,sbd, 278103
+0104_C4,ma_de, 104
+cau 2, C và D đều mờ
+cau 3, chấm nhỏ ở A
+cau 7, chấm nhỏ ở A
+cau 9, B C D đều đậm
+cau 11, B mờ
+cau 12, C và D đều đậm
+cau 14, B mờ, D đậm
+cau 17, A mờ
+cau 21, B và D đều mờ
+cau 22, A mờ
+cau 23, B mờ
+cau 27, B mờ
+cau 30, A và B đều đậm
+cau 31, C mờ, D đậm
+cau 32, A đậm, C mờ
+cau 33, bỏ trống
+cau 38, A mờ
+cau 39, D mờ
+cau 40, A và B đều đậm
+
+0104_C1
+0104_C1,sbd, 278103
+0104_C1,ma_de, 104
+cau 2, C và D đều mờ
+cau 3, chấm nhỏ ở A
+cau 7, chấm nhỏ ở A
+cau 9, B C D đều đậm
+cau 11, B mờ
+cau 12, C và D đều đậm
+cau 14, B mờ, D đậm
+cau 17, A mờ
+cau 21, B và D đều mờ
+cau 22, A mờ
+cau 23, B mờ
+cau 27, B mờ
+cau 30, A và B đều đậm
+cau 31, C mờ, D đậm
+cau 32, A đậm, C mờ
+cau 33, bỏ trống
+cau 38, A mờ
+cau 39, D mờ
+cau 40, A và B đều đậm
+
+0105_C1
+0105_C1, sbd, 527694
+0105_C1, ma_de, 101
+cau 1, B và C đều mờ
+cau 2, A và B đều mờ
+cau 3, C mờ
+cau 5, A và C đều mờ
+cau 8, C và D đều mờ
+cau 9, C mờ
+cau 10, C mờ 
+cau 11, chấm nhỏ C
+cau 12, C mờ
+cau 13, D mờ
+cau 15, C mờ
+cau 16, A mờ
+cau 17,A,B,D đều mờ
+cau 18, C mờ
+cau 19, C và D mờ
+cau 20, chấm nhỏ A
+cau 22, C mờ 
+cau 23, B mờ
+cau 24, C mờ
+cau 25, D mờ
+cau 26, A mờ
+cau 27, chấm nhỏ B
+cau 28, C mờ
+cau 29, D mờ
+cau 30, B mờ
+cau 32, D mờ
+cau 33, C và D đều mờ
+cau 34, A và D đều mờ
+cau 35, B mờ
+cau 36, B mờ
+cau 37, B mờ
+cau 38,B và C đều mờ
+cau 30, C mờ
+cau 40, A mờ 
+
+0105_C2
+0105_C2, sbd, 527694
+0105_C2, ma_de, 101
+cau 1, B và C đều mờ
+cau 2, A và B đều mờ
+cau 3, C mờ
+cau 5, A và C đều mờ
+cau 8, C và D đều mờ
+cau 9, C mờ
+cau 10, C mờ 
+cau 11, chấm nhỏ C
+cau 12, C mờ
+cau 13, D mờ
+cau 15, C mờ
+cau 16, A mờ
+cau 17,A,B,D đều mờ
+cau 18, C mờ
+cau 19, C và D mờ
+cau 20, chấm nhỏ A
+cau 22, C mờ 
+cau 23, B mờ
+cau 24, C mờ
+cau 25, D mờ
+cau 26, A mờ
+cau 27, chấm nhỏ B
+cau 28, C mờ
+cau 29, D mờ
+cau 30, B mờ
+cau 32, D mờ
+cau 33, C và D đều mờ
+cau 34, A và D đều mờ
+cau 35, B mờ
+cau 36, B mờ
+cau 37, B mờ
+cau 38,B và C đều mờ
+cau 30, C mờ
+cau 40, A mờ 
+
+0106_C2
+0106_C2, sbd, 564901
+0106_C2, ma_de, 102
+cau 5, B và C mờ 
+cau 9, chấm nhỏ D
+cau 14, B và C đều mờ
+cau 16, B và C đều mờ
+cau 18, B và C đều đậm
+cau 22, chấm nhỏ A
+cau 23, D mờ
+cau 24, B và C đều mờ
+cau 27, C mờ
+cau 28, A và C mờ
+cau 29, C mờ D đậm
+cau 30, D mờ
+cau 31, C mờ
+cau 33, C mờ
+cau 34, B mờ
+cau 35, A và B đều đậm
+cau 36, A,B,D đều đậm
+cau 38, C mờ
+cau 39, chấm nhỏ B
+
+0106_C3
+0106_C3, sbd, 564901
+0106_C3, ma_de, 102
+cau 5, B và C mờ 
+cau 9, chấm nhỏ D
+cau 14, B và C đều mờ
+cau 16, B và C đều mờ
+cau 18, B và C đều đậm
+cau 22, chấm nhỏ A
+cau 23, D mờ
+cau 24, B và C đều mờ
+cau 27, C mờ
+cau 28, A và C mờ
+cau 29, C mờ D đậm
+cau 30, D mờ
+cau 31, C mờ
+cau 33, C mờ
+cau 34, B mờ
+cau 35, A và B đều đậm
+cau 36, A,B,D đều đậm
+cau 38, C mờ
+cau 39, chấm nhỏ B
+
+0107_C3
+0107_C3,sbd, 376273
+0107_C3,ma_de, 103
+cau 4, D mờ
+cau 6, A mờ
+cau 9, chấm nhỏ A
+cau 10, chấm nhỏ B 
+cau 11, C mờ
+cau 12, A và B mờ
+cau 14, C mờ D đậm
+cau 15, C mờ
+cau 17, B và C đều đậm
+cau 23, B mờ
+cau 30, A và D đều đậm 
+cau 31, A, C, D đều đậm 
+cau 34, B mờ D đậm
+cau 35, chấm nhỏ B
+cau 36, B và D đều đậm
+cau 37, A và B đều mờ
+cau 38, B mờ
+cau 39, C mờ
+cau 40, A và C đều mờ
+
+0107_C4
+0107_C4,sbd, 376273
+0107_C4,ma_de, 103
+cau 4, D mờ
+cau 6, A mờ
+cau 9, chấm nhỏ A
+cau 10, chấm nhỏ B 
+cau 11, C mờ
+cau 12, A và B mờ
+cau 14, C mờ D đậm
+cau 15, C mờ
+cau 17, B và C đều đậm
+cau 23, B mờ
+cau 30, A và D đều đậm 
+cau 31, A, C, D đều đậm 
+cau 34, B mờ D đậm
+cau 35, chấm nhỏ B
+cau 36, B và D đều đậm
+cau 37, A và B đều mờ
+cau 38, B mờ
+cau 39, C mờ
+cau 40, A và C đều mờ
+
+0108_C4
+0108_C4,sbd, 452180
+0108_C4,ma_de, 104
+cau 2, B mờ
+cau 3, B và C đều đậm
+cau 4, B mờ
+cau 5, chấm nhỏ D
+cau 8, A và C đều mờ
+cau 12, B, C, D đều đậm
+cau 13, A mờ
+cau 15, B đậm, D mờ
+cau 16, A mờ, C đậm
+cau 17, D mờ
+cau 20. B mờ
+cau 21, A và C đều đậm
+cau 23, B và C đều mờ
+cau 25, chấm nhỏ B 
+cau 30, chấm nhỏ D
+cau 33, B và D đều đậm
+cau 34, C mờ
+cau 38, A mờ
+cau 39, B mờ và D đậm
+
+0108_C1
+0108_C1,sbd, 452180
+0108_C1,ma_de, 104
+cau 2, B mờ
+cau 3, B và C đều đậm
+cau 4, B mờ
+cau 5, chấm nhỏ D
+cau 8, A và C đều mờ
+cau 12, B, C, D đều đậm
+cau 13, A mờ
+cau 15, B đậm, D mờ
+cau 16, A mờ, C đậm
+cau 17, D mờ
+cau 20. B mờ
+cau 21, A và C đều đậm
+cau 23, B và C đều mờ
+cau 25, chấm nhỏ B 
+cau 30, chấm nhỏ D
+cau 33, B và D đều đậm
+cau 34, C mờ
+cau 38, A mờ
+cau 39, B mờ và D đậm
+
+0109_C1
+0109_C1, sbd, 697132
+0109_C1, ma_de, 101
+cau 2, C mờ
+cau 3, chấm nhỏ B
+cau 7, B và C đều mờ
+cau 8, A mờ B đậm
+cau 9, D mờ
+cau 10, C mờ
+cau 11, C và D đều đậm 
+cau 13, A đậm và D mờ
+cau 14, C đậm và D mờ
+cau 21, D mờ
+cau 25, B và C đều mờ 
+cau 26, chấm nhỏ D
+cau 28, B mờ 
+cau 29, chấm nhỏ B 
+cau 30, B mờ
+cau 34, C mờ
+cau 35, B C D đều đậm
+cau 36, A và D đều đậm
+cau 37, A và C đều đậm
+
+0109_C2
+0109_C2, sbd, 697132
+0109_C2, ma_de, 101
+cau 2, C mờ
+cau 3, chấm nhỏ B
+cau 7, B và C đều mờ
+cau 8, A mờ B đậm
+cau 9, D mờ
+cau 10, C mờ
+cau 11, C và D đều đậm 
+cau 13, A đậm và D mờ
+cau 14, C đậm và D mờ
+cau 21, D mờ
+cau 25, B và C đều mờ 
+cau 26, chấm nhỏ D
+cau 28, B mờ 
+cau 29, chấm nhỏ B 
+cau 30, B mờ
+cau 34, C mờ
+cau 35, B C D đều đậm
+cau 36, A và D đều đậm
+cau 37, A và C đều đậm
+
+
+0110_C2
+0110_C2,sbd, 498560
+0110_C2, ma_de, 102
+cau 1, A và D đều đậm
+cau 3, chấm nhỏ B
+cau 4, C mờ
+cau 6, A mờ B đậm
+cau 7, A và C đều mờ
+cau 8, C mờ
+cau 12, D đậm
+cau 14, C mờ
+cau 18, B và D đều mờ
+cau 19, C và D đều đậm 
+cau 21, A B D đều đậm
+cau 22, A và C đều mờ
+cau 23, chấm nhỏ D
+cau 27, A mờ
+cau 32, B và D đều mờ
+cau 34, C và D đều đậm
+cau 35, C mò
+cau 38, A mờ
+cau 39, chấm nhỏ C
+
+0110_C3
+0110_C3,sbd, 498560
+0110_C3, ma_de, 102
+cau 1, A và D đều đậm
+cau 3, chấm nhỏ B
+cau 4, C mờ
+cau 6, A mờ B đậm
+cau 7, A và C đều mờ
+cau 8, C mờ
+cau 12, D đậm
+cau 14, C mờ
+cau 18, B và D đều mờ
+cau 19, C và D đều đậm 
+cau 21, A B D đều đậm
+cau 22, A và C đều mờ
+cau 23, chấm nhỏ D
+cau 27, A mờ
+cau 32, B và D đều mờ
+cau 34, C và D đều đậm
+cau 35, C mò
+cau 38, A mờ
+cau 39, chấm nhỏ C
