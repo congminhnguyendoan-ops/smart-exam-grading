@@ -5,6 +5,7 @@ Biến môi trường đã đặt sẵn luôn thắng giá trị trong .env. Kh�
 Mẫu: .env.example.
 """
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -35,6 +36,8 @@ class CauHinh:
     anh_xoa_tu_dong: bool = False
     anh_giu_gio: float = 24.0
     anh_giu_demo: bool = True    # không xoá ảnh của kỳ thi có "[DEMO" trong tên (demo / báo cáo cần ảnh)
+    # Địa chỉ gốc in trong mã QR trang bìa kỳ thi (vd https://thi.truong.edu.vn hoặc http://192.168.1.5:8000). Rỗng = lấy từ yêu cầu (request.base_url).
+    public_base_url: str = ""
 
 
 def lay_database_url() -> str:
@@ -70,7 +73,16 @@ def lay_cau_hinh() -> CauHinh:
         anh_xoa_tu_dong=_bat(os.environ.get("ANH_XOA_TU_DONG", "0")),
         anh_giu_gio=float(os.environ.get("ANH_GIU_GIO", "24")),
         anh_giu_demo=_bat(os.environ.get("ANH_GIU_DEMO", "1")),
+        public_base_url=dia_chi_goc_hop_le(os.environ.get("PUBLIC_BASE_URL", "")),
     )
+
+
+def dia_chi_goc_hop_le(v: str) -> str:
+    """'' hoặc http(s)://máy[:cổng][/đường-dẫn] (bỏ '/' cuối). Sai dạng -> LoiCauHinh (không âm thầm in QR hỏng)."""
+    v = v.strip().rstrip("/")
+    if v and not re.fullmatch(r"https?://[A-Za-z0-9.\-\[\]:]+(/[A-Za-z0-9._~\-/]*)?", v):
+        raise LoiCauHinh(f"PUBLIC_BASE_URL phải dạng http(s)://tên-máy[:cổng][/đường-dẫn] (đang là '{v}').")
+    return v
 
 
 def _bat(v: str) -> bool:

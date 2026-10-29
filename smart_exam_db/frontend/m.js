@@ -9,7 +9,13 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const fmt = (x) => (x === null || x === undefined ? "–" : Number(x).toFixed(2).replace(/\.?0+$/, ""));
 const HET_GIO_MS = 120000;
 const SONG_SONG = 2;
-const st = { me: null, exams: [], exam: null, reasons: {}, gioiHanMb: 25 };
+const st = { me: null, exams: [], exam: null, reasons: {}, gioiHanMb: 25, kyThiUrl: MKyThi.docThamSo(location.search) };
+/* ?kythi=<id> (QR trang bìa): giữ trong URL cho tới khi ĐÃ đăng nhập và chọn xong -> đăng nhập (kể cả tải lại trang) vẫn quay về đúng kỳ thi.
+   Chỉ id lấy từ URL được hiện trước khi đăng nhập; TÊN kỳ thi chỉ hiện khi máy chủ trả nó trong GET /exams (có quyền). */
+function boThamSoKyThi() {
+  st.kyThiUrl = null;
+  try { history.replaceState(null, "", location.pathname); } catch (_) { /* bỏ qua */ }
+}
 
 const LY_DO_SBD = { lech_bubble: "chữ viết tay khác ô tô", tin_cay_thap: "chữ viết tay khó đọc", thieu_bubble: "cột ô tô không đọc được",
   bubble_cx: "ô tô chưa chắc", o_trong_ngoai_ds: "không có trong danh sách kỳ thi", o_trong_chua_biet_ds: "chưa kiểm được danh sách",
@@ -213,6 +219,9 @@ window.addEventListener("beforeunload", (e) => { if (hd.dangBan() || hd.tong().l
 function manDangNhap(thongBao) {
   $("#who").textContent = ""; $("#logout").classList.add("hidden");
   const er = $("#lg-err"); er.textContent = thongBao || ""; er.classList.toggle("hidden", !thongBao);
+  const kt = $("#lg-kythi");
+  kt.textContent = st.kyThiUrl ? `Đăng nhập để chụp phiếu cho kỳ thi mã ${st.kyThiUrl} (quét từ trang bìa).` : "";
+  kt.classList.toggle("hidden", !st.kyThiUrl);
   hien("v-login");
 }
 $("#f-login").addEventListener("submit", async (ev) => {
@@ -235,12 +244,13 @@ $("#logout").addEventListener("click", async () => {
 });
 
 /* ------------------------------------------------------------ chọn kỳ thi */
-async function manKyThi() {
+async function manKyThi(thongBao) {
   st.exams = await api("/exams");
+  const msg = $("#exam-msg"); msg.textContent = thongBao || ""; msg.classList.toggle("hidden", !thongBao);
   const ds = $("#exam-list");
   ds.innerHTML = st.exams.length ? st.exams.map((e) => `<button type="button" class="exam" data-id="${e.exam_id}">
-      <span class="sub">${esc(e.subject_name)} · ${esc(e.class_code || "không lớp")}</span><b>${esc(e.exam_title)}</b>
-      <span class="sub">${e.so_phieu} phiếu</span></button>`).join("")
+      <span class="sub">${esc(e.subject_name)} · ${esc(e.class_code || "không lớp")} · mã ${e.exam_id}</span><b>${esc(e.exam_title)}</b>
+      <span class="sub">${e.so_phieu} phiếu${e.status === "closed" ? " · ĐÃ ĐÓNG" : ""}</span></button>`).join("")
     : '<p class="muted">Bạn chưa có kỳ thi nào. Tạo kỳ thi trên máy tính trước.</p>';
   ds.querySelectorAll(".exam").forEach((b) => b.addEventListener("click", () => chonKyThi(Number(b.dataset.id))));
   hien("v-exams");
@@ -250,8 +260,9 @@ function chonKyThi(id) {
   if (!e) return;
   st.exam = e;
   try { sessionStorage.setItem("m_exam", String(id)); } catch (_) { /* bỏ qua */ }
-  $("#cap-sub").textContent = `${e.subject_name} · ${e.class_code || "không lớp"}`;
+  $("#cap-sub").textContent = `Kỳ thi mã ${e.exam_id} · ${e.subject_name} · ${e.class_code || "không lớp"}`;
   $("#cap-title").textContent = e.exam_title;
+  $("#cap-dong").classList.toggle("hidden", e.status !== "closed");
   $("#lk-duyet").textContent = `${location.origin}/app/#/review`;
   veHangDoi();
   hien("v-cap");
@@ -273,6 +284,12 @@ async function khoiDong() {
     if (st.exam && hd.ds.length) { daKhoiPhucPhien = true; hien("v-cap"); hd.tiepTuc(); veHangDoi(); return; }     // đăng nhập lại giữa phiên: gửi tiếp
     await khoiPhucPhien();                                                              // tải lại trang: dựng lại danh sách tờ
     await manKyThi();
+    if (st.kyThiUrl) {                                                                  // mở từ QR trang bìa: chọn sẵn kỳ thi nếu có quyền
+      const kq = MKyThi.chonTuDanhSach(st.exams, st.kyThiUrl);
+      boThamSoKyThi();
+      if (kq.exam && !(hd.dangBan() && st.exam && st.exam.exam_id !== kq.exam.exam_id)) { chonKyThi(kq.exam.exam_id); return; }
+      if (kq.loi) { await manKyThi(thongBaoLoi(404)); return; }                        // như 404 của API: không lộ tên / sự tồn tại kỳ thi
+    }
     let id = null; try { id = Number(sessionStorage.getItem("m_exam")); } catch (_) { /* bỏ qua */ }
     if (id && st.exams.some((e) => e.exam_id === id)) chonKyThi(id);
   } catch (e) { if (e.ma === 401) manDangNhap(e.message); else toast(e.message); }

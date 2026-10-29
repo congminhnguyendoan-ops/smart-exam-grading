@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from urllib.parse import quote
 
-from . import auth, bang_diem, don_anh, loi_khuyen, mang, nguoi_dung, phan_quyen, phieu_trung, quan_tri, schemas, service
+from . import auth, bang_diem, don_anh, loi_khuyen, mang, nguoi_dung, phan_quyen, phieu_trung, quan_tri, schemas, service, trang_bia
 from .config import CauHinh, LoiCauHinh, lay_cau_hinh
 from .db import ket_noi
 
@@ -174,6 +174,16 @@ def ds_ky_thi(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
 def xem_ky_thi(exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
     phan_quyen.kiem_ky_thi(conn, nd, exam_id)
     return service.doc_ky_thi(conn, exam_id)
+
+
+@app.get("/exams/{exam_id}/cover.pdf", tags=["Đề thi"], summary="Trang bìa kỳ thi (PDF) – mã QR mở /m?kythi=<id>")
+def trang_bia_ky_thi(exam_id: int, request: Request, conn=Depends(get_conn), cfg: CauHinh = Depends(get_cau_hinh),
+                     nd: auth.NguoiDung = Depends(giao_vien)):
+    """Giáo viên phụ trách / admin in trang này kẹp trên xấp phiếu. Địa chỉ gốc của QR: PUBLIC_BASE_URL, rỗng thì lấy từ yêu cầu. Không có đáp án."""
+    phan_quyen.kiem_ky_thi(conn, nd, exam_id)
+    tt = trang_bia.thong_tin(conn, exam_id)
+    pdf = trang_bia.tao_pdf(tt, trang_bia.url_ky_thi(trang_bia.dia_chi_goc(cfg.public_base_url, request.base_url), exam_id))
+    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="trang_bia_ky_thi_{exam_id}.pdf"'})
 
 
 # ------------------------------------------------------------------------------------------------ tải ảnh

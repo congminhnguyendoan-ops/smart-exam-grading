@@ -90,6 +90,9 @@ async function napChiTietKyThi() {
   $("#exam-select").title = e ? `${e.subject_name} – ${e.class_code || "không lớp"} – ${e.exam_title}` : "";
   $("#exam-info").textContent = e ? `${e.status === "closed" ? "ĐÃ ĐÓNG (không nhận ảnh mới) · " : ""}Môn ${e.subject_name} · lớp ${e.class_code || "(không gắn lớp)"} · ${e.num_questions} câu · ${e.max_score} điểm · mã đề ${e.codes.map((c) => c.code).join(", ")} · ` +
     `${e.sheets.tong} phiếu (${e.sheets.da_cham} chính thức, ${e.sheets.can_xem} cần xem, ${e.sheets.bi_tu_choi} từ chối)` : "Chưa có kỳ thi.";
+  const bia = $("#trang-bia");
+  bia.classList.toggle("hidden", !e);
+  if (e) bia.href = `/exams/${e.exam_id}/cover.pdf`;
   const n = $("#nav-count");
   n.textContent = e ? e.sheets.can_xem : ""; n.classList.toggle("hidden", !e || !e.sheets.can_xem);
 }

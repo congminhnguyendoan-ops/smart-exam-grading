@@ -46,11 +46,12 @@ async function qtKyThi() {
       ${ds.map((e) => `<tr data-id="${e.exam_id}"><td>${e.exam_id}</td><td>${esc(e.exam_title)}</td><td>${esc(e.exam_date || "–")}</td>
         <td>${esc(e.subject_code)} · ${esc(e.class_code || "không lớp")}</td><td>${esc(e.ma_de || "–")}</td>
         <td>${esc(e.teacher_name)} <span class="muted small">(${esc(e.teacher_username)})</span></td><td>${tagKyThi(e.status)}</td><td>${e.so_phieu}</td>
-        <td class="nowrap"><button type="button" data-sua="${e.exam_id}">Sửa</button>
+        <td class="nowrap"><a class="btn" href="/exams/${e.exam_id}/cover.pdf" target="_blank" rel="noopener">Trang bìa</a>
+          <button type="button" data-sua="${e.exam_id}">Sửa</button>
           <button type="button" data-dong="${e.exam_id}" data-closed="${e.status === "closed" ? "0" : "1"}">${e.status === "closed" ? "Mở lại" : "Đóng"}</button>
-          ${e.so_phieu ? "" : `<button type="button" class="bad" data-xoa="${e.exam_id}">Xoá</button>`}</td></tr>`).join("")
+          ${e.so_phieu || /\[DEMO/i.test(e.exam_title) ? "" : `<button type="button" class="bad" data-xoa="${e.exam_id}">Xoá</button>`}</td></tr>`).join("")
       || '<tr><td colspan="9" class="muted">Chưa có kỳ thi.</td></tr>'}</tbody></table>
-      <p class="muted small">Kỳ thi đã có phiếu không xoá được – chỉ đóng (đóng = không nhận ảnh mới; duyệt và bảng điểm vẫn dùng được).</p></div>`;
+      <p class="muted small">Kỳ thi đã có phiếu, đã có danh sách dự thi hoặc là kỳ thi [DEMO…] không xoá được – chỉ đóng (đóng = không nhận ảnh mới; duyệt và bảng điểm vẫn dùng được).</p></div>`;
   $("#qt-sua-khung").classList.add("hidden");
   $("#f-qt-tao").addEventListener("submit", async (ev) => {
     ev.preventDefault();

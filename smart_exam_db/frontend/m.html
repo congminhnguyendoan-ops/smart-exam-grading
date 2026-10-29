@@ -14,6 +14,7 @@
 <!-- 1. Đăng nhập -->
 <section id="v-login" class="view hidden">
   <h1>Đăng nhập</h1>
+  <p id="lg-kythi" class="hint hidden"></p>
   <form id="f-login">
     <label>Tên đăng nhập<input id="lg-user" autocomplete="username" autocapitalize="none" required></label>
     <label>Mật khẩu<input id="lg-pass" type="password" autocomplete="current-password" required></label>
@@ -25,12 +26,14 @@
 <!-- 2. Chọn kỳ thi -->
 <section id="v-exams" class="view hidden">
   <h1>Chọn kỳ thi</h1>
+  <div id="exam-msg" class="msg bad hidden"></div>
   <div id="exam-list" class="list"></div>
 </section>
 
 <!-- 3. Chụp LIÊN TỤC: tổng kết (dính đầu) · danh sách tờ · nút chụp cố định ở đáy -->
 <section id="v-cap" class="view hidden">
   <button type="button" id="doi-ky-thi" class="exam-head"><span id="cap-sub" class="sub"></span><b id="cap-title"></b><span class="sub">Đổi kỳ thi ›</span></button>
+  <div id="cap-dong" class="msg bad hidden">Kỳ thi này ĐÃ ĐÓNG – máy chủ không nhận ảnh mới. Nhờ quản trị viên mở lại nếu cần.</div>
   <div id="tong-ket" class="tong-ket">
     <div class="so" id="tk-so"></div>
     <div class="row-tong"><label class="tong-to">Tổng số tờ <input id="tong-to" type="number" inputmode="numeric" min="1" max="500" value="40"></label>
@@ -49,6 +52,7 @@
 <div id="toast" class="toast hidden"></div>
 <script src="/app/ten_tep.js"></script>
 <script src="/app/m_hang_doi.js"></script>
+<script src="/app/m_kythi.js"></script>
 <script src="/app/m.js"></script>
 </body>
 </html>
