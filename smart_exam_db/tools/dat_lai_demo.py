@@ -9,6 +9,8 @@ Mục tiêu:
 - Kỳ thi tập 1632 về NỀN: giữ 3878, 3880, 4270, 4271, 4272 (chính thức) + 6028 (cần xem); xoá phiếu khác tải lên SAU 28/10/2026 09:18:32
   (lúc tải #6028). Phiếu lạ tải lên TRƯỚC mốc đó: chỉ báo, không xoá. Nền đã bị đổi (vd phiếu nền bị thay / duyệt): chỉ cảnh báo – khôi phục bằng bản sao lưu.
 - KHÔNG đụng kỳ thi khác, danh sách dự thi, tài khoản, lớp, mã đề, đáp án. Kỳ thi trong phạm vi phải có dấu "[DEMO" trong tên (chốt an toàn).
+- Lệnh V (30/10/2026): phạm vi CHỈ là danh sách id cố định ở trên – KHÔNG chọn theo chuỗi "[DEMO" (chuỗi đó chỉ để TỪ CHỐI), nên kỳ thi 6 "[DEMO] …",
+  178 "[DEMO-2] …", 115 / 509 "[THU] …" không bao giờ bị đụng. Hậu kiểm: phiếu trong kế hoạch xoá phải thuộc đúng phạm vi; CLI chỉ chạy với bộ id đã chốt.
 
 Tái dùng tools/don_du_lieu_test.py: đếm (SQL_DEM), sao lưu CSV + ảnh (sao_luu), xoá trong MỘT giao dịch + hoàn tác khi lệch số dòng (thuc_hien),
 xoá tệp chỉ trong STORAGE_DIR (xoa_tep), kiểm dòng mồ côi (kiem_sau). Chỉ PHẦN CHỌN PHIẾU là riêng: lap_ke_hoach của công cụ đó cố ý GIỮ phiếu có
@@ -30,6 +32,7 @@ KY_THI_XOA_HET = (1380, 1381, 1633)
 KY_THI_TAP = 1632
 NEN_TAP = {3878: "graded", 3880: "graded", 4270: "graded", 4271: "graded", 4272: "graded", 6028: "needs_review"}
 MOC_TAP = datetime(2026, 10, 28, 9, 18, 32, 572328, tzinfo=timezone(timedelta(hours=7)))      # uploaded_at của #6028
+KY_THI_DUOC_PHEP = frozenset({*KY_THI_XOA_HET, KY_THI_TAP})                                     # CLI chỉ chạy đúng bộ này
 XAC_NHAN = "DAT_LAI"
 THU_MUC_SAO_LUU = D.THU_MUC_SAO_LUU
 
@@ -63,6 +66,9 @@ def lap_ke_hoach(conn, xoa_het=KY_THI_XOA_HET, tap=KY_THI_TAP, nen=NEN_TAP, moc=
     la_tap = conn.execute(f"SELECT {cot} FROM answer_sheets a WHERE a.exam_id = %s AND NOT (a.sheet_id = ANY(%s)) ORDER BY a.sheet_id", (tap, list(nen))).fetchall()
     xoa += [p for p in la_tap if p["uploaded_at"] > moc]
     bat_thuong = [p for p in la_tap if p["uploaded_at"] <= moc]
+    lot = sorted({p["exam_id"] for p in xoa} - set(pham_vi))                  # hậu kiểm (lệnh V): phiếu xoá chỉ được thuộc ĐÚNG các id trong phạm vi
+    if lot:
+        raise LoiDatLai(f"kế hoạch có phiếu của kỳ thi ngoài phạm vi {lot} – từ chối")
     nen_doi = []
     for sid, st in nen.items():
         p = conn.execute(f"SELECT {cot} FROM answer_sheets a WHERE a.sheet_id = %s", (sid,)).fetchone()
@@ -125,6 +131,8 @@ def main() -> int:
         conn.read_only = True
         try:
             kh = lap_ke_hoach(conn)
+            if sorted(kh["pham_vi"]) != sorted(KY_THI_DUOC_PHEP):
+                raise LoiDatLai(f"phạm vi {kh['pham_vi']} khác bộ id đã chốt {sorted(KY_THI_DUOC_PHEP)}")
         except LoiDatLai as e:
             print("LỖI:", e)
             return 2

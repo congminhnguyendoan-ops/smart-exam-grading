@@ -101,3 +101,46 @@ def test_tu_choi_ky_thi_khong_co_dau_demo(the_gioi):
 def test_mac_dinh_dung_ky_thi_demo_va_nen_da_chot():
     assert DL.KY_THI_XOA_HET == (1380, 1381, 1633) and DL.KY_THI_TAP == 1632
     assert sorted(DL.NEN_TAP) == [3878, 3880, 4270, 4271, 4272, 6028] and DL.XAC_NHAN == "DAT_LAI"
+    assert DL.KY_THI_DUOC_PHEP == {1380, 1381, 1632, 1633}
+
+
+NGOAI_PHAM_VI = (6, 115, 178, 509)          # [DEMO] thu dữ liệu, [THU] F1-F4, [DEMO-2], [THU] Phần C – có "[DEMO" / "[THU" trong tên nhưng KHÔNG được đụng
+
+
+def test_id_that_khong_dung_ky_thi_khac_du_co_dau_demo(conn_thu):
+    """Lệnh V: trên CSDL THẬT (ROLLBACK), kế hoạch MẶC ĐỊNH chỉ chọn theo id cố định – kỳ thi 6 / 178 (có "[DEMO" trong tên) và 115 / 509
+    không mất phiếu nào, kể cả khi được thêm phiếu mới; phiếu thêm vào 1633 thì bị xoá."""
+    c = conn_thu
+    ten = {r["exam_id"]: r["exam_title"] for r in c.execute("SELECT exam_id, exam_title FROM exams WHERE exam_id = ANY(%s)",
+                                                            (list(NGOAI_PHAM_VI) + sorted(DL.KY_THI_DUOC_PHEP),)).fetchall()}
+    if len(ten) < len(NGOAI_PHAM_VI) + 4:
+        pytest.skip(f"CSDL này không có đủ kỳ thi {NGOAI_PHAM_VI} + {sorted(DL.KY_THI_DUOC_PHEP)} (máy khác)")
+    assert "[DEMO" in ten[6] and "[DEMO" in ten[178]
+    them = lambda e: c.execute("INSERT INTO answer_sheets (exam_id, image_path, status, original_filename, uploaded_at) VALUES (%s, %s, 'needs_review', 'v.jpg', now()) "  # noqa: E731
+                               "RETURNING sheet_id", (e, f"v_test/{uuid.uuid4().hex}.jpg")).fetchone()["sheet_id"]
+    moi = {e: them(e) for e in NGOAI_PHAM_VI}
+    moi_1633 = them(1633)
+    truoc = {e: DL.dem_ky_thi(c, [e])[e] for e in NGOAI_PHAM_VI}
+    assert all(truoc[e]["tong"] >= 1 for e in NGOAI_PHAM_VI)
+    kh = DL.lap_ke_hoach(c)
+    assert {p["exam_id"] for p in kh["xoa"]} <= DL.KY_THI_DUOC_PHEP and moi_1633 in kh["ids"]
+    assert not set(moi.values()) & set(kh["ids"])
+    ngoai_ids = {r["sheet_id"] for r in c.execute("SELECT sheet_id FROM answer_sheets WHERE exam_id = ANY(%s)", (list(NGOAI_PHAM_VI),)).fetchall()}
+    assert not ngoai_ids & set(kh["ids"])
+    DL.thuc_hien(c, kh)
+    assert {e: DL.dem_ky_thi(c, [e])[e] for e in NGOAI_PHAM_VI} == truoc
+    assert DL.dem_ky_thi(c, [1633])[1633]["tong"] == 0
+
+
+def test_hau_kiem_tu_choi_phieu_ngoai_pham_vi(the_gioi, monkeypatch):
+    """Nếu (do lỗi lập trình) truy vấn trả phiếu của kỳ thi ngoài phạm vi, lap_ke_hoach phải từ chối thay vì xoá."""
+    g = the_gioi
+    goc = g["c"].execute
+
+    def execute(sql, *a, **k):
+        if isinstance(sql, str) and sql.lstrip().startswith("SELECT a.sheet_id") and "a.exam_id = ANY(%s) ORDER BY" in sql:
+            return goc(sql, ([*a[0][0], g["khac"]],), **k)          # cài lỗi: gộp thêm kỳ thi "[DEMO] kỳ thi khác"
+        return goc(sql, *a, **k)
+    monkeypatch.setattr(g["c"], "execute", execute)
+    with pytest.raises(DL.LoiDatLai, match="ngoài phạm vi"):
+        DL.lap_ke_hoach(g["c"], **g["kw"])
