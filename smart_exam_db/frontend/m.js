@@ -245,6 +245,7 @@ $("#logout").addEventListener("click", async () => {
   if (hd.dangBan() && !confirm("Còn tờ đang gửi / đang chấm. Đăng xuất sẽ dừng gửi. Vẫn đăng xuất?")) return;
   try { await api("/auth/logout", { method: "POST" }); } catch (_) { /* bỏ qua */ }
   try { sessionStorage.removeItem(KHOA_PHIEN); } catch (_) { /* bỏ qua */ }
+  KyThiDong.xoa();                                                       // V2: lựa chọn "Hiện cả kỳ thi đã đóng" không sang người sau
   st.me = null; manDangNhap("Đã đăng xuất.");
 });
 
@@ -252,14 +253,24 @@ $("#logout").addEventListener("click", async () => {
 async function manKyThi(thongBao) {
   st.exams = await api("/exams");
   const msg = $("#exam-msg"); msg.textContent = thongBao || ""; msg.classList.toggle("hidden", !thongBao);
-  const ds = $("#exam-list");
-  ds.innerHTML = st.exams.length ? st.exams.map((e) => `<button type="button" class="exam" data-id="${e.exam_id}">
-      <span class="sub">${esc(e.subject_name)} · ${esc(e.class_code || "không lớp")} · mã ${e.exam_id}</span><b>${esc(e.exam_title)}</b>
-      <span class="sub">${e.so_phieu} phiếu${e.status === "closed" ? " · ĐÃ ĐÓNG" : ""}</span></button>`).join("")
-    : '<p class="muted">Bạn chưa có kỳ thi nào. Tạo kỳ thi trên máy tính trước.</p>';
-  ds.querySelectorAll(".exam").forEach((b) => b.addEventListener("click", () => chonKyThi(Number(b.dataset.id))));
+  veDsKyThi();
   hien("v-exams");
 }
+/* V2: kỳ thi đã đóng (không nhận ảnh) ẩn mặc định – CHỈ lọc hiển thị (frontend/ky_thi_dong.js); QR trang bìa vẫn tra trong danh sách đầy đủ st.exams. */
+function veDsKyThi() {
+  const hienDong = KyThiDong.doc(), soDong = KyThiDong.soDong(st.exams), xem = KyThiDong.loc(st.exams, hienDong);
+  const ds = $("#exam-list");
+  ds.innerHTML = xem.length ? xem.map((e) => `<button type="button" class="exam" data-id="${e.exam_id}">
+      <span class="sub">${esc(e.subject_name)} · ${esc(e.class_code || "không lớp")} · mã ${e.exam_id}</span><b>${esc(e.exam_title)}</b>
+      <span class="sub">${e.so_phieu} phiếu${e.status === "closed" ? " · ĐÃ ĐÓNG" : ""}</span></button>`).join("")
+    : st.exams.length ? `<p class="muted">Không có kỳ thi đang mở (${soDong} kỳ thi đã đóng – bật "Hiện cả kỳ thi đã đóng" để xem).</p>`
+      : '<p class="muted">Bạn chưa có kỳ thi nào. Tạo kỳ thi trên máy tính trước.</p>';
+  ds.querySelectorAll(".exam").forEach((b) => b.addEventListener("click", () => chonKyThi(Number(b.dataset.id))));
+  $("#hien-dong").checked = hienDong;
+  $("#so-dong").textContent = soDong ? `(${soDong})` : "";
+  $("#hien-dong-wrap").classList.toggle("hidden", !soDong && !hienDong);
+}
+$("#hien-dong").addEventListener("change", (ev) => { KyThiDong.luu(ev.target.checked); veDsKyThi(); });
 function chonKyThi(id) {
   const e = st.exams.find((x) => x.exam_id === id);
   if (!e) return;

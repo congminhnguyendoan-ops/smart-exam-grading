@@ -51,7 +51,7 @@ def test_m_js_khong_luu_token_khong_nen_anh_goi_dung_api():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="không có node để kiểm cú pháp JS")
-@pytest.mark.parametrize("ten", ["m.js", "m_hang_doi.js", "app.js", "loi_tai.js"])
+@pytest.mark.parametrize("ten", ["m.js", "m_hang_doi.js", "app.js", "loi_tai.js", "ky_thi_dong.js"])
 def test_js_dung_cu_phap(ten):
     r = subprocess.run(["node", "--check", str(FRONTEND / ten)], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
@@ -72,6 +72,29 @@ def test_loi_tai_phan_loai_node():
     r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "loi_tai.test.js")], capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stdout + r.stderr
     assert re.search(r"pass 3\b", r.stdout) and re.search(r"fail 0\b", r.stdout), r.stdout
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="không có node để chạy test JS")
+def test_ky_thi_dong_node():
+    """tests/js/ky_thi_dong.test.js: ẩn kỳ thi đóng, giữ kỳ thi đang chọn, một khoá localStorage, xoá khi đăng xuất (V2)."""
+    r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "ky_thi_dong.test.js")], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert re.search(r"pass 3\b", r.stdout) and re.search(r"fail 0\b", r.stdout), r.stdout
+
+
+def test_v2_noi_ky_thi_dong_vao_giao_dien():
+    """V2: thanh bên /app/ và "Chọn kỳ thi" /m lọc qua KyThiDong; khoá lưu nằm trong KHOA_LUU_TRU (xoaLuuTru) và /m xoá khi đăng xuất;
+    trang Quản trị KHÔNG lọc (hiện đủ); m.js vẫn không tự đụng localStorage (chỉ module dùng chung, đúng một khoá)."""
+    a, m, q = ((FRONTEND / t).read_text(encoding="utf-8") for t in ("app.js", "m.js", "quan_tri.js"))
+    mod = (FRONTEND / "ky_thi_dong.js").read_text(encoding="utf-8")
+    assert re.search(r"KHOA_LUU_TRU = \{ local: \[[^\]]*KyThiDong\.KHOA", a) and 'KHOA = "hienKyThiDong"' in mod
+    assert "KyThiDong.loc(state.exams" in a and "KyThiDong.loc(st.exams" in m and "KyThiDong.xoa()" in m
+    assert "KyThiDong" not in q
+    assert "localStorage" not in re.sub(r"/\*.*?\*/|//[^\n]*", "", m, flags=re.S)
+    assert set(re.findall(r"localStorage\.(?:getItem|setItem|removeItem)\((\w+)", mod)) == {"KHOA"}
+    for html, src in (("index.html", "ky_thi_dong.js"), ("m.html", "/app/ky_thi_dong.js")):
+        h = (FRONTEND / html).read_text(encoding="utf-8")
+        assert h.index(src) < h.index("app.js" if html == "index.html" else "/app/m.js") and 'id="hien-dong"' in h
 
 
 def test_v1_giao_dien_dung_loi_tai_va_khong_gui_lai_khi_tu_choi():

@@ -70,25 +70,35 @@ const put = (p, data) => api(p, { method: "PUT", headers: { "Content-Type": "app
 
 /* ------------------------------------------------------------------ kỳ thi */
 /* Nhãn ô chọn kỳ thi: số phiếu PHẢI làm mới sau mỗi lần tải / duyệt (trước F3 chỉ nạp một lần nên hiện "(0 phiếu)" dù đã có phiếu). */
-const nhanKyThi = (e, soPhieu) => `${esc(e.exam_title)} · ${esc(e.class_code || "không lớp")} (${soPhieu} phiếu)`;
+const nhanKyThi = (e, soPhieu) => `${esc(e.exam_title)} · ${esc(e.class_code || "không lớp")} (${soPhieu} phiếu)${e.status === "closed" ? " · ĐÃ ĐÓNG" : ""}`;
 function lamMoiNhanKyThi(e) {
   const dm = state.exams.find((x) => x.exam_id === e.exam_id);
-  if (dm) dm.so_phieu = e.sheets.tong;
+  if (dm) { dm.so_phieu = e.sheets.tong; dm.status = e.status; }
   const opt = [...$("#exam-select").options].find((o) => Number(o.value) === e.exam_id);
   if (opt && dm) opt.innerHTML = nhanKyThi(dm, e.sheets.tong);
 }
 async function napKyThi() {
   state.exams = await api("/exams");
-  const sel = $("#exam-select");
-  // Tên kỳ thi đứng ĐẦU: ô chọn trong thanh bên hẹp cắt phần cuối; đủ "Môn – Lớp – tên" ở title (rê chuột) và ở #exam-name (xuống dòng).
-  sel.innerHTML = state.exams.map((e) => `<option value="${e.exam_id}" title="${esc(e.subject_name)} – ${esc(e.class_code || "không lớp")} – ${esc(e.exam_title)}">` +
-    `${nhanKyThi(e, e.so_phieu)}</option>`).join("");
   let saved = null; try { saved = localStorage.getItem("examId"); } catch (_) { /* bỏ qua */ }
+  // V2: kỳ thi đã đóng ẩn khỏi ô chọn (trừ khi bật "Hiện cả kỳ thi đã đóng"); kỳ thi đã lưu vẫn giữ nếu người dùng đang xem nó.
+  const hienThi = KyThiDong.loc(state.exams, KyThiDong.doc());
   state.examId = state.exams.some((e) => String(e.exam_id) === saved) ? Number(saved)
-    : (state.exams.find((e) => e.exam_title.startsWith("[DEMO]")) || state.exams[state.exams.length - 1] || {}).exam_id || null;
-  sel.value = state.examId ?? "";
+    : (hienThi.find((e) => e.exam_title.startsWith("[DEMO]")) || hienThi[hienThi.length - 1] || {}).exam_id || null;
+  veOChonKyThi();
   await napChiTietKyThi();
 }
+/* Vẽ ô chọn kỳ thi theo bộ lọc V2 (chỉ hiển thị – quyền do máy chủ kiểm). Kỳ thi đang chọn luôn có trong danh sách. */
+function veOChonKyThi() {
+  const sel = $("#exam-select"), hien = KyThiDong.doc(), soDong = KyThiDong.soDong(state.exams);
+  // Tên kỳ thi đứng ĐẦU: ô chọn trong thanh bên hẹp cắt phần cuối; đủ "Môn – Lớp – tên" ở title (rê chuột) và ở #exam-name (xuống dòng).
+  sel.innerHTML = KyThiDong.loc(state.exams, hien, state.examId).map((e) => `<option value="${e.exam_id}" title="${esc(e.subject_name)} – ${esc(e.class_code || "không lớp")} – ${esc(e.exam_title)}">` +
+    `${nhanKyThi(e, e.so_phieu)}</option>`).join("");
+  sel.value = state.examId ?? "";
+  $("#hien-dong").checked = hien;
+  $("#so-dong").textContent = soDong ? `(${soDong})` : "";
+  $("#hien-dong-wrap").classList.toggle("hidden", !soDong && !hien);
+}
+$("#hien-dong").addEventListener("change", (ev) => { KyThiDong.luu(ev.target.checked); veOChonKyThi(); });
 async function napChiTietKyThi() {
   state.exam = state.examId ? await api(`/exams/${state.examId}`) : null;
   const e = state.exam;
@@ -138,7 +148,7 @@ const trangMacDinh = () => TRANG_MAC_DINH[state.me && state.me.role] || "#/uploa
 const datHash = (h) => history.replaceState(null, "", location.pathname + location.search + h);   // đổi hash KHÔNG phát hashchange (tự gọi route sau)
 
 /* Khoá lưu trữ của ỨNG DỤNG (app.js + m.js, cùng gốc) – chỉ xoá đúng các khoá này, không đụng khoá khác. */
-const KHOA_LUU_TRU = { local: ["examId"], session: ["loc", "m_hang_doi", "m_tong", "m_exam"] };
+const KHOA_LUU_TRU = { local: ["examId", KyThiDong.KHOA], session: ["loc", "m_hang_doi", "m_tong", "m_exam"] };
 function xoaLuuTru() {
   for (const [kho, ds] of [[() => localStorage, KHOA_LUU_TRU.local], [() => sessionStorage, KHOA_LUU_TRU.session]])
     for (const k of ds) { try { kho().removeItem(k); } catch (_) { /* bỏ qua */ } }
@@ -151,6 +161,7 @@ function xoaDuLieuPhien() {
   for (const k of Object.keys(daXem)) delete daXem[k];
   if (typeof qtKyThi === "function") delete qtKyThi.lops;
   const sel = $("#exam-select"); sel.innerHTML = ""; sel.title = "";
+  $("#hien-dong-wrap").classList.add("hidden"); $("#hien-dong").checked = false; $("#so-dong").textContent = "";
   $("#exam-name").textContent = ""; $("#exam-info").textContent = "";
   const n = $("#nav-count"); n.textContent = ""; n.classList.add("hidden");
   const bia = $("#trang-bia"); bia.classList.add("hidden"); bia.removeAttribute("href");

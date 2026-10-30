@@ -16,6 +16,8 @@ button,.big{font:inherit;border-radius:12px;border:1px solid var(--line);backgro
 .pri{background:var(--pri);border-color:var(--pri);color:#fff}
 button:disabled,.big.off{opacity:.55;pointer-events:none}
 .list{display:flex;flex-direction:column;gap:10px}
+.hien-dong{display:flex;gap:10px;align-items:center;margin:16px 0 0;font-weight:400;font-size:16px}
+.hien-dong input{display:inline-block;width:22px;height:22px;margin:0;padding:0}
 .exam{display:block;width:100%;text-align:left;padding:14px 16px;border-radius:12px;background:#fff;border:1px solid var(--line);min-height:64px}
 .exam .sub,.exam-head .sub{display:block;font-size:14px;color:var(--mut);font-weight:400}
 .exam b{display:block;font-size:18px;overflow-wrap:anywhere}
