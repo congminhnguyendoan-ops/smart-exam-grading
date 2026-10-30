@@ -22,7 +22,7 @@ Script sẽ hỏi mật khẩu `postgres` một lần, sau đó tự làm lần 
 
 | File | Nội dung |
 |---|---|
-| `00_create_database.sql` | Tạo user `smart_exam_app` (mật khẩu `smartexam123`) và database `smart_exam` UTF-8 |
+| `00_create_database.sql` | Tạo user `smart_exam_app` (mật khẩu lấy từ `SMART_EXAM_DB_PASSWORD`, không ghi trong tệp – lệnh W) và database `smart_exam` UTF-8 |
 | `01_schema.sql` | 10 kiểu ENUM + 20 bảng, khóa chính/ngoại, CHECK, index |
 | `02_functions_triggers.sql` | Logic chấm điểm, match SBD, hàng đợi review, audit log |
 | `03_views.sql` | 8 view cho dashboard, thống kê, tra cứu, đối soát |
@@ -95,7 +95,7 @@ smart-exam/
 ├── frontend/            ← Streamlit: app.py, pages/
 ├── data/                ← raw/, cells/, digits_real/ (không push ảnh lớn lên Git)
 ├── tests/
-├── .env                 ← DATABASE_URL=postgresql://smart_exam_app:smartexam123@localhost:5432/smart_exam
+├── .env                 ← DATABASE_URL=postgresql://smart_exam_app:<mật khẩu>@localhost:5432/smart_exam
 └── requirements.txt
 ```
 

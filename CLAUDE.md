@@ -606,8 +606,9 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - Có 2 venv: `smart_exam_db_1/.venv` và `smart_exam_db/answer_sheet/.venv`. **Chốt 03/10/2026: dùng
   `.venv` ở gốc** (terminal xác nhận `sys.executable` = `smart_exam_db_1\.venv\Scripts\python.exe`).
   `answer_sheet/.idea/misc.xml` còn trỏ tới đường dẫn cũ `~\Downloads\...` – không dùng.
-- Mật khẩu DB `smartexam123`: backend và `tools/db_check.py` đã đọc từ `.env` (không còn trong code Python); **vẫn ghi cứng** trong
-  `00_create_database.sql`, `run_all.bat/.sh`, `HUONG_DAN.md` (script tạo CSDL cần nó) – chấp nhận được khi làm local, cần lưu ý nếu công khai repo.
+- Mật khẩu DB: backend và `tools/db_check.py` đọc từ `.env` (`DATABASE_URL`). **Lệnh W (30/10/2026)**: `00_create_database.sql`, `run_all.bat/.sh` KHÔNG còn ghi cứng –
+  đọc `SMART_EXAM_DB_PASSWORD` (biến môi trường hoặc `.env`), thiếu thì dừng trước mọi lệnh psql (`tests/test_mat_khau_csdl.py`). Mật khẩu thật CHƯA đổi và
+  vẫn còn trong LỊCH SỬ git (commit cũ) – nếu công khai repo phải đổi mật khẩu role `smart_exam_app` (người dùng quyết).
 - Không gửi ảnh qua Zalo/Messenger (bị nén) – chỉ chép bằng cáp hoặc Google Drive.
 - (Lịch sử, ĐÃ XỬ LÝ Tuần 4 Bước 3–6) `find_markers()`/`align()` cũ trong `check_layout.py` chọn nhầm marker mà không báo
   lỗi (dev: 19/78 lỗi im lặng – `data/_eval/align_cu/truth_dev.csv`; 4 nguyên nhân + cách sửa: `docs/ke_hoach_tuan4.md`).

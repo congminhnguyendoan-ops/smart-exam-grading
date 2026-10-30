@@ -40,11 +40,16 @@ $py = "<GOC>\.venv\Scripts\python.exe"
 **XOÁ SẠCH CSDL `smart_exam` cũ nếu có** (`00_create_database.sql` chạy `DROP DATABASE`).
 ```powershell
 $env:Path += ";C:\Program Files\PostgreSQL\17\bin"     # psql chưa có trong PATH
+$env:SMART_EXAM_DB_PASSWORD = "<mật khẩu tự chọn cho smart_exam_app>"   # chỉ sống trong cửa sổ PowerShell này; GHI LẠI để điền .env ở mục 5
 cd <GOC>\smart_exam_db\database
 .\run_all.bat                                          # [1/6] hỏi mật khẩu postgres; tạo role smart_exam_app + DB; 01→05
 psql -U smart_exam_app -h localhost -d smart_exam -f ..\answer_sheet\output\update_template.sql    # ghi toạ độ phiếu vào sheet_templates (PHẢI chạy sau run_all)
 ```
-- `run_all.bat` tạo role `smart_exam_app` với mật khẩu **ghi cứng** trong `00_create_database.sql` (đổi nếu dùng thật – sửa cả `run_all.bat` và `DATABASE_URL`).
+- Mật khẩu của `smart_exam_app` **không còn ghi cứng** trong script (lệnh W, 30/10/2026). `run_all.bat` / `run_all.sh` lấy từ biến môi trường `SMART_EXAM_DB_PASSWORD`,
+  không có thì đọc dòng `SMART_EXAM_DB_PASSWORD=` trong `smart_exam_db\.env` (đã nằm trong `.gitignore`). Thiếu cả hai thì **dừng ngay, chưa chạy lệnh psql nào**
+  ("LOI: chua co mat khau CSDL…"). `00_create_database.sql` cũng tự dừng trước `DROP DATABASE` nếu không được truyền mật khẩu (`-v app_password=…`).
+- Role `smart_exam_app` **đã có** thì `run_all` giữ nguyên mật khẩu cũ của nó (không đổi mật khẩu CSDL đang chạy) – khi đó `SMART_EXAM_DB_PASSWORD` phải là mật khẩu hiện tại để bước [2/6]→[6/6] nối được.
+- Kiểm chứng script: `tests/test_mat_khau_csdl.py` (chạy bản chép của run_all với psql giả; chốt SQL chạy bằng psql thật trong `--single-transaction`, không xoá được gì) **[ĐÃ KIỂM]**. Chạy `run_all.bat` thật trên máy mới **[SUY RA]**.
 - `04_seed.sql` nạp: tài khoản `admin`, `gv_an`, `gv_binh`, `sv220001` (mật khẩu trong seed là chuỗi giả – **phải đặt lại**, mục 6), lớp CNTT-K22A / K22B, môn IT3080 / IT4040,
   10 sinh viên 220001–220010, mẫu phiếu. `05_demo_workflow.sql` chạy thử luồng chấm (để lại dữ liệu mẫu).
 - Kiểm chứng: **[SUY RA]**. `run_all.bat` chưa chạy trên máy này trong giai đoạn có ghi chép (psql không có trong PATH, `CLAUDE.md` mục 8). `update_template.sql` đã chạy qua pgAdmin (30/09, "UPDATE 1") **[ĐÃ KIỂM]**.
@@ -54,14 +59,14 @@ psql -U smart_exam_app -h localhost -d smart_exam -f ..\answer_sheet\output\upda
 cd <GOC>\smart_exam_db
 Copy-Item .env.example .env
 & $py -c "import secrets; print(secrets.token_urlsafe(48))"     # dán vào AUTH_SECRET
-notepad .env                                                     # DATABASE_URL (mật khẩu smart_exam_app), AUTH_SECRET; để AUTH_MODE=on
-& $py -m backend.migrate                                         # áp 001 → 004 (mỗi tệp một giao dịch; chạy lại an toàn)
-& $py -m backend.migrate --kiem                                  # phải in "ĐÃ ÁP" cho cả 4 tệp
+notepad .env                                                     # DATABASE_URL + SMART_EXAM_DB_PASSWORD (cùng mật khẩu smart_exam_app ở mục 4), AUTH_SECRET; để AUTH_MODE=on
+& $py -m backend.migrate                                         # áp 001 → 005 (mỗi tệp một giao dịch; chạy lại an toàn)
+& $py -m backend.migrate --kiem                                  # phải in "ĐÃ ÁP" cho cả 5 tệp
 & $py tools/db_check.py                                          # in bảng kỳ thi = nối CSDL được
 ```
 - KHÔNG đặt `ANH_XOA_TU_DONG=1` trong `.env` (`chay_server_lan.py` tự bật). `PUBLIC_BASE_URL` để trống hoặc `http://<IP LAN>:8000` (mã QR trang bìa).
 - Kiểm chứng: migration 001–005 đã áp trên máy này (001 từ bản demo backend 07/10, 002 27/10, 003 27/10, 004 29/10, 005 30/10 – nhật ký quản trị, lệnh V – các lần sau có sao lưu trong `data\_backup\`) **[ĐÃ KIỂM]**; `.env` đang có đủ khoá **[ĐÃ KIỂM]**.
-  Áp liền 001→004 lên một CSDL vừa tạo bằng `run_all.bat` **[SUY RA]**.
+  Áp liền 001→005 lên một CSDL vừa tạo bằng `run_all.bat` **[SUY RA]**.
 
 ## 6. Tài khoản + dữ liệu demo
 ```powershell
