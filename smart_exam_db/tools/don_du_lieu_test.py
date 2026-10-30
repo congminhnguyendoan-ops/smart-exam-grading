@@ -5,6 +5,7 @@ don_du_lieu_test.py - Dọn phiếu TEST thừa trong hai kỳ thi demo [DEMO-BV
   python tools/don_du_lieu_test.py --ids 5001 5002      # thêm phiếu cụ thể (kỳ thi khác) vào danh sách xoá – CHỈ khi kỳ thi có dấu [DEMO / [THU
   python tools/don_du_lieu_test.py --giu 3881           # thêm phiếu cần GIỮ (mặc định giữ mọi phiếu có điểm chính thức hợp lệ)
   python tools/don_du_lieu_test.py --thuc-hien          # sao lưu -> gõ "XOA" -> xoá trong MỘT giao dịch (lệch số dòng so với xem trước = ROLLBACK) -> xoá tệp ảnh
+  python tools/don_du_lieu_test.py --chi-ids --ids 6883 6884   # (lệnh J) CHỈ đúng các phiếu --ids, KHÔNG xét 1632 / 1633 (thêm --thuc-hien để xoá)
 
 Phiếu GIỮ = phiếu `graded` có dòng results status <> 'void' (điểm chính thức hợp lệ) + các phiếu --giu. Mọi phiếu còn lại của 1632 / 1633 là ứng viên xoá.
 Bảng con (dò từ pg_constraint, không đoán): sheet_answers, review_queue, ocr_digits (ON DELETE CASCADE) và results (KHÔNG cascade) → score_audit_logs (cascade theo results).
@@ -211,7 +212,12 @@ def main() -> int:
     ap.add_argument("--giu", type=int, nargs="*", default=[], help="thêm phiếu cần GIỮ")
     ap.add_argument("--thuc-hien", action="store_true", help="xoá thật (mặc định: chỉ xem trước)")
     ap.add_argument("--xac-nhan", default=None, help='gõ XOA (nếu không có sẽ hỏi trên màn hình)')
+    ap.add_argument("--chi-ids", action="store_true", help="phạm vi = CHỈ các phiếu --ids (không gộp mọi phiếu chưa chính thức của 1632 / 1633)")
     a = ap.parse_args()
+    if a.chi_ids and not a.ids:
+        print("LỖI: --chi-ids cần --ids.")
+        return 2
+    pham_vi = () if a.chi_ids else PHAM_VI
     from backend.config import lay_cau_hinh
     from backend.db import ket_noi
     kho = lay_cau_hinh().storage_dir
@@ -220,7 +226,7 @@ def main() -> int:
         if not a.thuc_hien:
             conn.read_only = True                                         # xem trước: giao dịch CHỈ ĐỌC
         try:
-            kh = lap_ke_hoach(conn, PHAM_VI, a.ids, a.giu)
+            kh = lap_ke_hoach(conn, pham_vi, a.ids, a.giu)
         except LoiDon as e:
             print("LỖI:", e)
             return 2
@@ -248,7 +254,7 @@ def main() -> int:
             conn.rollback()
             print("HOÀN TÁC:", e)
             return 3
-        ks = kiem_sau(conn, PHAM_VI)
+        ks = kiem_sau(conn, pham_vi or sorted({p["exam_id"] for p in kh["xoa"]}))
         if any(ks["mo_coi"].values()):
             conn.rollback()
             print("HOÀN TÁC: còn dòng mồ côi", ks["mo_coi"])
