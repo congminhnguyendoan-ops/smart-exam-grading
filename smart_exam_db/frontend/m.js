@@ -107,10 +107,10 @@ function nhanTrangThai(t) {
 function canhBao(v) {
   if (!v) return [];
   const ly = (v.review && v.status === "needs_review" && v.review.reasons) || [], ra = [];
-  if (v.sbd && v.sbd.can_xem) ra.push(`SBD cần xem: ${(v.sbd.reasons || []).map((m) => LY_DO_SBD[m] || m).join(", ") || "máy chưa chắc"}`);
+  if (v.sbd && v.sbd.can_xem) ra.push(`SBD cần xem: ${esc(LyDoCot.moTa(v.sbd, LY_DO_SBD).join("; ")) || "máy chưa chắc"}`);   // V3: câu theo từng cột
   else if (ly.includes("sbd_not_found")) ra.push(`SBD ${esc(v.sbd && v.sbd.detected)} không có trong danh sách kỳ thi – chưa ghi điểm`);
   if (ly.includes("duplicate_sbd")) ra.push("SBD trùng với một phiếu khác");
-  if (v.exam_code && v.exam_code.can_xem) ra.push("Mã đề cần xem");
+  if (v.exam_code && v.exam_code.can_xem) ra.push(`Mã đề cần xem${LyDoCot.moTa(v.exam_code, LY_DO_SBD).length ? `: ${esc(LyDoCot.moTa(v.exam_code, LY_DO_SBD).join("; "))}` : ""}`);
   else if (!(v.exam_code && v.exam_code.matched_code)) ra.push(`Mã đề ${esc(v.exam_code && v.exam_code.detected)} không thuộc kỳ thi`);
   if (v.questions.some((q) => q.needs_review && (q.reasons || []).includes("to_nhat"))) ra.push("Tờ tô nhạt cả tờ – kiểm tra lại các câu");
   return ra;

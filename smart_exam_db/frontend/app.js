@@ -376,7 +376,7 @@ function cotsHtml(tr) {
 function haiKenhHtml(sheetId, field, tr) {
   if (!tr || !tr.columns.some((c) => c.handwriting)) return "";
   const hang = (ten, f) => `<tr><th>${ten}</th>${tr.columns.map((c) => `<td class="${c.can_xem ? "lech" : ""}">${f(c)}</td>`).join("")}</tr>`;
-  const ly = [...new Set(tr.columns.flatMap((c) => c.ly_do).concat(tr.reasons || []))];
+  const ly = LyDoCot.moTa(tr, LY_DO_CHU_SO);                                     // V3: câu theo từng cột (chỉ câu chữ, dữ liệu API không đổi)
   return `<table class="haikenh"><tbody>
     ${hang("Ô tô (bubble)", (c) => `<b>${esc(c.bubble ?? c.chu_so)}</b>`)}
     ${hang("Chữ viết tay", (c) => c.handwriting && c.handwriting.has_crop
@@ -386,7 +386,7 @@ function haiKenhHtml(sheetId, field, tr) {
       if (h.chu_so === "?") return `<span class="muted">không đọc được</span>`;
       return `<b>${esc(h.chu_so)}</b> <span class="muted small">${Math.round(h.p * 100)}%</span>`; })}
     ${hang("GV đã chốt", (c) => (c.handwriting && c.handwriting.corrected) ? `<b>${esc(c.handwriting.corrected)}</b>` : "")}
-    </tbody></table>${ly.length ? `<p class="small muted">Lý do cần xem: ${ly.map((m) => LY_DO_CHU_SO[m] || m).join("; ")}</p>` : ""}`;
+    </tbody></table>${ly.length ? `<div class="small muted ly-do-cot">Lý do cần xem:<ul>${ly.map((s) => `<li>${esc(s)}</li>`).join("")}</ul></div>` : ""}`;
 }
 function cauHtml(q, dapAn) {
   const cls = q.needs_review ? "review" : q.is_correct === true ? "good" : q.is_correct === false ? "wrong" : "";

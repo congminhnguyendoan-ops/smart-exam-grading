@@ -51,7 +51,7 @@ def test_m_js_khong_luu_token_khong_nen_anh_goi_dung_api():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="không có node để kiểm cú pháp JS")
-@pytest.mark.parametrize("ten", ["m.js", "m_hang_doi.js", "app.js", "loi_tai.js", "ky_thi_dong.js"])
+@pytest.mark.parametrize("ten", ["m.js", "m_hang_doi.js", "app.js", "loi_tai.js", "ky_thi_dong.js", "ly_do_cot.js"])
 def test_js_dung_cu_phap(ten):
     r = subprocess.run(["node", "--check", str(FRONTEND / ten)], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
@@ -80,6 +80,26 @@ def test_ky_thi_dong_node():
     r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "ky_thi_dong.test.js")], capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stdout + r.stderr
     assert re.search(r"pass 3\b", r.stdout) and re.search(r"fail 0\b", r.stdout), r.stdout
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="không có node để chạy test JS")
+def test_ly_do_cot_node():
+    """tests/js/ly_do_cot.test.js: câu lý do SBD / mã đề theo cột – ô tô trống + chữ viết tay có số, hai kênh lệch, tin cậy thấp, ô viết tay trống ngoài danh sách (V3)."""
+    r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "ly_do_cot.test.js")], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert re.search(r"pass 3\b", r.stdout) and re.search(r"fail 0\b", r.stdout), r.stdout
+
+
+def test_v3_noi_ly_do_cot_va_api_khong_doi():
+    """V3 chỉ đổi câu chữ: haiKenhHtml (/app/) và canhBao (/m) dùng LyDoCot.moTa; các trường API nó đọc có sẵn trong schema (không thêm / đổi trường)."""
+    a, m = (FRONTEND / "app.js").read_text(encoding="utf-8"), (FRONTEND / "m.js").read_text(encoding="utf-8")
+    assert "LyDoCot.moTa(tr, LY_DO_CHU_SO)" in a and "LyDoCot.moTa(v.sbd, LY_DO_SBD)" in m and "LyDoCot.moTa(v.exam_code, LY_DO_SBD)" in m
+    for html, src, sau in (("index.html", "ly_do_cot.js", "app.js"), ("m.html", "/app/ly_do_cot.js", "/app/m.js")):
+        h = (FRONTEND / html).read_text(encoding="utf-8")
+        assert h.index(src) < h.index(sau)
+    from backend import schemas
+    assert {"vi_tri", "bubble", "handwriting", "ly_do"} <= set(schemas.CotChuSo.model_fields)
+    assert {"chu_so", "p", "o_trong", "loi_o"} <= set(schemas.ChuVietTay.model_fields)
 
 
 def test_v2_noi_ky_thi_dong_vao_giao_dien():
