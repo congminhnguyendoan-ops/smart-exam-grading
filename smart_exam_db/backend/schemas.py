@@ -199,6 +199,27 @@ class KyThiCuaGiaoVien(BaseModel):
     nguon: Literal["phu_trach", "lop"] = Field(description="phu_trach = được gán (gán / bỏ gán ở đây); lop = thấy vì dạy lớp của kỳ thi")
 
 
+class NhatKyDong(BaseModel):
+    """Một thao tác quản trị THÀNH CÔNG (lệnh V4). details không chứa mật khẩu / token."""
+    log_id: int
+    created_at: datetime
+    actor_user_id: int | None
+    actor_username: str | None = Field(description="None nếu tài khoản người thao tác đã bị xoá")
+    action: str = Field(description="tao_ky_thi | sua_ky_thi | dong_ky_thi | mo_ky_thi | xoa_ky_thi | tao_tai_khoan | dat_lai_mat_khau | "
+                                    "vo_hieu_hoa_tai_khoan | kich_hoat_tai_khoan | gan_ky_thi | bo_gan_ky_thi | dat_lop_giao_vien | tao_lop | sua_lop | "
+                                    "vo_hieu_hoa_lop | kich_hoat_lop | xoa_lop | them_giao_vien_vao_lop | bo_giao_vien_khoi_lop")
+    object_type: Literal["exam", "user", "class"]
+    object_id: int | None
+    details: dict
+
+
+class NhatKyTrang(BaseModel):
+    tong: int
+    trang: int
+    co_trang: int
+    dong: list[NhatKyDong]
+
+
 # ------------------------------------------------------------------------------------------------ phiếu
 class ChuVietTay(BaseModel):
     """Chữ số CNN đọc từ ô VIẾT TAY của cột (kênh thứ hai, độc lập với bubble)."""

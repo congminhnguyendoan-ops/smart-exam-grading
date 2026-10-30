@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from urllib.parse import quote
 
-from . import auth, bang_diem, don_anh, loi_khuyen, mang, nguoi_dung, phan_quyen, phieu_trung, quan_tri, schemas, service, trang_bia
+from . import auth, bang_diem, don_anh, loi_khuyen, mang, nguoi_dung, nhat_ky, phan_quyen, phieu_trung, quan_tri, schemas, service, trang_bia
 from .config import CauHinh, LoiCauHinh, lay_cau_hinh
 from .db import ket_noi
 
@@ -400,6 +400,18 @@ def sinh_vien_lop(class_id: int, q: str | None = Query(default=None, max_length=
 
 
 # ------------------------------------------------------------------------------------------------ quản trị (chỉ admin)
+# Lệnh V4: mọi thao tác GHI thành công để lại MỘT dòng admin_audit_log (nhat_ky.ghi) – ghi SAU hàm quan_tri.*, cùng giao dịch:
+# hàm ném lỗi (409 / 404 / 422) thì không tới dòng ghi; giao dịch rollback thì nhật ký mất theo. Không ghi mật khẩu.
+_COT_KY_THI = ("exam_title", "exam_date", "class_id", "status", "teacher_user_id")
+
+
+@app.get("/admin/audit", response_model=schemas.NhatKyTrang, tags=["Quản trị"], summary="Nhật ký thao tác quản trị (mới nhất trước)")
+def qt_nhat_ky(page: int = Query(default=1, ge=1), page_size: int = Query(default=100, ge=1, le=200), conn=Depends(get_conn),
+               nd: auth.NguoiDung = Depends(chi_admin)):
+    """Chỉ admin (giáo viên 403). Chỉ thao tác thành công; `details` không chứa mật khẩu / token."""
+    return nhat_ky.ds(conn, page, page_size)
+
+
 @app.get("/admin/exams", response_model=list[schemas.KyThiQuanTri], tags=["Quản trị"], summary="Mọi kỳ thi (kèm giáo viên phụ trách, trạng thái)")
 def qt_ds_ky_thi(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     return quan_tri.ds_ky_thi(conn)
@@ -411,25 +423,37 @@ def qt_tao_ky_thi(body: schemas.KyThiQuanTriMoi, conn=Depends(get_conn), nd: aut
     """Cùng quy tắc kiểm đáp án với POST /exams. `teacher_user_id`: giáo viên phụ trách (thấy và chụp phiếu cho kỳ thi này)."""
     d = body.model_dump(exclude={"teacher_user_id"})
     d["class_id"] = phan_quyen.giai_lop_cho_ky_thi(conn, nd, body.class_id, body.class_code)
-    return quan_tri.mot_ky_thi(conn, quan_tri.tao_ky_thi_qt(conn, nd, d, body.teacher_user_id))
+    e = quan_tri.mot_ky_thi(conn, quan_tri.tao_ky_thi_qt(conn, nd, d, body.teacher_user_id))
+    nhat_ky.ghi(conn, nd, "tao_ky_thi", e["exam_id"], {"exam_title": e["exam_title"], "class_code": e["class_code"], "subject_code": e["subject_code"],
+                                                       "teacher_username": e["teacher_username"], "ma_de": e["ma_de"]})
+    return e
 
 
 @app.patch("/admin/exams/{exam_id}", response_model=schemas.KyThiQuanTri, tags=["Quản trị"], summary="Sửa tên / ngày thi")
 def qt_sua_ky_thi(exam_id: int, body: schemas.SuaKyThi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     """Chỉ sửa trường có gửi; `exam_date: null` xoá ngày. Không đổi đáp án (đáp án sửa sau khi đã có phiếu là nợ kỹ thuật – cần chấm lại)."""
-    return quan_tri.sua_ky_thi(conn, exam_id, {k: getattr(body, k) for k in body.model_fields_set})
+    cu = quan_tri.mot_ky_thi(conn, exam_id)
+    e = quan_tri.sua_ky_thi(conn, exam_id, {k: getattr(body, k) for k in body.model_fields_set})
+    nhat_ky.ghi(conn, nd, "sua_ky_thi", exam_id, {"exam_title": e["exam_title"], "thay": nhat_ky.thay_doi(cu, e, _COT_KY_THI)})
+    return e
 
 
 @app.post("/admin/exams/{exam_id}/status", response_model=schemas.KyThiQuanTri, tags=["Quản trị"], summary="Đóng / mở lại kỳ thi")
 def qt_dong_mo(exam_id: int, body: schemas.DongMoKyThi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     """Đóng: không nhận ảnh mới (409 khi tải). Duyệt phiếu, bảng điểm, Excel vẫn dùng được."""
-    return quan_tri.dat_dong_mo(conn, exam_id, body.closed)
+    cu = quan_tri.mot_ky_thi(conn, exam_id)
+    e = quan_tri.dat_dong_mo(conn, exam_id, body.closed)
+    nhat_ky.ghi(conn, nd, "dong_ky_thi" if body.closed else "mo_ky_thi", exam_id,
+                {"exam_title": e["exam_title"], "status": {"cu": cu["status"], "moi": e["status"]}})
+    return e
 
 
 @app.delete("/admin/exams/{exam_id}", status_code=204, tags=["Quản trị"], summary="Xoá kỳ thi CHƯA có phiếu")
 def qt_xoa_ky_thi(exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     """Đã có phiếu / lô tải / kết quả -> 409 (chỉ đóng được)."""
+    cu = quan_tri.mot_ky_thi(conn, exam_id)
     quan_tri.xoa_ky_thi(conn, exam_id)
+    nhat_ky.ghi(conn, nd, "xoa_ky_thi", exam_id, {"exam_title": cu["exam_title"], "class_code": cu["class_code"], "subject_code": cu["subject_code"]})
     log.info("Quản trị %s xoá kỳ thi %s (chưa có phiếu)", nd.username, exam_id)
     return Response(status_code=204)
 
@@ -442,19 +466,24 @@ def qt_ds_tai_khoan(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_adm
 @app.post("/admin/users", status_code=201, response_model=schemas.TaiKhoan, tags=["Quản trị"], summary="Tạo tài khoản giáo viên")
 def qt_tao_tai_khoan(body: schemas.TaiKhoanMoi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     """Vai trò luôn là teacher. Mật khẩu băm scrypt; phản hồi / nhật ký không bao giờ chứa mật khẩu. Trùng tên / email -> 409."""
-    return quan_tri.tao_giao_vien(conn, nd, body.username, body.full_name, body.email, body.password, body.class_ids)
+    u = quan_tri.tao_giao_vien(conn, nd, body.username, body.full_name, body.email, body.password, body.class_ids)
+    nhat_ky.ghi(conn, nd, "tao_tai_khoan", u["user_id"], {"username": u["username"], "full_name": u["full_name"], "email": u["email"], "lop": u["lop"]})
+    return u
 
 
 @app.post("/admin/users/{user_id}/password", status_code=204, tags=["Quản trị"], summary="Đặt lại mật khẩu giáo viên")
 def qt_dat_lai_mat_khau(user_id: int, body: schemas.DatMatKhau, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     """Mọi phiên cũ của giáo viên đó hết hiệu lực. Chỉ tài khoản giáo viên (admin khác: dùng `python -m backend.tai_khoan`)."""
     quan_tri.dat_lai_mat_khau(conn, nd, user_id, body.new_password)
+    nhat_ky.ghi(conn, nd, "dat_lai_mat_khau", user_id, {"username": quan_tri.ten_dang_nhap(conn, user_id)})     # KHÔNG ghi mật khẩu
     return Response(status_code=204)
 
 
 @app.post("/admin/users/{user_id}/active", response_model=schemas.TaiKhoan, tags=["Quản trị"], summary="Vô hiệu hoá / kích hoạt lại giáo viên")
 def qt_kich_hoat(user_id: int, body: schemas.KichHoat, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    return quan_tri.dat_hoat_dong(conn, nd, user_id, body.is_active)
+    u = quan_tri.dat_hoat_dong(conn, nd, user_id, body.is_active)
+    nhat_ky.ghi(conn, nd, "kich_hoat_tai_khoan" if body.is_active else "vo_hieu_hoa_tai_khoan", user_id, {"username": u["username"]})
+    return u
 
 
 @app.get("/admin/users/{user_id}/exams", response_model=list[schemas.KyThiCuaGiaoVien], tags=["Quản trị"], summary="Kỳ thi giáo viên thấy")
@@ -465,13 +494,21 @@ def qt_ky_thi_cua_gv(user_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = 
 @app.put("/admin/users/{user_id}/exams/{exam_id}", response_model=list[schemas.KyThiCuaGiaoVien], tags=["Quản trị"],
          summary="Gán kỳ thi cho giáo viên (thành người phụ trách)")
 def qt_gan_ky_thi(user_id: int, exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    return quan_tri.gan_ky_thi(conn, nd, user_id, exam_id)
+    cu = quan_tri.tim_ky_thi(conn, exam_id)                                       # không ném: gan_ky_thi tự kiểm (giữ thứ tự lỗi cũ)
+    ds = quan_tri.gan_ky_thi(conn, nd, user_id, exam_id)
+    nhat_ky.ghi(conn, nd, "gan_ky_thi", user_id, {"username": quan_tri.ten_dang_nhap(conn, user_id), "exam_id": exam_id, "exam_title": cu["exam_title"],
+                                                  "phu_trach_truoc": cu["teacher_username"]})
+    return ds
 
 
 @app.delete("/admin/users/{user_id}/exams/{exam_id}", response_model=list[schemas.KyThiCuaGiaoVien], tags=["Quản trị"],
             summary="Bỏ gán kỳ thi (người phụ trách chuyển về admin đang thao tác)")
 def qt_bo_gan_ky_thi(user_id: int, exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    return quan_tri.bo_gan_ky_thi(conn, nd, user_id, exam_id)
+    ds = quan_tri.bo_gan_ky_thi(conn, nd, user_id, exam_id)
+    e = quan_tri.mot_ky_thi(conn, exam_id)
+    nhat_ky.ghi(conn, nd, "bo_gan_ky_thi", user_id, {"username": quan_tri.ten_dang_nhap(conn, user_id), "exam_id": exam_id, "exam_title": e["exam_title"],
+                                                     "phu_trach_sau": e["teacher_username"]})
+    return ds
 
 
 @app.get("/admin/classes", response_model=list[schemas.LopQuanTri], tags=["Quản trị"], summary="Mọi lớp (số giáo viên, sinh viên, kỳ thi)")
@@ -482,22 +519,31 @@ def qt_ds_lop(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
 @app.post("/admin/classes", status_code=201, response_model=schemas.LopQuanTri, tags=["Quản trị"], summary="Tạo lớp")
 def qt_tao_lop(body: schemas.LopMoi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     """Mã lớp trùng (không phân biệt hoa thường) -> 409."""
-    return quan_tri.tao_lop(conn, nd, body.class_code, body.class_name, body.academic_year)
+    l = quan_tri.tao_lop(conn, nd, body.class_code, body.class_name, body.academic_year)
+    nhat_ky.ghi(conn, nd, "tao_lop", l["class_id"], {"class_code": l["class_code"], "class_name": l["class_name"], "academic_year": l["academic_year"]})
+    return l
 
 
 @app.patch("/admin/classes/{class_id}", response_model=schemas.LopQuanTri, tags=["Quản trị"], summary="Sửa tên / năm học của lớp")
 def qt_sua_lop(class_id: int, body: schemas.SuaLop, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    return quan_tri.sua_lop(conn, class_id, {k: getattr(body, k) for k in body.model_fields_set})
+    cu = quan_tri.mot_lop(conn, class_id)
+    l = quan_tri.sua_lop(conn, class_id, {k: getattr(body, k) for k in body.model_fields_set})
+    nhat_ky.ghi(conn, nd, "sua_lop", class_id, {"class_code": l["class_code"], "thay": nhat_ky.thay_doi(cu, l, ("class_name", "academic_year"))})
+    return l
 
 
 @app.post("/admin/classes/{class_id}/status", response_model=schemas.LopQuanTri, tags=["Quản trị"], summary="Vô hiệu hoá / kích hoạt lại lớp")
 def qt_trang_thai_lop(class_id: int, body: schemas.KichHoatLop, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    return quan_tri.dat_hoat_dong_lop(conn, nd, class_id, body.is_active)
+    l = quan_tri.dat_hoat_dong_lop(conn, nd, class_id, body.is_active)
+    nhat_ky.ghi(conn, nd, "kich_hoat_lop" if body.is_active else "vo_hieu_hoa_lop", class_id, {"class_code": l["class_code"]})
+    return l
 
 
 @app.delete("/admin/classes/{class_id}", status_code=204, tags=["Quản trị"], summary="Xoá lớp CHƯA gắn kỳ thi và chưa có sinh viên")
 def qt_xoa_lop(class_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
+    cu = quan_tri.mot_lop(conn, class_id)
     quan_tri.xoa_lop(conn, nd, class_id)
+    nhat_ky.ghi(conn, nd, "xoa_lop", class_id, {"class_code": cu["class_code"], "class_name": cu["class_name"]})
     return Response(status_code=204)
 
 
@@ -510,13 +556,19 @@ def qt_gv_cua_lop(class_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = De
          summary="Thêm giáo viên (đang hoạt động) vào lớp (đang hoạt động)")
 def qt_them_gv_vao_lop(class_id: int, user_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     """Một giáo viên nhiều lớp, một lớp nhiều giáo viên. Có hiệu lực ở lần gọi kế tiếp của giáo viên."""
-    return quan_tri.them_giao_vien_vao_lop(conn, nd, class_id, user_id)
+    ds = quan_tri.them_giao_vien_vao_lop(conn, nd, class_id, user_id)
+    nhat_ky.ghi(conn, nd, "them_giao_vien_vao_lop", class_id, {"class_code": quan_tri.mot_lop(conn, class_id)["class_code"], "user_id": user_id,
+                                                                "username": quan_tri.ten_dang_nhap(conn, user_id)})
+    return ds
 
 
 @app.delete("/admin/classes/{class_id}/teachers/{user_id}", response_model=list[schemas.GiaoVienCuaLop], tags=["Quản trị"],
             summary="Bỏ giáo viên khỏi lớp (mất quyền theo lớp ngay ở lần gọi kế tiếp)")
 def qt_bo_gv_khoi_lop(class_id: int, user_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    return quan_tri.bo_giao_vien_khoi_lop(conn, nd, class_id, user_id)
+    ds = quan_tri.bo_giao_vien_khoi_lop(conn, nd, class_id, user_id)
+    nhat_ky.ghi(conn, nd, "bo_giao_vien_khoi_lop", class_id, {"class_code": quan_tri.mot_lop(conn, class_id)["class_code"], "user_id": user_id,
+                                                               "username": quan_tri.ten_dang_nhap(conn, user_id)})
+    return ds
 
 
 @app.get("/admin/users/{user_id}/classes", response_model=list[schemas.LopCuaGiaoVienQT], tags=["Quản trị"], summary="Lớp của giáo viên")
@@ -528,7 +580,13 @@ def qt_lop_cua_gv(user_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Dep
          summary="Đặt danh sách lớp của giáo viên (tick nhiều lớp)")
 def qt_dat_lop_cho_gv(user_id: int, body: schemas.DatLop, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
     """Lớp thêm mới phải đang hoạt động; lớp giữ lại giữ nguyên môn dạy; id lớp không có -> 422 (không đổi gì)."""
-    return quan_tri.dat_lop_cho_giao_vien(conn, nd, user_id, body.class_ids)
+    truoc = {r["class_code"] for r in quan_tri.lop_cua_giao_vien(conn, user_id)}
+    ds = quan_tri.dat_lop_cho_giao_vien(conn, nd, user_id, body.class_ids)
+    sau = {r["class_code"] for r in ds}
+    if truoc != sau:                                                              # lưu mà không đổi gì: không ghi nhật ký
+        nhat_ky.ghi(conn, nd, "dat_lop_giao_vien", user_id, {"username": quan_tri.ten_dang_nhap(conn, user_id),
+                                                             "them": sorted(sau - truoc), "bo": sorted(truoc - sau)})
+    return ds
 
 
 # ------------------------------------------------------------------------------------------------ giao diện (HTML + JS thuần)
