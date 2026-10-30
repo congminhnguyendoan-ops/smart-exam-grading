@@ -47,7 +47,9 @@ let soPhien = 0;
 async function api(path, opts = {}) {
   const { khongChuyen, ...fo } = opts;                 // khongChuyen: lỗi 401 của chính màn đăng nhập thì KHÔNG quay về đăng nhập
   const phien = soPhien;
-  const r = await fetch(path, { credentials: "same-origin", ...fo });
+  let r;
+  try { r = await fetch(path, { credentials: "same-origin", ...fo }); }
+  catch (_) { throw Object.assign(new Error("Không kết nối được máy chủ (mất mạng hoặc máy chủ đã tắt)."), { ma: 0 }); }   // V1: lỗi mạng mang mã 0
   let body = null;
   try { body = await r.json(); } catch (_) { /* ảnh / rỗng */ }
   if (phien !== soPhien) { const e = new Error("Phiên đăng nhập đã thay đổi."); e.dangNhap = true; throw e; }
@@ -58,7 +60,7 @@ async function api(path, opts = {}) {
     }
     let d = body && body.detail;
     if (Array.isArray(d)) d = d.map((x) => x.msg).join("; ");
-    throw new Error(d || `Lỗi ${r.status}`);
+    throw Object.assign(new Error(d || `Lỗi ${r.status}`), { ma: r.status });
   }
   return body;
 }
@@ -271,6 +273,23 @@ async function manUpload() {
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
   drop.addEventListener("dragleave", () => drop.classList.remove("over"));
   drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); dat(e.dataTransfer.files); });
+  const examId = state.examId;
+  /* Một ảnh vào MỘT dòng; lỗi mạng / máy chủ -> nút Gửi lại (gửi lại đúng ảnh này vào đúng kỳ thi lúc chọn), bị từ chối rõ -> chỉ lý do (V1). */
+  async function taiMot(f, tr) {
+    tr.innerHTML = `<td>${tenTepHtml(f.name)}</td><td colspan="4" class="muted">Đang xử lý…</td>`;
+    try {
+      const fd = new FormData(); fd.append("file", f, f.name);
+      const r = await api(`/exams/${examId}/sheets`, { method: "POST", body: fd });
+      tr.innerHTML = hangKetQuaTai(f.name, r);
+    } catch (e) {
+      if (e.dangNhap) throw e;
+      tr.innerHTML = hangLoiTai(f.name, e);
+      const b = tr.querySelector("[data-gui-lai]");
+      if (b) b.addEventListener("click", async () => {
+        try { await taiMot(f, tr); await napChiTietKyThi(); } catch (e2) { if (!e2.dangNhap) toast(e2.message, true); }
+      });
+    }
+  }
   $("#go").addEventListener("click", async () => {
     const go = $("#go"); go.disabled = true; $("#kq").classList.remove("hidden"); $("#bar").classList.remove("hidden");
     const rows = $("#rows"); rows.innerHTML = "";
@@ -278,16 +297,24 @@ async function manUpload() {
       const f = danhSach[i];
       $("#st").textContent = `Đang xử lý ảnh ${i + 1}/${danhSach.length}: ${rutGonTen(f.name)} …`;
       $("#bar > div").style.width = `${(i / danhSach.length) * 100}%`;
-      const tr = document.createElement("tr"); tr.innerHTML = `<td>${tenTepHtml(f.name)}</td><td colspan="4" class="muted">Đang xử lý…</td>`; rows.prepend(tr);
-      try {
-        const fd = new FormData(); fd.append("file", f, f.name);
-        const r = await api(`/exams/${state.examId}/sheets`, { method: "POST", body: fd });
-        tr.innerHTML = hangKetQuaTai(f.name, r);
-      } catch (e) { tr.innerHTML = `<td>${tenTepHtml(f.name)}</td><td>${tag("error")}</td><td colspan="3">${esc(e.message)}</td>`; }
+      const tr = document.createElement("tr"); rows.prepend(tr);
+      try { await taiMot(f, tr); } catch (e) { if (e.dangNhap) return; }
     }
     $("#bar > div").style.width = "100%"; $("#st").textContent = `Xong ${danhSach.length} ảnh.`;
     go.disabled = false; await napChiTietKyThi();
   });
+}
+/* V1: phân biệt lỗi mạng (Gửi lại) với máy chủ từ chối rõ (409 kỳ thi đóng, 404 …: không Gửi lại) – frontend/loi_tai.js. */
+function hangLoiTai(ten, e) {
+  const loai = LoiTai.phanLoai(e.ma);
+  if (loai === "tu_choi") {
+    const goiY = e.ma === 409 ? "Ảnh chưa được lưu. Chọn kỳ thi khác hoặc nhờ quản trị viên mở lại kỳ thi." : "Ảnh chưa được lưu.";
+    return `<td>${tenTepHtml(ten)}</td><td><span class="tag bad">Bị từ chối</span></td>` +
+      `<td colspan="3"><b>${esc(LoiTai.tieuDeTuChoi(e.ma))}:</b> ${esc(e.message)}<div class="muted small">${goiY}</div></td>`;
+  }
+  if (loai === "anh_lon") return `<td>${tenTepHtml(ten)}</td><td><span class="tag bad">Ảnh quá lớn</span></td><td colspan="3">${esc(e.message)}</td>`;
+  return `<td>${tenTepHtml(ten)}</td><td><span class="tag bad">${e.ma >= 500 ? "Lỗi máy chủ" : "Lỗi mạng"}</span></td>` +
+    `<td colspan="2">${esc(e.message)}</td><td><button class="pri" type="button" data-gui-lai>↻ Gửi lại</button></td>`;
 }
 function hangKetQuaTai(ten, r) {
   let chiTiet = "";

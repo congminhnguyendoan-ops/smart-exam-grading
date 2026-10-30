@@ -97,7 +97,8 @@ function nhanTrangThai(t) {
   if (t.trangThai === "cho") return ['<span class="tag gray">chờ gửi</span>', ""];
   if (t.trangThai === "gui") return [`<span class="tag blue">đang gửi ${Math.round(t.tienTrinh * 100)}%</span>`, ""];
   if (t.trangThai === "cham") return ['<span class="tag blue">đang chấm…</span>', ""];
-  if (t.trangThai === "loi") return ['<span class="tag bad">lỗi mạng</span>', ""];
+  if (t.trangThai === "loi") return [`<span class="tag bad">${t.maLoi >= 500 ? "lỗi máy chủ" : t.maLoi === 413 ? "ảnh quá lớn" : "lỗi mạng"}</span>`, ""];
+  if (t.trangThai === "tuchoi") return ['<span class="tag bad">bị từ chối</span>', ""];
   if (t.trangThai === "trung") return ['<span class="tag gray">đã tải trước đó</span>', ""];
   if (k.status === "rejected") return ['<span class="tag bad">bị từ chối</span>', ""];
   if (k.status === "graded") return [`<span class="tag ok">đã chấm ${fmt(k.official_score)}</span>`, ""];
@@ -132,6 +133,10 @@ function dongTo(t) {
     giua = `<div class="ten">${tenTepHtml(t.ten || "ảnh")} · ${esc(t.loi)}</div>`;
     duoi = t.thayBang ? `<div class="small muted">→ đã chụp lại</div>`
       : `<div class="cb">Ảnh chưa gửi xong nên không khôi phục được – phải chụp lại tờ này.</div><label class="nut-dong pri">📷 Chụp lại tờ ${t.soTo}<input type="file" accept="image/*" capture="environment" data-chup-lai="${t.stt}"></label>`;
+  } else if (t.trangThai === "tuchoi") {                               // V1: máy chủ trả lời rõ – gửi lại cũng hỏng, KHÔNG có nút Gửi lại
+    giua = `<div class="ten"><b>${esc(LoiTai.tieuDeTuChoi(t.maLoi))}:</b> ${esc(t.loi)}</div>`;
+    duoi = `<div class="cb">${t.maLoi === 409 ? "Ảnh chưa được lưu. Chọn kỳ thi khác (nút “Đổi kỳ thi”) hoặc nhờ quản trị viên mở lại kỳ thi rồi chụp lại."
+      : "Ảnh chưa được lưu. Kiểm tra lại kỳ thi đang chọn hoặc tài khoản."}</div>`;
   } else if (t.trangThai === "loi") {
     giua = `<div class="ten">${esc(t.loi)}</div>`;
     duoi = t.maLoi === 413 ? `<label class="nut-dong pri">📷 Chụp lại tờ ${t.soTo}<input type="file" accept="image/*" capture="environment" data-chup-lai="${t.stt}"></label>`

@@ -51,7 +51,7 @@ def test_m_js_khong_luu_token_khong_nen_anh_goi_dung_api():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="không có node để kiểm cú pháp JS")
-@pytest.mark.parametrize("ten", ["m.js", "m_hang_doi.js", "app.js"])
+@pytest.mark.parametrize("ten", ["m.js", "m_hang_doi.js", "app.js", "loi_tai.js"])
 def test_js_dung_cu_phap(ten):
     r = subprocess.run(["node", "--check", str(FRONTEND / ten)], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
@@ -59,10 +59,33 @@ def test_js_dung_cu_phap(ten):
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="không có node để chạy test hàng đợi JS")
 def test_hang_doi_chup_lien_tuc_node():
-    """tests/js/hang_doi.test.js (node:test): thứ tự, tối đa 2 song song, lỗi mạng giữ ảnh để gửi lại, ảnh trùng, 401 tạm dừng, chụp lại; F4 khôi phục sau khi tải lại trang (8 test)."""
+    """tests/js/hang_doi.test.js (node:test): thứ tự, tối đa 2 song song, lỗi mạng giữ ảnh để gửi lại, ảnh trùng, 401 tạm dừng, chụp lại; F4 khôi phục sau khi tải lại trang;
+    V1 máy chủ từ chối rõ (409 / 404) -> 'tuchoi' không gửi lại (9 test)."""
     r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "hang_doi.test.js")], capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert re.search(r"pass 8\b", r.stdout) and re.search(r"fail 0\b", r.stdout), r.stdout
+    assert re.search(r"pass 9\b", r.stdout) and re.search(r"fail 0\b", r.stdout), r.stdout
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="không có node để chạy test JS")
+def test_loi_tai_phan_loai_node():
+    """tests/js/loi_tai.test.js: lỗi mạng / 5xx -> Gửi lại; 400 / 403 / 404 / 409 / 410 / 422 -> bị từ chối (V1)."""
+    r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "loi_tai.test.js")], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert re.search(r"pass 3\b", r.stdout) and re.search(r"fail 0\b", r.stdout), r.stdout
+
+
+def test_v1_giao_dien_dung_loi_tai_va_khong_gui_lai_khi_tu_choi():
+    """V1: /m và /app/ nạp loi_tai.js TRƯỚC mã dùng nó; thẻ 'tuchoi' (m.js) và hangLoiTai (app.js) chỉ có nút Gửi lại ở nhánh lỗi mạng."""
+    mh, ih = (FRONTEND / "m.html").read_text(encoding="utf-8"), (FRONTEND / "index.html").read_text(encoding="utf-8")
+    assert mh.index("loi_tai.js") < mh.index("m_hang_doi.js") and ih.index("loi_tai.js") < ih.index("app.js")
+    m = (FRONTEND / "m.js").read_text(encoding="utf-8")
+    nhanh = m[m.index('t.trangThai === "tuchoi") {'):m.index('t.trangThai === "loi") {\n')]
+    assert "data-gui-lai" not in nhanh and "LoiTai.tieuDeTuChoi" in nhanh
+    a = (FRONTEND / "app.js").read_text(encoding="utf-8")
+    h = a[a.index("function hangLoiTai"):]
+    h = h[:h.index("\n}\n")]
+    tu_choi = h[h.index('loai === "tu_choi"'):h.index('loai === "anh_lon"')]
+    assert "data-gui-lai" not in tu_choi and "data-gui-lai" in h and "{ ma: 0 }" in a
 
 
 def test_app_js_co_nut_ket_noi_va_tham_do_khi_tab_hien():
