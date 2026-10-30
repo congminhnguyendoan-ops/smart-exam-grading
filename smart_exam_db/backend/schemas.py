@@ -249,6 +249,8 @@ class TruongDinhDanh(BaseModel):
     can_xem: bool
     columns: list[CotChuSo]
     reasons: list[str] = Field(default_factory=list, description="Lý do cần xem của cả trường (gộp các cột + danh sách thi)")
+    co_chi_tiet: bool = Field(default=True, description="False: phiếu không có chi tiết đọc từng cột (dữ liệu mẫu cũ chèn thẳng vào CSDL) – "
+                                                       "columns rỗng, chỉ có detected; can_xem / reasons không mang thông tin")
 
 
 class MaDeDoc(TruongDinhDanh):

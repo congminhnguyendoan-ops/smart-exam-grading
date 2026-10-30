@@ -370,6 +370,8 @@ async function manDanhSach() {
 /* ------------------------------------------------------------------ F3: chi tiết phiếu */
 function cotsHtml(tr) {
   if (!tr) return "–";
+  if (tr.co_chi_tiet === false)                                                   // W2: phiếu mẫu cũ không có chi tiết từng cột
+    return `${esc(tr.detected || "–")} <span class="muted small">(không có chi tiết từng cột – dữ liệu mẫu cũ)</span>`;
   return `<span class="cols">${tr.columns.map((c) => `<span class="col ${c.can_xem || c.chu_so === "?" ? "bad" : ""}" title="cột ${c.vi_tri}: tin cậy ${fmt(c.do_tin_cay)}">${esc(c.chu_so)}</span>`).join("")}</span>`;
 }
 /* Hai kênh cạnh nhau: ô tô (bubble) ↔ chữ viết tay (ảnh ô + chữ số máy đọc + độ tin cậy). Cột lệch / không chắc tô đỏ. */

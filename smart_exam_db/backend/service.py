@@ -572,15 +572,20 @@ def xem_phieu(conn, sheet_id: int) -> dict:
             c["handwriting"] = hw
             ra.append(c)
         return ra
+
+    def truong_ra(truong: str, khoa: str, detected) -> dict:
+        """Lệnh W2: phiếu KHÔNG có chi tiết đọc (omr_detail NULL / thiếu khoá – vd phiếu mẫu của database/04_seed.sql, chèn thẳng trước khi có backend)
+        -> giá trị đọc được vẫn trả (cột detected_*), không có cột, không có cờ / lý do nào, co_chi_tiet = False. KHÔNG sửa dữ liệu."""
+        d = det.get(khoa)
+        if not isinstance(d, dict):
+            return {"detected": detected, "can_xem": False, "reasons": [], "columns": [], "co_chi_tiet": False}
+        return {"detected": detected, "can_xem": d["can_xem"], "reasons": d.get("ly_do", []), "columns": cot_ra(truong, khoa), "co_chi_tiet": True}
     return {
         "sheet_id": sheet_id, "exam_id": sh["exam_id"], "status": sh["status"], "original_filename": sh["original_filename"],
         "uploaded_at": sh["uploaded_at"], "reject_code": sh["reject_code"], "reject_message": sh["error_message"],
-        "sbd": None if sh["status"] == "rejected" else {"detected": sh["detected_sbd"], "can_xem": det["sbd"]["can_xem"],
-                                                       "reasons": det["sbd"].get("ly_do", []), "columns": cot_ra("sbd", "sbd")},
-        "exam_code": None if sh["status"] == "rejected" else {"detected": sh["detected_exam_code"], "can_xem": det["ma_de"]["can_xem"],
-                                                              "reasons": det["ma_de"].get("ly_do", []),
-                                                              "matched_code": code["code"] if code else None,
-                                                              "columns": cot_ra("exam_code", "ma_de")},
+        "sbd": None if sh["status"] == "rejected" else truong_ra("sbd", "sbd", sh["detected_sbd"]),
+        "exam_code": None if sh["status"] == "rejected" else {**truong_ra("exam_code", "ma_de", sh["detected_exam_code"]),
+                                                              "matched_code": code["code"] if code else None},
         "student": dict(sv) if sv else None,
         "score": None if sh["status"] == "rejected" else {
             "official": res["score"] if res else None, "result_status": res["status"] if res else None,
