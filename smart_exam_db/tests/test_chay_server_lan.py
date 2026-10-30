@@ -65,8 +65,11 @@ def test_chi_in_khong_chay_may_chu_van_in_trang_thai(monkeypatch, capsys):
 
 
 def test_tai_lieu_chay_server_khong_bat_don_anh():
-    """Lệnh chạy máy chủ trong kịch bản demo / CLAUDE.md không được bật dọn ảnh."""
-    for p in (ROOT / "docs" / "kich_ban_demo_bao_ve.md", ROOT / "docs" / "kich_ban_demo.md", ROOT.parent / "CLAUDE.md"):
+    """Kịch bản demo (nơi có lệnh để chạy): mọi dòng nhắc tới --bat-don-anh phải CẢNH BÁO (chủ ý / cảnh báo) hoặc CẤM dùng.
+    CLAUDE.md (mô tả dài): phải có câu cảnh báo "chỉ thêm --bat-don-anh khi chủ ý"."""
+    for p in (ROOT / "docs" / "kich_ban_demo_bao_ve.md", ROOT / "docs" / "kich_ban_demo.md"):
         for dong in p.read_text(encoding="utf-8").splitlines():
-            if "chay_server_lan.py" in dong and "--bat-don-anh" in dong:
-                assert "chủ ý" in dong or "CẢNH BÁO" in dong.upper(), f"{p.name}: {dong.strip()[:120]}"
+            if "--bat-don-anh" in dong:
+                d = dong.lower()
+                assert any(m in d for m in ("chủ ý", "cảnh báo", "không thêm", "không dùng", "không bao giờ dùng")), f"{p.name}: {dong.strip()[:120]}"
+    assert "chỉ thêm `--bat-don-anh` khi chủ ý" in (ROOT.parent / "CLAUDE.md").read_text(encoding="utf-8")
