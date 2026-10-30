@@ -1,0 +1,283 @@
+{
+ "ngay": "2026-10-30",
+ "lenh": "T",
+ "tag": "dang-ky-h3-mo-phong",
+ "ten": "Phép thử mô phỏng H3: ô tô (bubble) trống, chữ viết tay có",
+ "ma_commit_kiem": "9ea19093276067433129e572f1796d6afee5bae2",
+ "cv_engine_so_voi_dang_ky_dot2": "git diff dang-ky-dot2 9ea1909 -- smart_exam_db/cv_engine: RỖNG (cv_engine giống hệt mã đã đăng ký đợt 2)",
+ "hat_giong": 2026,
+ "bien_the": "hang",
+ "chi_truong_nhan": true,
+ "kt0": true,
+ "sha256_tep": {
+  "smart_exam_db/tools/h3_mo_phong.py": "41A331B0C09D38C1968D58F2F2344D31F759EAF80FA13F3B436EDF69B87F8D11",
+  "smart_exam_db/tools/eval_h3_mo_phong.py": "41CA96394FCCCFEB3920F813CAE3CD952DE604616DFE4AE394B5891838495E04",
+  "smart_exam_db/tools/eval_dot2.py": "1FC023635074C3558056E1F922C144AF839ADD42263A535EBF626FB0C2A70A50",
+  "smart_exam_db/tools/eval_he_thong.py": "17CACC0B342A2B25664903A553A55ADF108A47CD5740DB09153C502FE854555D",
+  "smart_exam_db/docs/sha_anh_dot2.txt": "FDC0650260AEFF2E62BAA559798803F5BB86CA18021E2BBDE7002B17FA4C1567",
+  "smart_exam_db/data/_eval/dot2/that/ket_qua.json": "8AE1FC622702E92C9CCE6AE8EBD7A3A0EEA4AE313BD5C4E00FE497E808C0DB63",
+  "smart_exam_db/data/dot2/ground_truth_dot2_da_sua.csv": "0A262F754E372D7C5504B654CA8CEF11E63D96088DEDD88381EC01892484AF4E",
+  "smart_exam_db/data/dot2/cell_labels_dot2_da_sua.csv": "C3766560618DECF8BD043DE5914D70FF986C791FF44C2EAA7F9A443090F12174",
+  "smart_exam_db/data/dot2/sua_nhan.csv": "743D8855CB8CFB1185BDDA0DDF95BF69F0676B91CC762899EEE7CF1D7355C459"
+ },
+ "sha256_anh_goc": {
+  "0101_C1.JPG": "3E46DC4F0E5AE39DD288D5F0D96420ED5B065FE69996CDA4A16492F15D81084C",
+  "0101_C2.JPG": "B5D937E4CB2E84839536D739F0A0B997F4B76756A958B8F8416D7FCB4536A35A",
+  "0102_C2.JPG": "B9E7BE830DC6A514D7DCCD94A292D83F80F74280FC03F24B8B08D54DE2395D8D",
+  "0102_C3.JPG": "409ECC7F270007DF0F7D32232BF88B5A1B3EA77498B40C2952BE4431A5DD38B4",
+  "0103_C3.JPG": "63F3990D7DDA81872D82CA7DCD916C1A6DF18FC058DFE9D99B448CE0A5F5E6A7",
+  "0103_C4.JPG": "E9DEAA3CB24AFC20EA72C6AF2A325D83E8AD489123E7ADCF082282C376AE2808",
+  "0104_C1.JPG": "E2C3A0A03CDDD44F311E1A67CCF1CB4DE56EEC320460C13F891BEB816A083803",
+  "0104_C4.JPG": "F59DADD66D88E0F7D50325B209B212EED1634039389C17B499B20A3D9F03D579",
+  "0105_C1.JPG": "7265877921B3677F7FD4200729E4CFC71D3F55518F0E35C7964F62F0C93D7FFA",
+  "0105_C2.JPG": "1E3C17075004C56598F1C018FAD04A683B71A0AC8D577108CAE9CB92B6C53959",
+  "0106_C2.JPG": "E556C5C46CBF2F89CFD0C6DA5D49884112CA72FD82D5877BF148DC777FDC80E1",
+  "0106_C3.JPG": "E34243CFD6B03BFD8408205E1773CDDDF412F0DCF693F6A5E0D94FCF830AF35F",
+  "0107_C3.JPG": "5C71547092D65298B9A367B632D3EBA0976F04099F4D6221F33D3333957F5E23",
+  "0107_C4.JPG": "D40DD246AAD79B073072574AC3CE457CFA7C3F0A9649F7FD0541292C8C00D01B",
+  "0108_C1.JPG": "905C1FF636871AA82326E7853FBABC0D2DBA3CD649D56697BA8E77FF80BF4747",
+  "0108_C4.JPG": "A4251EC3AA3F7598871501DCAFC9534BE8DB03D1E800EBEB4F8C60C87B21CCD6",
+  "0109_C1.JPG": "1E5363B93363B7B3195C6C35DE36425E0E6B79ADAEA46B2DD989E91291C94EFD",
+  "0109_C2.JPG": "576E0971394A71FAA97B1428BD61EB3EED0CFA3D50329DDCE93E4BDA8ABA1781",
+  "0110_C2.JPG": "23A554492B388EA12569397FAEF63CD2EA08BF3667E2FC41676804B21A80A190",
+  "0110_C3.JPG": "A91F4B40C22F9163179A69D6CB900DDFF6F15DAA7958DEC7C75CCF9E77251F42"
+ },
+ "ke_hoach_ca": [
+  {
+   "anh": "0101_C1",
+   "truong": "exam_code",
+   "cot": 2,
+   "chu_so_xoa": 0,
+   "o_nguon_cot_hang": [
+    1,
+    0
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0101_C2",
+   "truong": "exam_code",
+   "cot": 1,
+   "chu_so_xoa": 1,
+   "o_nguon_cot_hang": [
+    2,
+    1
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0102_C2",
+   "truong": "exam_code",
+   "cot": 3,
+   "chu_so_xoa": 2,
+   "o_nguon_cot_hang": [
+    2,
+    2
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0102_C3",
+   "truong": "sbd",
+   "cot": 5,
+   "chu_so_xoa": 6,
+   "o_nguon_cot_hang": [
+    4,
+    6
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0103_C3",
+   "truong": "sbd",
+   "cot": 2,
+   "chu_so_xoa": 8,
+   "o_nguon_cot_hang": [
+    1,
+    8
+   ],
+   "truong_da_can_xem_o_dot2": true
+  },
+  {
+   "anh": "0103_C4",
+   "truong": "exam_code",
+   "cot": 3,
+   "chu_so_xoa": 3,
+   "o_nguon_cot_hang": [
+    2,
+    3
+   ],
+   "truong_da_can_xem_o_dot2": true
+  },
+  {
+   "anh": "0104_C1",
+   "truong": "exam_code",
+   "cot": 1,
+   "chu_so_xoa": 1,
+   "o_nguon_cot_hang": [
+    2,
+    1
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0104_C4",
+   "truong": "sbd",
+   "cot": 1,
+   "chu_so_xoa": 2,
+   "o_nguon_cot_hang": [
+    2,
+    2
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0105_C1",
+   "truong": "sbd",
+   "cot": 1,
+   "chu_so_xoa": 5,
+   "o_nguon_cot_hang": [
+    2,
+    5
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0105_C2",
+   "truong": "sbd",
+   "cot": 6,
+   "chu_so_xoa": 4,
+   "o_nguon_cot_hang": [
+    5,
+    4
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0106_C2",
+   "truong": "sbd",
+   "cot": 2,
+   "chu_so_xoa": 6,
+   "o_nguon_cot_hang": [
+    1,
+    6
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0106_C3",
+   "truong": "exam_code",
+   "cot": 2,
+   "chu_so_xoa": 0,
+   "o_nguon_cot_hang": [
+    1,
+    0
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0107_C3",
+   "truong": "sbd",
+   "cot": 4,
+   "chu_so_xoa": 2,
+   "o_nguon_cot_hang": [
+    3,
+    2
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0107_C4",
+   "truong": "sbd",
+   "cot": 6,
+   "chu_so_xoa": 3,
+   "o_nguon_cot_hang": [
+    5,
+    3
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0108_C1",
+   "truong": "exam_code",
+   "cot": 3,
+   "chu_so_xoa": 4,
+   "o_nguon_cot_hang": [
+    2,
+    4
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0108_C4",
+   "truong": "sbd",
+   "cot": 1,
+   "chu_so_xoa": 4,
+   "o_nguon_cot_hang": [
+    2,
+    4
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0109_C1",
+   "truong": "sbd",
+   "cot": 3,
+   "chu_so_xoa": 7,
+   "o_nguon_cot_hang": [
+    2,
+    7
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0109_C2",
+   "truong": "sbd",
+   "cot": 2,
+   "chu_so_xoa": 9,
+   "o_nguon_cot_hang": [
+    1,
+    9
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0110_C2",
+   "truong": "exam_code",
+   "cot": 1,
+   "chu_so_xoa": 1,
+   "o_nguon_cot_hang": [
+    2,
+    1
+   ],
+   "truong_da_can_xem_o_dot2": false
+  },
+  {
+   "anh": "0110_C3",
+   "truong": "exam_code",
+   "cot": 2,
+   "chu_so_xoa": 0,
+   "o_nguon_cot_hang": [
+    1,
+    0
+   ],
+   "truong_da_can_xem_o_dot2": false
+  }
+ ],
+ "tieu_chi_bat_buoc": {
+  "T1": "Số ca hệ thống NHẬN (không cần xem) trường đã bị xoá bubble = 0. Ảnh bị từ chối khi nắn tính riêng, không tính là nhận.",
+  "T2": "Số phiếu tự chốt sai hoặc có điểm chính thức sai = 0 (sau giáo viên oracle: câu cần xem chốt theo nhãn, SBD / mã đề chốt theo chữ viết tay đúng).",
+  "T3": "Đối chứng: trường KHÔNG sửa của mỗi ảnh chỉnh giống kết quả đợt 2 (data/_eval/dot2/that/ket_qua.json): cần xem + lý do của trường; từng cột: bubble, chữ số CNN, cần xem, lý do."
+ },
+ "kiem_cong_cu": {
+  "KT0": "Không phải tiêu chí: 20 ảnh gốc lưu PNG không mất mát, KHÔNG sửa, tải vào kỳ thi riêng C/D cùng giao dịch ROLLBACK; cả hai trường phải giống đợt 2. Tách lệch do công cụ (đường PNG) với lệch do chỗ sửa."
+ },
+ "du_doan": {
+  "T1": "20/20 cần xem (0 nhận)",
+  "T2": "0",
+  "T3": "khớp ≥ 19/20",
+  "KT0": "20/20"
+ },
+ "mot_lan": "Chạy MỘT lần: python tools/eval_h3_mo_phong.py run --xac-nhan-h3. Khoá data/_eval/h3/da_chay.lock tạo NGAY khi bắt đầu (có rồi thì từ chối, kể cả lỗi giữa chừng). Lỗi kỹ thuật (không phải kết quả) -> báo cáo trước khi chạy lại.",
+ "ghi_chu": "Phép thử bằng ẢNH CHỈNH (chép điểm ảnh) – không phản ánh đặc tính quang học thật của ô trống trên giấy."
+}
