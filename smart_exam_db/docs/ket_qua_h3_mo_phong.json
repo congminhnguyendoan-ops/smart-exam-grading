@@ -1,0 +1,1053 @@
+{
+ "nguon": "data/_eval/h3/ket_qua.json",
+ "sha256_nguon": "15B75161BE482A39C6708F4E3989341B3FF69BE954ECCE120B01A3C541E9524C",
+ "che_do": "chinh_thuc",
+ "dang_ky": {
+  "tag": "dang-ky-h3-mo-phong",
+  "ma_commit_kiem": "9ea19093276067433129e572f1796d6afee5bae2",
+  "bien_the": "hang",
+  "chi_truong_nhan": true
+ },
+ "thoi_gian": "2026-10-30 08:23:29",
+ "tom_tat": {
+  "n": 20,
+  "bi_tu_choi": 0,
+  "T1_nhan": 0,
+  "T1_can_xem": 20,
+  "T2_vi_pham": 0,
+  "tu_chot": 0,
+  "T3_khop": 19,
+  "T3_n": 20,
+  "dat": {
+   "T1": true,
+   "T2": true,
+   "T3_du_doan_ge_19": true
+  },
+  "KT0_khop": 20,
+  "KT0_n": 20
+ },
+ "ca": [
+  {
+   "anh": "0101_C1",
+   "truong": "exam_code",
+   "cot": 2,
+   "chu_so_xoa": 0,
+   "bien_the": "hang",
+   "o_nguon": [
+    1,
+    0
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "35580D56DAD95669E80276E9E6581A0395BD11110115B6B6A422A02E1496E66F",
+   "do_toi_truoc": 0.477,
+   "do_toi_sau": 0.253,
+   "do_toi_o_trong_cot_trung_vi": 0.28,
+   "sheet_id": 7905,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "0",
+   "p_cnn": 0.9995,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "1?1",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 2.0,
+   "diem_that": 2.0,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0101_C2",
+   "truong": "exam_code",
+   "cot": 1,
+   "chu_so_xoa": 1,
+   "bien_the": "hang",
+   "o_nguon": [
+    2,
+    1
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "7A624AE234D6B5E29F0F9AEC956F4AB8A345BD096BD23457C5FF8439D3D2AF3B",
+   "do_toi_truoc": 0.854,
+   "do_toi_sau": 0.507,
+   "do_toi_o_trong_cot_trung_vi": 0.538,
+   "sheet_id": 7907,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "1",
+   "p_cnn": 0.9929,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "?01",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 2.0,
+   "diem_that": 2.0,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0102_C2",
+   "truong": "exam_code",
+   "cot": 3,
+   "chu_so_xoa": 2,
+   "bien_the": "hang",
+   "o_nguon": [
+    2,
+    2
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "730D937D4CE2DADE2A1DF147B6ED61A3815FC4A326A72B73FF240333182DC62F",
+   "do_toi_truoc": 0.888,
+   "do_toi_sau": 0.53,
+   "do_toi_o_trong_cot_trung_vi": 0.557,
+   "sheet_id": 7909,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "2",
+   "p_cnn": 0.6268,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "10?",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.0,
+   "diem_that": 1.0,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0102_C3",
+   "truong": "sbd",
+   "cot": 5,
+   "chu_so_xoa": 6,
+   "bien_the": "hang",
+   "o_nguon": [
+    4,
+    6
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "3B879A588DFA02E621CD4451C0B0260DEEAA59053B052072B0ED68C104D0BE62",
+   "do_toi_truoc": 0.783,
+   "do_toi_sau": 0.331,
+   "do_toi_o_trong_cot_trung_vi": 0.314,
+   "sheet_id": 7911,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "6",
+   "p_cnn": 0.6294,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "0971?0",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.0,
+   "diem_that": 1.0,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0103_C3",
+   "truong": "sbd",
+   "cot": 2,
+   "chu_so_xoa": 8,
+   "bien_the": "hang",
+   "o_nguon": [
+    1,
+    8
+   ],
+   "truong_da_can_xem_o_dot2": true,
+   "sha_anh_chinh": "BDA9506AA0234F02DB4CCE8583C74B6EFD7301838790A3F715CF62AB0A6885FE",
+   "do_toi_truoc": 0.825,
+   "do_toi_sau": 0.343,
+   "do_toi_o_trong_cot_trung_vi": 0.327,
+   "sheet_id": 7913,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "8",
+   "p_cnn": 0.6791,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "lech_bubble",
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "chữ viết tay khác chữ số bubble",
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "1?3354",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.0,
+   "diem_that": 1.0,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0103_C4",
+   "truong": "exam_code",
+   "cot": 3,
+   "chu_so_xoa": 3,
+   "bien_the": "hang",
+   "o_nguon": [
+    2,
+    3
+   ],
+   "truong_da_can_xem_o_dot2": true,
+   "sha_anh_chinh": "F56664D978F21D47EA1F0E4FC6D996C4835A639990E64BCFAA91D6CB3CF54579",
+   "do_toi_truoc": 0.834,
+   "do_toi_sau": 0.183,
+   "do_toi_o_trong_cot_trung_vi": 0.253,
+   "sheet_id": 7915,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "9",
+   "p_cnn": 0.43,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "10?",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.0,
+   "diem_that": 1.0,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0104_C4",
+   "truong": "sbd",
+   "cot": 1,
+   "chu_so_xoa": 2,
+   "bien_the": "hang",
+   "o_nguon": [
+    2,
+    2
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "3AC316E93E9DE011B0F5666CECB8347F4CFB12F5A7BE2889FDEC691FCD24A60D",
+   "do_toi_truoc": 0.693,
+   "do_toi_sau": 0.178,
+   "do_toi_o_trong_cot_trung_vi": 0.179,
+   "sheet_id": 7917,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "2",
+   "p_cnn": 0.998,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "?78103",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.0,
+   "diem_that": 1.0,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0104_C1",
+   "truong": "exam_code",
+   "cot": 1,
+   "chu_so_xoa": 1,
+   "bien_the": "hang",
+   "o_nguon": [
+    2,
+    1
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "F3C5EA094128B324D89010947AAA46866A6476413B3BD90AA5EBDC5ED72387F4",
+   "do_toi_truoc": 0.625,
+   "do_toi_sau": 0.273,
+   "do_toi_o_trong_cot_trung_vi": 0.272,
+   "sheet_id": 7919,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "1",
+   "p_cnn": 0.9931,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "?04",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.0,
+   "diem_that": 1.0,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0105_C1",
+   "truong": "sbd",
+   "cot": 1,
+   "chu_so_xoa": 5,
+   "bien_the": "hang",
+   "o_nguon": [
+    2,
+    5
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "9BAAFC0AABA3C6A2AB2F031C73857E1488B8264E16C800CBC961794723966B97",
+   "do_toi_truoc": 0.649,
+   "do_toi_sau": 0.267,
+   "do_toi_o_trong_cot_trung_vi": 0.274,
+   "sheet_id": 7921,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "5",
+   "p_cnn": 0.9726,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "?27694",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.75,
+   "diem_that": 1.75,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0105_C2",
+   "truong": "sbd",
+   "cot": 6,
+   "chu_so_xoa": 4,
+   "bien_the": "hang",
+   "o_nguon": [
+    5,
+    4
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "416B9577CE6875865E34B904DC29D7ED44E093E8DB7B6BAC1512C9DBD00C3BF2",
+   "do_toi_truoc": 0.762,
+   "do_toi_sau": 0.411,
+   "do_toi_o_trong_cot_trung_vi": 0.405,
+   "sheet_id": 7923,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "4",
+   "p_cnn": 0.9981,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "52769?",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.75,
+   "diem_that": 1.75,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0106_C2",
+   "truong": "sbd",
+   "cot": 2,
+   "chu_so_xoa": 6,
+   "bien_the": "hang",
+   "o_nguon": [
+    1,
+    6
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "B963E08A3843B37334BF91A5B7F03D9918F872BF53C048598D333C82037E41FB",
+   "do_toi_truoc": 0.89,
+   "do_toi_sau": 0.332,
+   "do_toi_o_trong_cot_trung_vi": 0.325,
+   "sheet_id": 7925,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "6",
+   "p_cnn": 0.7297,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "5?4901",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.75,
+   "diem_that": 1.75,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0106_C3",
+   "truong": "exam_code",
+   "cot": 2,
+   "chu_so_xoa": 0,
+   "bien_the": "hang",
+   "o_nguon": [
+    1,
+    0
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "15FF3AC762657D04F2311E989265DCB41C51D0D73F27EA3F33963A600BD14264",
+   "do_toi_truoc": 0.791,
+   "do_toi_sau": 0.221,
+   "do_toi_o_trong_cot_trung_vi": 0.26,
+   "sheet_id": 7927,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "0",
+   "p_cnn": 0.8029,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "1?2",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.75,
+   "diem_that": 1.75,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0107_C3",
+   "truong": "sbd",
+   "cot": 4,
+   "chu_so_xoa": 2,
+   "bien_the": "hang",
+   "o_nguon": [
+    3,
+    2
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "FA1629800414FA8A19462CC01AD77E72C831E7F3FA35D587DD28EDD1BB085DCD",
+   "do_toi_truoc": 0.586,
+   "do_toi_sau": 0.328,
+   "do_toi_o_trong_cot_trung_vi": 0.339,
+   "sheet_id": 7929,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "2",
+   "p_cnn": 0.8794,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "378?73",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.75,
+   "diem_that": 1.75,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0107_C4",
+   "truong": "sbd",
+   "cot": 6,
+   "chu_so_xoa": 3,
+   "bien_the": "hang",
+   "o_nguon": [
+    5,
+    3
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "AD2DCA535CDA87E3075EB25F7DD166257EB32D5825B526EF7EEBB686CCC14A43",
+   "do_toi_truoc": 0.775,
+   "do_toi_sau": 0.282,
+   "do_toi_o_trong_cot_trung_vi": 0.272,
+   "sheet_id": 7931,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "3",
+   "p_cnn": 0.9994,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "37827?",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.75,
+   "diem_that": 1.75,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0108_C4",
+   "truong": "sbd",
+   "cot": 1,
+   "chu_so_xoa": 4,
+   "bien_the": "hang",
+   "o_nguon": [
+    2,
+    4
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "D28B752B9751A8A6BCB2606551D019CBA854BB2BCD0820609FAB3152F5183626",
+   "do_toi_truoc": 0.867,
+   "do_toi_sau": 0.211,
+   "do_toi_o_trong_cot_trung_vi": 0.22,
+   "sheet_id": 7933,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "4",
+   "p_cnn": 1.0,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "?52180",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.5,
+   "diem_that": 1.5,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0108_C1",
+   "truong": "exam_code",
+   "cot": 3,
+   "chu_so_xoa": 4,
+   "bien_the": "hang",
+   "o_nguon": [
+    2,
+    4
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "260DF6B05409D8DC3C22F5CFD35FE4B19FEFA77270D5A94AF23F426E5207B6C3",
+   "do_toi_truoc": 0.867,
+   "do_toi_sau": 0.288,
+   "do_toi_o_trong_cot_trung_vi": 0.289,
+   "sheet_id": 7935,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "4",
+   "p_cnn": 0.9999,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "10?",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.5,
+   "diem_that": 1.5,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0109_C1",
+   "truong": "sbd",
+   "cot": 3,
+   "chu_so_xoa": 7,
+   "bien_the": "hang",
+   "o_nguon": [
+    2,
+    7
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "B215B863B0AEC23283A6EE0DE996654825B6495B0C172D765B2A3488A21F40A6",
+   "do_toi_truoc": 0.868,
+   "do_toi_sau": 0.304,
+   "do_toi_o_trong_cot_trung_vi": 0.313,
+   "sheet_id": 7937,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "7",
+   "p_cnn": 0.9923,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "69?132",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.5,
+   "diem_that": 1.5,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0109_C2",
+   "truong": "sbd",
+   "cot": 2,
+   "chu_so_xoa": 9,
+   "bien_the": "hang",
+   "o_nguon": [
+    1,
+    9
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "BAA3C46FCA58C4978B958B561FE45C96784057404A1CDCF0B54552954346487C",
+   "do_toi_truoc": 0.929,
+   "do_toi_sau": 0.322,
+   "do_toi_o_trong_cot_trung_vi": 0.313,
+   "sheet_id": 7939,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "9",
+   "p_cnn": 0.9849,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "6?7132",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 1.5,
+   "diem_that": 1.5,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0110_C2",
+   "truong": "exam_code",
+   "cot": 1,
+   "chu_so_xoa": 1,
+   "bien_the": "hang",
+   "o_nguon": [
+    2,
+    1
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "2C89BB70F40160258EF2EE0A991DE3E5F0B14919AC0D111592B53261CED3B148",
+   "do_toi_truoc": 0.762,
+   "do_toi_sau": 0.371,
+   "do_toi_o_trong_cot_trung_vi": 0.395,
+   "sheet_id": 7941,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "1",
+   "p_cnn": 0.9948,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "?02",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 0.5,
+   "diem_that": 0.5,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": true
+  },
+  {
+   "anh": "0110_C3",
+   "truong": "exam_code",
+   "cot": 2,
+   "chu_so_xoa": 0,
+   "bien_the": "hang",
+   "o_nguon": [
+    1,
+    0
+   ],
+   "truong_da_can_xem_o_dot2": false,
+   "sha_anh_chinh": "F04E169EA466CDE616FF51C28CD02C8A9CAE699207D6FC7DD6FAEEA5A0EBBEC7",
+   "do_toi_truoc": 0.567,
+   "do_toi_sau": 0.273,
+   "do_toi_o_trong_cot_trung_vi": 0.316,
+   "sheet_id": 7943,
+   "status_tai": "needs_review",
+   "tu_choi": "",
+   "kenh_bubble": "?",
+   "kenh_cnn": "0",
+   "p_cnn": 0.9974,
+   "cot_can_xem": true,
+   "cot_ly_do": [
+    "thieu_bubble"
+   ],
+   "truong_can_xem": true,
+   "truong_ly_do": [
+    "thieu_bubble"
+   ],
+   "ly_do_hien_thi": [
+    "cột bubble không đọc được (không tô / tô nhiều ô)"
+   ],
+   "truong_detected": "1?2",
+   "status_cuoi": "graded",
+   "diem_chinh_thuc": 0.5,
+   "diem_that": 0.5,
+   "T1_nhan": false,
+   "T2_vi_pham": false,
+   "tu_chot": false,
+   "T3_khop": false,
+   "T3_khac": {
+    "anh_chinh": {
+     "can_xem": true,
+     "ly_do": [
+      "lech_bubble"
+     ],
+     "detected": "498560",
+     "cot": [
+      {
+       "i": 0,
+       "bubble": "4",
+       "may": "1",
+       "p": 0.5859,
+       "cx": true,
+       "ly_do": [
+        "lech_bubble"
+       ]
+      },
+      {
+       "i": 1,
+       "bubble": "9",
+       "may": "9",
+       "p": 0.8952,
+       "cx": false,
+       "ly_do": []
+      },
+      {
+       "i": 2,
+       "bubble": "8",
+       "may": "4",
+       "p": 0.61,
+       "cx": true,
+       "ly_do": [
+        "lech_bubble"
+       ]
+      },
+      {
+       "i": 3,
+       "bubble": "5",
+       "may": "5",
+       "p": 0.9876,
+       "cx": false,
+       "ly_do": []
+      },
+      {
+       "i": 4,
+       "bubble": "6",
+       "may": "6",
+       "p": 0.84,
+       "cx": false,
+       "ly_do": []
+      },
+      {
+       "i": 5,
+       "bubble": "0",
+       "may": "0",
+       "p": 0.9859,
+       "cx": false,
+       "ly_do": []
+      }
+     ]
+    },
+    "tham_chieu": {
+     "can_xem": true,
+     "ly_do": [
+      "bubble_cx",
+      "lech_bubble"
+     ],
+     "cot": [
+      {
+       "i": 0,
+       "bubble": "4",
+       "may": "1",
+       "cx": true,
+       "ly_do": [
+        "bubble_cx"
+       ]
+      },
+      {
+       "i": 1,
+       "bubble": "9",
+       "may": "9",
+       "cx": false,
+       "ly_do": []
+      },
+      {
+       "i": 2,
+       "bubble": "8",
+       "may": "4",
+       "cx": true,
+       "ly_do": [
+        "lech_bubble"
+       ]
+      },
+      {
+       "i": 3,
+       "bubble": "5",
+       "may": "5",
+       "cx": false,
+       "ly_do": []
+      },
+      {
+       "i": 4,
+       "bubble": "6",
+       "may": "6",
+       "cx": false,
+       "ly_do": []
+      },
+      {
+       "i": 5,
+       "bubble": "0",
+       "may": "0",
+       "cx": false,
+       "ly_do": []
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "kt0": [
+  {
+   "anh": "0101_C1",
+   "khop": true
+  },
+  {
+   "anh": "0101_C2",
+   "khop": true
+  },
+  {
+   "anh": "0102_C2",
+   "khop": true
+  },
+  {
+   "anh": "0102_C3",
+   "khop": true
+  },
+  {
+   "anh": "0103_C3",
+   "khop": true
+  },
+  {
+   "anh": "0103_C4",
+   "khop": true
+  },
+  {
+   "anh": "0104_C4",
+   "khop": true
+  },
+  {
+   "anh": "0104_C1",
+   "khop": true
+  },
+  {
+   "anh": "0105_C1",
+   "khop": true
+  },
+  {
+   "anh": "0105_C2",
+   "khop": true
+  },
+  {
+   "anh": "0106_C2",
+   "khop": true
+  },
+  {
+   "anh": "0106_C3",
+   "khop": true
+  },
+  {
+   "anh": "0107_C3",
+   "khop": true
+  },
+  {
+   "anh": "0107_C4",
+   "khop": true
+  },
+  {
+   "anh": "0108_C4",
+   "khop": true
+  },
+  {
+   "anh": "0108_C1",
+   "khop": true
+  },
+  {
+   "anh": "0109_C1",
+   "khop": true
+  },
+  {
+   "anh": "0109_C2",
+   "khop": true
+  },
+  {
+   "anh": "0110_C2",
+   "khop": true
+  },
+  {
+   "anh": "0110_C3",
+   "khop": true
+  }
+ ]
+}
