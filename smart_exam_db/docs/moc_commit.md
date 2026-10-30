@@ -1,40 +1,40 @@
 # Các mốc commit (Bảng 3.14)
 
-Sinh bằng `python tools/xuat_cay_va_moc.py` từ `git log --date=short` của nhánh `cai-tien-b` (HEAD lúc sinh: `af4976c`).
-Tổng **153 commit**, từ 2026-09-30 đến 2026-10-30, trong **13 ngày có commit**.
+Sinh bằng `python tools/xuat_cay_va_moc.py` từ `git log --all --date=short` – **mọi nhánh**: `cai-tien-b`, `chay-dot2`, `main`, `origin/main` (nhánh hiện tại `cai-tien-b`, HEAD lúc sinh `36c91d6`).
+Tổng **156 commit**, từ 2026-09-30 đến 2026-10-30, trong **13 ngày có commit**; 154 commit nằm trong `cai-tien-b`, **2** commit chỉ có ở nhánh khác (đánh dấu † ở mục 3). **7 tag.**
 Ngày = ngày tác giả (author date). Chỉ liệt kê đúng những gì git ghi lại.
 
 ## 1. Tóm tắt theo ngày
 
-| Ngày | Số commit | Commit đầu | Commit cuối |
-|---|---|---|---|
-| 2026-09-30 | 2 | `399d48c` | `9bd64ac` |
-| 2026-10-02 | 3 | `fc6cb2f` | `7fb1ad1` |
-| 2026-10-03 | 13 | `218e1c2` | `fbbb9f7` |
-| 2026-10-06 | 3 | `310dac8` | `7fb691c` |
-| 2026-10-07 | 20 | `591c19b` | `3064af4` |
-| 2026-10-09 | 4 | `1bd20a9` | `606a799` |
-| 2026-10-10 | 6 | `752b82d` | `a83ebd3` |
-| 2026-10-20 | 10 | `eb99898` | `57aa46d` |
-| 2026-10-21 | 6 | `4902810` | `63a1af2` |
-| 2026-10-27 | 36 | `069c31d` | `d6872c2` |
-| 2026-10-28 | 14 | `a540bca` | `ddf6a85` |
-| 2026-10-29 | 17 | `5ecd0ef` | `9c7f22f` |
-| 2026-10-30 | 19 | `b61f106` | `af4976c` |
-
-## 2. Tag
-
-| Tag | Ngày | Commit | Trong nhánh hiện tại | Tiêu đề commit |
+| Ngày | Số commit | Chỉ ở nhánh khác | Commit đầu | Commit cuối |
 |---|---|---|---|---|
-| `ma-dot2-dong-bang` | 2026-10-27 | `b53a343` | có | data: chep nguyen ven 6 file dot 2 (phieu 0101-0110) vao answer_sheet/dot2/ |
-| `ma-dot2-dong-bang-v2` | 2026-10-27 | `ea4ddf4` | có | docs: ket qua to_nhat (4/4 tieu chi), DONG BANG v2 (SHA, lich_su v1) |
-| `ma-dot2-dong-bang-v3` | 2026-10-27 | `2543647` | có | docs: loi backend vet_nho/to_nhat (muc 7c), DONG BANG v3 (SHA, lich_su v1+v2) |
-| `dang-ky-dot2` | 2026-10-27 | `d3d0426` | có | fix(dang ky dot 2): SHA ghi chu thuong (cung dinh dang sha_file), tai lieu .md chi tham khao; test dang ky that khop cay lam viec |
-| `dang-ky-dot2-bo-sung` | 2026-10-29 | `85d00e1` | không | docs(N1): đăng ký bổ sung đợt 2 – SHA nhãn đã sửa 0103 (sbd_bubble cột 4 = 3, câu 3 = B, câu 5 = C) theo giấy thật, mục 4 kế hoạch; chỉ đổi docs/, trước khi máy đọc ảnh đợt 2 |
-| `sau-dot2-hop-nhat-30-10` | 2026-10-30 | `1d3433f` | không | Gộp cai-tien-b: cải tiến sau góp ý, đợt 2, quản trị web, lớp học |
-| `dang-ky-h3-mo-phong` | 2026-10-30 | `1dc17ca` | có | docs+tools(T): ĐĂNG KÝ TRƯỚC phép thử mô phỏng H3 "ô tô trống, chữ viết tay có" – chưa chạy trên ảnh đợt 2 |
+| 2026-09-30 | 2 | 0 | `399d48c` | `9bd64ac` |
+| 2026-10-02 | 3 | 0 | `fc6cb2f` | `7fb1ad1` |
+| 2026-10-03 | 13 | 0 | `218e1c2` | `fbbb9f7` |
+| 2026-10-06 | 3 | 0 | `310dac8` | `7fb691c` |
+| 2026-10-07 | 20 | 0 | `591c19b` | `3064af4` |
+| 2026-10-09 | 4 | 0 | `1bd20a9` | `606a799` |
+| 2026-10-10 | 6 | 0 | `752b82d` | `a83ebd3` |
+| 2026-10-20 | 10 | 0 | `eb99898` | `57aa46d` |
+| 2026-10-21 | 6 | 0 | `4902810` | `63a1af2` |
+| 2026-10-27 | 36 | 0 | `069c31d` | `d6872c2` |
+| 2026-10-28 | 14 | 0 | `a540bca` | `ddf6a85` |
+| 2026-10-29 | 18 | 1 | `5ecd0ef` | `9c7f22f` |
+| 2026-10-30 | 21 | 1 | `b61f106` | `36c91d6` |
 
-## 3. Toàn bộ commit theo ngày (cũ → mới)
+## 2. Tag (7)
+
+| Tag | Ngày | Commit | Trong `cai-tien-b` | Nhánh chứa tag | Tiêu đề commit |
+|---|---|---|---|---|---|
+| `ma-dot2-dong-bang` | 2026-10-27 | `b53a343` | có | `cai-tien-b`, `chay-dot2`, `main` | data: chep nguyen ven 6 file dot 2 (phieu 0101-0110) vao answer_sheet/dot2/ |
+| `ma-dot2-dong-bang-v2` | 2026-10-27 | `ea4ddf4` | có | `cai-tien-b`, `chay-dot2`, `main` | docs: ket qua to_nhat (4/4 tieu chi), DONG BANG v2 (SHA, lich_su v1) |
+| `ma-dot2-dong-bang-v3` | 2026-10-27 | `2543647` | có | `cai-tien-b`, `chay-dot2`, `main` | docs: loi backend vet_nho/to_nhat (muc 7c), DONG BANG v3 (SHA, lich_su v1+v2) |
+| `dang-ky-dot2` | 2026-10-27 | `d3d0426` | có | `cai-tien-b`, `chay-dot2`, `main` | fix(dang ky dot 2): SHA ghi chu thuong (cung dinh dang sha_file), tai lieu .md chi tham khao; test dang ky that khop cay lam viec |
+| `dang-ky-dot2-bo-sung` | 2026-10-29 | `85d00e1` | không | `chay-dot2` | docs(N1): đăng ký bổ sung đợt 2 – SHA nhãn đã sửa 0103 (sbd_bubble cột 4 = 3, câu 3 = B, câu 5 = C) theo giấy thật, mục 4 kế hoạch; chỉ đổi docs/, trước khi máy đọc ảnh đợt 2 |
+| `sau-dot2-hop-nhat-30-10` | 2026-10-30 | `1d3433f` | không | `main` | Gộp cai-tien-b: cải tiến sau góp ý, đợt 2, quản trị web, lớp học |
+| `dang-ky-h3-mo-phong` | 2026-10-30 | `1dc17ca` | có | `cai-tien-b` | docs+tools(T): ĐĂNG KÝ TRƯỚC phép thử mô phỏng H3 "ô tô trống, chữ viết tay có" – chưa chạy trên ảnh đợt 2 |
+
+## 3. Toàn bộ commit theo ngày (cũ → mới; † = không nằm trong `cai-tien-b`)
 
 ### 2026-09-30 (2 commit)
 
@@ -186,11 +186,12 @@ Ngày = ngày tác giả (author date). Chỉ liệt kê đúng những gì git 
 - `0f25ea5` fix(G): thu_lenh_f.py – thoat \s trong chuoi JS
 - `ddf6a85` docs(G): CLAUDE.md pytest 403
 
-### 2026-10-29 (17 commit)
+### 2026-10-29 (18 commit)
 
 - `5ecd0ef` tools(K): kiem_anh_dot2.py – kiểm ảnh đợt 2 chỉ đọc (tên/cặp điều kiện, kích thước, EXIF, SHA-256, 4 marker bằng find_markers; không nắn, không chấm)
 - `73bbec1` docs(L1): khoá ảnh đợt 2 – SHA-256 + dung lượng 20 ảnh data/raw_dot2 (khoá 29/10/2026 17:47, kiểm 20/20 khớp; chưa chạy test)
 - `da286fb` docs(L2): sai lệch phiếu 0103 đợt 2 (SBD bubble cột 4, câu 3, câu 5) – lời nhóm khai 29/10/2026 trước khi máy đọc ảnh, chưa đối chiếu; không sửa nhãn đăng ký
+- `85d00e1` † docs(N1): đăng ký bổ sung đợt 2 – SHA nhãn đã sửa 0103 (sbd_bubble cột 4 = 3, câu 3 = B, câu 5 = C) theo giấy thật, mục 4 kế hoạch; chỉ đổi docs/, trước khi máy đọc ảnh đợt 2
 - `963314e` docs(P): sai lệch 0103 đợt 2 – người dùng đã xác nhận trên giấy thật 29/10/2026 (bubble SBD cột 4 = 3, câu 3 B đậm, câu 5 C đậm; không ô nào khác sai), trước khi máy đọc ảnh
 - `a4da472` Khoá kết luận xem mù đợt 2 (29/10/2026)
 - `dbf4a50` docs(S): kết quả đợt 2 và phân tích sau chạy – lưu kết quả chính thức (H2, H3 không đạt theo đăng ký; H4, H5 đạt; H1 chưa đóng) + kiểm giấy thật 20:19 29/10/2026 sau khi chạy (0107 SBD cột 3, 0110 câu 21, 0101 câu 3, 0103 câu 8), không đổi nhãn / mã / đăng ký
@@ -206,11 +207,12 @@ Ngày = ngày tác giả (author date). Chỉ liệt kê đúng những gì git 
 - `0dc1a18` feat(I3): lớp của kỳ thi chọn từ danh sách lớp đang hoạt động (tạo + sửa kỳ thi), quy tắc quyền = phụ trách HỢP lớp
 - `9c7f22f` docs(I4): hướng dẫn quản trị – lớp học, gán giáo viên vào lớp (nhiều – nhiều), quan hệ lớp – kỳ thi – giáo viên (phụ trách HỢP lớp), migration 004; CLAUDE.md mục lệnh I
 
-### 2026-10-30 (19 commit)
+### 2026-10-30 (21 commit)
 
 - `b61f106` fix(J1): sau đăng xuất / đăng nhập lại về đúng trang của vai trò, xoá dữ liệu phiên trước
 - `ae548ae` test(J2): tools/thu_lenh_j.py – thử trình duyệt (Playwright, ROLLBACK) đăng xuất / đăng nhập lại
 - `9ea1909` feat(J3): don_du_lieu_test.py --chi-ids – chỉ xét đúng các phiếu --ids, không gộp 1632 / 1633
+- `1d3433f` † Gộp cai-tien-b: cải tiến sau góp ý, đợt 2, quản trị web, lớp học
 - `1dc17ca` docs+tools(T): ĐĂNG KÝ TRƯỚC phép thử mô phỏng H3 "ô tô trống, chữ viết tay có" – chưa chạy trên ảnh đợt 2
 - `300cc64` docs(T): kết quả phép thử mô phỏng H3 (chạy MỘT lần 30/10/2026 08:23, theo tag dang-ky-h3-mo-phong)
 - `844ca4c` feat(U1): tools/kiem_truoc_demo.py – kiểm tra trước ngày demo bằng một lệnh (CHỈ ĐỌC)
@@ -227,3 +229,4 @@ Ngày = ngày tác giả (author date). Chỉ liệt kê đúng những gì git 
 - `a0ab3e8` docs(V5): hướng dẫn quản trị (Nhật ký, ẩn kỳ thi đóng, migration 005), kịch bản demo (lỗi mạng / bị từ chối, lý do theo cột, phạm vi + diễn tập đặt lại demo), hướng dẫn cài đặt (migration 001–005), CLAUDE.md lệnh V
 - `67c7156` fix(W1): bỏ mật khẩu CSDL viết cứng trong 00_create_database.sql, run_all.bat, run_all.sh – đọc SMART_EXAM_DB_PASSWORD
 - `af4976c` fix(W2): GET /sheets/{id} không còn 500 với phiếu không có chi tiết đọc SBD / mã đề (omr_detail NULL / thiếu khoá)
+- `36c91d6` docs(W3): cây thư mục (docs/cay_thu_muc.md, Bảng 3.13) và mốc commit (docs/moc_commit.md, Bảng 3.14), sinh từ git bằng tools/xuat_cay_va_moc.py

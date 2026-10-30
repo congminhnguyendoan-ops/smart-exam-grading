@@ -1,7 +1,7 @@
 # Cây thư mục dự án (Bảng 3.13)
 
-Sinh bằng `python tools/xuat_cay_va_moc.py` từ `git ls-files` – nhánh `cai-tien-b`, HEAD lúc sinh `af4976c`.
-Gốc repo: `smart_exam_db_1/`. Tệp **trong git**: 257 tệp (254 đã commit + 3 tệp mới chưa commit lúc sinh, không bị `.gitignore`). Không có `.venv/`, `.git/`, `data/`, `__pycache__/` (đều trong `.gitignore`).
+Sinh bằng `python tools/xuat_cay_va_moc.py` từ `git ls-files` – nhánh `cai-tien-b`, HEAD lúc sinh `36c91d6`.
+Gốc repo: `smart_exam_db_1/`. Tệp **trong git**: 257 tệp (257 đã commit + 0 tệp mới chưa commit lúc sinh, không bị `.gitignore`). Không có `.venv/`, `.git/`, `data/`, `__pycache__/` (đều trong `.gitignore`).
 Số trong ngoặc = số tệp bên trong thư mục (kể cả thư mục con).
 
 ```

@@ -28,7 +28,10 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
 DAT, CANH_BAO, KHONG_DAT, KHONG_KIEM = "ĐẠT", "CẢNH BÁO", "KHÔNG ĐẠT", "KHÔNG KIỂM ĐƯỢC"
-MIGRATION_CAN = ["001_backend_bo_sung.sql", "002_lop_giao_vien.sql", "003_xoa_anh_tam.sql", "004_lop_trang_thai.sql"]
+def migration_can() -> list[str]:
+    """MỌI tệp trong backend/migrations/ (lệnh Y: không ghi cứng danh sách – thêm 006 thì tự đòi 006, nhãn tự đổi)."""
+    from backend import migrate
+    return [f.name for f in migrate.ds_file()]
 BANG_CHINH = ["users", "classes", "teacher_classes", "students", "subjects", "sheet_templates", "exams", "exam_students", "exam_codes", "answer_keys",
               "answer_sheets", "sheet_answers", "ocr_digits", "results", "review_queue", "score_audit_logs", "schema_migrations"]
 TAI_KHOAN = ["admin", "gv_an", "gv_binh"]
@@ -65,8 +68,10 @@ def kiem_csdl(conn) -> list[Muc]:
     out = [Muc("CSDL", "Kết nối PostgreSQL", DAT, f"CSDL {r['d']}, PostgreSQL {r['v']}, người dùng {r['u']}")]
     chua = migrate.chua_ap(conn, ca_tuy_chon=True)              # CHỈ ĐỌC (migrate.da_ap có CREATE TABLE – không dùng ở đây)
     da = {f.name for f in migrate.ds_file()} - set(chua)
-    thieu = [m for m in MIGRATION_CAN if m not in da]
-    out.append(Muc("CSDL", "Migration đã áp (001 → 004)", KHONG_DAT if thieu else DAT, f"thiếu {thieu}" if thieu else f"{len(da)} migration: {', '.join(sorted(da))}"))
+    can = migration_can()
+    thieu = [m for m in can if m not in da]
+    nhan = f"Migration đã áp ({can[0][:3]} → {can[-1][:3]})" if can else "Migration đã áp"
+    out.append(Muc("CSDL", nhan, KHONG_DAT if thieu else DAT, f"thiếu {thieu}" if thieu else f"{len(da)} migration: {', '.join(sorted(da))}"))
     co = {r["table_name"] for r in conn.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'").fetchall()}
     thieu_b = [b for b in BANG_CHINH if b not in co]
     out.append(Muc("CSDL", f"{len(BANG_CHINH)} bảng chính tồn tại", KHONG_DAT if thieu_b else DAT, f"thiếu {thieu_b}" if thieu_b else ""))

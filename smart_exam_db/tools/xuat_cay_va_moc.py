@@ -5,7 +5,8 @@ xuat_cay_va_moc.py - Lệnh W3 (30/10/2026): sinh docs/cay_thu_muc.md (Bảng 3.
 
 Cây thư mục = các tệp git đang theo dõi (`git ls-files`, nhánh hiện tại) – tự nhiên không có .venv, .git, data/, __pycache__ (đều nằm trong .gitignore);
 kèm một mục riêng liệt kê những gì CHỈ có trên máy này (bị .gitignore bỏ qua) trừ .venv / data / __pycache__, chỉ ghi tên + số tệp.
-Mốc commit = `git log --date=short` của HEAD, gom theo ngày (số commit, hash đầu / cuối, tiêu đề từng commit) + bảng tag (ngày, commit, có nằm trong nhánh hiện tại không).
+Mốc commit = `git log --all --date=short` (MỌI nhánh, lệnh Y), gom theo ngày (số commit, số commit chỉ ở nhánh khác, hash đầu / cuối, tiêu đề từng commit,
+† = không nằm trong nhánh hiện tại) + bảng tag (ngày, commit, có nằm trong nhánh hiện tại không, các nhánh chứa tag).
 Chỉ ĐỌC git, không ghi gì ngoài hai tệp docs.
 """
 import subprocess
@@ -86,26 +87,34 @@ def xuat_cay() -> str:
 
 
 def xuat_moc() -> str:
-    dong = git("log", "--date=short", "--format=%ad%x09%h%x09%s").splitlines()[::-1]          # cũ -> mới
+    """Lệnh Y: lấy commit từ MỌI nhánh (`git log --all`: nhánh cục bộ, remote, tag); đánh dấu commit KHÔNG nằm trong nhánh hiện tại."""
+    dong = git("log", "--all", "--date=short", "--format=%ad%x09%h%x09%s").splitlines()[::-1]          # cũ -> mới
+    trong_head = set(git("log", "--format=%h").split())
     theo_ngay: "OrderedDict[str, list]" = OrderedDict()
     for x in dong:
         ngay, h, s = x.split("\t", 2)
         theo_ngay.setdefault(ngay, []).append((h, s.lstrip("﻿")))
     nhanh = git("rev-parse", "--abbrev-ref", "HEAD").strip()
+    ds_nhanh = git("branch", "-a", "--format=%(refname:short)").split()
     trong = set(git("tag", "--merged", "HEAD").split())
     tag = [t.split("\t") for t in git("tag", "-l", "--sort=creatordate", "--format=%(refname:short)%09%(creatordate:short)%09%(objectname:short)%09%(subject)").splitlines()]
+    chua = {t[0]: ", ".join(f"`{b}`" for b in git("branch", "-a", "--contains", t[0], "--format=%(refname:short)").split()) or "–" for t in tag}
+    ngoai = sum(1 for x in dong if x.split("\t")[1] not in trong_head)
     d = ["# Các mốc commit (Bảng 3.14)", "",
-         f"Sinh bằng `python tools/xuat_cay_va_moc.py` từ `git log --date=short` của nhánh `{nhanh}` (HEAD lúc sinh: `{git('rev-parse', '--short', 'HEAD').strip()}`).",
-         f"Tổng **{len(dong)} commit**, từ {dong[0].split(chr(9))[0] if dong else '–'} đến {dong[-1].split(chr(9))[0] if dong else '–'}, trong **{len(theo_ngay)} ngày có commit**.",
+         f"Sinh bằng `python tools/xuat_cay_va_moc.py` từ `git log --all --date=short` – **mọi nhánh**: {', '.join(f'`{b}`' for b in ds_nhanh)}"
+         f" (nhánh hiện tại `{nhanh}`, HEAD lúc sinh `{git('rev-parse', '--short', 'HEAD').strip()}`).",
+         f"Tổng **{len(dong)} commit**, từ {dong[0].split(chr(9))[0] if dong else '–'} đến {dong[-1].split(chr(9))[0] if dong else '–'}, trong **{len(theo_ngay)} ngày có commit**;"
+         f" {len(dong) - ngoai} commit nằm trong `{nhanh}`, **{ngoai}** commit chỉ có ở nhánh khác (đánh dấu † ở mục 3). **{len(tag)} tag.**",
          "Ngày = ngày tác giả (author date). Chỉ liệt kê đúng những gì git ghi lại.", "",
-         "## 1. Tóm tắt theo ngày", "", "| Ngày | Số commit | Commit đầu | Commit cuối |", "|---|---|---|---|"]
-    d += [f"| {n} | {len(c)} | `{c[0][0]}` | `{c[-1][0]}` |" for n, c in theo_ngay.items()]
-    d += ["", "## 2. Tag", "", "| Tag | Ngày | Commit | Trong nhánh hiện tại | Tiêu đề commit |", "|---|---|---|---|---|"]
-    d += [f"| `{t[0]}` | {t[1]} | `{t[2]}` | {'có' if t[0] in trong else 'không'} | {t[3].lstrip(chr(0xFEFF)).replace('|', '/')} |" for t in tag] or ["| – | | | | |"]
-    d += ["", "## 3. Toàn bộ commit theo ngày (cũ → mới)"]
+         "## 1. Tóm tắt theo ngày", "", "| Ngày | Số commit | Chỉ ở nhánh khác | Commit đầu | Commit cuối |", "|---|---|---|---|---|"]
+    d += [f"| {n} | {len(c)} | {sum(h not in trong_head for h, _ in c)} | `{c[0][0]}` | `{c[-1][0]}` |" for n, c in theo_ngay.items()]
+    d += ["", f"## 2. Tag ({len(tag)})", "", f"| Tag | Ngày | Commit | Trong `{nhanh}` | Nhánh chứa tag | Tiêu đề commit |", "|---|---|---|---|---|---|"]
+    d += [f"| `{t[0]}` | {t[1]} | `{t[2]}` | {'có' if t[0] in trong else 'không'} | {chua[t[0]]} | {t[3].lstrip(chr(0xFEFF)).replace('|', '/')} |" for t in tag] \
+        or ["| – | | | | | |"]
+    d += ["", f"## 3. Toàn bộ commit theo ngày (cũ → mới; † = không nằm trong `{nhanh}`)"]
     for n, c in theo_ngay.items():
         d += ["", f"### {n} ({len(c)} commit)", ""]
-        d += [f"- `{h}` {s.replace('|', '/')}" for h, s in c]
+        d += [f"- `{h}`{' †' if h not in trong_head else ''} {s.replace('|', '/')}" for h, s in c]
     return "\n".join(d) + "\n"
 
 

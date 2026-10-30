@@ -294,7 +294,7 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   Diễn tập bằng `thu_bo_demo.py`, KHÔNG tải ảnh thật lên 1380 / 1381 trước buổi bảo vệ (phiếu nằm lại; xoá phải hỏi).
   **Kỳ thi TẬP** `[DEMO-BV-TẬP]` (`nap_bo_demo.py --ban-tap --ap-dung`, đã nạp 27/10): **1632** (gv_an, K22A), **1633** (gv_binh, K22B) – diễn tập chụp điện thoại ở đây
   (đang TRỐNG: 21 phiếu thử đã xoá 27/10 theo đồng ý). Ảnh dự phòng: `data/_eval/demo_bv/anh_gia/` (`thu_bo_demo.py xuat`). Lệnh vận hành nguyên văn: `docs/chay_server_va_tai_khoan.md`.
-  Người dùng chọn GIỮ 5 ảnh exam 115 `[THU]` → luôn chạy `chay_server_lan.py --khong-xoa-anh`.
+  Demo / diễn tập: luôn chạy `chay_server_lan.py --khong-xoa-anh` (không có cờ thì luồng dọn ảnh tạm chạy ngay lúc khởi động – mục "Ảnh tạm" dưới).
 - **Chụp bằng điện thoại → chấm ngay** (27/10/2026, yêu cầu 2; `docs/thiet_ke_chup_dien_thoai.md`): trang **`/m`** (HTML tĩnh `frontend/m.html|js|css`, camera gốc `capture=environment`,
   ảnh gốc không nén) → `POST /exams/{id}/sheets` → thẻ kết quả (điểm TẠM, câu cần xem, cảnh báo); điện thoại KHÔNG duyệt câu. Máy tính: nút "Kết nối điện thoại" (`GET /meta/ket-noi`, chỉ
   người đăng nhập: IP LAN + QR), danh sách phiếu / hàng đợi tự làm mới 4 s khi tab hiện. **Chạy cho điện thoại**: `python tools/chay_server_lan.py` (`--host 0.0.0.0`, in URL + QR + lệnh tường lửa;
@@ -307,7 +307,9 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   (một tờ, một lần), chụp liên tục, rớt Wi‑Fi rồi gửi lại (~2 s, ước chừng), chụp mờ bị từ chối kèm lý do, chọn nhiều ảnh, xuất Excel, phân quyền (gv_binh không xem được phiếu K22A). **CHƯA thử Android; chưa đo 40 tờ liên tục qua Wi‑Fi thật.** Camera trực tiếp getUserMedia (cần HTTPS): chỉ khảo sát `docs/khao_sat_camera_truc_tiep.md`, không làm trước bảo vệ.
 - **Ảnh tạm** (migration **003 ĐÃ ÁP** 27/10: `answer_sheets.image_deleted_at`): `backend/don_anh.py` xoá ảnh gốc + nắn + ô viết tay của phiếu `graded` / `rejected` sau `ANH_GIU_GIO` (24) giờ;
   giữ phiếu `needs_review` và kỳ thi `[DEMO…]` (`ANH_GIU_DEMO=1`); chỉ tệp trong `STORAGE_DIR`; API ảnh → 410. Luồng dọn chỉ chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật;
-  `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Không có `--khong-xoa-anh` thì lượt đầu xoá 5 tệp của exam 115 `[THU]` (người dùng muốn GIỮ).
+  `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Ảnh exam 115 `[THU]` (5 tệp) và
+  9 phiếu mẫu kỳ thi 1 ĐÃ bị một lượt dọn đánh dấu xoá lúc 28/10/2026 09:16:21 (lệnh Y: nhiều khả năng máy chủ khởi động thiếu `--khong-xoa-anh`; không có log để xác nhận) – không còn ảnh để giữ.
+  Không có cờ thì MỌI kỳ thi không có "[DEMO" trong tên (kể cả kỳ thi thật, `[THU]`) mất ảnh phiếu đã chốt / bị từ chối sau 24 giờ.
 - **Migration trong test / công cụ**: `migrate.chua_ap()` chỉ đọc; `migrate.TUY_CHON` (003) không chặn test; fixture `csdl_003`. `kiem_backend_dau_cuoi.py`, `eval_he_thong.py`, `thu_bo_demo.py`
   chỉ KIỂM migration (trước 27/10 hai công cụ đầu tự áp). Nhánh này: **pytest 403 đạt + 1 skip có chủ đích (28/10/2026, sau lệnh G)** (cây sạch; cây bẩn thì `test_eval_he_thong` đỏ / skip – không phải lỗi mã).
 
@@ -602,7 +604,9 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - Python 3.14 rất mới: cần kiểm tra TensorFlow có hỗ trợ không trước khi chạy suy luận local;
   nếu không, tạo venv riêng Python 3.12 cho phần ML.
 - Git: đã có `.gitignore` ở gốc (loại `.venv/`, `.idea/`, `data/`, `__pycache__/`, `.env`, ảnh
-  `*.png/*.jpg` trong `answer_sheet/output/`). Chưa có remote GitHub.
+  `*.png/*.jpg` trong `answer_sheet/output/`). **Có remote** `origin` = `https://github.com/congminhnguyendoan-ops/smart-exam-grading.git`
+  (kiểm 30/10/2026: `origin/main` = `63a1af2` (21/10); `main` cục bộ đi trước 71 commit; `cai-tien-b`, `chay-dot2` chưa đẩy lên; chế độ công khai / riêng tư chưa kiểm).
+  Không push khi người dùng chưa yêu cầu.
 - Có 2 venv: `smart_exam_db_1/.venv` và `smart_exam_db/answer_sheet/.venv`. **Chốt 03/10/2026: dùng
   `.venv` ở gốc** (terminal xác nhận `sys.executable` = `smart_exam_db_1\.venv\Scripts\python.exe`).
   `answer_sheet/.idea/misc.xml` còn trỏ tới đường dẫn cũ `~\Downloads\...` – không dùng.
