@@ -32,7 +32,7 @@ class CauHinh:
     session_hours: float = 8.0
     cookie_secure: bool = False  # bật khi chạy sau https (COOKIE_SECURE=1)
     # Ảnh tạm (docs/thiet_ke_chup_dien_thoai.md mục 7): xoá ảnh của phiếu đã chốt sau anh_giu_gio giờ. Luồng dọn CHỈ chạy khi anh_xoa_tu_dong
-    # (tools/chay_server_lan.py bật sẵn); pytest / tools/* dùng TestClient trên CSDL thật nên mặc định TẮT – không bao giờ xoá ảnh thật khi kiểm thử.
+    # (chỉ tools/chay_server_lan.py --bat-don-anh bật – lệnh Z); pytest / tools/* dùng TestClient trên CSDL thật nên mặc định TẮT – không bao giờ xoá ảnh thật khi kiểm thử.
     anh_xoa_tu_dong: bool = False
     anh_giu_gio: float = 24.0
     anh_giu_demo: bool = True    # không xoá ảnh của kỳ thi có "[DEMO" trong tên (demo / báo cáo cần ảnh)

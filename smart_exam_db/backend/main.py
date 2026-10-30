@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     app.state.cfg = cfg
     app.state.mo_hinh = service.nap_mo_hinh(cfg)          # nạp OMR + CNN chữ số một lần
     log.info("Đã nạp mô hình OMR %s, CNN chữ số %s", app.state.mo_hinh.phien_ban, app.state.mo_hinh.phien_ban_ocr)
-    # Dọn ảnh tạm CHỈ khi ANH_XOA_TU_DONG=1 (tools/chay_server_lan.py). pytest / tools/* (TestClient trên CSDL thật) để tắt.
+    # Dọn ảnh tạm CHỈ khi ANH_XOA_TU_DONG=1 (tools/chay_server_lan.py --bat-don-anh – lệnh Z). pytest / tools/* (TestClient trên CSDL thật) để tắt.
     luong = don_anh.LuongDon(cfg).bat() if cfg.anh_xoa_tu_dong else None
     yield
     if luong:

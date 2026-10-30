@@ -294,11 +294,12 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   Diễn tập bằng `thu_bo_demo.py`, KHÔNG tải ảnh thật lên 1380 / 1381 trước buổi bảo vệ (phiếu nằm lại; xoá phải hỏi).
   **Kỳ thi TẬP** `[DEMO-BV-TẬP]` (`nap_bo_demo.py --ban-tap --ap-dung`, đã nạp 27/10): **1632** (gv_an, K22A), **1633** (gv_binh, K22B) – diễn tập chụp điện thoại ở đây
   (đang TRỐNG: 21 phiếu thử đã xoá 27/10 theo đồng ý). Ảnh dự phòng: `data/_eval/demo_bv/anh_gia/` (`thu_bo_demo.py xuat`). Lệnh vận hành nguyên văn: `docs/chay_server_va_tai_khoan.md`.
-  Demo / diễn tập: luôn chạy `chay_server_lan.py --khong-xoa-anh` (không có cờ thì luồng dọn ảnh tạm chạy ngay lúc khởi động – mục "Ảnh tạm" dưới).
+  Demo / diễn tập: chạy `chay_server_lan.py` KHÔNG thêm `--bat-don-anh` (lệnh Z: dọn ảnh mặc định TẮT – mục "Ảnh tạm" dưới).
 - **Chụp bằng điện thoại → chấm ngay** (27/10/2026, yêu cầu 2; `docs/thiet_ke_chup_dien_thoai.md`): trang **`/m`** (HTML tĩnh `frontend/m.html|js|css`, camera gốc `capture=environment`,
   ảnh gốc không nén) → `POST /exams/{id}/sheets` → thẻ kết quả (điểm TẠM, câu cần xem, cảnh báo); điện thoại KHÔNG duyệt câu. Máy tính: nút "Kết nối điện thoại" (`GET /meta/ket-noi`, chỉ
   người đăng nhập: IP LAN + QR), danh sách phiếu / hàng đợi tự làm mới 4 s khi tab hiện. **Chạy cho điện thoại**: `python tools/chay_server_lan.py` (`--host 0.0.0.0`, in URL + QR + lệnh tường lửa;
-  `--khong-xoa-anh`, `--chi-in`). Tường lửa (người dùng TỰ chạy, PowerShell quản trị; KHÔNG BAO GIỜ tự chạy lệnh mạng / tường lửa):
+  `--chi-in`; dọn ảnh tạm **mặc định TẮT** từ lệnh Z 30/10/2026, in "Dọn ảnh tạm: TẮT (mặc định)" lúc khởi động; `--khong-xoa-anh` vẫn nhận (tương thích);
+  **CẢNH BÁO: chỉ thêm `--bat-don-anh` khi chủ ý** – xoá ảnh phiếu đã chốt / bị từ chối quá 24 giờ ở mọi kỳ thi không có "[DEMO" (kể cả kỳ thi thật), ngay lúc khởi động rồi mỗi giờ). Tường lửa (người dùng TỰ chạy, PowerShell quản trị; KHÔNG BAO GIỜ tự chạy lệnh mạng / tường lửa):
   `New-NetFirewallRule -DisplayName "SmartExam-8000-LAN" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Public,Private -RemoteAddress LocalSubnet` · xoá sau demo:
   `Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"` (Wi‑Fi máy người dùng ở hồ sơ Public). Wi‑Fi chặn thiết bị → hotspot điện thoại.
   **Chụp LIÊN TỤC** (lệnh M): `frontend/m_hang_doi.js` (hàng đợi thuần logic, tối đa 2 song song, Gửi lại / Chụp lại / ảnh trùng / 401 tạm dừng; test `node --test tests/js/hang_doi.test.js`,
@@ -306,7 +307,7 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   giao dịch) → `data/_eval/ui_m/lien_tuc/`. **ĐÃ thử điện thoại thật 27/10/2026** (người dùng đo trực tiếp, MỘT iPhone / Safari, cùng Wi‑Fi với máy chủ; có ảnh chụp màn hình + nhật ký 27/10): chụp 1 tờ → kết quả **1,8 s**
   (một tờ, một lần), chụp liên tục, rớt Wi‑Fi rồi gửi lại (~2 s, ước chừng), chụp mờ bị từ chối kèm lý do, chọn nhiều ảnh, xuất Excel, phân quyền (gv_binh không xem được phiếu K22A). **CHƯA thử Android; chưa đo 40 tờ liên tục qua Wi‑Fi thật.** Camera trực tiếp getUserMedia (cần HTTPS): chỉ khảo sát `docs/khao_sat_camera_truc_tiep.md`, không làm trước bảo vệ.
 - **Ảnh tạm** (migration **003 ĐÃ ÁP** 27/10: `answer_sheets.image_deleted_at`): `backend/don_anh.py` xoá ảnh gốc + nắn + ô viết tay của phiếu `graded` / `rejected` sau `ANH_GIU_GIO` (24) giờ;
-  giữ phiếu `needs_review` và kỳ thi `[DEMO…]` (`ANH_GIU_DEMO=1`); chỉ tệp trong `STORAGE_DIR`; API ảnh → 410. Luồng dọn chỉ chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật;
+  giữ phiếu `needs_review` và kỳ thi `[DEMO…]` (`ANH_GIU_DEMO=1`); chỉ tệp trong `STORAGE_DIR`; API ảnh → 410. Luồng dọn chỉ chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py --bat-don-anh` bật – lệnh Z;
   `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Ảnh exam 115 `[THU]` (5 tệp) và
   9 phiếu mẫu kỳ thi 1 ĐÃ bị một lượt dọn đánh dấu xoá lúc 28/10/2026 09:16:21 (lệnh Y: nhiều khả năng máy chủ khởi động thiếu `--khong-xoa-anh`; không có log để xác nhận) – không còn ảnh để giữ.
   Không có cờ thì MỌI kỳ thi không có "[DEMO" trong tên (kể cả kỳ thi thật, `[THU]`) mất ảnh phiếu đã chốt / bị từ chối sau 24 giờ.
