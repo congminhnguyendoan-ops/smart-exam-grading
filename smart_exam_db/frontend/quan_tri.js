@@ -22,7 +22,10 @@ function docMaDe(txt) {
 }
 
 async function manQuanTri(tab) {
-  if (!state.me || state.me.role !== "admin") { main.innerHTML = '<div class="alert bad">Chỉ quản trị viên dùng được trang này.</div>'; return; }
+  if (!state.me || state.me.role !== "admin") {
+    main.innerHTML = `<div class="alert bad">Chỉ quản trị viên dùng được trang này.</div><p><a class="btn pri" id="ve-trang-chinh" href="${trangMacDinh()}">Về trang chính</a></p>`;
+    return;
+  }
   const t = ["users", "classes"].includes(tab) ? tab : "exams";
   main.innerHTML = `<h2>Quản trị</h2><div class="row" style="margin:0 0 12px">
       <a class="btn ${t === "exams" ? "pri" : ""}" href="#/admin/exams">Quản lý kỳ thi</a>

@@ -41,11 +41,16 @@ function toast(msg, err = false) {
   clearTimeout(toastT); toastT = setTimeout(() => t.classList.add("hidden"), err ? 7000 : 3000);
 }
 
+/* Số phiên phía trình duyệt: tăng mỗi lần xoá dữ liệu phiên (đăng xuất / hết phiên). Yêu cầu gửi từ phiên trước mà trả về muộn
+   thì bỏ kết quả (không vẽ dữ liệu của người trước lên màn của người sau). */
+let soPhien = 0;
 async function api(path, opts = {}) {
   const { khongChuyen, ...fo } = opts;                 // khongChuyen: lỗi 401 của chính màn đăng nhập thì KHÔNG quay về đăng nhập
+  const phien = soPhien;
   const r = await fetch(path, { credentials: "same-origin", ...fo });
   let body = null;
   try { body = await r.json(); } catch (_) { /* ảnh / rỗng */ }
+  if (phien !== soPhien) { const e = new Error("Phiên đăng nhập đã thay đổi."); e.dangNhap = true; throw e; }
   if (!r.ok) {
     if (r.status === 401 && !khongChuyen) {
       state.me = null; manDangNhap("Chưa đăng nhập hoặc phiên đã hết hạn – hãy đăng nhập lại.");
@@ -126,6 +131,44 @@ window.addEventListener("hashchange", route);
 
 /* ------------------------------------------------------------------ đăng nhập / hồ sơ / lớp của tôi */
 const NHAN_VAI_TRO = { admin: "Quản trị viên", teacher: "Giáo viên", student: "Sinh viên" };
+const TRANG_MAC_DINH = { admin: "#/admin", teacher: "#/upload" };
+const trangMacDinh = () => TRANG_MAC_DINH[state.me && state.me.role] || "#/upload";
+const datHash = (h) => history.replaceState(null, "", location.pathname + location.search + h);   // đổi hash KHÔNG phát hashchange (tự gọi route sau)
+
+/* Khoá lưu trữ của ỨNG DỤNG (app.js + m.js, cùng gốc) – chỉ xoá đúng các khoá này, không đụng khoá khác. */
+const KHOA_LUU_TRU = { local: ["examId"], session: ["loc", "m_hang_doi", "m_tong", "m_exam"] };
+function xoaLuuTru() {
+  for (const [kho, ds] of [[() => localStorage, KHOA_LUU_TRU.local], [() => sessionStorage, KHOA_LUU_TRU.session]])
+    for (const k of ds) { try { kho().removeItem(k); } catch (_) { /* bỏ qua */ } }
+}
+/* Xoá mọi dữ liệu của phiên trước khỏi bộ nhớ + DOM (thanh bên, hộp thoại, thông báo) – người sau không thấy, kể cả thoáng qua. */
+function xoaDuLieuPhien() {
+  soPhien++;
+  Object.assign(state, { examId: null, exams: [], exam: null, me: null, biet: null, chuKy: "" });
+  state.moi.clear();
+  for (const k of Object.keys(daXem)) delete daXem[k];
+  if (typeof qtKyThi === "function") delete qtKyThi.lops;
+  const sel = $("#exam-select"); sel.innerHTML = ""; sel.title = "";
+  $("#exam-name").textContent = ""; $("#exam-info").textContent = "";
+  const n = $("#nav-count"); n.textContent = ""; n.classList.add("hidden");
+  const bia = $("#trang-bia"); bia.classList.add("hidden"); bia.removeAttribute("href");
+  $("#u-name").textContent = ""; $("#u-role").textContent = "";
+  $("#dlg-dt").classList.add("hidden"); $("#dlg-dt-body").innerHTML = "";
+  const t = $("#toast"); t.textContent = ""; t.classList.add("hidden");
+  main.innerHTML = "";
+}
+/* Sau đăng nhập: hash là trang người này KHÔNG có quyền (giáo viên vào #/admin, phiếu / lớp của người khác – máy chủ trả 404)
+   hoặc trống -> trang mặc định của vai trò. Hash hợp lệ thì giữ (phiên hết hạn, đăng nhập lại đúng người -> quay lại đúng chỗ).
+   Chỉ chọn trang ĐÍCH – quyền thật vẫn do máy chủ kiểm ở từng API. */
+const coQuyen = (p) => api(p, { khongChuyen: true }).then(() => true, (e) => { if (e.dangNhap) throw e; return false; });
+async function chinhHash() {
+  const [r, id] = location.hash.replace(/^#\/?/, "").split("/");
+  let hop = !!r;
+  if (r === "admin") hop = state.me.role === "admin";
+  else if ((r === "sheet" || r === "review") && id) hop = await coQuyen(`/sheets/${Number(id)}`);
+  else if (r === "classes" && id) hop = await coQuyen(`/classes/${Number(id)}/students?q=&page=1&page_size=50`);
+  if (!hop) datHash(trangMacDinh());
+}
 function hienNguoiDung() {
   const me = state.me;
   $("#userbox").classList.toggle("hidden", !me);
@@ -134,7 +177,7 @@ function hienNguoiDung() {
   if (me) { $("#u-name").textContent = me.full_name; $("#u-role").textContent = `${NHAN_VAI_TRO[me.role] || me.role} · ${me.username}`; }
 }
 function manDangNhap(thongBao) {
-  state.me = null; hienNguoiDung();
+  xoaDuLieuPhien(); hienNguoiDung();
   main.innerHTML = `<div class="card login"><h2>Đăng nhập</h2>
     ${thongBao ? `<div class="alert warn">${esc(thongBao)}</div>` : ""}
     <form id="f-login"><label>Tên đăng nhập<input type="text" id="lg-user" autocomplete="username" required></label>
@@ -146,13 +189,15 @@ function manDangNhap(thongBao) {
     try {
       await api("/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, khongChuyen: true,
         body: JSON.stringify({ username: $("#lg-user").value, password: $("#lg-pass").value }) });
-      await khoiDong();
+      await khoiDong(true);
     } catch (e) { const er = $("#lg-err"); er.textContent = e.message; er.classList.remove("hidden"); btn.disabled = false; }
   });
 }
 $("#logout").addEventListener("click", async () => {
+  // Xoá NGAY (trước khi chờ máy chủ): dữ liệu phiên, khoá lưu trữ của ứng dụng, hash (#/ – người sau vào trang mặc định của mình).
+  xoaDuLieuPhien(); hienNguoiDung(); xoaLuuTru(); datHash("#/");
+  main.innerHTML = '<p class="muted">Đang đăng xuất…</p>';
   try { await api("/auth/logout", { method: "POST", khongChuyen: true }); } catch (_) { /* bỏ qua */ }
-  state.examId = null; state.exams = []; state.exam = null; state.biet = null; state.moi.clear();
   manDangNhap("Đã đăng xuất.");
 });
 async function manHoSo() {
@@ -568,10 +613,12 @@ $("#dlg-dt").addEventListener("click", (e) => { if (e.target.id === "dlg-dt") $(
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#dlg-dt").classList.add("hidden"); });
 
 /* ------------------------------------------------------------------ khởi động */
-async function khoiDong() {
+/* sauDangNhap: vừa đăng nhập bằng form -> chỉnh trang đích (chinhHash). Mở trang khi đã có phiên: giữ hash như gõ (gõ #/admin mà không phải admin
+   thì thấy thông báo từ chối + nút "Về trang chính"). */
+async function khoiDong(sauDangNhap = false) {
   try { state.me = await api("/me"); } catch (e) { if (!e.dangNhap) main.innerHTML = `<div class="alert bad">Không nối được API: ${esc(e.message)}</div>`; return; }
   hienNguoiDung();
-  try { await napKyThi(); } catch (e) { if (e.dangNhap) return; main.innerHTML = `<div class="alert bad">Không nối được API: ${esc(e.message)}</div>`; return; }
+  try { await napKyThi(); if (sauDangNhap) await chinhHash(); } catch (e) { if (e.dangNhap) return; main.innerHTML = `<div class="alert bad">Không nối được API: ${esc(e.message)}</div>`; return; }
   route();
 }
 khoiDong();
