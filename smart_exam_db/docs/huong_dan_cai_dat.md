@@ -60,7 +60,7 @@ notepad .env                                                     # DATABASE_URL 
 & $py tools/db_check.py                                          # in bảng kỳ thi = nối CSDL được
 ```
 - KHÔNG đặt `ANH_XOA_TU_DONG=1` trong `.env` (`chay_server_lan.py` tự bật). `PUBLIC_BASE_URL` để trống hoặc `http://<IP LAN>:8000` (mã QR trang bìa).
-- Kiểm chứng: migration 001–004 đã áp trên máy này (001 từ bản demo backend 07/10, 002 27/10, 003 27/10, 004 29/10 – các lần sau có sao lưu trong `data\_backup\`) **[ĐÃ KIỂM]**; `.env` đang có đủ khoá **[ĐÃ KIỂM]**.
+- Kiểm chứng: migration 001–005 đã áp trên máy này (001 từ bản demo backend 07/10, 002 27/10, 003 27/10, 004 29/10, 005 30/10 – nhật ký quản trị, lệnh V – các lần sau có sao lưu trong `data\_backup\`) **[ĐÃ KIỂM]**; `.env` đang có đủ khoá **[ĐÃ KIỂM]**.
   Áp liền 001→004 lên một CSDL vừa tạo bằng `run_all.bat` **[SUY RA]**.
 
 ## 6. Tài khoản + dữ liệu demo

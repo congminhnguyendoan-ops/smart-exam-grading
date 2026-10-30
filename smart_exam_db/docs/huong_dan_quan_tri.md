@@ -1,4 +1,4 @@
-# Hướng dẫn quản trị – Smart Exam (lệnh H + lệnh I, 29/10/2026)
+# Hướng dẫn quản trị – Smart Exam (lệnh H + lệnh I, 29/10/2026; lệnh V, 30/10/2026: mục 7–8)
 
 Áp dụng cho nhánh `cai-tien-b`. Mọi thao tác dưới đây làm trên web, ở mục **Quản trị** (`/app/#/admin`).
 Mục này chỉ hiện với tài khoản vai trò **admin**. Máy chủ cũng tự kiểm tra: giáo viên gọi `/admin/...` sẽ nhận lỗi 403.
@@ -108,4 +108,25 @@ Phần này chỉ quản lý **lớp** và **giáo viên của lớp**. Không q
   - Máy khác cần chạy `python -m backend.migrate`.
 - Quyết định thiết kế (lệnh H):
   - **Không thêm migration**: giáo viên phụ trách dùng cột `exams.created_by` có sẵn (phân quyền đã cho người tạo thấy kỳ thi); đóng / mở dùng `exams.status` có sẵn (`closed` / `draft`).
-  - Chưa có bảng nhật ký thao tác quản trị riêng: chỉ ghi log máy chủ (ai làm gì, không có mật khẩu).
+  - (Lệnh H chỉ ghi log máy chủ; từ lệnh V có bảng nhật ký riêng – mục 7.)
+
+## 7. Nhật ký thao tác quản trị (Quản trị → Nhật ký) – lệnh V, 30/10/2026
+- Thẻ **Nhật ký** hiện **100 dòng gần nhất** (mới nhất trước): thời điểm, người thao tác, hành động, đối tượng (Kỳ thi / Tài khoản / Lớp + mã), chi tiết
+  (tên, mã, giá trị cũ → mới). API: `GET /admin/audit?page=1&page_size=100` (tối đa 200 / trang). **Chỉ admin** – giáo viên / sinh viên nhận 403.
+- Ghi **một dòng cho mỗi thao tác THÀNH CÔNG**: tạo / sửa / đóng / mở / xoá kỳ thi; tạo tài khoản, đặt lại mật khẩu, vô hiệu hoá, kích hoạt lại,
+  gán / bỏ gán kỳ thi, đặt lớp cho giáo viên (chỉ khi danh sách lớp thật sự đổi); tạo / sửa / vô hiệu hoá / kích hoạt lại / xoá lớp; thêm / bỏ giáo viên khỏi lớp.
+  Thao tác bị từ chối (409, 404, 422, 403, 401) **không** được ghi. Dòng nhật ký ghi trong cùng giao dịch với thay đổi: thay đổi bị huỷ thì nhật ký cũng không còn.
+- **Không bao giờ** ghi mật khẩu, mã băm mật khẩu hay token (đặt lại mật khẩu chỉ ghi tên đăng nhập); `backend/nhat_ky.py` còn tự bỏ mọi khoá có tên nhạy cảm.
+- Nhật ký chỉ đọc trên web (không sửa / xoá được). Thao tác bằng dòng lệnh (`python -m backend.tai_khoan`, `tools/*`) **không** đi qua API nên không có trong nhật ký.
+- **Migration 005** (`backend/migrations/005_nhat_ky_quan_tri.sql`, CHỈ THÊM bảng `admin_audit_log`):
+  - Đã áp lên CSDL thật 30/10/2026; sao lưu trước khi áp: `data/_backup/smart_exam_20261030_174500_truoc_005.dump`.
+  - Đã chạy thử 2 lần trong giao dịch ROLLBACK (bảng không còn sau rollback, số dòng các bảng khác không đổi).
+  - Backend cũ (trước lệnh V) vẫn chạy trên CSDL đã áp (đã chạy lại test quản trị + API của bản cũ). Máy khác: `python -m backend.migrate`.
+- Kiểm chứng: `tests/test_nhat_ky_quan_tri.py` (quyền; mỗi loại thao tác đúng một dòng; thao tác bị từ chối không ghi; mật khẩu không xuất hiện; phân trang).
+
+## 8. Ô chọn kỳ thi ẩn kỳ thi đã đóng – lệnh V
+- Thanh bên `/app/` và màn "Chọn kỳ thi" của `/m` **mặc định ẩn kỳ thi đã đóng**. Tick **"Hiện cả kỳ thi đã đóng (n)"** để hiện lại (vd để duyệt / xem bảng điểm
+  của kỳ thi đã đóng). Lựa chọn được nhớ trên trình duyệt đó và bị xoá khi đăng xuất. Kỳ thi đang chọn luôn còn trong ô chọn.
+- Đây **chỉ là lọc hiển thị**: quyền không đổi. Trang Quản trị luôn hiện đủ mọi kỳ thi.
+- Tải ảnh vào kỳ thi đã đóng: dòng / thẻ **"Bị từ chối"** kèm lý do "Kỳ thi đã đóng…", **không có nút Gửi lại** (gửi lại cũng sẽ bị từ chối).
+  Nút **Gửi lại** chỉ có khi lỗi mạng / máy chủ tạm thời.

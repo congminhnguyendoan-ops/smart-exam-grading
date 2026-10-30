@@ -335,6 +335,12 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   Lớp vô hiệu: không chọn cho kỳ thi mới / gán mới; giáo viên đã gán vẫn xem kỳ thi cũ. Lớp của kỳ thi chọn từ danh sách (PATCH `/admin/exams` nhận `class_id`).
   Quyền xem kỳ thi = phụ trách (`created_by`) HỢP thuộc lớp (không đổi `phan_quyen.py`). Thử trình duyệt: `python tools/thu_lenh_i.py`.
   **pytest 452 đạt + 1 skip có chủ đích; hồi quy đầu-cuối 56/56 (29/10/2026, sau lệnh I).**
+  **Lệnh V (30/10/2026)**: V0 `tools/dat_lai_demo.py` chỉ theo id cố định 1380/1381/1633 (về 0) + 1632 (nền), hậu kiểm phạm vi; ĐÃ diễn tập thật (sao lưu → BV01 vào 1633
+  → đặt lại → trùng khít trước). V1 `frontend/loi_tai.js`: lỗi mạng / 5xx → Gửi lại; 409 / 404 / 403 / 422 → "bị từ chối", không Gửi lại (/m + /app/). V2 `frontend/ky_thi_dong.js`:
+  ẩn kỳ thi đã đóng ở ô chọn (khoá localStorage `hienKyThiDong`, xoá khi đăng xuất; Quản trị hiện đủ). V3 `frontend/ly_do_cot.js`: lý do SBD / mã đề theo cột (`vi_tri` TỪ 1;
+  chỉ câu chữ). V4 **migration 005 ĐÃ ÁP** (bảng `admin_audit_log`, sao lưu `data/_backup/smart_exam_20261030_174500_truoc_005.dump`), `backend/nhat_ky.py`, `GET /admin/audit`,
+  thẻ Quản trị → Nhật ký (chỉ thao tác thành công, không mật khẩu). Thử trình duyệt: `python tools/thu_lenh_v.py` → `data/_eval/ui_v/`.
+  **pytest 481 đạt + 1 skip có chủ đích; hồi quy đầu-cuối 56/56 (30/10/2026, sau lệnh V).**
   **Lệnh G (28/10/2026)**: G1 `tools/don_du_lieu_test.py` – dọn phiếu test thừa ở kỳ thi 1632 / 1633 (mặc định XEM TRƯỚC chỉ đọc; `--thuc-hien` = sao lưu CSV + ảnh vào `data/_eval/sao_luu_don_du_lieu/`, gõ "XOA", MỘT giao dịch, lệch số dòng
   thì ROLLBACK, rồi xoá tệp ảnh; `--ids` / `--giu`; giữ mọi phiếu `graded` có điểm chính thức hợp lệ). G2 `frontend/ten_tep.js` – tên tệp ảnh > 24 ký tự hiển thị "10 ký tự đầu…đuôi" (title = tên đầy đủ), dùng ở /app/ và /m. G3 `bang_diem.ly_do_chua_ghep`
   – Bảng điểm: phiếu cần xem chưa ghép được thí sinh nói đúng nguyên nhân (SBD máy chưa chắc → "cần giáo viên chốt"; ngoài danh sách → câu cũ), chỉ đổi câu chữ. Thử trình duyệt: `python tools/thu_lenh_f.py g2` → `data/_eval/ui_g/`.

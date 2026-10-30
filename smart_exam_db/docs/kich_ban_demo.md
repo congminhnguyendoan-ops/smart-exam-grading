@@ -24,13 +24,16 @@ Demo dùng **BV01, BV02, BV03** (E1, SBD 220001–220003). Ảnh dự phòng (gi
 | 4 | Duyệt "cần xem": hai kênh SBD + nút chốt | **Duyệt** BV01 → khung "Chốt số báo danh / mã đề" (nếu có): hàng **Ô tô (bubble)** cạnh **Chữ viết tay** (ảnh ô + chữ máy đọc + %) → **Lấy theo ô tô** / **Lấy theo chữ viết tay** → **Lưu SBD / mã đề**. Từng câu: ảnh câu + lý do ("ô tô mờ") → **Xác nhận như máy đọc** hoặc chọn ô → **Lưu lựa chọn** | gv_an | BV01 | sau câu cuối: "Đã chốt điểm chính thức – phiếu duyệt xong", điểm **9,5** (theo giấy) | 1:30 |
 | 5 | Phiếu trùng SBD bị giữ, không ghi đè | Điện thoại: chụp LẠI tờ BV01 (một ảnh MỚI – tải lại đúng tệp cũ chỉ trả phiếu cũ "ảnh đã tải trước đó") → máy tính **Bảng điểm** → **Duyệt** phiếu mới | gv_an | BV01 (chụp lần 2) | phiếu mới "Cần xem", lý do "trùng SBD với phiếu khác" (nếu SBD của ảnh mới còn "cần xem" thì lý do này chỉ hiện SAU khi chốt SBD 220001 ở khung "Chốt số báo danh / mã đề" – như phiếu #6028 của kỳ thi tập); Bảng điểm: thẻ đỏ "Còn 1 phiếu trùng chờ duyệt" + cảnh báo trên bảng; màn duyệt: "Trùng SBD với phiếu #…", hai nút **Bỏ phiếu chụp lại (giữ phiếu cũ)** / **Dùng phiếu này thay phiếu cũ** → bấm **Bỏ phiếu chụp lại** | 1:00 |
 | 6 | Bảng điểm + Excel | **Bảng điểm**: cột Điểm chỉ có điểm chính thức, cột Điểm tạm cho phiếu chưa duyệt → **Xuất Excel** → mở tệp | gv_an | – | Excel 2 sheet "Bảng điểm" + "Chi tiết"; dòng Môn IT3080, Lớp CNTT-K22A; BV01 9,5 chính thức, BV02 / BV03 "Chưa duyệt xong – điểm tạm" | 0:45 |
-| 7 | Phân quyền theo lớp | **Đăng xuất** → đăng nhập gv_binh → ô Kỳ thi chỉ có K22B (1381, 1633). Gõ địa chỉ `#/sheet/<số phiếu BV01>` → lỗi; gõ `#/admin` → "Chỉ quản trị viên dùng được trang này." + nút **Về trang chính** | gv_binh | – | không thấy kỳ thi K22A; phiếu của gv_an: "Không có phiếu …" (máy chủ trả 404 như không tồn tại); trang admin bị từ chối | 0:45 |
+| 7 | Phân quyền theo lớp | **Đăng xuất** → đăng nhập gv_binh → ô Kỳ thi chỉ có K22B (1381, 1633; kỳ thi đã đóng bị ẩn – tick "Hiện cả kỳ thi đã đóng" nếu cần). Gõ địa chỉ `#/sheet/<số phiếu BV01>` → lỗi; gõ `#/admin` → "Chỉ quản trị viên dùng được trang này." + nút **Về trang chính** | gv_binh | – | không thấy kỳ thi K22A; phiếu của gv_an: "Không có phiếu …" (máy chủ trả 404 như không tồn tại); trang admin bị từ chối | 0:45 |
 | | | | | | **Tổng** | **≈ 8:15 + 0:45 hỏi đáp dự phòng** |
 
 Lưu ý kỹ thuật cho người trình bày:
 - Đăng xuất xoá sạch dữ liệu của người trước trên trình duyệt (lệnh J); đăng nhập xong mỗi vai trò vào trang mặc định của mình (admin → Quản trị, giáo viên → Tải ảnh).
 - Điểm "tạm" chỉ tính câu máy chắc chắn; câu cần xem KHÔNG bao giờ được chấm như câu chắc (đó là thông điệp chính: tránh ghi nhầm điểm).
 - Ảnh thật: khoảng một nửa phiếu có SBD hoặc mã đề "cần xem" (CNN chữ số chưa đủ chắc) – giáo viên chốt một lần, không sai điểm (`docs/kich_ban_demo_bao_ve.md` mục 5).
+  Lý do hiện theo từng cột (lệnh V), vd "Cột 6: ô tô trống hoặc không đọc được …; chữ viết tay đọc là 4", "Cột 2: ô tô đọc 9, chữ viết tay đọc 4".
+- (Tuỳ chọn, bước 1, lệnh V) Sau khi tạo / xoá kỳ thi thử: mở **Quản trị → Nhật ký** – hai dòng "Tạo kỳ thi", "Xoá kỳ thi" do admin, không có mật khẩu.
+- Lỗi khi tải ảnh: thẻ "**lỗi mạng**" có nút **Gửi lại** (ảnh vẫn giữ trên máy); thẻ "**bị từ chối**" (vd kỳ thi đã đóng – 409) KHÔNG có Gửi lại: đổi kỳ thi hoặc nhờ admin mở lại.
 
 ## 2. Nếu hỏng thì (mỗi tình huống < 1 phút)
 | Tình huống | Dấu hiệu | Xử lý |
@@ -67,7 +70,11 @@ Lưu ý kỹ thuật cho người trình bày:
   & "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" -h localhost -p 5432 -U smart_exam_app -d smart_exam --clean --if-exists --no-owner "data\_backup\smart_exam_<ngày giờ>_demo.dump"
   ```
   **Chưa thử khôi phục thật** trên máy này (chỉ kiểm `pg_restore -l` đọc được). Nếu báo lỗi quyền với `smart_exam_app`, chạy lại với `-U postgres`.
-- Đặt lại chỉ phiếu demo (không đụng phần khác): `tools/dat_lai_demo.py` (mục 3 bước 3).
+- Đặt lại chỉ phiếu demo (không đụng phần khác): `tools/dat_lai_demo.py` (mục 3 bước 3). Phạm vi là **đúng danh sách id cố định** 1380, 1381, 1633 (về 0 phiếu)
+  và 1632 (về nền 3878, 3880, 4270, 4271, 4272 + #6028) – KHÔNG chọn theo chữ "[DEMO" trong tên, nên kỳ thi 6 "[DEMO] …", 178 "[DEMO-2] …", 115 / 509 "[THU] …"
+  không bao giờ bị đụng (có test). **Đã diễn tập thật 30/10/2026** (lệnh V): sao lưu → tải BV01 vào 1633 qua API (phiếu #8361, 11 tệp ảnh) → xem trước
+  → `--xac-nhan DAT_LAI` → CSDL + kho ảnh trùng khít trạng thái trước khi tải (mọi kỳ thi, mọi bảng, 202 tệp), 0 dòng mồ côi.
+- Bản sao lưu trước migration 005: `data\_backup\smart_exam_20261030_174500_truoc_005.dump`.
 
 ## 5. Sau buổi demo
 - Ctrl+C tắt server. Xoá luật tường lửa (PowerShell quản trị): `Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"`.
