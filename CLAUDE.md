@@ -70,7 +70,8 @@ smart_exam_db/
 ├── backend/                      # Backend demo (mục 4d): main.py (API), schemas.py, service.py (ảnh → OMR → chấm → CSDL, luồng giáo viên),
 │   │                             #   grading.py (chấm thuần), demo.py (dữ liệu mẫu), config.py (.env), db.py, migrate.py
 │   └── migrations/               #   001_backend_bo_sung.sql – chỉ thêm cột / chỉ mục, chạy lại được (python -m backend.migrate)
-├── frontend/                     # Giao diện demo (HTML + JS thuần): index.html, app.js, style.css – FastAPI phục vụ tại /app/ (mục 4d)
+├── frontend/                     # Giao diện demo (HTML + JS thuần): index.html, app.js, style.css – FastAPI phục vụ tại /app/ (mục 4d);
+│                                 #   m.html, m.js, m.css = trang điện thoại /m (mục 4f)
 ├── .env.example                  # mẫu cấu hình; .env thật (DATABASE_URL, STORAGE_DIR…) KHÔNG vào git. storage/ (ảnh phiếu) cũng không
 ├── models/                       # Tuần 5: omr_m1.json (logistic, train 0001–0028), omr_m0.json (ngưỡng) – trong git,
 │                                 #   kèm sieu_du_lieu (ngày, git, SHA dữ liệu, fold). Sinh: tools/huan_luyen_omr.py xuat
@@ -116,6 +117,8 @@ smart_exam_db/
 │   ├── xuat_ocr.py               # Tuần 6: xuất models/ocr_cnn.json TỪ COMMIT SẠCH + kiểm NumPy ↔ PyTorch (< 1e-4); cần torch
 │   ├── eval_ocr.py               # Tuần 6: đánh giá ĐỘC LẬP hai kênh SBD / mã đề (chỉ ocr.py + omr.py): run --tap dev | val (--xac-nhan-val) [--xem]
 │   ├── eval_he_thong.py          # Tuần 5–6: đánh giá cả hệ thống (nắn ảnh → OMR → CNN → chấm → giáo viên) độc lập; run --tap dev | test (--xac-nhan-test, đăng ký + khoá một lần)
+│   ├── kiem_bo_demo.py, nap_bo_demo.py, thu_bo_demo.py  # Bộ demo bảo vệ [DEMO-BV] (mục 4f): kiểm kịch bản / nạp (chỉ INSERT, --ban-tap) / chấm thử ROLLBACK
+│   ├── chay_server_lan.py, thu_dien_thoai.py  # Chụp điện thoại (mục 4f): chạy server LAN (URL + QR + lệnh tường lửa) / giả lập Pixel 7 + đo thời gian
 │   ├── eval_omr.py               # Tuần 5: đánh giá ĐỘC LẬP (chỉ gọi doc_phieu): run --phuong-phap m0|m1, report
 │   │                             #   -> data/_eval/omr/bao_cao_phan_a_train.md + <pp>/xem_bang_mat.html
 │   └── check_task_pdf.py         # Trích phieu_giao_viec.pdf, so với ground_truth.csv hiện tại, commit đầu
@@ -132,6 +135,7 @@ smart_exam_db/
 │   │                             #   ảnh nắn → data/_aligned/<thư mục>/ (JPEG, chỉ để xem); bỏ qua ảnh test
 │   ├── requirements.txt
 │   ├── HUONG_DAN_THU_DU_LIEU.md  # Quy trình thu dữ liệu chi tiết (đọc file này trước)
+│   ├── demo_bv/                  # Bộ demo bảo vệ (chép nguyên vẹn): đáp án 4 mã đề, kịch bản tô BV01–BV10, PDF in phiếu + giao việc
 │   ├── fonts/                    # DejaVuSans(.ttf, -Bold) để in tiếng Việt trong PDF
 │   └── output/                   # File sinh ra (không sửa tay, trừ ground_truth.csv)
 │       ├── phieu_danh_so.pdf     # 40 phiếu có Mã phiếu 0001–0040 (thu dữ liệu)
@@ -272,6 +276,68 @@ chắn (`is_correct = NULL`). Phiếu còn câu / SBD / mã đề cần xem: `st
 `details.sbd_ly_do`); `detected_sbd` = chữ số đọc từ bubble; 9 dòng `ocr_digits` + 9 PNG / phiếu; thiếu `OCR_MODEL` thì không khởi động. Một đường quyết định duy nhất: `service.danh_gia_phieu` (đối chiếu
 `fn_grade_sheet` trước khi ghi điểm). **Không dùng `fn_process_sheet`** (không biết lý do cần xem của OMR). Test API chạy trên CSDL thật trong giao
 dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `python tools/kiem_backend_dau_cuoi.py` (56 ảnh train: 0 câu chấm sai không gắn cần xem; 0 SBD / mã đề nhận sai so với chữ viết tay; 26/56 ảnh có SBD hoặc mã đề cần xem).
+
+### 4f. Đăng nhập + phân quyền theo lớp (nhánh `cai-tien-b`, 29/10/2026; chi tiết `docs/thiet_ke_dang_nhap.md`)
+- **Chỉ có trên nhánh `cai-tien-b`** (từ `d3d0426`); `main` và tag `dang-ky-dot2` (mã khoá `ma-dot2-dong-bang-v3`) KHÔNG có. **Test đợt 2 chạy từ tag, không từ nhánh này**: cây sạch → `git switch --detach dang-ky-dot2` NGAY trong thư mục hiện tại
+  (không worktree / clone mới vì `autocrlf=true` đổi xuống dòng → `kiem_dang_ky` lệch SHA) → `kiem_dang_ky` → chạy → `git switch cai-tien-b`. Nếu `kiem_dang_ky` từ chối vì xuống dòng: DỪNG, báo người dùng, không sửa file / SHA.
+- `AUTH_MODE=on` (mặc định) | `demo` (hành vi cũ DEMO_USER / X-User, không kiểm quyền; `conftest.py` và `tools/*` tự đặt demo). `.env`: `AUTH_SECRET` (bắt buộc khi on, không mặc định trong code), `SESSION_HOURS`, `COOKIE_SECURE`.
+  Phiên = cookie `se_session` HttpOnly + SameSite=Lax (hoặc `Authorization: Bearer`); mật khẩu scrypt; 5 lần sai / 15 phút → 429; mọi lỗi đăng nhập cùng một thông báo.
+- API mới: `POST /auth/login`, `POST /auth/logout`, `GET|PATCH /me`, `POST /me/password`, `GET /me/classes`, `GET /classes/{id}/students`. `POST /exams` nhận `class_id` / `class_code` (lớp phải có sẵn và thuộc lớp mình). Kỳ thi / bảng điểm / Excel có môn + lớp.
+  Phân quyền: admin tất cả; teacher = lớp trong `teacher_classes` + kỳ thi mình tạo hoặc thuộc lớp mình; student 403; ngoài quyền → 404 như không tồn tại; chưa đăng nhập 401.
+- Tài khoản: `python -m backend.tai_khoan` (`tao` / `dat-lai-mat-khau` / `khoa` / `mo-khoa` / `--mau`; mật khẩu nhập bằng getpass). Mẫu: `admin`, `gv_an`, `gv_binh`. Dữ liệu mẫu: `tools/nap_giao_vien_demo.py [--ap-dung]`.
+- **Test KHÔNG tự áp migration lên CSDL thật** (sự cố 27/10: 002 bị áp nhầm, giữ nguyên): `csdl_san_sang` chỉ kiểm migration đã áp (chưa áp → SKIP rõ); áp trong test cần `SMART_EXAM_TEST_MIGRATE=1`; áp thường: `python -m backend.migrate`.
+  Nhánh này: pytest 345 đạt + 1 skip có chủ đích.
+- **Bộ demo bảo vệ [DEMO-BV]** (27/10/2026, kịch bản `docs/kich_ban_demo_bao_ve.md`, `ke_hoach_cai_tien_27-10.md` mục 5): nguồn `answer_sheet/demo_bv/`; ĐÃ NẠP (chỉ INSERT, sao lưu trước
+  `data/_backup/smart_exam_20261027_175511_truoc_demo_bv.dump`): E1 exam_id **1380** (gv_an, IT3080, CNTT-K22A, mã đề 101/102, dự thi 220001–220005), E2 **1381** (gv_binh, IT4040, CNTT-K22B, 103/104,
+  220006–220009; 220010 cố ý ngoài danh sách = phiếu BV10). Công cụ: `tools/kiem_bo_demo.py` (kịch bản, chỉ đọc) · `tools/nap_bo_demo.py [--ap-dung]` (xem trước mặc định, chạy lại INSERT 0) ·
+  `tools/thu_bo_demo.py tao-anh | chay` (ảnh giả hoá BV01–BV10 → API thật với token gv_an / gv_binh, ROLLBACK; 10/10 khớp; BV10 KHÔNG ghi điểm vì `sbd_not_found` – đúng thiết kế).
+  Diễn tập bằng `thu_bo_demo.py`, KHÔNG tải ảnh thật lên 1380 / 1381 trước buổi bảo vệ (phiếu nằm lại; xoá phải hỏi).
+  **Kỳ thi TẬP** `[DEMO-BV-TẬP]` (`nap_bo_demo.py --ban-tap --ap-dung`, đã nạp 27/10): **1632** (gv_an, K22A), **1633** (gv_binh, K22B) – diễn tập chụp điện thoại ở đây
+  (đang TRỐNG: 21 phiếu thử đã xoá 27/10 theo đồng ý). Ảnh dự phòng: `data/_eval/demo_bv/anh_gia/` (`thu_bo_demo.py xuat`). Lệnh vận hành nguyên văn: `docs/chay_server_va_tai_khoan.md`.
+  Người dùng chọn GIỮ 5 ảnh exam 115 `[THU]` → luôn chạy `chay_server_lan.py --khong-xoa-anh`.
+- **Chụp bằng điện thoại → chấm ngay** (27/10/2026, yêu cầu 2; `docs/thiet_ke_chup_dien_thoai.md`): trang **`/m`** (HTML tĩnh `frontend/m.html|js|css`, camera gốc `capture=environment`,
+  ảnh gốc không nén) → `POST /exams/{id}/sheets` → thẻ kết quả (điểm TẠM, câu cần xem, cảnh báo); điện thoại KHÔNG duyệt câu. Máy tính: nút "Kết nối điện thoại" (`GET /meta/ket-noi`, chỉ
+  người đăng nhập: IP LAN + QR), danh sách phiếu / hàng đợi tự làm mới 4 s khi tab hiện. **Chạy cho điện thoại**: `python tools/chay_server_lan.py` (`--host 0.0.0.0`, in URL + QR + lệnh tường lửa;
+  `--khong-xoa-anh`, `--chi-in`). Tường lửa (người dùng TỰ chạy, PowerShell quản trị; KHÔNG BAO GIỜ tự chạy lệnh mạng / tường lửa):
+  `New-NetFirewallRule -DisplayName "SmartExam-8000-LAN" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Public,Private -RemoteAddress LocalSubnet` · xoá sau demo:
+  `Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"` (Wi‑Fi máy người dùng ở hồ sơ Public). Wi‑Fi chặn thiết bị → hotspot điện thoại.
+  **Chụp LIÊN TỤC** (lệnh M): `frontend/m_hang_doi.js` (hàng đợi thuần logic, tối đa 2 song song, Gửi lại / Chụp lại / ảnh trùng / 401 tạm dừng; test `node --test tests/js/hang_doi.test.js`,
+  pytest gọi qua `test_dien_thoai.py`) + nút "Chụp tiếp · Tờ N/tổng", "Chọn nhiều ảnh". Giả lập: `python tools/thu_dien_thoai.py tao-anh | chay` (Pixel 7, CHỈ ROLLBACK, kỳ thi gộp trong
+  giao dịch) → `data/_eval/ui_m/lien_tuc/`. **ĐÃ thử điện thoại thật 27/10/2026** (người dùng đo trực tiếp, MỘT iPhone / Safari, cùng Wi‑Fi với máy chủ; có ảnh chụp màn hình + nhật ký 27/10): chụp 1 tờ → kết quả **1,8 s**
+  (một tờ, một lần), chụp liên tục, rớt Wi‑Fi rồi gửi lại (~2 s, ước chừng), chụp mờ bị từ chối kèm lý do, chọn nhiều ảnh, xuất Excel, phân quyền (gv_binh không xem được phiếu K22A). **CHƯA thử Android; chưa đo 40 tờ liên tục qua Wi‑Fi thật.** Camera trực tiếp getUserMedia (cần HTTPS): chỉ khảo sát `docs/khao_sat_camera_truc_tiep.md`, không làm trước bảo vệ.
+- **Ảnh tạm** (migration **003 ĐÃ ÁP** 27/10: `answer_sheets.image_deleted_at`): `backend/don_anh.py` xoá ảnh gốc + nắn + ô viết tay của phiếu `graded` / `rejected` sau `ANH_GIU_GIO` (24) giờ;
+  giữ phiếu `needs_review` và kỳ thi `[DEMO…]` (`ANH_GIU_DEMO=1`); chỉ tệp trong `STORAGE_DIR`; API ảnh → 410. Luồng dọn chỉ chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật;
+  `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Không có `--khong-xoa-anh` thì lượt đầu xoá 5 tệp của exam 115 `[THU]` (người dùng muốn GIỮ).
+- **Migration trong test / công cụ**: `migrate.chua_ap()` chỉ đọc; `migrate.TUY_CHON` (003) không chặn test; fixture `csdl_003`. `kiem_backend_dau_cuoi.py`, `eval_he_thong.py`, `thu_bo_demo.py`
+  chỉ KIỂM migration (trước 27/10 hai công cụ đầu tự áp). Nhánh này: **pytest 403 đạt + 1 skip có chủ đích (28/10/2026, sau lệnh G)** (cây sạch; cây bẩn thì `test_eval_he_thong` đỏ / skip – không phải lỗi mã).
+
+- **So sánh OCR / CNN / M0 (lệnh D, 28/10/2026; `docs/so_sanh_ocr_cnn.md`, chỉ đo DEV, không sửa hệ thống)**: thư viện OCR (PP-OCRv6 nhận dạng + onnxruntime, venv riêng `data/_eval/so_sanh_ocr/venv_ocr`) **ĐỌC ĐÚNG HƠN CNN**
+  (504 chữ số phiếu dev: 98,2% so với 92,7%, p < 0,001; 3 872 chữ số trang D người lạ: 96,9% so với 95,8%, p = 0,003) nhưng **nặng hơn nhiều** (~5,3 triệu tham số ×50, +71 MB phụ thuộc, +54 MB RAM, 54 ms so với 3,8 ms
+  cho 9 chữ số) và **lắp NGUYÊN TRẠNG làm số ảnh SBD / mã đề cần xem TĂNG** (53,6% so với 46,4%) vì điểm tin cậy OCR chưa hiệu chỉnh; cả ba ứng viên 0 lỗi im lặng mức trường nhờ đối chiếu hai kênh.
+  **Quyết định: GIỮ CNN cho buổi bảo vệ**; OCR = hướng cải tiến (hiệu chỉnh điểm, chọn lại τ_khop, mô phỏng tô sai bubble, đánh giá lại theo đăng ký mới). Chưa đo val / test / đợt 2.
+- **Phiếu trùng SBD + làm mới số đếm + khôi phục danh sách `/m` (lệnh F, 28/10/2026)**: xem các mục cập nhật ở cuối mục 4f này (F2 / F3 / F4). Phân quyền theo lớp và chính sách ảnh tạm: các mục ở trên (không đổi).
+  **F2 – phiếu TRÙNG SBD** (`backend/phieu_trung.py`, KHÔNG đổi `service.danh_gia_phieu`): Bảng điểm / Excel có cột + cảnh báo "Còn N phiếu trùng SBD chờ duyệt" và dòng tổng hợp số thí sinh có phiếu trùng chờ
+  (`rows[].duplicate_pending`, `counts.students_duplicate_pending`). Màn duyệt phiếu bị giữ vì `duplicate_sbd` có 2 nút: `POST /sheets/{id}/duplicate/discard` (bỏ phiếu chụp lại, giữ phiếu cũ: phiếu mới `rejected` mã
+  `chup_lai_bi_bo`) và `POST /sheets/{id}/duplicate/replace` {old_sheet_id, confirm:true} (hộp xác nhận; MỘT giao dịch: `results` phiếu cũ → `void` kèm `score_audit_logs` ai / lúc nào / "Thay phiếu #A bằng phiếu #B", phiếu cũ
+  `rejected` mã `bi_thay_the`, phiếu mới đánh giá lại bằng `danh_gia_phieu`). Chỉ mục `uq_results_exam_student` giữ nguyên; thua cuộc đua → 409. Test `tests/test_trung_sbd_xu_ly.py`. Lưu ý: `service.py` / `schemas.py` nằm trong danh sách SHA đóng băng
+  đợt 2 (`docs/dong_bang_ma_dot2.json`) – `schemas.py` đã thêm trường (nhánh này); test đợt 2 vẫn chạy từ TAG, không từ nhánh.
+  **F3**: ô chọn kỳ thi (`/app/`) làm mới số phiếu mỗi lần `napChiTietKyThi()` (sau tải / duyệt / thăm dò 4 s) – hết "(0 phiếu)" khi đã có phiếu. **F4**: `/m` lưu siêu dữ liệu tờ (số tờ, tên tệp, mã phiếu; KHÔNG ảnh, KHÔNG token)
+  ở `sessionStorage` (`m_hang_doi`), sau tải lại trang hỏi lại `GET /sheets/{id}` để dựng lại danh sách; tờ CHƯA gửi xong thì ảnh đã mất (nằm trong bộ nhớ trang) → trạng thái "mất khi tải lại", phải chụp lại (giới hạn còn lại; vẫn có
+  cảnh báo khi rời trang). Thử trình duyệt thật (Pixel 7 / máy tính, chỉ ROLLBACK): `python tools/thu_lenh_f.py f4 | f23` → `data/_eval/ui_m/f4/`, `data/_eval/ui_f/`.
+  **Lệnh H (29/10/2026) – Quản trị** (`docs/huong_dan_quan_tri.md`, `backend/quan_tri.py`, `backend/trang_bia.py`, `frontend/quan_tri.js`): trang `#/admin` + API `/admin/exams`, `/admin/users` CHỈ admin (giáo viên / sinh viên 403).
+  Giáo viên KHÔNG tự tạo kỳ thi (`POST /exams` 403 khi AUTH_MODE=on; demo giữ cũ). **Không migration mới**: giáo viên phụ trách = `exams.created_by` (gán / bỏ gán = đổi cột này, bỏ gán về admin);
+  đóng / mở = `exams.status` `closed` / `draft` (đóng: tải ảnh 409, duyệt / bảng điểm / Excel vẫn được). Không xoá kỳ thi có phiếu / danh sách dự thi / `[DEMO…]`. Tài khoản: chỉ quản lý vai trò teacher
+  (tạo, đặt lại mật khẩu, vô hiệu hoá); lỗi 422 của đường dẫn có mật khẩu bỏ `input`. Trang bìa `GET /exams/{id}/cover.pdf` (QR `/m?kythi=<id>`, không in đáp án; gốc = `PUBLIC_BASE_URL` hoặc request);
+  `/m` đọc `?kythi` (`frontend/m_kythi.js`). Thử trình duyệt (ROLLBACK): `python tools/thu_lenh_h.py`.
+  **Lệnh I (29/10/2026) – Lớp học**: Quản trị → Lớp học, API `/admin/classes` (tạo; sửa tên / năm học – mã không đổi; vô hiệu hoá / kích hoạt; xoá chỉ khi chưa gắn kỳ thi và chưa có sinh viên),
+  gán giáo viên vào lớp (`/admin/classes/{id}/teachers`, `/admin/users/{id}/classes`, `POST /admin/users` nhận `class_ids`) – dùng lại `teacher_classes` (đã nhiều – nhiều). KHÔNG quản lý sinh viên.
+  **Migration 004 (`classes.is_active`, chỉ thêm) ĐÃ ÁP 29/10/2026** (sao lưu `data/_backup/smart_exam_20261029_220658_truoc_004.dump`; chạy thử trong giao dịch ROLLBACK vì `smart_exam_app` không có CREATEDB).
+  Lớp vô hiệu: không chọn cho kỳ thi mới / gán mới; giáo viên đã gán vẫn xem kỳ thi cũ. Lớp của kỳ thi chọn từ danh sách (PATCH `/admin/exams` nhận `class_id`).
+  Quyền xem kỳ thi = phụ trách (`created_by`) HỢP thuộc lớp (không đổi `phan_quyen.py`). Thử trình duyệt: `python tools/thu_lenh_i.py`.
+  **pytest 452 đạt + 1 skip có chủ đích; hồi quy đầu-cuối 56/56 (29/10/2026, sau lệnh I).**
+  **Lệnh G (28/10/2026)**: G1 `tools/don_du_lieu_test.py` – dọn phiếu test thừa ở kỳ thi 1632 / 1633 (mặc định XEM TRƯỚC chỉ đọc; `--thuc-hien` = sao lưu CSV + ảnh vào `data/_eval/sao_luu_don_du_lieu/`, gõ "XOA", MỘT giao dịch, lệch số dòng
+  thì ROLLBACK, rồi xoá tệp ảnh; `--ids` / `--giu`; giữ mọi phiếu `graded` có điểm chính thức hợp lệ). G2 `frontend/ten_tep.js` – tên tệp ảnh > 24 ký tự hiển thị "10 ký tự đầu…đuôi" (title = tên đầy đủ), dùng ở /app/ và /m. G3 `bang_diem.ly_do_chua_ghep`
+  – Bảng điểm: phiếu cần xem chưa ghép được thí sinh nói đúng nguyên nhân (SBD máy chưa chắc → "cần giáo viên chốt"; ngoài danh sách → câu cũ), chỉ đổi câu chữ. Thử trình duyệt: `python tools/thu_lenh_f.py g2` → `data/_eval/ui_g/`.
 
 ## 5. Cài đặt và chạy
 

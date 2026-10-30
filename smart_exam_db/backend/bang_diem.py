@@ -15,9 +15,24 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from .service import KhongTimThay
+from . import phieu_trung
+from .service import KhongTimThay, tim_sinh_vien
 
 NHAN = {"official": "Chính thức", "pending": "Chưa duyệt xong – điểm tạm", "rejected": "Bị từ chối", "no_sheet": "Chưa có phiếu"}
+
+def ly_do_chua_ghep(conn, exam_id: int, sbd: str | None, sbd_can_xem: bool) -> str:
+    """Câu giải thích vì sao phiếu `needs_review` CHƯA ghép được thí sinh (chỉ đổi câu chữ, không đổi trạng thái / chấm – lệnh G3).
+    (b) máy đọc SBD chưa chắc (`can_xem`) -> KHÔNG kết luận "ngoài danh sách": giáo viên cần chốt; (a) SBD đọc chắc nhưng không có trong danh sách -> câu cũ."""
+    sbd = sbd or ""
+    if sbd_can_xem or "?" in sbd:
+        if sbd.isdigit():
+            return f"SBD đọc được {sbd} nhưng chưa chắc, cần giáo viên chốt"
+        return f"SBD chưa đọc đủ ({sbd or '–'}), cần giáo viên chốt"
+    if sbd.isdigit() and tim_sinh_vien(conn, exam_id, sbd) is None:
+        return f"SBD đọc: {sbd} – chưa khớp danh sách"
+    return f"SBD đọc: {sbd or '–'} – chưa ghép được thí sinh, cần giáo viên xem"
+
+
 GHI_CHU_TAM = "Điểm tạm chưa phải điểm chính thức: chỉ tính các câu máy đọc chắc chắn, phiếu còn mục giáo viên chưa duyệt."
 
 
@@ -26,7 +41,9 @@ def _f(x):
 
 
 def bang_diem(conn, exam_id: int) -> dict:
-    ex = conn.execute("SELECT exam_id, exam_title, max_score, num_questions FROM exams WHERE exam_id = %s", (exam_id,)).fetchone()
+    ex = conn.execute("SELECT e.exam_id, e.exam_title, e.max_score, e.num_questions, sj.subject_code, sj.subject_name, e.class_id, c.class_code, c.class_name "
+                      "FROM exams e JOIN subjects sj ON sj.subject_id = e.subject_id LEFT JOIN classes c ON c.class_id = e.class_id "
+                      "WHERE e.exam_id = %s", (exam_id,)).fetchone()
     if not ex:
         raise KhongTimThay(f"Không có kỳ thi {exam_id}.")
     # Mọi phiếu CÓ ghép thí sinh (graded / needs_review), kèm kết quả chính thức nếu có.
@@ -50,12 +67,14 @@ def bang_diem(conn, exam_id: int) -> dict:
         "WHERE es.exam_id = %(e)s UNION "
         "SELECT s.student_id, s.student_code, s.full_name, FALSE FROM students s WHERE s.student_id = ANY(%(ids)s::bigint[]) "
         "ORDER BY student_code", {"e": exam_id, "ids": list(tot_nhat)}).fetchall()
+    cho_trung = phieu_trung.dem_cho(conn, exam_id)
     dong = []
     for i, s in enumerate(sv, 1):
         p = tot_nhat.get(s["student_id"])
         d = {"stt": i, "student_id": s["student_id"], "sbd": s["student_code"], "full_name": s["full_name"], "exam_code": None,
              "num_correct": None, "score": None, "provisional_score": None, "provisional_correct": None, "pending_questions": 0,
-             "sheet_id": None, "sheets": so_phieu.get(s["student_id"], 0)}
+             "sheet_id": None, "sheets": so_phieu.get(s["student_id"], 0),
+             "duplicate_pending": len(cho_trung.get(s["student_id"], [])), "duplicate_sheet_ids": cho_trung.get(s["student_id"], [])}
         if p is None:
             d["status"] = "no_sheet"
         else:
@@ -68,13 +87,20 @@ def bang_diem(conn, exam_id: int) -> dict:
         d["status_label"] = NHAN[d["status"]]
         dong.append(d)
     roi = conn.execute(
-        "SELECT a.sheet_id, a.status::text AS status, a.original_filename, a.detected_sbd, a.reject_code, a.error_message AS reject_message "
+        "SELECT a.sheet_id, a.exam_id, a.status::text AS status, a.original_filename, a.detected_sbd, a.reject_code, a.error_message AS reject_message, "
+        "COALESCE((a.omr_detail->'sbd'->>'can_xem')::boolean, FALSE) AS sbd_can_xem "
         "FROM answer_sheets a WHERE a.exam_id = %s AND a.matched_student_id IS NULL AND a.status IN ('rejected', 'needs_review') "
         "ORDER BY a.sheet_id", (exam_id,)).fetchall()
+    for p in roi:                                           # phiếu cần xem chưa ghép được: câu giải thích đúng nguyên nhân (đi qua trường reject_message sẵn có)
+        if p["status"] == "needs_review":
+            p["reject_message"] = ly_do_chua_ghep(conn, p["exam_id"], p["detected_sbd"], p["sbd_can_xem"])
+        p.pop("exam_id", None); p.pop("sbd_can_xem", None)
     dem = {k: sum(d["status"] == k for d in dong) for k in ("official", "pending", "no_sheet")}
     dem["rejected"] = sum(p["status"] == "rejected" for p in roi)
     dem["unmatched_review"] = sum(p["status"] == "needs_review" for p in roi)
-    return {"exam_id": exam_id, "exam_title": ex["exam_title"], "max_score": _f(ex["max_score"]), "num_questions": ex["num_questions"],
+    dem["students_duplicate_pending"] = sum(d["duplicate_pending"] > 0 for d in dong)
+    return {"exam_id": exam_id, "exam_title": ex["exam_title"], "subject_code": ex["subject_code"], "subject_name": ex["subject_name"],
+            "class_id": ex["class_id"], "class_code": ex["class_code"], "class_name": ex["class_name"], "max_score": _f(ex["max_score"]), "num_questions": ex["num_questions"],
             "exported_on": date.today().isoformat(), "counts": {**dem, "students": len(dong)}, "rows": dong, "unmatched": roi}
 
 
@@ -106,7 +132,14 @@ def xuat_excel(conn, exam_id: int) -> tuple[bytes, str]:
     ws["A2"] = f"Ngày xuất: {b['exported_on']} · Điểm tối đa: {b['max_score']:g} · {b['num_questions']} câu"
     ws["A3"] = "Ghi chú: " + GHI_CHU_TAM + " Cột 'Điểm' chỉ có giá trị khi trạng thái là Chính thức."
     ws["A3"].font = Font(italic=True, color="9C5700")
-    dau = ["STT", "SBD", "Họ tên", "Mã đề", "Số câu đúng", "Điểm", "Điểm tạm (chưa chính thức)", "Trạng thái", "Mã phiếu"]
+    ws["A4"] = f"Môn: {b['subject_code']} – {b['subject_name']}"          # hàng 4 đang trống: KHÔNG chèn dòng (hàng 5 = tiêu đề cột, dữ liệu từ hàng 6)
+    ws["F4"] = "Lớp: " + (f"{b['class_code']} – {b['class_name']}" if b["class_code"] else "(không gắn lớp)")
+    ws["A4"].font = ws["F4"].font = Font(bold=True)
+    n_trung = b["counts"]["students_duplicate_pending"]
+    if n_trung:                                          # cảnh báo nổi bật ở đầu bảng (không chèn dòng: dữ liệu vẫn từ hàng 6)
+        ws["A2"] = ws["A2"].value + f" · CẢNH BÁO: {n_trung} thí sinh còn phiếu TRÙNG SBD đang chờ duyệt – xem cột 'Cảnh báo'"
+        ws["A2"].font = Font(bold=True, color="C00000")
+    dau = ["STT", "SBD", "Họ tên", "Mã đề", "Số câu đúng", "Điểm", "Điểm tạm (chưa chính thức)", "Trạng thái", "Mã phiếu", "Cảnh báo"]
     for j, t in enumerate(dau, 1):
         c = ws.cell(row=5, column=j, value=t)
         c.font = Font(bold=True, color="FFFFFF")
@@ -115,7 +148,11 @@ def xuat_excel(conn, exam_id: int) -> tuple[bytes, str]:
     mau = {"official": "E2EFDA", "pending": "FFF2CC", "no_sheet": "EDEDED"}
     for i, d in enumerate(b["rows"], 6):
         ws.append([d["stt"], d["sbd"], d["full_name"], d["exam_code"], d["num_correct"], d["score"], d["provisional_score"],
-                   d["status_label"], d["sheet_id"]])
+                   d["status_label"], d["sheet_id"],
+                   (f"Còn {d['duplicate_pending']} phiếu trùng SBD chờ duyệt (mã phiếu " + ", ".join(map(str, d["duplicate_sheet_ids"])) + ")")
+                   if d["duplicate_pending"] else None])
+        if d["duplicate_pending"]:
+            ws.cell(row=i, column=10).font = Font(bold=True, color="C00000")
         ws.cell(row=i, column=2).number_format = "@"        # SBD là chuỗi (giữ số 0 đầu)
         ws.cell(row=i, column=8).fill = PatternFill("solid", fgColor=mau[d["status"]])
         for j in (6, 7):
@@ -125,7 +162,10 @@ def xuat_excel(conn, exam_id: int) -> tuple[bytes, str]:
     k = b["counts"]
     ws.cell(row=cuoi + 1, column=1, value=f"Chính thức: {k['official']} · Chưa duyệt xong: {k['pending']} · "
                                           f"Chưa có phiếu: {k['no_sheet']} · Phiếu bị từ chối (không ghép được thí sinh): {k['rejected']}")
-    for j, w in enumerate([6, 12, 30, 8, 12, 9, 16, 28, 11], 1):
+    ws.cell(row=cuoi + 2, column=1, value=f"Thí sinh có phiếu TRÙNG SBD đang chờ duyệt: {k['students_duplicate_pending']}")
+    if k["students_duplicate_pending"]:
+        ws.cell(row=cuoi + 2, column=1).font = Font(bold=True, color="C00000")
+    for j, w in enumerate([6, 12, 30, 8, 12, 9, 16, 28, 11, 46], 1):
         ws.column_dimensions[get_column_letter(j)].width = w
     ws.row_dimensions[5].height = 32
     ws.freeze_panes = "A6"

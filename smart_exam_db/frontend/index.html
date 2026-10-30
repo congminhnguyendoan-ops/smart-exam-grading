@@ -10,20 +10,36 @@
 <body>
 <aside class="side">
   <h1>SMART EXAM</h1>
+  <div class="userbox hidden" id="userbox">
+    <b id="u-name"></b><div class="muted small" id="u-role"></div>
+    <div class="row"><a href="#/profile" class="small">Hồ sơ</a><button type="button" id="logout" class="small">Đăng xuất</button></div>
+  </div>
   <nav id="nav">
     <a href="#/upload" data-r="upload">Tải ảnh &amp; chấm</a>
     <a href="#/sheets" data-r="sheets">Danh sách phiếu</a>
     <a href="#/review" data-r="review">Hàng đợi duyệt <span id="nav-count" class="badge hidden"></span></a>
     <a href="#/results" data-r="results">Bảng điểm</a>
+    <a href="#/classes" data-r="classes">Lớp của tôi</a>
+    <a href="#/profile" data-r="profile">Hồ sơ</a>
+    <a href="#/admin" data-r="admin" id="nav-admin" class="hidden">Quản trị</a>
   </nav>
   <label class="exam-pick">Kỳ thi
     <select id="exam-select"></select>
   </label>
+  <p class="exam-name" id="exam-name"></p>
   <p class="muted small" id="exam-info"></p>
-  <p class="muted small foot">Bản demo – chưa có đăng nhập.<br><a href="/docs" target="_blank">API (Swagger)</a></p>
+  <button type="button" id="ket-noi-dt" class="phone-btn">📱 Kết nối điện thoại</button>
+  <a id="trang-bia" class="phone-btn hidden" target="_blank" rel="noopener" title="PDF: tên kỳ thi, mã kỳ thi, mã QR mở trang chụp phiếu đúng kỳ thi này">🖨 In trang bìa kỳ thi</a>
+  <p class="muted small foot">Cần đăng nhập để dùng.<br><a href="/docs" target="_blank">API (Swagger)</a></p>
 </aside>
 <main id="main"><p class="muted">Đang tải…</p></main>
 <div id="toast" class="toast hidden"></div>
+<div id="dlg-dt" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="dlg-dt-h"><div class="modal-box">
+  <button type="button" class="modal-x" id="dlg-dt-x" aria-label="Đóng">×</button>
+  <h2 id="dlg-dt-h">Kết nối điện thoại</h2><div id="dlg-dt-body"><p class="muted">Đang lấy địa chỉ…</p></div>
+</div></div>
+<script src="ten_tep.js"></script>
 <script src="app.js"></script>
+<script src="quan_tri.js"></script>
 </body>
 </html>

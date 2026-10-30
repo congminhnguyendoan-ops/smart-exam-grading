@@ -4,6 +4,7 @@ Test cần dữ liệu (data/ không có trong git) tự SKIP nếu thiếu file
 Chỉ dùng ảnh dev và ảnh giả tạo từ ảnh dev (data/_eval/_gia_v4); không đọc ảnh test 0035–0040.
 """
 import json
+import os
 import sys
 import warnings
 from pathlib import Path
@@ -14,6 +15,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent           # smart_exam_db/
 sys.path.insert(0, str(ROOT))
+os.environ["AUTH_MODE"] = "demo"      # test CŨ chạy không đăng nhập; test đăng nhập (test_dang_nhap.py) tự bật 'on' qua cấu hình
+os.environ["ANH_XOA_TU_DONG"] = "0"   # TestClient chạy lifespan trên CSDL thật: KHÔNG bao giờ để luồng dọn ảnh tạm chạy khi kiểm thử
 
 ANSWER_SHEET_DIR = ROOT / "answer_sheet"
 DATA = ROOT / "data"
@@ -63,7 +66,7 @@ def so_voi_tham_chieu(moi: np.ndarray, ten_png: str, sha_ref: str, cung_phien_ba
 # Test API / dịch vụ chạy trên CSDL THẬT nhưng trong MỘT giao dịch luôn ROLLBACK (không để lại dòng nào) + thư mục ảnh tạm.
 # Không nối được CSDL / thiếu .env -> SKIP. Fixture kiểm cuối: số dòng các bảng chính sau rollback = trước khi test.
 BANG_KIEM = ("subjects", "exams", "exam_codes", "answer_keys", "students", "answer_sheets", "sheet_answers", "results",
-             "review_queue", "scan_batches", "ml_models", "score_audit_logs", "ocr_digits")
+             "review_queue", "scan_batches", "ml_models", "score_audit_logs", "ocr_digits", "users", "classes", "teacher_classes")
 
 
 def _dem_bang(conn) -> dict:
@@ -72,14 +75,35 @@ def _dem_bang(conn) -> dict:
 
 @pytest.fixture(scope="session")
 def csdl_san_sang():
-    """Áp migration (chỉ thêm cột, idempotent) một lần; skip nếu không nối được CSDL."""
+    """KHÔNG tự áp migration lên CSDL thật (sự cố 27/10/2026: một lần chạy test đã áp nhầm 002). Chỉ KIỂM các migration đã áp; chưa áp thì
+    SKIP có thông báo rõ (không tính là đạt). Muốn áp trong test: đặt SMART_EXAM_TEST_MIGRATE=1. Áp bình thường: python -m backend.migrate."""
     try:
         from backend import migrate
-        from backend.config import lay_cau_hinh
-        lay_cau_hinh()
-        migrate.ap_dung()
+        from backend.config import lay_database_url
+        from backend.db import ket_noi
+        lay_database_url()
+        if os.environ.get("SMART_EXAM_TEST_MIGRATE") == "1":
+            migrate.ap_dung()
+        with ket_noi() as c:
+            c.execute("SET TRANSACTION READ ONLY")
+            chua = migrate.chua_ap(c)                    # migration TUỲ CHỌN (migrate.TUY_CHON) không đòi ở đây – xem csdl_003
     except Exception as e:  # noqa: BLE001
-        pytest.skip(f"không nối được CSDL / thiếu .env: {type(e).__name__}: {e}")
+        pytest.skip(f"không nối được CSDL / thiếu .env / chưa có schema_migrations: {type(e).__name__}: {e}")
+    if chua:
+        pytest.skip(f"SKIP: migration chưa áp lên CSDL: {chua} – chạy `python -m backend.migrate` (hoặc SMART_EXAM_TEST_MIGRATE=1); test KHÔNG tự áp")
+    return True
+
+
+@pytest.fixture(scope="session")
+def csdl_003(csdl_san_sang):
+    """Test cần cột answer_sheets.image_deleted_at (migration 003, ảnh tạm): SKIP rõ cho tới khi được áp (test KHÔNG tự áp)."""
+    from backend import migrate
+    from backend.db import ket_noi
+    with ket_noi() as c:
+        c.execute("SET TRANSACTION READ ONLY")
+        chua = migrate.chua_ap(c, ca_tuy_chon=True)
+    if "003_xoa_anh_tam.sql" in chua:
+        pytest.skip("SKIP: migration 003_xoa_anh_tam.sql chưa áp lên CSDL (chờ người dùng đồng ý) – chạy `python -m backend.migrate`; test KHÔNG tự áp")
     return True
 
 

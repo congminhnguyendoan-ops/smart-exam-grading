@@ -5,10 +5,12 @@ tất định và luôn sai). Mã đề còn lại giả lập như nap_demo.py.
 
   python tools/nap_demo_khop.py       # từ smart_exam_db/ ; cần .env, đã chạy python -m backend.migrate (và nap_demo.py nếu muốn cùng thí sinh)
 """
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+os.environ.setdefault("AUTH_MODE", "demo")      # công cụ chạy trong tiến trình: bỏ đăng nhập (backend: AUTH_MODE=on là mặc định)
 from backend import demo, service  # noqa: E402
 from backend.config import lay_cau_hinh  # noqa: E402
 from backend.db import giao_dich  # noqa: E402

@@ -22,6 +22,8 @@ class KyThiMoi(BaseModel):
     num_questions: int = Field(gt=0, le=40, description="Tối đa 40 (mẫu phiếu chuẩn)")
     max_score: Decimal = Field(default=Decimal(10), gt=0, le=999)
     pass_score: Decimal = Field(default=Decimal(5), ge=0, le=999)
+    class_id: int | None = Field(default=None, description="Lớp của kỳ thi (tuỳ chọn): phải TỒN TẠI và thuộc lớp bạn phụ trách (admin: bất kỳ)")
+    class_code: str | None = Field(default=None, max_length=30, description="Hoặc mã lớp (vd 'CNTT-K22A'); không tự tạo lớp mới")
     template_name: str | None = Field(default=None, description="Mẫu phiếu; bỏ trống = mẫu đầu tiên ('Phiếu chuẩn 40 câu A4')")
     codes: list[MaDeMoi] = Field(min_length=1, max_length=20)
 
@@ -43,10 +45,14 @@ class KyThiOut(BaseModel):
     exam_title: str
     subject_code: str
     subject_name: str
+    class_id: int | None = None
+    class_code: str | None = None
+    class_name: str | None = None
     exam_date: date | None
     num_questions: int
     max_score: float
     pass_score: float
+    status: str | None = Field(default=None, description="draft | published | grading | closed (closed = đã đóng, không nhận ảnh mới)")
     codes: list[MaDeOut]
     sheets: SoPhieu
 
@@ -54,14 +60,143 @@ class KyThiOut(BaseModel):
 class KyThiTomTat(BaseModel):
     exam_id: int
     exam_title: str
+    subject_code: str
+    subject_name: str
+    class_id: int | None = None
+    class_code: str | None = None
+    class_name: str | None = None
     num_questions: int
     max_score: float
     exam_date: date | None
     so_phieu: int
+    status: str | None = Field(default=None, description="closed = đã đóng (không nhận ảnh mới)")
 
 
 class KyThiTao(BaseModel):
     exam_id: int
+
+
+# ------------------------------------------------------------------------------------------------ quản trị (chỉ admin)
+class KyThiQuanTriMoi(KyThiMoi):
+    teacher_user_id: int | None = Field(default=None, description="Giáo viên phụ trách (tài khoản teacher đang hoạt động); bỏ trống = chính admin")
+
+
+class SuaKyThi(BaseModel):
+    exam_title: str | None = Field(default=None, min_length=3, max_length=200)
+    exam_date: date | None = Field(default=None, description="Gửi null để xoá ngày thi")
+    class_id: int | None = Field(default=None, description="Lớp của kỳ thi (lớp đang hoạt động); gửi null để bỏ lớp")
+
+
+class DongMoKyThi(BaseModel):
+    closed: bool = Field(description="true = đóng (không nhận ảnh mới), false = mở lại")
+
+
+class KyThiQuanTri(BaseModel):
+    exam_id: int
+    exam_title: str
+    exam_date: date | None
+    status: str
+    num_questions: int
+    subject_code: str
+    subject_name: str
+    class_id: int | None
+    class_code: str | None
+    class_name: str | None
+    teacher_user_id: int
+    teacher_username: str
+    teacher_name: str
+    teacher_role: str
+    so_phieu: int
+    ma_de: str | None
+
+
+class TaiKhoan(BaseModel):
+    """Tài khoản cho trang quản trị – KHÔNG bao giờ có mật khẩu / hash."""
+    user_id: int
+    username: str
+    full_name: str
+    email: str
+    role: Literal["admin", "teacher", "student"]
+    is_active: bool
+    last_login_at: datetime | None
+    created_at: datetime | None
+    so_ky_thi: int = Field(description="Số kỳ thi đang phụ trách (exams.created_by)")
+    lop: str | None = Field(description="Các lớp được gán (teacher_classes)")
+
+
+# Trường mật khẩu KHÔNG có ràng buộc độ dài ở pydantic: lỗi 422 của pydantic chép lại giá trị gửi lên ("input") vào phản hồi.
+# Độ dài kiểm ở dịch vụ (auth.mat_khau_hop_le) với thông báo không chứa mật khẩu; main.py còn bỏ "input" khỏi lỗi 422 của các đường dẫn có mật khẩu.
+class TaiKhoanMoi(BaseModel):
+    username: str = Field(description="3–50 ký tự: chữ không dấu, số, . _ -")
+    full_name: str
+    email: str | None = Field(default=None, description="Bỏ trống = <username>@smartexam.local")
+    password: str = Field(description="Mật khẩu ban đầu, tối thiểu 8 ký tự – giáo viên nên đổi ở trang Hồ sơ")
+    class_ids: list[int] = Field(default_factory=list, max_length=200, description="Gán luôn các lớp (đang hoạt động) lúc tạo")
+
+
+class DatMatKhau(BaseModel):
+    new_password: str = Field(description="Tối thiểu 8 ký tự; mọi phiên cũ của tài khoản hết hiệu lực")
+
+
+class KichHoat(BaseModel):
+    is_active: bool = Field(description="false = vô hiệu hoá (không đăng nhập được, phiên đang có bị từ chối ngay ở lần gọi kế tiếp)")
+
+
+class LopQuanTri(BaseModel):
+    class_id: int
+    class_code: str
+    class_name: str
+    academic_year: str | None
+    is_active: bool
+    so_giao_vien: int
+    so_sinh_vien: int = Field(description="Chỉ để xem – hệ thống không quản lý sinh viên ở đây")
+    so_ky_thi: int
+    giao_vien: str | None = Field(description="Tên đăng nhập các giáo viên của lớp")
+
+
+class LopMoi(BaseModel):
+    class_code: str = Field(description="Duy nhất (không phân biệt hoa thường), 2–30 ký tự: chữ không dấu, số, . _ -")
+    class_name: str
+    academic_year: str | None = Field(default=None, description="vd 2026-2027")
+
+
+class SuaLop(BaseModel):
+    class_name: str | None = None
+    academic_year: str | None = Field(default=None, description="Gửi null để xoá năm học")
+
+
+class KichHoatLop(BaseModel):
+    is_active: bool = Field(description="false = vô hiệu hoá (không chọn được cho kỳ thi / gán giáo viên mới)")
+
+
+class GiaoVienCuaLop(BaseModel):
+    user_id: int
+    username: str
+    full_name: str
+    is_active: bool
+    subject_code: str | None = Field(description="Môn dạy ở lớp này (chỉ đặt bằng công cụ / SQL; web không sửa)")
+    assigned_at: datetime | None
+
+
+class LopCuaGiaoVienQT(BaseModel):
+    class_id: int
+    class_code: str
+    class_name: str
+    academic_year: str | None
+    is_active: bool
+    subject_code: str | None
+
+
+class DatLop(BaseModel):
+    class_ids: list[int] = Field(max_length=200, description="ĐÚNG danh sách lớp của giáo viên sau khi lưu (rỗng = bỏ mọi lớp)")
+
+
+class KyThiCuaGiaoVien(BaseModel):
+    exam_id: int
+    exam_title: str
+    status: str
+    class_code: str | None
+    nguon: Literal["phu_trach", "lop"] = Field(description="phu_trach = được gán (gán / bỏ gán ở đây); lop = thấy vì dạy lớp của kỳ thi")
 
 
 # ------------------------------------------------------------------------------------------------ phiếu
@@ -149,6 +284,7 @@ class PhieuOut(BaseModel):
     score: Diem | None
     review: MucReview | None
     questions: list[CauOut]
+    image_deleted_at: datetime | None = Field(default=None, description="Ảnh đã được xoá (chính sách ảnh tạm) lúc này – API ảnh trả 410")
 
 
 class PhieuTomTat(BaseModel):
@@ -205,6 +341,18 @@ class TaiNhieuOut(BaseModel):
 
 
 # ------------------------------------------------------------------------------------------------ giáo viên
+class ThayPhieuCu(BaseModel):
+    old_sheet_id: int = Field(description="Phiếu cũ (đang giữ điểm chính thức) mà giáo viên đã thấy và xác nhận thay. Đổi trong lúc chờ -> 409")
+    confirm: Literal[True] = Field(description="Phải là true: giáo viên đã bấm xác nhận ở hộp thoại")
+
+
+class KetQuaTrung(BaseModel):
+    hanh_dong: Literal["bo_phieu_moi", "thay_phieu_cu"]
+    phieu: PhieuOut
+    phieu_cu: int | None = Field(default=None, description="Phiếu cũ: bị thay (thay_phieu_cu) hoặc được giữ (bo_phieu_moi)")
+    diem_cu_da_rut: float | None = None
+
+
 class XuLyCau(BaseModel):
     action: Literal["confirm", "set"] = Field(
         description="confirm = nhận cách máy đọc (không dùng cho câu cần xem vì vị trí); set = giáo viên chốt lựa chọn")
@@ -223,6 +371,24 @@ class LyDoTuChoi(BaseModel):
     advice: str = Field(description="Lời khuyên chụp lại")
 
 
+class UngVienIp(BaseModel):
+    ip: str
+    card: str
+    ao: bool = Field(description="Card ảo (WSL / Docker / VPN …) – điện thoại thường không tới được")
+    mac_dinh: bool = Field(description="IP của tuyến mặc định")
+    hotspot: bool = Field(description="192.168.137.x – điểm phát sóng của Windows")
+    url: str
+
+
+class KetNoi(BaseModel):
+    lan_bat: bool = Field(description="Server khởi động cho mạng nội bộ (--host 0.0.0.0, tools/chay_server_lan.py)")
+    cong: int
+    url: str | None = Field(description="Địa chỉ trang điện thoại /m theo IP được chọn")
+    qr_svg: str = Field(description="Mã QR của url (SVG); rỗng nếu thiếu segno")
+    ung_vien: list[UngVienIp]
+    gioi_han_anh_mb: int
+
+
 # ------------------------------------------------------------------------------------------------ bảng điểm
 class DongBangDiem(BaseModel):
     stt: int
@@ -239,6 +405,8 @@ class DongBangDiem(BaseModel):
     status_label: str
     sheet_id: int | None
     sheets: int = Field(description="Số phiếu đã ghép thí sinh này (>1: tải nhiều lần / trùng SBD)")
+    duplicate_pending: int = Field(default=0, description="Số phiếu TRÙNG SBD của thí sinh này đang chờ giáo viên duyệt (lý do duplicate_sbd)")
+    duplicate_sheet_ids: list[int] = Field(default_factory=list, description="Mã các phiếu trùng đang chờ")
 
 
 class PhieuKhongGhep(BaseModel):
@@ -257,14 +425,83 @@ class TongBangDiem(BaseModel):
     rejected: int = Field(description="Phiếu bị từ chối (ảnh không dùng được – không biết của thí sinh nào)")
     unmatched_review: int = Field(description="Phiếu cần xem nhưng chưa ghép được thí sinh")
     students: int
+    students_duplicate_pending: int = Field(default=0, description="Số thí sinh còn phiếu trùng SBD đang chờ duyệt")
 
 
 class BangDiemOut(BaseModel):
     exam_id: int
     exam_title: str
+    subject_code: str
+    subject_name: str
+    class_id: int | None = None
+    class_code: str | None = None
+    class_name: str | None = None
     max_score: float
     num_questions: int
     exported_on: str
     counts: TongBangDiem
     rows: list[DongBangDiem]
     unmatched: list[PhieuKhongGhep]
+
+
+# ------------------------------------------------------------------------------------------------ tài khoản / lớp
+class DangNhap(BaseModel):
+    username: str = Field(min_length=1, max_length=50)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class HoSo(BaseModel):
+    user_id: int
+    username: str
+    full_name: str
+    email: str
+    role: Literal["admin", "teacher", "student"]
+    last_login_at: datetime | None = Field(default=None, description="Lần đăng nhập gần nhất (None nếu chưa từng)")
+    created_at: datetime | None = None
+
+
+class SuaHoSo(BaseModel):
+    full_name: str | None = Field(default=None, max_length=150)
+    email: str | None = Field(default=None, max_length=255)
+
+
+class DoiMatKhau(BaseModel):
+    old_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=1, max_length=200, description="Tối thiểu 8 ký tự, khác mật khẩu cũ")
+
+
+class LopCuaToi(BaseModel):
+    class_id: int
+    class_code: str
+    class_name: str
+    academic_year: str | None
+    subject_id: int | None = Field(description="Môn bạn dạy ở lớp này (None nếu chưa gán / admin)")
+    subject_code: str | None
+    subject_name: str | None
+    so_sinh_vien: int
+
+
+class SinhVienLop(BaseModel):
+    student_id: int
+    student_code: str
+    full_name: str
+    date_of_birth: date | None
+    gender: str | None
+    email: str | None
+
+
+class LopThongTin(BaseModel):
+    class_id: int
+    class_code: str
+    class_name: str
+    academic_year: str | None
+
+
+class DsSinhVienLop(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    lop: LopThongTin
+    tong: int
+    trang: int
+    co_trang: int
+    sinh_vien: list[SinhVienLop]
+

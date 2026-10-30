@@ -12,6 +12,38 @@
 | 6 | Xem lại code vùng đậm–nhạt 0–255 |
 | 7 | Đăng nhập giáo viên, phân quyền theo lớp (cá nhân, lớp dạy, học sinh) |
 
+## 2. Yêu cầu 2 – chụp từ điện thoại, chấm liền (nhánh `cai-tien-b`, 27/10/2026) – XONG phần mã; ĐÃ thử điện thoại thật 27/10 (một iPhone, Safari; chưa thử Android)
+Thiết kế + kết quả chi tiết: `docs/thiet_ke_chup_dien_thoai.md` (mục 8). Commit `b9ae088` (thiết kế) · `687d13c` (công cụ chỉ kiểm migration) · `763c6ff` (tính năng) · `3cf69d3` (bản tập) · tường lửa + tài liệu sau đó.
+- Trang `/m` (HTML tĩnh, JS thuần): đăng nhập → chọn kỳ thi → `<input capture="environment">` (camera gốc, ảnh gốc không nén, không cần HTTPS) → `POST /exams/{id}/sheets` → thẻ kết quả
+  (điểm TẠM, câu cần xem, cảnh báo SBD / mã đề / tờ nhạt, ảnh trùng, từ chối + lời khuyên, lỗi mạng / hết giờ / quá lớn / 401) → Chụp tiếp; bộ đếm phiên + 5 phiếu gần nhất. Điện thoại KHÔNG duyệt câu.
+- Máy tính: nút "Kết nối điện thoại" (QR, `GET /meta/ket-noi` chỉ cho người đăng nhập); danh sách phiếu / hàng đợi tự làm mới 4 s khi tab hiện, phiếu mới nổi bật.
+- `tools/chay_server_lan.py` (IP LAN – `backend/mang.py`, QR terminal, lệnh tường lửa CHỈ IN, `--host 0.0.0.0`). Mặc định `uvicorn` vẫn 127.0.0.1.
+- Ảnh tạm: `backend/don_anh.py` + migration **003 (ĐÃ ÁP 27/10, người dùng đồng ý; sao lưu `data/_backup/smart_exam_20261027_184231_truoc_003.dump`)**: xoá ảnh của phiếu
+  `graded` / `rejected` sau `ANH_GIU_GIO` (24) giờ, giữ phiếu chờ duyệt và kỳ thi [DEMO…]; API ảnh → 410. Chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật).
+- Kỳ thi TẬP **1632 / 1633** `[DEMO-BV-TẬP]` (chỉ INSERT). Giả lập Pixel 7, ảnh 3024×4032: ROLLBACK p50 0,81 s / p95 0,85 s; ghi thật trên TẬP p50 1,13 s / p95 2,13 s (loopback, chưa gồm Wi‑Fi).
+- pytest 375 đạt + 1 skip có chủ đích; `kiem_backend_dau_cuoi.py` 56/56, 0 chấm sai không cờ. Tường lửa: `SmartExam-8000-LAN` (Public,Private + `LocalSubnet`), xoá sau demo.
+- **Đã thử điện thoại thật 27/10/2026** (người dùng đo trực tiếp, một iPhone / Safari, cùng Wi‑Fi; có ảnh chụp màn hình và nhật ký làm việc 27/10): chụp 1 tờ → kết quả **1,8 s** (một tờ, một lần đo); chụp liên tục; rớt Wi‑Fi rồi gửi lại ~2 s (ước chừng); chụp mờ bị từ chối kèm lý do; chọn nhiều ảnh; xuất Excel; gv_binh không xem được phiếu K22A.
+- **Còn lại**: thử Android; đo thời gian 40 tờ liên tục qua Wi‑Fi thật; camera trực tiếp `getUserMedia` (cần HTTPS) = hướng nâng cấp.
+- **Dọn kỳ thi TẬP (27/10, người dùng đồng ý)**: sao lưu `data/_backup/smart_exam_20261027_190525_truoc_xoa_tap.dump` (`pg_restore -l` đọc được) → một giao dịch xoá 21 phiếu của 1632 / 1633:
+  answer_sheets 21, sheet_answers 800, review_queue 20, ocr_digits 180, results 0, score_audit_logs 0 → kiểm lại: 1632 / 1633 / 1380 / 1381 đều 0 phiếu; vân tay 13 bảng (loại dòng đã xoá)
+  giống hệt trước → xoá 221 tệp ảnh (đường dẫn lấy từ chính các dòng vừa xoá, chỉ trong `storage/`). 5 ảnh của exam 115 `[THU]` giữ nguyên (người dùng chọn giữ; chạy với `--khong-xoa-anh`).
+- Ảnh dự phòng `data/_eval/demo_bv/anh_gia/` (`thu_bo_demo.py xuat`); hướng dẫn lệnh nguyên văn: `docs/chay_server_va_tai_khoan.md`.
+- **Chụp LIÊN TỤC (lệnh M, 27/10)**: hàng đợi gửi nền tối đa 2 song song (`frontend/m_hang_doi.js`, 6 test Node), không chờ kết quả tờ trước; Gửi lại / Chụp lại / Chọn nhiều ảnh.
+  Đo (ROLLBACK, giả lập Pixel 7, loopback): camera 20 tờ mỗi 2 s → tổng 39,5 s, mỗi tờ p50 0,79 / p95 0,83 s, 0 lỗi; chọn nhiều 20 tờ → 10,4 s. pytest 377 đạt + 1 skip; hồi quy 56/56.
+  Chi tiết `docs/thiet_ke_chup_dien_thoai.md` mục 9. Camera trực tiếp (getUserMedia, cần HTTPS): `docs/khao_sat_camera_truc_tiep.md` – KHÔNG làm trước bảo vệ.
+
+## 5. Yêu cầu 5 – chấm đủ 40 câu: bộ demo bảo vệ [DEMO-BV] (nhánh `cai-tien-b`, 27/10/2026) – XONG
+Kịch bản demo: `docs/kich_ban_demo_bao_ve.md`. Nguồn: `answer_sheet/demo_bv/` (commit `5a46d89`); công cụ `tools/kiem_bo_demo.py`, `tools/nap_bo_demo.py` (`7d8bfed`), `tools/thu_bo_demo.py` (`5f07ff7`).
+- **Ghi CSDL (người dùng đồng ý, chỉ INSERT)**: sao lưu trước `data/_backup/smart_exam_20261027_175511_truoc_demo_bv.dump`; nạp E1 (exam_id 1380, gv_an, IT3080, CNTT-K22A, mã đề 101/102, dự thi 220001–220005)
+  và E2 (1381, gv_binh, IT4040, CNTT-K22B, 103/104, 220006–220009; 220010 cố ý không dự thi): exams 2, exam_codes 4, answer_keys 160, exam_students 9. Chạy lần hai: INSERT 0.
+  Vân tay md5 15 bảng: chỉ 4 bảng trên đổi; dòng cũ của chúng giống hệt trước khi nạp (5 / 18 / 660 / 72 dòng).
+- **5a quyền (chỉ GET, `AUTH_MODE=on`)**: 24/24 đạt – chéo kỳ thi / chéo lớp → 404, `GET /exams` có môn + lớp, Excel "Môn:" (A4) / "Lớp:" (F4).
+- **5b đầu-cuối (ảnh giả hoá, ROLLBACK)**: 10/10 khớp, 0 câu chấm sai không cờ; BV07 → 40 câu `to_nhat`; BV10 → không ghi điểm (`sbd_not_found`) dù GV đã xác nhận SBD.
+  Ghi trung thực: lần chạy đầu tiêu chí của công cụ đòi BV10 có điểm chính thức 7,75 (sai với kịch bản "SBD ngoài danh sách") → sửa tiêu chí theo danh sách dự thi trong CSDL
+  TRƯỚC khi commit; hành vi backend không đổi. CSDL giống hệt trước / sau 5a + 5b.
+- **Giao diện**: tên kỳ thi bị cắt ở ô chọn thanh bên → tên đứng đầu option + dòng `#exam-name` xuống dòng (commit `e7c8373`).
+- Giới hạn: ảnh giả hoá phẳng, không chữ viết tay – chỉ minh hoạ luồng; ảnh thật: ~50% phiếu có SBD / mã đề cần xem (CNN, T4 Tuần 6).
+
 ## 6. Rà độ tối 0–255 (`omr.py` `_do_o`, `dac_trung_o`)
 
 Độ tối = 1 − TB lõi (0,75r) / giấy vành (1,15–1,45r) → không phụ thuộc độ sáng tuyệt đối của ảnh.
@@ -195,4 +227,11 @@ Không lộ ở lệnh A vì luật chưa từng gắn cờ câu nào trên 56 �
 Đầu-cuối sau sửa: `kiem_backend_dau_cuoi.py` 0 câu chấm sai không cờ, điểm 56/56; pytest 274 đạt.
 Chạy thử công cụ trên ảnh giả hoá (`python tools/eval_dot2.py tao-gia` → `run --thu-gia --xem`, 20 ảnh): H2 / H3 / H4 / H5 = 0 lỗi, điểm cuối đúng 20/20; vết 60/60 gắn cờ; 0107 SBD "cần xem" (thieu_bubble) cả 2 ảnh;
 0105 mọi câu có ô được chọn đều có cờ. CHỈ là số tham chiếu của công cụ (ảnh vẽ phẳng, không chữ viết tay), không đưa vào tiêu chí.
+
+## 8. Yêu cầu 1 và 7 – tên môn / lớp + đăng nhập giáo viên + phân quyền theo lớp (nhánh `cai-tien-b`, 29/10/2026) – XONG
+Thiết kế, bảng endpoint × quyền, tự rà, sự cố 002 và quy trình chạy đợt 2 an toàn: `docs/thiet_ke_dang_nhap.md`. Làm trên nhánh `cai-tien-b` (từ `d3d0426`); **không gộp về `main`, không đổi tag**; đợt 2 chạy từ tag `dang-ky-dot2`.
+- Migration `002_lop_giao_vien.sql` (đã áp, chỉ thêm): `exams.class_id`, `teacher_classes`. Dữ liệu mẫu: `tools/nap_giao_vien_demo.py --ap-dung` (gv_an → CNTT-K22A / IT3080, gv_binh → CNTT-K22B / IT4040; 4 kỳ thi demo của gv_an gắn CNTT-K22A).
+- Kết quả: pytest **345 đạt + 1 skip có chủ đích** (test đăng ký trên nhánh), gồm 44 test đăng nhập / phân quyền cần CSDL (không skip) + 27 không cần CSDL; hồi quy `kiem_backend_dau_cuoi.py` 56/56, 0 câu chấm sai không cờ; `cv_engine/` và `models/` không đổi so với `d3d0426`.
+- Thử tay (token dựng từ hash trong CSDL, chỉ GET): gv_an thấy 5 kỳ thi + lớp CNTT-K22A (5 SV); gv_binh thấy 0 kỳ thi + lớp CNTT-K22B (5 SV); chéo lớp / chéo kỳ thi → 404; admin thấy tất cả; Excel có "Môn: …" (A4) và "Lớp: …" (F4). Ảnh chụp: `data/_eval/ui_b/`.
+- Tái tạo: `python -m backend.migrate` · `python -m pytest tests` · `python tools/kiem_backend_dau_cuoi.py`.
 

@@ -5,6 +5,7 @@ Biến môi trường đã đặt sẵn luôn thắng giá trị trong .env. Kh�
 Mẫu: .env.example.
 """
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,16 +27,40 @@ class CauHinh:
     mo_hinh_ocr: Path          # CNN chữ số viết tay (NumPy + JSON, Tuần 6)
     nguoi_dung_demo: str       # username tạm thay cho đăng nhập (nợ kỹ thuật: auth ở Tuần 7–8)
     gioi_han_anh_mb: int
+    auth_mode: str = "on"      # "on" (mặc định, an toàn) | "demo" (hành vi cũ DEMO_USER / X-User, KHÔNG kiểm quyền – chỉ dev + test cũ)
+    auth_secret: str = ""      # khoá ký phiên (HMAC); bắt buộc khi auth_mode = "on"; KHÔNG có giá trị mặc định trong code
+    session_hours: float = 8.0
+    cookie_secure: bool = False  # bật khi chạy sau https (COOKIE_SECURE=1)
+    # Ảnh tạm (docs/thiet_ke_chup_dien_thoai.md mục 7): xoá ảnh của phiếu đã chốt sau anh_giu_gio giờ. Luồng dọn CHỈ chạy khi anh_xoa_tu_dong
+    # (tools/chay_server_lan.py bật sẵn); pytest / tools/* dùng TestClient trên CSDL thật nên mặc định TẮT – không bao giờ xoá ảnh thật khi kiểm thử.
+    anh_xoa_tu_dong: bool = False
+    anh_giu_gio: float = 24.0
+    anh_giu_demo: bool = True    # không xoá ảnh của kỳ thi có "[DEMO" trong tên (demo / báo cáo cần ảnh)
+    # Địa chỉ gốc in trong mã QR trang bìa kỳ thi (vd https://thi.truong.edu.vn hoặc http://192.168.1.5:8000). Rỗng = lấy từ yêu cầu (request.base_url).
+    public_base_url: str = ""
 
 
-def lay_cau_hinh() -> CauHinh:
+def lay_database_url() -> str:
+    """Chỉ cần DATABASE_URL (công cụ CSDL như backend.migrate không được đòi AUTH_SECRET)."""
     url = os.environ.get("DATABASE_URL", "").strip()
     if not url:
         raise LoiCauHinh("Chưa đặt DATABASE_URL. Sao chép .env.example thành .env (trong smart_exam_db/) "
                          "rồi điền thông tin kết nối.")
+    return url
+
+
+def lay_cau_hinh() -> CauHinh:
+    url = lay_database_url()
     kho = Path(os.environ.get("STORAGE_DIR", "storage"))
     mo_hinh = Path(os.environ.get("OMR_MODEL", "models/omr_m1.json"))
     mo_hinh_ocr = Path(os.environ.get("OCR_MODEL", "models/ocr_cnn.json"))
+    mode = os.environ.get("AUTH_MODE", "on").strip().lower()
+    if mode not in ("on", "demo"):
+        raise LoiCauHinh(f"AUTH_MODE phải là 'on' hoặc 'demo' (đang là '{mode}').")
+    secret = os.environ.get("AUTH_SECRET", "").strip()
+    if mode == "on" and len(secret) < 32:
+        raise LoiCauHinh("Chưa đặt AUTH_SECRET (≥ 32 ký tự) trong .env – cần để ký phiên đăng nhập. Sinh khoá: "
+                         "python -c \"import secrets; print(secrets.token_urlsafe(48))\"  (hoặc AUTH_MODE=demo chỉ để dev).")
     return CauHinh(
         database_url=url,
         storage_dir=kho if kho.is_absolute() else ROOT / kho,
@@ -43,4 +68,22 @@ def lay_cau_hinh() -> CauHinh:
         mo_hinh_ocr=mo_hinh_ocr if mo_hinh_ocr.is_absolute() else ROOT / mo_hinh_ocr,
         nguoi_dung_demo=os.environ.get("DEMO_USER", "gv_an"),
         gioi_han_anh_mb=int(os.environ.get("MAX_UPLOAD_MB", "25")),
+        auth_mode=mode, auth_secret=secret, session_hours=float(os.environ.get("SESSION_HOURS", "8")),
+        cookie_secure=_bat(os.environ.get("COOKIE_SECURE", "0")),
+        anh_xoa_tu_dong=_bat(os.environ.get("ANH_XOA_TU_DONG", "0")),
+        anh_giu_gio=float(os.environ.get("ANH_GIU_GIO", "24")),
+        anh_giu_demo=_bat(os.environ.get("ANH_GIU_DEMO", "1")),
+        public_base_url=dia_chi_goc_hop_le(os.environ.get("PUBLIC_BASE_URL", "")),
     )
+
+
+def dia_chi_goc_hop_le(v: str) -> str:
+    """'' hoặc http(s)://máy[:cổng][/đường-dẫn] (bỏ '/' cuối). Sai dạng -> LoiCauHinh (không âm thầm in QR hỏng)."""
+    v = v.strip().rstrip("/")
+    if v and not re.fullmatch(r"https?://[A-Za-z0-9.\-\[\]:]+(/[A-Za-z0-9._~\-/]*)?", v):
+        raise LoiCauHinh(f"PUBLIC_BASE_URL phải dạng http(s)://tên-máy[:cổng][/đường-dẫn] (đang là '{v}').")
+    return v
+
+
+def _bat(v: str) -> bool:
+    return v.strip().lower() in ("1", "true", "yes", "on")

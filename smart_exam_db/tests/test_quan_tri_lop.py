@@ -1,0 +1,204 @@
+"""Lệnh I – admin quản lý lớp (/admin/classes) + gán giáo viên vào lớp (nhiều – nhiều) + lớp của kỳ thi.
+CSDL thật trong giao dịch ROLLBACK (conftest.conn_thu kiểm cả classes / teacher_classes / users không bị để lại), AUTH_MODE=on. Cần migration 004."""
+import uuid
+
+import pytest
+
+from backend import demo
+from test_dang_nhap import bang_moi, client_on, dn, tai_trang, tao_user  # noqa: F401 – fixture dùng lại
+
+
+def ma_lop() -> str:
+    return "LT-" + uuid.uuid4().hex[:8].upper()
+
+
+@pytest.fixture
+def lp(client_on, bang_moi):
+    c, conn = client_on, bang_moi
+    if conn.execute("SELECT count(*) AS n FROM information_schema.columns WHERE table_name = 'classes' AND column_name = 'is_active'").fetchone()["n"] == 0:
+        pytest.skip("SKIP: migration 004 chưa áp (python -m backend.migrate) – test lớp KHÔNG được tính là đạt")
+    ad, id_ad = tao_user(conn, "admin")
+    gA, idA = tao_user(conn)
+    gB, idB = tao_user(conn)
+    sv, _ = tao_user(conn, "student")
+    h = {"ad": dn(c, ad), "A": dn(c, gA), "B": dn(c, gB), "sv": dn(c, sv)}
+    r = c.post("/admin/classes", headers=h["ad"], json={"class_code": ma_lop(), "class_name": "Lớp thử lệnh I", "academic_year": "2026-2027"})
+    assert r.status_code == 201, r.text
+    return c, conn, h, idA, idB, r.json()
+
+
+# ------------------------------------------------------------------------------------------------ Việc 1: lớp
+def test_lop_chi_admin(lp):
+    c, conn, h, idA, _, l = lp
+    cid = l["class_id"]
+    goi = [("get", "/admin/classes", None), ("post", "/admin/classes", {"class_code": ma_lop(), "class_name": "X"}),
+           ("patch", f"/admin/classes/{cid}", {"class_name": "Y"}), ("post", f"/admin/classes/{cid}/status", {"is_active": False}),
+           ("delete", f"/admin/classes/{cid}", None)]
+    for vai in ("A", "B", "sv"):
+        for m, url, body in goi:
+            r = getattr(c, m)(url, headers=h[vai], **({"json": body} if body is not None else {}))
+            assert r.status_code == 403, (vai, url, r.text)
+    for m, url, body in goi:
+        assert getattr(c, m)(url, **({"json": body} if body is not None else {})).status_code == 401
+    assert c.get("/admin/classes", headers=h["ad"]).json() and conn.execute("SELECT is_active FROM classes WHERE class_id = %s", (cid,)).fetchone()["is_active"]
+
+
+def test_tao_lop_va_trung_ma(lp):
+    c, _, h, _, _, l = lp
+    assert l["is_active"] and l["so_giao_vien"] == 0 and l["so_sinh_vien"] == 0 and l["so_ky_thi"] == 0 and l["academic_year"] == "2026-2027"
+    r = c.post("/admin/classes", headers=h["ad"], json={"class_code": l["class_code"].lower(), "class_name": "Trùng"})
+    assert r.status_code == 409 and "đã có" in r.json()["detail"]                              # không phân biệt hoa thường
+    r = c.post("/admin/classes", headers=h["ad"], json={"class_code": "CNTT-K22A", "class_name": "Trùng lớp thật"})
+    assert r.status_code == 409
+    for body, mau in (({"class_code": "a b", "class_name": "X"}, "Mã lớp"), ({"class_code": "X", "class_name": "X"}, "Mã lớp"),
+                      ({"class_code": ma_lop(), "class_name": "  "}, "Tên lớp"), ({"class_code": ma_lop(), "class_name": "X", "academic_year": "x" * 21}, "Năm học")):
+        r = c.post("/admin/classes", headers=h["ad"], json=body)
+        assert r.status_code == 422 and mau in r.json()["detail"], body
+
+
+def test_sua_lop(lp):
+    c, _, h, _, _, l = lp
+    cid = l["class_id"]
+    r = c.patch(f"/admin/classes/{cid}", headers=h["ad"], json={"class_name": " Lớp đổi tên "})
+    assert r.status_code == 200 and r.json()["class_name"] == "Lớp đổi tên" and r.json()["academic_year"] == "2026-2027"
+    assert c.patch(f"/admin/classes/{cid}", headers=h["ad"], json={"academic_year": None}).json()["academic_year"] is None
+    assert c.patch(f"/admin/classes/{cid}", headers=h["ad"], json={"class_name": ""}).status_code == 422
+    assert c.patch(f"/admin/classes/{cid}", headers=h["ad"], json={}).status_code == 422
+    assert c.patch(f"/admin/classes/{cid}", headers=h["ad"], json={"class_code": "DOI-MA"}).status_code == 422       # mã lớp không sửa được (trường lạ bị bỏ qua)
+    assert {x["class_id"]: x for x in c.get("/admin/classes", headers=h["ad"]).json()}[cid]["class_code"] == l["class_code"]
+    assert c.patch("/admin/classes/999999999999", headers=h["ad"], json={"class_name": "X"}).status_code == 404
+
+
+def test_vo_hieu_hoa_va_kich_hoat_lop(lp):
+    c, _, h, _, _, l = lp
+    cid = l["class_id"]
+    assert c.post(f"/admin/classes/{cid}/status", headers=h["ad"], json={"is_active": False}).json()["is_active"] is False
+    assert c.post(f"/admin/classes/{cid}/status", headers=h["ad"], json={"is_active": True}).json()["is_active"] is True
+
+
+def test_xoa_lop(lp):
+    c, conn, h, idA, _, l = lp
+    co_sv = c.post("/admin/classes", headers=h["ad"], json={"class_code": ma_lop(), "class_name": "Có SV"}).json()["class_id"]
+    conn.execute("INSERT INTO students (student_code, full_name, class_id) VALUES (%s, 'SV lớp', %s)", (str(uuid.uuid4().int)[:12], co_sv))
+    r = c.delete(f"/admin/classes/{co_sv}", headers=h["ad"])
+    assert r.status_code == 409 and "VÔ HIỆU HOÁ" in r.json()["detail"]
+    co_kt = c.post("/admin/classes", headers=h["ad"], json={"class_code": ma_lop(), "class_name": "Có kỳ thi"}).json()["class_id"]
+    e = c.post("/admin/exams", headers=h["ad"], json={"exam_title": "Kỳ thi gắn lớp", "subject_code": "XL" + uuid.uuid4().hex[:6].upper(), "num_questions": 10,
+                                                      "class_id": co_kt, "codes": [{"code": "101", "answers": demo.khoa_demo("101", 10)}]})
+    assert e.status_code == 201
+    assert c.delete(f"/admin/classes/{co_kt}", headers=h["ad"]).status_code == 409
+    assert conn.execute("SELECT class_id FROM exams WHERE exam_id = %s", (e.json()["exam_id"],)).fetchone()["class_id"] == co_kt   # kỳ thi giữ lớp
+    rong = l["class_id"]
+    assert c.delete(f"/admin/classes/{rong}", headers=h["ad"]).status_code == 204
+    assert c.delete(f"/admin/classes/{rong}", headers=h["ad"]).status_code == 404
+
+
+# ------------------------------------------------------------------------------------------------ Việc 2: giáo viên – lớp (nhiều – nhiều)
+def tao_lop_api(c, h, **them) -> int:
+    r = c.post("/admin/classes", headers=h, json={"class_code": ma_lop(), "class_name": "Lớp thêm", **them})
+    assert r.status_code == 201, r.text
+    return r.json()["class_id"]
+
+
+def ky_thi_lop(c, h, class_id) -> int:
+    """Kỳ thi do admin tạo (admin phụ trách), gắn lớp – giáo viên chỉ thấy nó QUA LỚP."""
+    r = c.post("/admin/exams", headers=h, json={"exam_title": "Kỳ thi của lớp (pytest)", "subject_code": "KL" + uuid.uuid4().hex[:6].upper(),
+                                                "num_questions": 10, "class_id": class_id, "codes": [{"code": "101", "answers": demo.khoa_demo("101", 10)}]})
+    assert r.status_code == 201, r.text
+    return r.json()["exam_id"]
+
+
+def test_gan_lop_chi_admin(lp):
+    c, _, h, idA, _, l = lp
+    cid = l["class_id"]
+    goi = [("get", f"/admin/classes/{cid}/teachers", None), ("put", f"/admin/classes/{cid}/teachers/{idA}", None),
+           ("delete", f"/admin/classes/{cid}/teachers/{idA}", None), ("get", f"/admin/users/{idA}/classes", None),
+           ("put", f"/admin/users/{idA}/classes", {"class_ids": [cid]})]
+    for vai in ("A", "B", "sv"):
+        for m, url, body in goi:
+            r = getattr(c, m)(url, headers=h[vai], **({"json": body} if body is not None else {}))
+            assert r.status_code == 403, (vai, url)
+    assert c.get(f"/admin/users/{idA}/classes", headers=h["ad"]).json() == []                  # không gì bị gán
+
+
+def test_nhieu_nhieu(lp):
+    c, _, h, idA, idB, l = lp
+    L1, L2 = l["class_id"], tao_lop_api(c, h["ad"])
+    assert {u["user_id"] for u in c.put(f"/admin/classes/{L1}/teachers/{idA}", headers=h["ad"]).json()} == {idA}
+    assert {u["user_id"] for u in c.put(f"/admin/classes/{L1}/teachers/{idB}", headers=h["ad"]).json()} == {idA, idB}   # một lớp nhiều GV
+    c.put(f"/admin/classes/{L1}/teachers/{idA}", headers=h["ad"])                                # gán lại: không trùng
+    assert {x["class_id"] for x in c.put(f"/admin/users/{idA}/classes", headers=h["ad"], json={"class_ids": [L1, L2]}).json()} == {L1, L2}   # một GV nhiều lớp
+    assert {x["class_id"] for x in c.get("/me/classes", headers=h["A"]).json()} == {L1, L2}
+    assert {x["class_id"] for x in c.get("/me/classes", headers=h["B"]).json()} == {L1}
+    ds = {x["class_id"]: x for x in c.get("/admin/classes", headers=h["ad"]).json()}
+    assert ds[L1]["so_giao_vien"] == 2 and ds[L2]["so_giao_vien"] == 1
+
+
+def test_bo_gan_co_hieu_luc_ngay_va_404(lp):
+    c, conn, h, idA, idB, l = lp
+    L = l["class_id"]
+    conn.execute("INSERT INTO students (student_code, full_name, class_id) VALUES (%s, 'SV lớp thử', %s)", (str(uuid.uuid4().int)[:12], L))
+    e = ky_thi_lop(c, h["ad"], L)
+    assert c.get(f"/exams/{e}", headers=h["A"]).status_code == 404 and c.get(f"/classes/{L}/students", headers=h["A"]).status_code == 404
+    c.put(f"/admin/classes/{L}/teachers/{idA}", headers=h["ad"])
+    assert c.get(f"/exams/{e}", headers=h["A"]).status_code == 200                              # có hiệu lực ngay, không cần đăng nhập lại
+    assert e in {x["exam_id"] for x in c.get("/exams", headers=h["A"]).json()}
+    assert c.get(f"/classes/{L}/students", headers=h["A"]).json()["tong"] == 1
+    sid = tai_trang(c, h["A"], e).json()["sheet_id"]
+    assert c.get(f"/sheets/{sid}", headers=h["A"]).status_code == 200
+    assert c.get(f"/exams/{e}", headers=h["B"]).status_code == 404                              # không thuộc lớp, không phụ trách
+    assert c.delete(f"/admin/classes/{L}/teachers/{idA}", headers=h["ad"]).json() == []
+    for url in (f"/exams/{e}", f"/classes/{L}/students", f"/sheets/{sid}", f"/exams/{e}/results", f"/exams/{e}/cover.pdf"):
+        r = c.get(url, headers=h["A"])
+        assert r.status_code == 404 and r.json()["detail"].startswith("Không có "), url         # mất quyền ngay ở lần gọi kế
+    assert e not in {x["exam_id"] for x in c.get("/exams", headers=h["A"]).json()}
+    assert c.delete(f"/admin/classes/{L}/teachers/{idA}", headers=h["ad"]).status_code == 404    # bỏ gán lần hai
+
+
+def test_gan_kiem_lop_va_giao_vien(lp):
+    c, conn, h, idA, _, l = lp
+    L = l["class_id"]
+    _, id_khoa = tao_user(conn, active=False)
+    _, id_ad = tao_user(conn, "admin")
+    for uid in (id_khoa, id_ad, 10 ** 12):
+        assert c.put(f"/admin/classes/{L}/teachers/{uid}", headers=h["ad"]).status_code == 422, uid
+    assert c.put(f"/admin/classes/999999999999/teachers/{idA}", headers=h["ad"]).status_code == 404
+    c.post(f"/admin/classes/{L}/status", headers=h["ad"], json={"is_active": False})
+    r = c.put(f"/admin/classes/{L}/teachers/{idA}", headers=h["ad"])
+    assert r.status_code == 422 and "vô hiệu hoá" in r.json()["detail"]
+    for uid in (id_ad, 10 ** 12):
+        assert c.get(f"/admin/users/{uid}/classes", headers=h["ad"]).status_code == 404
+        assert c.put(f"/admin/users/{uid}/classes", headers=h["ad"], json={"class_ids": []}).status_code == 404
+
+
+def test_dat_lop_cho_giao_vien(lp):
+    c, conn, h, idA, _, l = lp
+    L1, L2, L3 = l["class_id"], tao_lop_api(c, h["ad"]), tao_lop_api(c, h["ad"])
+    mon = conn.execute("INSERT INTO subjects (subject_code, subject_name) VALUES (%s, 'Môn giữ') RETURNING subject_id",
+                       ("MG" + uuid.uuid4().hex[:6].upper(),)).fetchone()["subject_id"]
+    conn.execute("INSERT INTO teacher_classes (user_id, class_id, subject_id) VALUES (%s, %s, %s)", (idA, L1, mon))
+    c.post(f"/admin/classes/{L3}/status", headers=h["ad"], json={"is_active": False})
+    r = c.put(f"/admin/users/{idA}/classes", headers=h["ad"], json={"class_ids": [L1, L3]})
+    assert r.status_code == 422 and "vô hiệu hoá" in r.json()["detail"]                         # không thêm lớp vô hiệu
+    r = c.put(f"/admin/users/{idA}/classes", headers=h["ad"], json={"class_ids": [L1, L2, 999999999999]})
+    assert r.status_code == 422 and "999999999999" in r.json()["detail"]
+    assert [x["class_id"] for x in c.get(f"/admin/users/{idA}/classes", headers=h["ad"]).json()] == [L1]   # lỗi -> không đổi gì
+    r = c.put(f"/admin/users/{idA}/classes", headers=h["ad"], json={"class_ids": [L1, L2]})
+    d = {x["class_id"]: x for x in r.json()}
+    assert set(d) == {L1, L2} and d[L1]["subject_code"] and d[L2]["subject_code"] is None          # lớp giữ lại giữ môn
+    conn.execute("INSERT INTO teacher_classes (user_id, class_id) VALUES (%s, %s)", (idA, L3))     # đã gán từ trước khi lớp bị vô hiệu
+    assert {x["class_id"] for x in c.put(f"/admin/users/{idA}/classes", headers=h["ad"], json={"class_ids": [L1, L3]}).json()} == {L1, L3}   # giữ được
+    assert c.put(f"/admin/users/{idA}/classes", headers=h["ad"], json={"class_ids": []}).json() == []
+
+
+def test_tao_giao_vien_kem_lop(lp):
+    c, conn, h, _, _, l = lp
+    L1, L2 = l["class_id"], tao_lop_api(c, h["ad"])
+    u = "gv" + uuid.uuid4().hex[:8]
+    r = c.post("/admin/users", headers=h["ad"], json={"username": u, "full_name": "GV kèm lớp", "password": "Mk-Lop-12345", "class_ids": [L1, L2]})
+    assert r.status_code == 201 and set(r.json()["lop"].split(", ")) == {x["class_code"] for x in c.get("/admin/classes", headers=h["ad"]).json() if x["class_id"] in (L1, L2)}
+    c.post(f"/admin/classes/{L2}/status", headers=h["ad"], json={"is_active": False})
+    n = conn.execute("SELECT count(*) AS n FROM users").fetchone()["n"]
+    u2 = "gv" + uuid.uuid4().hex[:8]
+    r = c.post("/admin/users", headers=h["ad"], json={"username": u2, "full_name": "GV lỗi lớp", "password": "Mk-Lop-12345", "class_ids": [L2]})
+    assert r.status_code == 422 and conn.execute("SELECT count(*) AS n FROM users").fetchone()["n"] == n      # không có tài khoản dở dang

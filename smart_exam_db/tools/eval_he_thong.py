@@ -19,6 +19,7 @@ import hashlib
 import html
 import json
 import subprocess
+import os
 import sys
 import tempfile
 import time
@@ -29,6 +30,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+os.environ.setdefault("AUTH_MODE", "demo")      # công cụ chạy trong tiến trình: bỏ đăng nhập (backend: AUTH_MODE=on là mặc định)
 from cv_engine.tap_du_lieu import PHIEU_TEST, PHIEU_TRAIN, chan_test, ma_phieu  # noqa: E402  (chỉ ranh giới tập, không phải luật chấm)
 
 DATA = ROOT / "data"
@@ -132,9 +134,12 @@ def phien():
     from backend.config import lay_cau_hinh
     from backend.db import ket_noi
     from backend.main import app, get_cau_hinh, get_conn
-    migrate.ap_dung()
     cfg = replace(lay_cau_hinh(), storage_dir=Path(tempfile.mkdtemp(prefix="kho_he_thong_")))
     conn = ket_noi()
+    chua = migrate.chua_ap(conn)                       # CHỈ KIỂM (nhánh cai-tien-b): công cụ không áp migration lên CSDL thật
+    if chua:
+        conn.close()
+        raise SystemExit(f"DỪNG: migration chưa áp {chua} – chạy python -m backend.migrate (người dùng quyết).")
 
     def _conn():
         yield conn

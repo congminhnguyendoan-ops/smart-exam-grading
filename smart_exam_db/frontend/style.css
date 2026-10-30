@@ -7,6 +7,14 @@ nav a{display:block;padding:8px 10px;margin-bottom:6px;background:#fff;border:1p
 nav a.on{background:var(--pri);color:#fff;border-color:var(--pri)}
 .exam-pick{display:block;margin-top:16px;font-weight:600;font-size:13px}
 .exam-pick select{width:100%;margin-top:4px;padding:6px}
+.exam-name{margin:6px 0 0;font-size:13px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+.phone-btn{width:100%;margin-top:4px;padding:8px;font-weight:600}
+.modal{position:fixed;inset:0;z-index:50;background:rgba(20,24,33,.45);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.modal-box{position:relative;background:#fff;border-radius:12px;max-width:560px;width:100%;padding:20px 22px}
+.modal-x{position:absolute;right:10px;top:8px;border:0;background:none;font-size:26px;cursor:pointer;line-height:1}
+.qr{display:flex;justify-content:center;margin:8px 0}.qr svg{width:240px;height:240px}
+.url-big{font-size:20px;font-weight:700;text-align:center;overflow-wrap:anywhere;margin:4px 0 10px}
+tr.moi td{background:#e8f0ff;transition:background 2s}
 main{flex:1;padding:20px 24px;max-width:1200px;min-width:0}
 h2{margin:0 0 14px;font-size:22px}
 h3{margin:0 0 8px;font-size:16px}
@@ -58,3 +66,14 @@ input[type=text]{padding:6px 8px;border:1px solid var(--line);border-radius:6px;
 .toast{position:fixed;bottom:20px;right:20px;background:#1d2330;color:#fff;padding:10px 16px;border-radius:8px;max-width:420px;z-index:9}
 .toast.err{background:var(--bad)}
 @media(max-width:900px){.grid2,.rcard{grid-template-columns:1fr}.side{width:170px}}
+
+.userbox{background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:12px}
+.userbox .row{margin-top:4px}.userbox button{padding:3px 10px}
+body.logged-out .side{display:none}
+.login{max-width:380px;margin:60px auto}
+.login label,.formcol label{display:block;margin-bottom:10px;font-weight:600;font-size:13px}
+.login input,.formcol input{display:block;width:100%;margin-top:4px;padding:7px 8px;border:1px solid var(--line);border-radius:6px;font:inherit}
+.formcol{max-width:420px}
+.pager{display:flex;gap:8px;align-items:center;margin-top:10px}
+/* G2: tên tệp ảnh rút gọn – không làm giãn dòng bảng; tên đầy đủ ở title */
+.tentep{display:inline-block;max-width:26ch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
