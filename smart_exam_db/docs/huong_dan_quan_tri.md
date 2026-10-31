@@ -130,3 +130,11 @@ Phần này chỉ quản lý **lớp** và **giáo viên của lớp**. Không q
 - Đây **chỉ là lọc hiển thị**: quyền không đổi. Trang Quản trị luôn hiện đủ mọi kỳ thi.
 - Tải ảnh vào kỳ thi đã đóng: dòng / thẻ **"Bị từ chối"** kèm lý do "Kỳ thi đã đóng…", **không có nút Gửi lại** (gửi lại cũng sẽ bị từ chối).
   Nút **Gửi lại** chỉ có khi lỗi mạng / máy chủ tạm thời.
+
+## 9. Giao diện mới trên nhánh `ui-sau-bv` (lệnh AA, 31/10/2026) – CHƯA gộp
+Bản bảo vệ vẫn là nhánh `cai-tien-b`. Trên `ui-sau-bv`, các màn Quản trị (Quản lý kỳ thi, Lớp học, Tài khoản giáo viên, Nhật ký), đăng nhập, hồ sơ dùng **bảng màu mới**
+(nền xanh rất nhạt, nút chính / mục đang chọn xanh ngọc `#1F7A8C`, liên kết xanh dương; bo góc 10–12 px). **Chức năng, nút, thứ tự thao tác không đổi.**
+- Nhãn trạng thái ("Đang mở", "Đã đóng", "Chính thức", "Cần xem", "Bị từ chối") luôn có chữ, không chỉ dựa vào màu; nhãn không còn xuống dòng.
+- Màu chỉ khai báo ở `frontend/mau.css`. Đổi màu: sửa tệp đó rồi chạy `python tools/kiem_tuong_phan.py` (38 cặp chữ / nền; chữ thường ≥ 4,5:1, chữ lớn ≥ 3:1).
+- Trang bìa kỳ thi (PDF do máy chủ vẽ) **không đổi**.
+- Giáo viên thấy thêm thay đổi ở màn Duyệt phiếu và trang `/m`: xem `docs/kich_ban_demo.md` mục 6.
