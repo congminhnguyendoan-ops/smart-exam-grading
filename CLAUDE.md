@@ -347,6 +347,18 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   **Lệnh G (28/10/2026)**: G1 `tools/don_du_lieu_test.py` – dọn phiếu test thừa ở kỳ thi 1632 / 1633 (mặc định XEM TRƯỚC chỉ đọc; `--thuc-hien` = sao lưu CSV + ảnh vào `data/_eval/sao_luu_don_du_lieu/`, gõ "XOA", MỘT giao dịch, lệch số dòng
   thì ROLLBACK, rồi xoá tệp ảnh; `--ids` / `--giu`; giữ mọi phiếu `graded` có điểm chính thức hợp lệ). G2 `frontend/ten_tep.js` – tên tệp ảnh > 24 ký tự hiển thị "10 ký tự đầu…đuôi" (title = tên đầy đủ), dùng ở /app/ và /m. G3 `bang_diem.ly_do_chua_ghep`
   – Bảng điểm: phiếu cần xem chưa ghép được thí sinh nói đúng nguyên nhân (SBD máy chưa chắc → "cần giáo viên chốt"; ngoài danh sách → câu cũ), chỉ đổi câu chữ. Thử trình duyệt: `python tools/thu_lenh_f.py g2` → `data/_eval/ui_g/`.
+- **Lệnh AA + AB (31/10/2026) – giao diện sau bảo vệ, CHỈ trên nhánh `ui-sau-bv`** (tách từ `cai-tien-b` @ `9842af1`; **CHƯA gộp** vào `cai-tien-b` / `main`, chưa push). **Bản bảo vệ vẫn là
+  `cai-tien-b`** – demo / diễn tập / `kiem_truoc_demo.py` cho buổi bảo vệ chạy từ `cai-tien-b`. Chỉ đổi `frontend/`, test, công cụ thử, tài liệu (không đổi cv_engine, models, layout, API, CSDL, logic chấm).
+  **AA2** màn Duyệt phiếu – khung "Chốt SBD / mã đề": `frontend/duyet_dinh_danh.js` (logic thuần, `tests/js/duyet_dinh_danh.test.js`): phóng to ô viết tay cột cần nhìn, cột khớp nhạt, con trỏ đặt sẵn,
+  `Enter` lưu / `Tab` SBD → mã đề, lỗi TẠI Ô (SBD ngoài danh sách dự thi lấy từ `GET /exams/{id}/results`, mã đề ngoài kỳ thi) + gợi ý (chỉ điền khi giáo viên bấm), XÁC NHẬN khi lưu giá trị ngoài danh sách
+  hoặc SBD lấy từ gợi ý, nút "Phiếu cần xem kế tiếp". Máy KHÔNG tự chọn. Id cũ giữ (`in-sbd`, `in-ma`, `luu-dd`, `data-fill`). **AA3** `/m`: khối "Hướng dẫn chụp thẳng" (`<details id="hd-chup">`, thu gọn).
+  **Bảng màu** (AA-B): mọi màu chỉ ở **`frontend/mau.css`** (nạp trước `style.css` / `m.css`; không mã màu viết cứng – `tests/test_tuong_phan.py`), xanh ngọc `--pri #1F7A8C`, `--ok #276B4E`
+  (đề nghị #2E7D5B không đạt 4,5:1), không chế độ tối. **`tools/kiem_tuong_phan.py`**: tỷ lệ WCAG cho 41 cặp đọc từ mau.css (chữ thường ≥ 4,5, chữ lớn / thành phần ≥ 3), mã thoát 1 nếu không đạt.
+  **AB1** viền ô nhập `--vien-o #6F808A` (≥ 3:1 với thẻ / nền / thanh bên), viền thẻ giữ `--line`. **AB2** màn Tải ảnh: nút "📁 Chọn ảnh" bọc `#files` (id giữ nguyên) + dòng `#sel`
+  "Chưa chọn ảnh." / "Đã chọn N ảnh: tên…" (`frontend/chon_tep.js`, `tests/js/chon_tep.test.js`); kéo thả, chọn nhiều không đổi.
+  Thử trình duyệt (CHỈ ROLLBACK, máy tính + Pixel 7): `python tools/thu_lenh_aa.py --giai-doan sau` → `data/_eval/ui_aa/sau/`; ảnh "trước" (`--giai-doan truoc`) phải chạy BẢN SAO công cụ với
+  `AA_ROOT` khi đang ở `cai-tien-b` (nhánh đó không có tệp này). Tài liệu: `docs/kich_ban_demo.md` mục 6, `docs/huong_dan_quan_tri.md` mục 9.
+  Lưu ý môi trường: chạy pytest SONG SONG với `kiem_backend_dau_cuoi.py` / `kiem_truoc_demo.py` trên cùng CSDL từng gây `DeadlockDetected` (lỗi cách chạy, không do mã) – chạy từng cái một.
 
 ## 5. Cài đặt và chạy
 
