@@ -268,15 +268,17 @@ async function manUpload() {
   if (!Object.keys(state.reasons).length) state.reasons = await api("/meta/reject-reasons");
   main.innerHTML = `<h2>Tải ảnh &amp; chấm phiếu</h2>
     <div class="card"><div class="drop" id="drop">Kéo thả ảnh phiếu (JPG / PNG / HEIC) vào đây hoặc
-      <input type="file" id="files" accept="image/*,.heic" multiple></div>
-      <div class="row"><button class="pri" id="go" disabled>Bắt đầu chấm</button><span id="sel" class="muted small">Chưa chọn ảnh.</span></div>
+      <label class="chon-tep btn"><input type="file" id="files" accept="image/*,.heic" multiple aria-describedby="sel">📁 Chọn ảnh</label>
+      <div class="small muted">Chọn được nhiều ảnh một lần.</div></div>
+      <div class="row"><button class="pri" id="go" disabled>Bắt đầu chấm</button><span id="sel" class="muted small" aria-live="polite">${esc(moTaTepChon([]))}</span></div>
       <div class="progress hidden" id="bar"><div></div></div><div id="st" class="muted small"></div></div>
     <div class="card hidden" id="kq"><h3>Kết quả lô vừa chấm</h3>
       <table><thead><tr><th>Ảnh</th><th>Trạng thái</th><th>Chi tiết</th><th>Điểm</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>`;
   let danhSach = [];
   const dat = (fl) => {
     danhSach = [...fl].filter((f) => f.type.startsWith("image/") || /\.(heic|jpe?g|png)$/i.test(f.name));
-    $("#sel").textContent = danhSach.length ? `Đã chọn ${danhSach.length} ảnh.` : "Chưa chọn ảnh.";
+    $("#sel").textContent = moTaTepChon(danhSach.map((f) => f.name));             // AB2: tiếng Việt + tên tệp (title = đầy đủ)
+    $("#sel").title = danhSach.map((f) => f.name).join("\n");
     $("#go").disabled = !danhSach.length;
   };
   $("#files").addEventListener("change", (e) => dat(e.target.files));

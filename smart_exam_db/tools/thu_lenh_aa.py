@@ -92,6 +92,19 @@ def may_tinh(b, url, out, sau, k, g):
         k["muc_dang_chon_mau_chu_dao"] = pg.evaluate("() => getComputedStyle(document.querySelector('#nav a.on')).backgroundColor") == "rgb(31, 122, 140)"
     pg.goto(url + "/app/#/upload"); _cho_h2(pg, "Tải ảnh")
     pg.screenshot(path=str(out / "02_tai_anh.png"), full_page=True)
+    if sau:                                                                    # lệnh AB: ô chọn tệp tiếng Việt (KHÔNG bấm "Bắt đầu chấm")
+        k["ab_chon_tep_chua_chon"] = pg.inner_text("#sel") == "Chưa chọn ảnh." and pg.is_visible("label.chon-tep")
+        hop = pg.locator("#files").bounding_box()
+        k["ab_o_goc_tieng_anh_an"] = hop is None or (hop["width"] <= 2 and hop["height"] <= 2)
+        pg.set_input_files("#files", [str(ANH / "BV06.jpg"), str(ANH / "BV08.jpg")])
+        g["ab_sel_chon_nhieu"] = pg.inner_text("#sel")
+        k["ab_chon_nhieu_hien_ten"] = g["ab_sel_chon_nhieu"] == "Đã chọn 2 ảnh: BV06.jpg, BV08.jpg" and pg.is_enabled("#go")
+        pg.screenshot(path=str(out / "02b_tai_anh_da_chon.png"), full_page=True)
+        pg.evaluate("""() => { const dt = new DataTransfer(); dt.items.add(new File(["x"], "keo_tha.jpg", { type: "image/jpeg" }));
+                       document.querySelector("#drop").dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true })); }""")
+        k["ab_keo_tha_van_chay"] = pg.inner_text("#sel") == "Đã chọn 1 ảnh: keo_tha.jpg"
+        pg.focus("#files")
+        k["ab_o_chon_tep_nhan_tab"] = pg.evaluate("() => document.activeElement.id") == "files"
     pg.goto(url + "/app/#/sheets"); _cho_h2(pg, "Danh sách phiếu"); pg.wait_for_selector("tr.row-link")
     pg.screenshot(path=str(out / "03_danh_sach.png"), full_page=True)
     pg.goto(url + "/app/#/review"); _cho_h2(pg, "Hàng đợi duyệt")

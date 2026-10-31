@@ -46,6 +46,29 @@ def test_m_co_huong_dan_chup_thang_thu_gon_duoc():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="không có node để kiểm cú pháp JS")
-def test_duyet_dinh_danh_cu_phap():
-    r = subprocess.run(["node", "--check", str(FRONTEND / "duyet_dinh_danh.js")], capture_output=True, text=True)
+@pytest.mark.parametrize("ten", ["duyet_dinh_danh.js", "chon_tep.js"])
+def test_duyet_dinh_danh_cu_phap(ten):
+    r = subprocess.run(["node", "--check", str(FRONTEND / ten)], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="không có node để chạy test JS")
+def test_chon_tep_node():
+    """Lệnh AB: tests/js/chon_tep.test.js – "Chưa chọn ảnh." / "Đã chọn N ảnh: tên…" (2 test)."""
+    r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "chon_tep.test.js")], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert re.search(r"pass 2\b", r.stdout) and re.search(r"fail 0\b", r.stdout), r.stdout
+
+
+def test_o_chon_tep_tieng_viet_giu_keo_tha_va_chon_nhieu():
+    """Lệnh AB: #files vẫn là input file nhiều tệp (công cụ / test dùng set_input_files('#files')), nằm trong nhãn-nút "Chọn ảnh";
+    dòng trạng thái #sel dùng moTaTepChon; vùng kéo thả #drop giữ sự kiện drop; chon_tep.js nạp sau ten_tep.js, trước app.js."""
+    js = (FRONTEND / "app.js").read_text(encoding="utf-8")
+    o = re.search(r'<label class="chon-tep[^"]*">(<input[^>]*>)📁 Chọn ảnh</label>', js)
+    assert o and 'type="file"' in o.group(1) and 'id="files"' in o.group(1) and "multiple" in o.group(1)
+    assert js.count("moTaTepChon(") >= 2 and 'drop.addEventListener("drop"' in js and 'addEventListener("change", (e) => dat(e.target.files))' in js
+    h = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    assert h.index('src="ten_tep.js"') < h.index('src="chon_tep.js"') < h.index('src="app.js"')
+    css = (FRONTEND / "style.css").read_text(encoding="utf-8")
+    an = css[css.index(".chon-tep input{"):css.index("}", css.index(".chon-tep input{"))]
+    assert "opacity:0" in an and "display:none" not in an                 # ẩn bằng mắt nhưng vẫn nhận Tab (display:none thì mất)

@@ -43,6 +43,10 @@ button.pri:hover:not(:disabled),.btn.pri:hover{background:var(--pri-dam);border-
 button:disabled{opacity:.5;cursor:not-allowed}
 .drop{border:2px dashed var(--pri);border-radius:var(--r-lon);padding:30px;text-align:center;background:var(--card);color:var(--mut)}
 .drop.over{background:var(--pri-nhat);border-color:var(--pri-dam)}
+/* AB2: ô chọn tệp tiếng Việt – ô gốc của trình duyệt (chữ tiếng Anh) ẩn bằng mắt nhưng vẫn nhận Tab / bàn phím / trình đọc màn hình */
+.chon-tep{position:relative;margin:8px 0 4px;font-weight:600}
+.chon-tep input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.chon-tep:focus-within{outline:2px solid var(--pri2);outline-offset:2px}
 .progress{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:8px 0}
 .progress>div{height:100%;background:var(--pri);width:0;transition:width .2s}
 .grid2{display:grid;grid-template-columns:minmax(260px,380px) 1fr;gap:16px;align-items:start}
