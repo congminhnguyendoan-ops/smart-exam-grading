@@ -1,34 +1,37 @@
-/* Trang điện thoại /m – mobile-first: chữ ≥ 17 px, nút ≥ 56 px, nút chính ở dưới (một tay). */
-:root{--pri:#2f5fd0;--ok:#16794a;--okbg:#e3f5ea;--warn:#8a5a00;--warnbg:#fff4d6;--bad:#a8261b;--badbg:#fde7e4;--mut:#5d6573;--line:#d9dde5;--bg:#f3f4f7}
+/* Trang điện thoại /m – mobile-first: chữ ≥ 17 px, nút ≥ 56 px, nút chính ở dưới (một tay).
+   MÀU: chỉ dùng biến của mau.css (nạp trước tệp này) – không viết cứng mã màu ở đây (tests/test_tuong_phan.py kiểm). */
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:#1c2230;font:17px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 body{padding-bottom:110px}
+a{color:var(--link)}
+:focus-visible{outline:2px solid var(--pri2);outline-offset:2px}
 .hidden{display:none!important}
-.top{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;padding:12px 16px;background:var(--pri);color:#fff}
-.top b{font-size:18px}.who{flex:1;text-align:right;font-size:14px;opacity:.9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-button.link{background:none;border:0;color:#fff;text-decoration:underline;font:inherit;font-size:14px;padding:6px 0;min-height:auto}
+.top{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;padding:12px 16px;background:var(--pri);color:var(--tren-pri)}
+.top b{font-size:18px}.who{flex:1;text-align:right;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+button.link{background:none;border:0;color:var(--tren-pri);text-decoration:underline;font:inherit;font-size:14px;padding:6px 0;min-height:auto}
 .view{padding:16px}
 h1{font-size:22px;margin:6px 0 14px}
 label{display:block;margin:0 0 14px;font-weight:600}
-input:not([type=file]){display:block;width:100%;margin-top:6px;padding:14px 12px;font-size:18px;border:1px solid var(--line);border-radius:10px;background:#fff}
-button,.big{font:inherit;border-radius:12px;border:1px solid var(--line);background:#fff;min-height:48px;padding:10px 16px;cursor:pointer}
+input:not([type=file]){display:block;width:100%;margin-top:6px;padding:14px 12px;font-size:18px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);color:var(--ink)}
+button,.big{font:inherit;border-radius:var(--r-lon);border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:48px;padding:10px 16px;cursor:pointer}
 .big{display:flex;align-items:center;justify-content:center;width:100%;min-height:60px;font-size:20px;font-weight:700}
-.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.pri{background:var(--pri);border-color:var(--pri);color:var(--tren-pri)}
 button:disabled,.big.off{opacity:.55;pointer-events:none}
 .list{display:flex;flex-direction:column;gap:10px}
 .hien-dong{display:flex;gap:10px;align-items:center;margin:16px 0 0;font-weight:400;font-size:16px}
 .hien-dong input{display:inline-block;width:22px;height:22px;margin:0;padding:0}
-.exam{display:block;width:100%;text-align:left;padding:14px 16px;border-radius:12px;background:#fff;border:1px solid var(--line);min-height:64px}
+.exam{display:block;width:100%;text-align:left;padding:14px 16px;border-radius:var(--r-lon);background:var(--card);border:1px solid var(--line);min-height:64px;box-shadow:var(--bong-nho)}
 .exam .sub,.exam-head .sub{display:block;font-size:14px;color:var(--mut);font-weight:400}
 .exam b{display:block;font-size:18px;overflow-wrap:anywhere}
-.exam-head{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:12px}
+.exam-head{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lon);padding:10px 14px;margin-bottom:12px}
 .exam-head b{display:block;font-size:17px;overflow-wrap:anywhere}
-.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 12px;scroll-margin-top:72px}  /* không bị thanh đầu dính che */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lon);padding:16px;margin:0 0 12px;scroll-margin-top:72px;box-shadow:var(--bong)}  /* không bị thanh đầu dính che */
 .card h2{font-size:20px;margin:0 0 6px}
 .score{font-size:40px;font-weight:800;line-height:1.1}
 .score small{font-size:16px;font-weight:600;color:var(--warn)}
-.msg{border-radius:10px;padding:10px 12px;margin:8px 0;font-size:16px}
-.msg.ok{background:var(--okbg);color:var(--ok)}.msg.warn{background:var(--warnbg);color:var(--warn)}.msg.bad{background:var(--badbg);color:var(--bad)}
+.msg{border-radius:var(--r);padding:10px 12px;margin:8px 0;font-size:16px;border:1px solid transparent}
+.msg.ok{background:var(--okbg);color:var(--ok);border-color:var(--ok-vien)}.msg.warn{background:var(--warnbg);color:var(--warn);border-color:var(--warn-vien)}
+.msg.bad{background:var(--badbg);color:var(--bad);border-color:var(--bad-vien)}
 .muted{color:var(--mut)}.small{font-size:14px}
 .row2{display:flex;gap:10px;margin-top:12px}.row2>*{flex:1}
 .counter{font-size:15px;color:var(--mut);margin:4px 2px 6px}
@@ -42,10 +45,10 @@ button:disabled,.big.off{opacity:.55;pointer-events:none}
 .cam{position:relative;overflow:hidden;min-height:68px;font-size:21px;flex:1}
 .cam input,.phu input,.nut-dong input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}   /* chạm thẳng vào ô chọn tệp: chạy cả iPhone Safari */
 .phu{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center;width:96px;font-size:14px;font-weight:600;
-  border:1px solid var(--line);border-radius:12px;background:#fff;margin:0;padding:6px}
+  border:1px solid var(--line);border-radius:var(--r-lon);background:var(--card);margin:0;padding:6px}
 /* chụp liên tục: tổng kết dính đầu + danh sách tờ */
-.tong-ket{position:sticky;top:50px;z-index:4;background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px 10px;margin:0 0 8px;
-  box-shadow:0 2px 6px rgba(20,24,33,.06)}                       /* gọn: chừa chỗ cho danh sách tờ */
+.tong-ket{position:sticky;top:50px;z-index:4;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lon);padding:6px 10px;margin:0 0 8px;
+  box-shadow:var(--bong)}                       /* gọn: chừa chỗ cho danh sách tờ */
 .tong-ket .so{display:flex;flex-wrap:wrap;gap:0 10px;font-size:14px;line-height:1.3}.tong-ket .so b{font-size:17px}
 .tong-ket .ok b{color:var(--ok)}.tong-ket .warn b{color:var(--warn)}.tong-ket .bad b{color:var(--bad)}
 .row-tong{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px}
@@ -53,14 +56,14 @@ button:disabled,.big.off{opacity:.55;pointer-events:none}
 .tong-to input{width:58px;margin:0;padding:3px 6px;font-size:16px;border-radius:8px}  /* 16 px: iPhone không tự phóng to khi chạm */
 .duyet{margin:2px 0 0;font-size:12px;line-height:1.3;color:var(--mut)}.duyet code{font-size:12px}
 .ds-to{list-style:none;margin:0;padding:0}
-.to{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px;font-size:15px;scroll-margin:150px 0 110px}
+.to{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lon);padding:10px 12px;margin:0 0 8px;font-size:15px;scroll-margin:150px 0 110px}
 .to .dau{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:2px}.to .dau b{font-size:17px}
-.to .ten{font-weight:600;overflow-wrap:anywhere}.to .diem{color:var(--mut)}.to .diem b{color:#1c2230;font-size:18px}
+.to .ten{font-weight:600;overflow-wrap:anywhere}.to .diem{color:var(--mut)}.to .diem b{color:var(--ink);font-size:18px}
 .to .cb{font-size:14px;color:var(--warn);margin-top:2px}
 .to.loi{border-color:var(--bad)}.to.da-thay{opacity:.6}
 .nut-dong{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;min-height:44px;margin-top:8px;padding:8px 14px;
-  border-radius:10px;font-size:16px;font-weight:700}
-.tag.blue{background:#e3ebff;color:var(--pri)}.tag.gray{background:#eceef2;color:var(--mut)}
+  border-radius:var(--r);font-size:16px;font-weight:700}
+.tag.blue{background:var(--pri2-nhat);color:var(--pri2)}.tag.gray{background:var(--xam-nen);color:var(--mut)}
 .spin{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--pri);border-radius:50%;animation:q 1s linear infinite;margin:0 auto 10px}
 #dang-cham{text-align:center}
 @keyframes q{to{transform:rotate(360deg)}}
@@ -68,9 +71,9 @@ button:disabled,.big.off{opacity:.55;pointer-events:none}
 .kv{margin:8px 0;font-size:16px}.kv div{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dashed var(--line)}
 .kv span:last-child{text-align:right;font-weight:600}
 code{font-size:14px;overflow-wrap:anywhere}
-.toast{position:fixed;left:16px;right:16px;top:64px;z-index:9;background:#1c2230;color:#fff;padding:12px 14px;border-radius:10px;font-size:16px}
+.toast{position:fixed;left:16px;right:16px;top:64px;z-index:9;background:var(--toast);color:var(--tren-pri);padding:12px 14px;border-radius:var(--r);font-size:16px;box-shadow:var(--bong)}
 /* AA3: hướng dẫn chụp thẳng (thu gọn được) */
-.hd-chup{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:0 0 10px}
-.hd-chup summary{font-weight:700;cursor:pointer;min-height:32px;display:list-item}
+.hd-chup{background:var(--pri-nhat);border:1px solid var(--line);border-radius:var(--r-lon);padding:10px 14px;margin:0 0 10px}
+.hd-chup summary{font-weight:700;cursor:pointer;min-height:32px;display:list-item;color:var(--pri-dam)}
 .hd-chup ol{margin:8px 0 2px;padding-left:22px;font-size:16px}.hd-chup li{margin:4px 0}
 .tentep{display:inline-block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
