@@ -71,8 +71,11 @@
     return null;
   }
 
-  /** Cột cần nhìn kỹ (tô nổi bật + phóng to ảnh): máy gắn cần xem hoặc ô tô không đọc được. */
-  const cotCanNhin = (c) => !!(c && (c.can_xem || c.chu_so === "?" || c.bubble === "?"));
+  /** Cột cần nhìn kỹ (tô nổi bật + phóng to ảnh): máy gắn cần xem, ô tô không đọc được, hoặc – khi CẢ TRƯỜNG bị giữ vì ô viết tay trống
+      (o_trong_ngoai_ds / o_trong_chua_biet_ds, cùng quy ước với ly_do_cot.js) – chính các cột có ô viết tay trống. */
+  const LY_DO_O_TRONG = ["o_trong_ngoai_ds", "o_trong_chua_biet_ds"];
+  const cotCanNhin = (c, truong) => !!(c && (c.can_xem || c.chu_so === "?" || c.bubble === "?" ||
+    (truong && (truong.reasons || []).some((m) => LY_DO_O_TRONG.includes(m)) && c.handwriting && c.handwriting.o_trong)));
 
   const DuyetDinhDanh = { goiYGan, kiemSbd, kiemMaDe, canXacNhan, chanLuu, keTiep, phim, cotCanNhin };
   if (typeof module !== "undefined" && module.exports) module.exports = { DuyetDinhDanh };

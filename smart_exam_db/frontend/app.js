@@ -378,7 +378,7 @@ function cotsHtml(tr) {
    cột đã khớp làm nhạt ("khop") để mắt giáo viên đi thẳng tới chỗ cần nhìn (AA2 b). */
 function haiKenhHtml(sheetId, field, tr) {
   if (!tr || !tr.columns.some((c) => c.handwriting)) return "";
-  const hang = (ten, f) => `<tr><th>${ten}</th>${tr.columns.map((c) => `<td class="${DuyetDinhDanh.cotCanNhin(c) ? "lech" : "khop"}">${f(c)}</td>`).join("")}</tr>`;
+  const hang = (ten, f) => `<tr><th>${ten}</th>${tr.columns.map((c) => `<td class="${DuyetDinhDanh.cotCanNhin(c, tr) ? "lech" : "khop"}">${f(c)}</td>`).join("")}</tr>`;
   const ly = LyDoCot.moTa(tr, LY_DO_CHU_SO);                                     // V3: câu theo từng cột (chỉ câu chữ, dữ liệu API không đổi)
   return `<table class="haikenh"><tbody>
     ${hang("Ô tô (bubble)", (c) => `<b>${esc(c.bubble ?? c.chu_so)}</b>`)}
@@ -538,13 +538,13 @@ function khungDinhDanh(p) {
 /* AA2 a: phóng to ảnh ô viết tay của các cột đang lệch / chưa chắc, ngay cạnh chữ số ô tô – giáo viên không phải nheo mắt nhìn ảnh 56 px. */
 function phongToHtml(p) {
   const o = [["sbd", "SBD", p.sbd], ["exam_code", "Mã đề", p.exam_code]].flatMap(([field, ten, tr]) => (tr && tr.columns || [])
-    .filter(DuyetDinhDanh.cotCanNhin).map((c) => {
+    .filter((c) => DuyetDinhDanh.cotCanNhin(c, tr)).map((c) => {
       const h = c.handwriting;
       const anh = h && h.has_crop ? `<img src="/sheets/${p.sheet_id}/digits/${field}/${h.pos}/image" alt="${ten} cột ${c.vi_tri} – ô viết tay">` : '<span class="muted small">(không có ảnh ô viết tay)</span>';
       const doc = !h ? "–" : h.o_trong ? "ô trống" : h.chu_so === "?" ? "không đọc được" : `${esc(h.chu_so)} (${Math.round(h.p * 100)}%)`;
       return `<figure class="pt-cot"><figcaption>${ten} · cột ${Number(c.vi_tri)}</figcaption>
         <div class="pt-o"><div><span class="small muted">Ô tô</span><b class="pt-to">${esc(c.bubble ?? c.chu_so)}</b></div>${anh}</div>
-        <div class="small muted">Máy đọc chữ viết tay: ${doc}</div></figure>`;
+        <div class="small muted" title="Máy đọc chữ viết tay">Máy đọc: ${doc}</div></figure>`;
     }));
   return o.length ? `<div class="phong-to" id="phong-to">${o.join("")}</div>` : "";
 }

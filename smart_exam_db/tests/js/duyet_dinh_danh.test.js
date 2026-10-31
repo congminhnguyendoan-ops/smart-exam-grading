@@ -65,4 +65,9 @@ test("cột cần nhìn kỹ: máy gắn cần xem hoặc ô tô không đọc �
   assert.equal(D.cotCanNhin({ can_xem: true, chu_so: "4", bubble: "4" }), true);
   assert.equal(D.cotCanNhin({ can_xem: false, chu_so: "?", bubble: "?" }), true);
   assert.equal(D.cotCanNhin({ can_xem: false, chu_so: "4", bubble: "4" }), false);
+  // cả trường bị giữ vì ô viết tay trống (phiếu BV10): cột trống cần nhìn, cột có chữ số thì không
+  const tr = { reasons: ["o_trong_ngoai_ds"] };
+  assert.equal(D.cotCanNhin({ can_xem: false, chu_so: "1", bubble: "1", handwriting: { o_trong: true } }, tr), true);
+  assert.equal(D.cotCanNhin({ can_xem: false, chu_so: "1", bubble: "1", handwriting: { o_trong: false } }, tr), false);
+  assert.equal(D.cotCanNhin({ can_xem: false, chu_so: "1", bubble: "1", handwriting: { o_trong: true } }, { reasons: [] }), false);
 });
