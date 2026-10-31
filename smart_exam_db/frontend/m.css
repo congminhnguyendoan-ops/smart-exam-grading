@@ -69,4 +69,8 @@ button:disabled,.big.off{opacity:.55;pointer-events:none}
 .kv span:last-child{text-align:right;font-weight:600}
 code{font-size:14px;overflow-wrap:anywhere}
 .toast{position:fixed;left:16px;right:16px;top:64px;z-index:9;background:#1c2230;color:#fff;padding:12px 14px;border-radius:10px;font-size:16px}
+/* AA3: hướng dẫn chụp thẳng (thu gọn được) */
+.hd-chup{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:0 0 10px}
+.hd-chup summary{font-weight:700;cursor:pointer;min-height:32px;display:list-item}
+.hd-chup ol{margin:8px 0 2px;padding-left:22px;font-size:16px}.hd-chup li{margin:4px 0}
 .tentep{display:inline-block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}

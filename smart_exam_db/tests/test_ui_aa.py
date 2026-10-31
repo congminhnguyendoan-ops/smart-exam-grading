@@ -34,6 +34,17 @@ def test_man_duyet_noi_logic_moi_khong_doi_id_cu():
     assert js.count("put(`/sheets/${id}/identity`") == 1
 
 
+def test_m_co_huong_dan_chup_thang_thu_gon_duoc():
+    """AA3: khối <details id="hd-chup"> trong màn chụp, đủ 4 ý (song song, 4 ô vuông đen, đủ sáng không bóng, chữ số rõ); m.js không đụng tới."""
+    html = (FRONTEND / "m.html").read_text(encoding="utf-8")
+    khoi = re.search(r'<details id="hd-chup"[^>]*>.*?</details>', html, re.S).group(0)
+    assert html.index('id="v-cap"') < html.index('id="hd-chup"') < html.index('id="ds-to"')
+    assert "open" not in khoi.split(">")[0]                                    # mặc định thu gọn – không đẩy danh sách tờ xuống
+    for y in ("song song với tờ giấy", "4 ô vuông đen", "Đủ sáng, không bóng đổ", "Viết chữ số rõ trong ô"):
+        assert y in khoi, y
+    assert "hd-chup" not in (FRONTEND / "m.js").read_text(encoding="utf-8")
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="không có node để kiểm cú pháp JS")
 def test_duyet_dinh_danh_cu_phap():
     r = subprocess.run(["node", "--check", str(FRONTEND / "duyet_dinh_danh.js")], capture_output=True, text=True)
