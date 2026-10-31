@@ -23,6 +23,7 @@
     v = String(v ?? "").trim();
     if (!v) return { muc: "trong", thong_bao: "", goi_y: [] };
     if (!SO.test(v)) return { muc: "loi", thong_bao: "SBD chỉ gồm chữ số (0–9).", goi_y: [] };
+    if (dsSbd === null) return { muc: "chua_kiem", thong_bao: "Không tải được danh sách dự thi – chưa kiểm được SBD này.", goi_y: [] };
     const ds = dsSbd || [];
     if (!ds.length) return { muc: "chua_kiem", thong_bao: "Kỳ thi chưa có danh sách dự thi – chưa kiểm được SBD này.", goi_y: [] };
     if (ds.includes(v)) return { muc: "ok", thong_bao: "", goi_y: [] };

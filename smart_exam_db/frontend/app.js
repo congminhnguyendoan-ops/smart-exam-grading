@@ -131,7 +131,7 @@ async function route() {
     if (r === "upload") await manUpload();
     else if (r === "sheets") await manDanhSach();
     else if (r === "sheet") await manChiTiet(Number(id));
-    else if (r === "review") { if (id) await manDuyet(Number(id)); else await manHangDoi(); }
+    else if (r === "review") { if (id) await manDuyet(Number(id), { datTieuDiem: true }); else await manHangDoi(); }
     else if (r === "results") await manBangDiem();
     else if (r === "classes") { if (id) await manSinhVienLop(Number(id)); else await manLop(); }
     else if (r === "profile") await manHoSo();
@@ -374,10 +374,11 @@ function cotsHtml(tr) {
     return `${esc(tr.detected || "–")} <span class="muted small">(không có chi tiết từng cột – dữ liệu mẫu cũ)</span>`;
   return `<span class="cols">${tr.columns.map((c) => `<span class="col ${c.can_xem || c.chu_so === "?" ? "bad" : ""}" title="cột ${c.vi_tri}: tin cậy ${fmt(c.do_tin_cay)}">${esc(c.chu_so)}</span>`).join("")}</span>`;
 }
-/* Hai kênh cạnh nhau: ô tô (bubble) ↔ chữ viết tay (ảnh ô + chữ số máy đọc + độ tin cậy). Cột lệch / không chắc tô đỏ. */
+/* Hai kênh cạnh nhau: ô tô (bubble) ↔ chữ viết tay (ảnh ô + chữ số máy đọc + độ tin cậy). Cột lệch / không chắc tô nổi bật ("lech"),
+   cột đã khớp làm nhạt ("khop") để mắt giáo viên đi thẳng tới chỗ cần nhìn (AA2 b). */
 function haiKenhHtml(sheetId, field, tr) {
   if (!tr || !tr.columns.some((c) => c.handwriting)) return "";
-  const hang = (ten, f) => `<tr><th>${ten}</th>${tr.columns.map((c) => `<td class="${c.can_xem ? "lech" : ""}">${f(c)}</td>`).join("")}</tr>`;
+  const hang = (ten, f) => `<tr><th>${ten}</th>${tr.columns.map((c) => `<td class="${DuyetDinhDanh.cotCanNhin(c) ? "lech" : "khop"}">${f(c)}</td>`).join("")}</tr>`;
   const ly = LyDoCot.moTa(tr, LY_DO_CHU_SO);                                     // V3: câu theo từng cột (chỉ câu chữ, dữ liệu API không đổi)
   return `<table class="haikenh"><tbody>
     ${hang("Ô tô (bubble)", (c) => `<b>${esc(c.bubble ?? c.chu_so)}</b>`)}
@@ -445,7 +446,9 @@ async function manHangDoi() {
 }
 
 const daXem = {};   // sheet_id -> Set(question_no) đã duyệt trong phiên này (hiện thẻ "đã chốt" thay vì biến mất)
-async function manDuyet(id) {
+/* datTieuDiem: vừa mở phiếu (từ hàng đợi / nút kế tiếp) -> đặt con trỏ vào ô SBD / mã đề cần chốt (không chọn gì thay giáo viên).
+   daLuu: vừa lưu SBD / mã đề -> hiện ngay tại chỗ nút "Phiếu cần xem kế tiếp" (AA2 d). */
+async function manDuyet(id, { datTieuDiem = false, daLuu = false } = {}) {
   const p = await api(`/sheets/${id}`);
   if (p.status === "rejected") { location.hash = `#/sheet/${id}`; return; }
   const xong = (daXem[id] = daXem[id] || new Set());
@@ -456,13 +459,21 @@ async function manDuyet(id) {
   const trung = p.status === "needs_review" && rv && rv.reasons.includes("duplicate_sbd") && rv.details && rv.details.duplicate_with_sheet_id ? rv.details.duplicate_with_sheet_id : null;
   let phieuCu = null;
   if (trung) { try { phieuCu = await api(`/sheets/${trung}`); } catch (_) { /* không đọc được: vẫn cho xử lý, chỉ thiếu thông tin so sánh */ } }
-  main.innerHTML = `<p><a href="#/review">← Hàng đợi</a> · <a href="#/sheet/${id}">Chi tiết phiếu</a></p>
+  let keTiep = null;                                                              // phiếu cần xem kế tiếp, theo thứ tự hàng đợi
+  try { keTiep = DuyetDinhDanh.keTiep((await api(`/exams/${state.examId}/sheets?status=needs_review`)).map((x) => x.sheet_id), id); } catch (e) { if (e.dangNhap) throw e; }
+  let dsSbd = [];                                                                 // SBD của danh sách dự thi – chỉ để kiểm ô nhập (AA2 e)
+  if (dinhDanhCan) { try { dsSbd = (await api(`/exams/${state.examId}/results`)).rows.map((r) => r.sbd); } catch (e) { if (e.dangNhap) throw e; dsSbd = null; } }
+  const nutKeTiep = (idEl, cls) => keTiep ? `<a class="btn ${cls}" id="${idEl}" href="#/review/${keTiep}">Phiếu cần xem kế tiếp (#${keTiep}) →</a>` : "";
+  const baoDaLuu = daLuu ? `<div class="alert ok" id="da-luu-dd">Đã lưu SBD / mã đề.${dinhDanhCan ? " Phiếu vẫn còn mục SBD / mã đề cần xem (xem dưới)." : ""}
+      ${nutKeTiep("ke-tiep-sau-luu", "pri") || '<a class="btn" href="#/review">Về hàng đợi</a> <span class="muted small">(không còn phiếu cần xem khác)</span>'}</div>` : "";
+  main.innerHTML = `<p class="row nav-duyet"><a href="#/review">← Hàng đợi</a> · <a href="#/sheet/${id}">Chi tiết phiếu</a>${keTiep ? " · " + nutKeTiep("ke-tiep", "") : ""}</p>
     <h2>Duyệt phiếu #${id} ${tag(p.status)}</h2>
     <div class="card"><div class="score">${diemHtml(p.score, p.status)}</div>
-      ${p.status === "graded" ? '<div class="alert ok">Đã chốt điểm chính thức – phiếu duyệt xong. <a href="#/review">Sang phiếu tiếp theo →</a></div>' : ""}
+      ${p.status === "graded" ? `<div class="alert ok">Đã chốt điểm chính thức – phiếu duyệt xong. ${keTiep ? `<a href="#/review/${keTiep}">Sang phiếu cần xem kế tiếp (#${keTiep}) →</a>` : '<a href="#/review">Về hàng đợi (không còn phiếu cần xem khác) →</a>'}</div>` : ""}
       ${rv && p.status === "needs_review" ? `<div class="alert warn">Còn lại: ${rv.reasons.map((r) => LY_DO_PHIEU[r] || r).join("; ")}</div>` : ""}
       <p class="muted small">Sinh viên: ${p.student ? esc(p.student.full_name) + " (" + esc(p.student.student_code) + ")" : "chưa ghép được"} · Mã đề: ${esc((p.exam_code && p.exam_code.matched_code) || "chưa xác định")}</p></div>
     ${trung ? khungTrung(p, trung, phieuCu) : ""}
+    ${baoDaLuu}
     ${dinhDanhCan ? khungDinhDanh(p) : ""}
     <h3>Câu cần xem (${p.questions.filter((q) => q.needs_review).length} còn lại)</h3>
     ${the.map((q) => theCau(id, q)).join("") || '<p class="muted">Không có câu nào cần xem.</p>'}`;
@@ -470,10 +481,8 @@ async function manDuyet(id) {
     $("#trung-bo").addEventListener("click", () => boPhieuTrung(id, trung));
     $("#trung-thay").addEventListener("click", () => thayPhieuCu(id, trung, phieuCu));
   }
-  if (dinhDanhCan) {
-    $("#luu-dd").addEventListener("click", () => luuDinhDanh(id));
-    main.querySelectorAll("button[data-fill]").forEach((b) => b.addEventListener("click", () => { $("#" + b.dataset.fill).value = b.dataset.val; }));
-  }
+  if (dinhDanhCan) ganDinhDanh(id, p, dsSbd, datTieuDiem);
+  if (daLuu) $("#da-luu-dd").scrollIntoView({ block: "center" });
   main.querySelectorAll(".rcard").forEach((el) => gan(el, id));
   await napChiTietKyThi();
 }
@@ -510,24 +519,89 @@ function khungDinhDanh(p) {
   const sbdDoc = p.sbd.can_xem ? "" : (/^\d+$/.test(p.sbd.detected || "") ? p.sbd.detected : "");
   const maDoc = p.exam_code.can_xem ? "" : (p.exam_code.matched_code || (/^\d+$/.test(p.exam_code.detected || "") ? p.exam_code.detected : ""));
   const nut = (id, tr, f, ten) => `<button type="button" data-fill="${id}" data-val="${esc(chuoiCot(tr, f))}" ${chuoiCot(tr, f) ? "" : "disabled"}>${ten}</button>`;
-  return `<div class="card"><h3>Chốt số báo danh / mã đề</h3>
-    <p class="small muted">Nhìn ảnh ô viết tay cạnh ô tô; cột đỏ là chỗ hai kênh lệch hoặc máy không chắc. Máy KHÔNG tự chọn thay giáo viên.</p>
+  return `<div class="card" id="khung-dd"><h3>Chốt số báo danh / mã đề</h3>
+    <p class="small muted">Nhìn ảnh ô viết tay cạnh ô tô; cột tô nổi bật là chỗ hai kênh lệch hoặc máy không chắc, cột nhạt là hai kênh đã khớp. Máy KHÔNG tự chọn thay giáo viên.</p>
+    ${phongToHtml(p)}
     <div class="grid2"><div class="clip"><img src="/sheets/${p.sheet_id}/image?kind=aligned" alt="đầu phiếu"></div>
     <div><h3>SBD</h3>${haiKenhHtml(p.sheet_id, "sbd", p.sbd) || cotsHtml(p.sbd)}
       <h3>Mã đề</h3>${haiKenhHtml(p.sheet_id, "exam_code", p.exam_code) || cotsHtml(p.exam_code)}
-      <div class="row"><label>SBD đúng <input type="text" id="in-sbd" inputmode="numeric" value="${esc(sbdDoc)}"></label>
+      <div class="row"><label>SBD đúng <input type="text" id="in-sbd" inputmode="numeric" autocomplete="off" aria-describedby="bao-sbd" value="${esc(sbdDoc)}"></label>
         ${nut("in-sbd", p.sbd, (c) => c.bubble, "Lấy theo ô tô")} ${nut("in-sbd", p.sbd, (c) => c.handwriting && c.handwriting.chu_so, "Lấy theo chữ viết tay")}</div>
-      <div class="row"><label>Mã đề đúng <input type="text" id="in-ma" inputmode="numeric" value="${esc(maDoc)}"></label>
+      <div class="o-bao" id="bao-sbd" aria-live="polite"></div>
+      <div class="row"><label>Mã đề đúng <input type="text" id="in-ma" inputmode="numeric" autocomplete="off" aria-describedby="bao-ma" value="${esc(maDoc)}"></label>
         ${nut("in-ma", p.exam_code, (c) => c.bubble, "Lấy theo ô tô")} ${nut("in-ma", p.exam_code, (c) => c.handwriting && c.handwriting.chu_so, "Lấy theo chữ viết tay")}</div>
+      <div class="o-bao" id="bao-ma" aria-live="polite"></div>
       <p class="small muted">Mã đề của kỳ thi: ${esc(ma)}</p>
-      <div class="row"><button class="pri" id="luu-dd">Lưu SBD / mã đề</button></div></div></div></div>`;
+      <div class="row"><button class="pri" id="luu-dd">Lưu SBD / mã đề</button>
+        <span class="small muted phim-goi-y">Phím tắt: <kbd>Tab</kbd> từ ô SBD sang ô mã đề · <kbd>Enter</kbd> lưu</span></div></div></div></div>`;
 }
-async function luuDinhDanh(id) {
+/* AA2 a: phóng to ảnh ô viết tay của các cột đang lệch / chưa chắc, ngay cạnh chữ số ô tô – giáo viên không phải nheo mắt nhìn ảnh 56 px. */
+function phongToHtml(p) {
+  const o = [["sbd", "SBD", p.sbd], ["exam_code", "Mã đề", p.exam_code]].flatMap(([field, ten, tr]) => (tr && tr.columns || [])
+    .filter(DuyetDinhDanh.cotCanNhin).map((c) => {
+      const h = c.handwriting;
+      const anh = h && h.has_crop ? `<img src="/sheets/${p.sheet_id}/digits/${field}/${h.pos}/image" alt="${ten} cột ${c.vi_tri} – ô viết tay">` : '<span class="muted small">(không có ảnh ô viết tay)</span>';
+      const doc = !h ? "–" : h.o_trong ? "ô trống" : h.chu_so === "?" ? "không đọc được" : `${esc(h.chu_so)} (${Math.round(h.p * 100)}%)`;
+      return `<figure class="pt-cot"><figcaption>${ten} · cột ${Number(c.vi_tri)}</figcaption>
+        <div class="pt-o"><div><span class="small muted">Ô tô</span><b class="pt-to">${esc(c.bubble ?? c.chu_so)}</b></div>${anh}</div>
+        <div class="small muted">Máy đọc chữ viết tay: ${doc}</div></figure>`;
+    }));
+  return o.length ? `<div class="phong-to" id="phong-to">${o.join("")}</div>` : "";
+}
+/* AA2 c + e: phím tắt, kiểm tại ô (SBD ngoài danh sách / mã đề ngoài kỳ thi) + gợi ý giá trị hợp lệ. Gợi ý CHỈ điền khi giáo viên bấm. */
+function ganDinhDanh(id, p, dsSbd, datTieuDiem) {
+  const khung = $("#khung-dd"), maHopLe = state.exam ? state.exam.codes.map((c) => c.code) : [];
+  const ctx = { dsSbd, maHopLe, tuGoiY: {} };
+  const ve = (idBao, idO, kq) => {
+    const o = $("#" + idO), bao = $("#" + idBao);
+    o.classList.toggle("sai", kq.muc === "loi"); o.classList.toggle("can-hoi", kq.muc === "canh_bao");
+    o.setAttribute("aria-invalid", kq.muc === "loi" ? "true" : "false");
+    const lop = kq.muc === "loi" ? "bad" : kq.muc === "canh_bao" ? "warn" : "muted";
+    const goi = kq.goi_y.length ? `<span class="goi-y-ds">${idO === "in-sbd" ? "SBD gần giống trong danh sách (chỉ để đối chiếu – so với ảnh trước khi chọn):" : "Mã đề hợp lệ của kỳ thi:"}
+      ${kq.goi_y.map((v) => `<button type="button" class="goi-y" data-fill="${idO}" data-val="${esc(v)}" data-goi-y="1">${esc(v)}</button>`).join(" ")}</span>` : "";
+    bao.innerHTML = kq.thong_bao || goi ? `<div class="${lop}">${esc(kq.thong_bao)}</div>${goi}` : "";
+  };
+  ctx.kiem = () => {
+    const kS = DuyetDinhDanh.kiemSbd($("#in-sbd").value, dsSbd), kM = DuyetDinhDanh.kiemMaDe($("#in-ma").value, maHopLe);
+    ve("bao-sbd", "in-sbd", kS); ve("bao-ma", "in-ma", kM);
+    return [kS, kM];
+  };
+  khung.addEventListener("click", (ev) => {
+    const b = ev.target.closest("button[data-fill]");
+    if (!b) return;
+    const o = $("#" + b.dataset.fill);
+    o.value = b.dataset.val;
+    ctx.tuGoiY[b.dataset.fill === "in-sbd" ? "sbd" : "ma"] = b.dataset.goiY ? b.dataset.val : undefined;
+    ctx.kiem(); o.focus();
+  });
+  for (const idO of ["in-sbd", "in-ma"]) $("#" + idO).addEventListener("input", ctx.kiem);
+  khung.addEventListener("keydown", (ev) => {
+    if (ev.isComposing) return;
+    const a = DuyetDinhDanh.phim(ev.key, ev.shiftKey, ev.target.id);
+    if (!a) return;
+    ev.preventDefault();
+    if (a === "luu") luuDinhDanh(id, ctx); else $("#" + a).focus();
+  });
+  $("#luu-dd").addEventListener("click", () => luuDinhDanh(id, ctx));
+  ctx.kiem();
+  if (datTieuDiem) {
+    const o = $(p.sbd.can_xem || !p.student ? "#in-sbd" : "#in-ma");
+    khung.scrollIntoView({ block: "start" }); o.focus({ preventScroll: true });
+  }
+}
+let dangLuuDd = false;
+async function luuDinhDanh(id, ctx) {
+  if (dangLuuDd) return;                                                          // Enter giữ lâu / bấm hai lần: chỉ gửi một lần
   const sbd = $("#in-sbd").value.trim(), ma = $("#in-ma").value.trim();
+  const [kS, kM] = ctx.kiem();
+  if (DuyetDinhDanh.chanLuu(kS, kM)) { toast(kS.muc === "trong" && kM.muc === "trong" ? "Nhập SBD và / hoặc mã đề." : "Sửa ô báo đỏ trước khi lưu.", true); return; }
+  const hoi = DuyetDinhDanh.canXacNhan(sbd, ma, kS, kM, ctx.tuGoiY);
+  if (hoi.length && !confirm(`${hoi.join("\n\n")}\n\nVẫn lưu SBD / mã đề này?`)) return;
   const body = {}; if (sbd) body.sbd = sbd; if (ma) body.exam_code = ma;
-  if (!Object.keys(body).length) { toast("Nhập SBD và / hoặc mã đề.", true); return; }
-  try { await put(`/sheets/${id}/identity`, body); toast("Đã lưu SBD / mã đề."); await manDuyet(id); }
-  catch (e) { toast(e.message, true); }
+  dangLuuDd = true; $("#luu-dd").disabled = true;
+  try { await put(`/sheets/${id}/identity`, body); toast("Đã lưu SBD / mã đề."); await manDuyet(id, { daLuu: true }); }
+  catch (e) { toast(e.message, true); const b = $("#luu-dd"); if (b) b.disabled = false; }
+  finally { dangLuuDd = false; }
 }
 function theCau(id, q) {
   const xong = !q.needs_review;

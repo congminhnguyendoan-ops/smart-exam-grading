@@ -18,6 +18,7 @@ test("lỗi tại ô SBD: chữ không phải số chặn lưu; ngoài danh sác
   assert.deepEqual(D.kiemSbd("999999", DS).goi_y, []);                    // khác > 2 chữ số: không gợi ý bừa
   assert.equal(D.kiemSbd(" 220008 ", DS).muc, "ok");
   assert.equal(D.kiemSbd("220010", []).muc, "chua_kiem");                 // kỳ thi chưa có danh sách: không báo sai
+  assert.match(D.kiemSbd("220010", null).thong_bao, /Không tải được/);    // tải danh sách lỗi: nói đúng nguyên nhân
 });
 
 test("lỗi tại ô mã đề: ngoài kỳ thi -> cảnh báo kèm toàn bộ mã đề hợp lệ", () => {
