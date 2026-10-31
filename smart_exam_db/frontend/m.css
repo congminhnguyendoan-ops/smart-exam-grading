@@ -12,7 +12,7 @@ button.link{background:none;border:0;color:var(--tren-pri);text-decoration:under
 .view{padding:16px}
 h1{font-size:22px;margin:6px 0 14px}
 label{display:block;margin:0 0 14px;font-weight:600}
-input:not([type=file]){display:block;width:100%;margin-top:6px;padding:14px 12px;font-size:18px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);color:var(--ink)}
+input:not([type=file]){display:block;width:100%;margin-top:6px;padding:14px 12px;font-size:18px;border:1px solid var(--vien-o);border-radius:var(--r);background:var(--card);color:var(--ink)}
 button,.big{font:inherit;border-radius:var(--r-lon);border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:48px;padding:10px 16px;cursor:pointer}
 .big{display:flex;align-items:center;justify-content:center;width:100%;min-height:60px;font-size:20px;font-weight:700}
 .pri{background:var(--pri);border-color:var(--pri);color:var(--tren-pri)}

@@ -9,7 +9,7 @@ nav a{display:block;padding:8px 12px;margin-bottom:6px;background:var(--side-muc
 nav a:hover{border-color:var(--pri)}
 nav a.on{background:var(--pri);color:var(--tren-pri);border-color:var(--pri);font-weight:600}
 .exam-pick{display:block;margin-top:16px;font-weight:600;font-size:13px}
-.exam-pick select{width:100%;margin-top:4px;padding:6px;border:1px solid var(--line);border-radius:var(--r-nho);background:var(--card);color:var(--ink)}
+.exam-pick select{width:100%;margin-top:4px;padding:6px;border:1px solid var(--vien-o);border-radius:var(--r-nho);background:var(--card);color:var(--ink)}
 .hien-dong{display:flex;gap:6px;align-items:center;margin-top:6px;cursor:pointer}
 .ly-do-cot{margin-top:6px}.ly-do-cot ul{margin:4px 0 0;padding-left:20px}
 .exam-name{margin:6px 0 0;font-size:13px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
@@ -63,7 +63,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .opts button{min-width:44px;font-weight:700}
 .opts button.sel{background:var(--pri);color:var(--tren-pri);border-color:var(--pri)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
-input[type=text]{padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-nho);font:inherit;width:140px;color:var(--ink);background:var(--card)}
+input[type=text]{padding:6px 8px;border:1px solid var(--vien-o);border-radius:var(--r-nho);font:inherit;width:140px;color:var(--ink);background:var(--card)}
 .cols{display:inline-flex;gap:3px}.col{width:26px;height:32px;border:1px solid var(--line);border-radius:4px;text-align:center;line-height:30px;font-weight:700;background:var(--card)}
 .col.bad{background:var(--badbg);border-color:var(--bad);color:var(--bad)}
 .haikenh{width:auto;margin:4px 0 8px}.haikenh th{white-space:nowrap}.haikenh td{text-align:center;min-width:56px}.haikenh td.lech{background:var(--badbg)}
@@ -92,8 +92,10 @@ kbd{font:12px/1 ui-monospace,Consolas,monospace;border:1px solid var(--line);bor
 body.logged-out .side{display:none}
 .login{max-width:380px;margin:60px auto}
 .login label,.formcol label{display:block;margin-bottom:10px;font-weight:600;font-size:13px}
-.login input,.formcol input{display:block;width:100%;margin-top:4px;padding:7px 8px;border:1px solid var(--line);border-radius:var(--r-nho);font:inherit;color:var(--ink);background:var(--card)}
-select{color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-nho);font:inherit;padding:4px 6px}
+.login input,.formcol input{display:block;width:100%;margin-top:4px;padding:7px 8px;border:1px solid var(--vien-o);border-radius:var(--r-nho);font:inherit;color:var(--ink);background:var(--card)}
+select,textarea{color:var(--ink);background:var(--card);border:1px solid var(--vien-o);border-radius:var(--r-nho);font:inherit;padding:4px 6px}
+/* AB1: ô nhập khác (number, date, password…) chưa có quy tắc riêng – :where() = độ ưu tiên 0, quy tắc riêng và input.sai / .can-hoi vẫn thắng */
+:where(input:not([type=checkbox],[type=radio],[type=file],[type=submit],[type=button],[type=range])){border:1px solid var(--vien-o);border-radius:var(--r-nho);font:inherit;color:var(--ink);background:var(--card);padding:5px 8px}
 .formcol{max-width:420px}
 .pager{display:flex;gap:8px;align-items:center;margin-top:10px}
 /* G2: tên tệp ảnh rút gọn – không làm giãn dòng bảng; tên đầy đủ ở title */

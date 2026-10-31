@@ -4,6 +4,7 @@
 :root{
   /* nền / chữ / viền */
   --bg:#F3F8F8; --card:#FFFFFF; --ink:#1E2A32; --mut:#566670; --line:#D3E1E2;
+  --vien-o:#6F808A;                         /* viền Ô NHẬP (input / select / textarea) – ≥ 3:1 với thẻ, nền trang, thanh bên (lệnh AB); viền thẻ vẫn --line */
   --th:#E8F1F2; --hover:#EEF6F6; --xam-nen:#EAF0F1;
   /* màu chủ đạo (nút chính, mục đang chọn) + màu nhấn thứ hai */
   --pri:#1F7A8C; --pri-dam:#17606E; --pri-nhat:#E0F0F2; --tren-pri:#FFFFFF;

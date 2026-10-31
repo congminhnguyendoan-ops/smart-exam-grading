@@ -55,6 +55,10 @@ CAP = [
     ("--pri2", "--bg", "thanh_phan", "viền tiêu điểm bàn phím trên nền trang"),
     ("--pri", "--bg", "thanh_phan", "nền nút chính so với nền trang"),
     ("--pri", "--side", "thanh_phan", "mục đang chọn so với nền thanh bên"),
+    # lệnh AB: viền Ô NHẬP (input / select / textarea) – WCAG 1.4.11; viền thẻ (--line) là trang trí nên không xét
+    ("--vien-o", "--card", "thanh_phan", "viền ô nhập trên thẻ"),
+    ("--vien-o", "--bg", "thanh_phan", "viền ô nhập trên nền trang"),
+    ("--vien-o", "--side", "thanh_phan", "viền ô chọn kỳ thi ở thanh bên"),
 ]
 
 
