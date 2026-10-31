@@ -114,7 +114,7 @@ def may_tinh(b, url, out, sau, k, g):
         k["goi_y_sbd_hop_le"] = pg.locator("#bao-sbd button.goi-y").count() >= 1
         g["goi_y_sbd"] = pg.evaluate("() => [...document.querySelectorAll('#bao-sbd button.goi-y')].map((b) => b.dataset.val)")
         k["goi_y_khong_tu_dien"] = pg.input_value("#in-sbd") == "220010"
-    pg.locator("#khung-dd").screenshot(path=str(out / "06_duyet_khung_sbd.png"))
+    pg.locator(".card", has=pg.locator("#in-sbd")).screenshot(path=str(out / "06_duyet_khung_sbd.png"))   # bản cũ không có #khung-dd
     if sau:
         pg.focus("#in-sbd"); pg.keyboard.press("Tab")
         k["tab_sang_o_ma_de"] = pg.evaluate("() => document.activeElement.id") == "in-ma"
