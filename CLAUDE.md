@@ -354,6 +354,13 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - **KẾT QUẢ: KHÔNG ĐẠT, giữ `models/ocr_cnn.json`** – độ đúng trang D macro 95,40% → 95,75% (+0,36 < +1,0 điểm); cột SBD / mã đề cần xem 9,85% → 10,19% (tăng);
   sai-mà-tự-tin 535 → 512 (đạt). Nhầm 8↔6 giảm (76 → 29), nhầm 1→7 tăng (51 → 77). KHÔNG có tệp ứng viên (không xuất vì không đạt). Dữ liệu: `data/nguon_ngoai/emnist_digits.npz`, `data/_eval/ad/` (ngoài git).
 
+### 4h. Lệnh AE – vì sao "cần xem" (01/11/2026, nhánh `hoan-thien`; CHỈ ĐO, không sửa mã hệ thống)
+- `python tools/ae_phan_ra.py doc --tap dev|dot2` (pipeline offline = backend, không CSDL; đợt 2 trùng 800/800 câu + 180/180 cột với lần chạy API) → `phan-ra` → `de-xuat`; kết quả `data/_eval/ae/`.
+- Câu trả lời đợt 2: 397/800 cần xem; chỉ 11 (2,8%) là cờ làm đổi điểm (10 = vết chấm đọc thành "mờ"); 386 (97,2%) máy đã cho đúng điểm theo quy ước nhãn, nhưng chỉ 83 (20,9%)
+  không phụ thuộc quy ước (thật 1 đậm / trống, nhiều ô toàn đậm) – còn lại là dấu mờ / vết mà người phải quyết. SBD / mã đề đợt 2: 15/180 cột, 11 do hai kênh lệch (CNN đọc sai 9; 2 ca 0103 thí sinh TÔ SAI bubble, CNN đúng).
+- Đề xuất (CHƯA áp dụng, chỉnh trên dev → thử đợt 2): ĐX1 nhiều ô toàn đậm (θ1 = 0,95) → chấm sai tự động: đợt 2 gỡ 54/397, 0 sai; ĐX2 luật mềm SBD (τ2 = 0,4): đợt 2 gỡ 2 cột, ảnh 9→8/20, 0 sai,
+  mô phỏng tô sai bubble bị nhận 0,74%; ĐX3 "dấu mờ = có chọn": đợt 2 gỡ 147 nhưng 10 sai âm thầm → KHÔNG nên.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
