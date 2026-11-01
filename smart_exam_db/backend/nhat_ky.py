@@ -19,9 +19,10 @@ HANH_DONG = {
     # lớp
     "tao_lop": "class", "sua_lop": "class", "vo_hieu_hoa_lop": "class", "kich_hoat_lop": "class", "xoa_lop": "class",
     "them_giao_vien_vao_lop": "class", "bo_giao_vien_khoi_lop": "class",
-    # duyệt phiếu (lệnh AF): giáo viên xác nhận hàng loạt câu của MỘT phiếu – đối tượng là kỳ thi (CHECK của migration 005), sheet_id trong details
-    "xac_nhan_hang_loat": "exam",
 }
+# Thao tác DUYỆT của giáo viên (không phải quản trị) – tách riêng để HANH_DONG vẫn đúng là danh sách thao tác quản trị (test_nhat_ky_quan_tri phủ đủ).
+# Lệnh AF: xác nhận hàng loạt câu của MỘT phiếu – đối tượng là kỳ thi (CHECK của migration 005), sheet_id trong details (test_duyet_nhanh).
+HANH_DONG_DUYET = {"xac_nhan_hang_loat": "exam"}
 _NHAY_CAM = re.compile(r"pass|mat_khau|matkhau|hash|token|secret|cookie|session", re.IGNORECASE)
 
 
@@ -35,8 +36,8 @@ def _loc(v):
 
 
 def ghi(conn, nd, hanh_dong: str, doi_tuong_id: int | None, chi_tiet: dict | None = None) -> None:
-    """Một dòng nhật ký. hanh_dong phải thuộc HANH_DONG (loại đối tượng suy ra từ đó)."""
-    loai = HANH_DONG[hanh_dong]                                                # KeyError = lỗi lập trình, không nuốt
+    """Một dòng nhật ký. hanh_dong phải thuộc HANH_DONG hoặc HANH_DONG_DUYET (loại đối tượng suy ra từ đó)."""
+    loai = {**HANH_DONG, **HANH_DONG_DUYET}[hanh_dong]                         # KeyError = lỗi lập trình, không nuốt
     conn.execute("INSERT INTO admin_audit_log (actor_user_id, action, object_type, object_id, details) VALUES (%s, %s, %s, %s, %s::jsonb)",
                  (nd.user_id, hanh_dong, loai, doi_tuong_id, json.dumps(_loc(chi_tiet or {}), ensure_ascii=False, default=str)))
 
