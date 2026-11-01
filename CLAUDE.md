@@ -348,6 +348,12 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   thì ROLLBACK, rồi xoá tệp ảnh; `--ids` / `--giu`; giữ mọi phiếu `graded` có điểm chính thức hợp lệ). G2 `frontend/ten_tep.js` – tên tệp ảnh > 24 ký tự hiển thị "10 ký tự đầu…đuôi" (title = tên đầy đủ), dùng ở /app/ và /m. G3 `bang_diem.ly_do_chua_ghep`
   – Bảng điểm: phiếu cần xem chưa ghép được thí sinh nói đúng nguyên nhân (SBD máy chưa chắc → "cần giáo viên chốt"; ngoài danh sách → câu cũ), chỉ đổi câu chữ. Thử trình duyệt: `python tools/thu_lenh_f.py g2` → `data/_eval/ui_g/`.
 
+### 4g. Lệnh AD (nhánh `hoan-thien` từ `cai-tien-b`, 01/11/2026; chi tiết `smart_exam_db/docs/lenh_ad.md`)
+- Mục tiêu: thử CNN chữ số tiền huấn luyện trên MNIST + EMNIST Digits (qua `ocr.ve_mnist`) + 60 000 ô phiếu giả (qua đúng `ocr.cat_o`), so với
+  mô hình hiện tại dưới cùng CV theo người viết, 3 seed, tiêu chí chốt trước (commit `5af47ab`). Công cụ: `tools/ad_nap_emnist.py`, `tools/ad_sinh_o_gia.py`, `tools/ad_huan_luyen.py`.
+- **KẾT QUẢ: KHÔNG ĐẠT, giữ `models/ocr_cnn.json`** – độ đúng trang D macro 95,40% → 95,75% (+0,36 < +1,0 điểm); cột SBD / mã đề cần xem 9,85% → 10,19% (tăng);
+  sai-mà-tự-tin 535 → 512 (đạt). Nhầm 8↔6 giảm (76 → 29), nhầm 1→7 tăng (51 → 77). KHÔNG có tệp ứng viên (không xuất vì không đạt). Dữ liệu: `data/nguon_ngoai/emnist_digits.npz`, `data/_eval/ad/` (ngoài git).
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:

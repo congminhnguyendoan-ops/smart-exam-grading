@@ -57,6 +57,25 @@ Thiếu một trong ba → **"không đạt, giữ mô hình cũ"**. Số phụ 
 Giới hạn biết trước: chỉ 5 người viết; SBD / mã đề trên phiếu 0001–0040 do chính 5 người này viết, nên số trên phiếu là "người lạ" chỉ trong
 nghĩa OOF (cùng phong cách với trang D của họ đã bị giữ ra) – vẫn lạc quan so với người dùng thật. Không đọc phiếu val 0029–0034 / test 0035–0040.
 
-## Bước 4–6 – Kết quả
+## Bước 4 – Kết quả (01/11/2026; `python tools/ad_huan_luyen.py chay` rồi `bang` → `data/_eval/ad/ket_qua.json`, `ket_qua.md`)
 
-(điền sau khi chạy – mục dưới)
+Baseline dựng lại TRÙNG TUYỆT ĐỐI Tuần 6: trọng số tiền huấn luyện seed 2026 chênh 0; logit OOF cả 3 seed chênh 0 so với `oof_g0_goc_*.npz`.
+Seed 2026 khớp siêu dữ liệu `models/ocr_cnn.json` (trang D 95,84% micro, T4 53,6%).
+
+| Số đo (OOF theo người viết, 3 seed) | baseline | ad1 | Tiêu chí |
+|---|---|---|---|
+| (1) Độ đúng trang D, macro 5 người | 95,40% | 95,75% | +0,36 điểm < +1,00 → **KHÔNG ĐẠT** |
+| (2) Sai mà tự tin (p ≥ 0,5), cộng 3 seed | 535 | 512 | ≤ baseline → đạt |
+| (3) Cột SBD / mã đề cần xem | 9,85% | 10,19% | tăng → **KHÔNG ĐẠT** |
+| Ô phiếu dev có mực đọc đúng (phụ) | 91,60% | 92,46% | |
+| Ảnh có SBD / mã đề cần xem – T4 (phụ) | 58,9% | 58,3% | |
+| Lỗi im lặng mức trường | 0 | 0 | phải 0 – giữ |
+| Nhầm 8→6 / 6→8 (cộng 3 seed) | 24 / 52 | 17 / 12 | giảm rõ |
+| Nhầm 1→7 / 7→1 | 51 / 0 | 77 / 0 | TĂNG |
+| Nhầm 0→6 / 6→0 | 5 / 13 | 1 / 12 | |
+
+Theo người (trang D, TB 3 seed): người 1 94,35→94,74; người 2 93,82→93,78; người 3 92,58→92,31; người 4 98,04→99,21; người 5 98,19→98,74 –
+người khó nhất (2, 3) KHÔNG cải thiện. Kiểm định dấu cặp theo ô (cộng 3 seed): baseline đúng / ad1 sai 168, ngược lại 224, p = 0,005 – ad1 ít lỗi
+hơn một cách có hệ thống nhưng mức tăng (+0,36 điểm) nhỏ hơn ngưỡng đã chốt.
+
+**KẾT LUẬN: KHÔNG ĐẠT, giữ mô hình cũ.** Không xuất `ocr_cnn_ung_vien.json`, không chạy Bước 5 (chỉ chạy khi Bước 4 đạt).
