@@ -515,10 +515,11 @@ const PHIM_GOI_Y = `Phím tắt: <kbd>A</kbd>–<kbd>D</kbd> chọn đáp án ·
 function khungNhanh(p) {
   const hl = DuyetNhanh.cauHangLoat(p.questions);
   if (!hl.duoc.length && !hl.tay.length) return "";
+  const nhan = DuyetNhanh.nhanNutHangLoat(hl.duoc.length);                      // AF2: chỉ đếm câu nhiều ô / tô nhạt; 0 câu -> ẩn nút
   return `<div class="card" id="khung-nhanh">
-    ${hl.duoc.length ? `<div class="row"><button type="button" id="xn-tat-ca">Xác nhận tất cả ${hl.duoc.length} câu còn lại như máy đọc…</button>
-      <span class="small muted">Chỉ câu trả lời bên dưới${hl.tay.length ? ` – trừ ${hl.tay.length} câu phải chọn tay (vị trí)` : ""}. SBD / mã đề KHÔNG nằm trong thao tác này.
-      Sẽ hỏi lại trước khi làm.</span></div>` : ""}
+    ${nhan ? `<div class="row"><button type="button" id="xn-tat-ca" aria-haspopup="dialog">${esc(nhan)}</button>
+      <span class="small muted">Chỉ câu trả lời "nhiều ô" / "tô nhạt cả tờ" bên dưới. SBD / mã đề KHÔNG nằm trong thao tác này. Sẽ hỏi lại trước khi làm.</span></div>` : ""}
+    ${hl.tay.length ? `<p class="small" id="giai-thich-tay">Câu mờ / vết cần quyết định bằng mắt – ${hl.tay.length} câu (${hl.tay.join(", ")}) chọn từng câu.</p>` : ""}
     <p class="small muted phim-goi-y" id="goi-y-phim">${PHIM_GOI_Y}</p></div>`;
 }
 const cauConLai = () => [...main.querySelectorAll(".rcard:not(.done)")].map((el) => Number(el.dataset.q));
@@ -536,23 +537,40 @@ function moXacNhanHangLoat(id, p, { dinhDanhCan, trung }) {
   if (!hl.duoc.length) return;
   const seChot = !dinhDanhCan && !trung && !hl.tay.length;
   const cu = $("#dlg-hl"); if (cu) cu.remove();
+  const moTu = document.activeElement;                                            // AF2: đóng hộp -> trả tiêu điểm về nút đã mở hộp
   const dlg = document.createElement("div");
-  dlg.id = "dlg-hl"; dlg.className = "modal"; dlg.setAttribute("role", "dialog"); dlg.setAttribute("aria-modal", "true"); dlg.setAttribute("aria-labelledby", "dlg-hl-h");
-  dlg.innerHTML = `<div class="modal-box"><h2 id="dlg-hl-h">Xác nhận ${hl.duoc.length} câu như máy đọc?</h2>
+  dlg.id = "dlg-hl"; dlg.className = "modal"; dlg.setAttribute("role", "dialog"); dlg.setAttribute("aria-modal", "true");
+  dlg.setAttribute("aria-labelledby", "dlg-hl-h"); dlg.setAttribute("aria-describedby", "dlg-hl-canh-bao");
+  dlg.innerHTML = `<div class="modal-box"><h2 id="dlg-hl-h">Xác nhận ${hl.duoc.length} câu nhiều ô / tô nhạt như máy đọc?</h2>
     <p>Phiếu #${id}. Mỗi câu dưới đây được chốt ĐÚNG như máy đọc – giống bấm "Xác nhận như máy đọc" từng câu:</p>
     <ul class="ds-hl">${DuyetNhanh.dongXacNhan(hl.duoc).map((t, i) => `<li><a href="#" data-xem="${hl.duoc[i].question_no}">${esc(t)}</a></li>`).join("")}</ul>
-    <div class="alert warn"><b>Không hoàn tác được</b>: câu đã xác nhận không mở lại được trên hệ thống hiện tại.
+    <div class="alert warn" id="dlg-hl-canh-bao"><b>Không hoàn tác được</b>: câu đã xác nhận không mở lại được trên hệ thống hiện tại.
       ${seChot ? "Sau thao tác này phiếu hết mục cần xem nên sẽ <b>chốt điểm chính thức</b>." : "Phiếu vẫn còn mục khác chờ bạn (SBD / mã đề, câu chọn tay hoặc trùng SBD) – chưa có điểm chính thức."}
       SBD / mã đề không bị thay đổi.</div>
     <label class="hl-tich"><input type="checkbox" id="hl-da-xem"> Tôi đã nhìn ảnh từng câu ở trên và đồng ý máy đọc đúng</label>
     <div class="row"><button type="button" id="hl-huy">Huỷ</button><button type="button" class="pri" id="hl-ok" disabled>Xác nhận ${hl.duoc.length} câu</button></div></div>`;
   document.body.appendChild(dlg);
-  const dong = () => { dlg.remove(); const el = main.querySelector(`.rcard[data-q="${cauHT[id]}"]`); if (el) el.focus(); };
+  /* AF2: bẫy Tab (Tab / Shift+Tab xoay vòng trong hộp) + Esc đóng – nghe ở document (pha capture) để bắt cả khi tiêu điểm đã rơi ra ngoài hộp. */
+  const coTheNhan = () => [...dlg.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+  const phimHop = (e) => {
+    const ds = coTheNhan();
+    const a = DuyetNhanh.phimHop(e.key, e.shiftKey, ds.length, ds.indexOf(document.activeElement));
+    if (!a) return;
+    e.preventDefault(); e.stopPropagation();
+    if (a.loai === "dong") dong();
+    else if (a.j >= 0) ds[a.j].focus();
+  };
+  document.addEventListener("keydown", phimHop, true);
+  const go = () => { document.removeEventListener("keydown", phimHop, true); dlg.remove(); };
+  const dong = () => {
+    go();
+    const el = moTu && moTu.isConnected ? moTu : main.querySelector(`.rcard[data-q="${cauHT[id]}"]`);
+    if (el) el.focus();
+  };
   $("#hl-da-xem", dlg).addEventListener("change", (e) => { $("#hl-ok", dlg).disabled = !e.target.checked; });
   $("#hl-huy", dlg).addEventListener("click", dong);
-  dlg.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); dong(); } });
   dlg.querySelectorAll("[data-xem]").forEach((a) => a.addEventListener("click", (e) => {     // xem lại câu: đóng hộp, cuộn tới thẻ câu đó
-    e.preventDefault(); dlg.remove(); datHienTai(id, Number(a.dataset.xem), true);
+    e.preventDefault(); go(); datHienTai(id, Number(a.dataset.xem), true);
     const el = main.querySelector(`.rcard[data-q="${a.dataset.xem}"]`); if (el) el.scrollIntoView({ block: "center" });
   }));
   $("#hl-ok", dlg).addEventListener("click", async () => {
@@ -561,7 +579,7 @@ function moXacNhanHangLoat(id, p, { dinhDanhCan, trung }) {
     try {
       const r = await post(`/sheets/${id}/questions/confirm-remaining`, { question_nos: hl.duoc.map((c) => c.question_no), confirm: true });
       r.da_xac_nhan.forEach((n) => daXem[id].add(n));
-      dlg.remove();
+      go();
       toast(`Đã xác nhận ${r.da_xac_nhan.length} câu như máy đọc.${r.status === "graded" ? " Phiếu đã chốt điểm chính thức." : ""}`);
       await manDuyet(id);
     } catch (e) { toast(e.message, true); $("#hl-ok", dlg).disabled = !$("#hl-da-xem", dlg).checked; }

@@ -4,14 +4,15 @@
      phimCau("b", { tag: "BODY" })                 -> { loai: "chon", o: "B" }
      phimCau(" ", { tag: "BODY" })                 -> { loai: "xac_nhan" }      (Space = xác nhận như máy đọc câu đang chọn)
      phimCau("Enter", { tag: "INPUT" })            -> null                       (ô nhập SBD / mã đề giữ phím của lệnh AA)
-     cauHangLoat(p.questions)                      -> { duoc: [{question_no, omr, reasons}], tay: [n, …] }   (tay = câu vi_tri)
+     cauHangLoat(p.questions)                      -> { duoc: [{question_no, omr, reasons}], tay: [n, …] }   (AF2: duoc = chỉ nhieu_o / to_nhat)
+     nhanNutHangLoat(3)                            -> "Xác nhận 3 câu nhiều ô / tô nhạt như máy đọc…"   (0 -> null = ẩn nút)
+     tabKeTiep(4, 3, false)                        -> 0   (bẫy Tab trong hộp xác nhận: xoay vòng)
      nhomPhieu(g)                                  -> "dinh_danh" | "trung" | "vi_tri" | "chi_nhieu_o" | "chi_mo" | "khac" */
 "use strict";
 
 (function (goc) {
   const LUA_CHON = ["A", "B", "C", "D"];
   const BO_QUA_THE = ["INPUT", "TEXTAREA", "SELECT"];
-  const PHAI_CHON_TAY = ["vi_tri"];
 
   /** Phím tắt màn duyệt câu. ctx: { tag, laNut, trongKhungDd, dangMoHop, phu (Ctrl/Alt/Meta) }. null = để trình duyệt / khung khác xử lý.
       Không bắt phím khi: đang gõ trong ô nhập (khung SBD / mã đề của lệnh AA dùng Enter / Tab), đang mở hộp thoại, có phím phụ.
@@ -27,11 +28,14 @@
     return null;
   }
 
-  /** Câu được đưa vào "Xác nhận tất cả câu còn lại": đang cần xem và KHÔNG có lý do phải chọn tay (vi_tri). Chỉ câu trả lời – SBD / mã đề
-      không phải phần tử của `questions` nên không bao giờ lọt vào. */
+  /** Lệnh AF2: câu được xác nhận hàng loạt = đang cần xem và MỌI lý do ∈ {nhieu_o, to_nhat} (CÙNG điều kiện với máy chủ backend/duyet_nhanh.py –
+      máy chủ mới là nơi quyết; ở đây chỉ để hiện nút / hộp). Câu mờ, vết nhỏ, lưng chừng, vị trí -> chọn từng câu bằng mắt.
+      Chỉ câu trả lời – SBD / mã đề không phải phần tử của `questions` nên không bao giờ lọt vào. */
+  const LY_DO_HANG_LOAT = ["nhieu_o", "to_nhat"];
+  const hopLeHangLoat = (q) => !!q.needs_review && (q.reasons || []).length > 0 && (q.reasons || []).every((r) => LY_DO_HANG_LOAT.includes(r));
   function cauHangLoat(questions) {
     const can = (questions || []).filter((q) => q.needs_review);
-    const tay = can.filter((q) => (q.reasons || []).some((r) => PHAI_CHON_TAY.includes(r))).map((q) => q.question_no);
+    const tay = can.filter((q) => !hopLeHangLoat(q)).map((q) => q.question_no);
     const duoc = can.filter((q) => !tay.includes(q.question_no))
       .map((q) => ({ question_no: q.question_no, omr: q.omr_selected_options || "", reasons: (q.reasons || []).slice() }));
     return { duoc, tay };
@@ -49,6 +53,24 @@
       : muc === "mo" ? "Dấu mờ: nhìn ảnh xem là ý chọn hay vết tẩy." : muc === "vet" ? "Có vết nhỏ ở ô khác: nhìn ảnh xem có phải ý chọn không."
       : muc === "nhat" ? "Cả tờ tô nhạt: kiểm nhanh đáp án máy đọc." : muc === "tay" ? "Máy chưa chắc vị trí hàng – chọn tay." : "";
     return { may_doc: doc || "bỏ trống", dau_hieu: ly.map((r) => TEN_DAU_HIEU[r] || r).join(", "), muc, goi_y: goiY };
+  }
+
+  /** Nhãn nút hàng loạt; null = ẩn nút (phiếu không có câu hợp lệ). */
+  const nhanNutHangLoat = (n) => (n > 0 ? `Xác nhận ${n} câu nhiều ô / tô nhạt như máy đọc…` : null);
+
+  /** Bẫy Tab trong hộp thoại: chỉ số phần tử nhận tiêu điểm kế tiếp (xoay vòng). n = số phần tử, i = chỉ số hiện tại (-1 = tiêu điểm ở ngoài hộp). */
+  function tabKeTiep(n, i, lui) {
+    if (n <= 0) return -1;
+    if (i < 0 || i >= n) return lui ? n - 1 : 0;
+    return lui ? (i - 1 + n) % n : (i + 1) % n;
+  }
+
+  /** Phím trong hộp xác nhận: Esc -> { loai: "dong" }; Tab / Shift+Tab -> { loai: "tab", j } (j = phần tử nhận tiêu điểm); phím khác -> null.
+      n = số phần tử nhận tiêu điểm trong hộp, i = chỉ số phần tử đang có tiêu điểm (-1 nếu ở ngoài hộp). */
+  function phimHop(key, lui, n, i) {
+    if (key === "Escape" || key === "Esc") return { loai: "dong" };
+    if (key === "Tab") return { loai: "tab", j: tabKeTiep(n, i, !!lui) };
+    return null;
   }
 
   /** Các dòng của hộp xác nhận (mỗi câu một dòng: số câu, máy đọc, dấu hiệu). */
@@ -81,7 +103,7 @@
       .sort((a, b) => THU_TU_NHOM.indexOf(a.nhom) - THU_TU_NHOM.indexOf(b.nhom) || a.so_cau - b.so_cau || a.sheet_id - b.sheet_id);
   }
 
-  const DuyetNhanh = { phimCau, cauHangLoat, nhanCau, dongXacNhan, cauKeTiep, nhomPhieu, locSapHangDoi, TEN_NHOM, THU_TU_NHOM };
+  const DuyetNhanh = { phimCau, cauHangLoat, hopLeHangLoat, nhanNutHangLoat, tabKeTiep, phimHop, LY_DO_HANG_LOAT, nhanCau, dongXacNhan, cauKeTiep, nhomPhieu, locSapHangDoi, TEN_NHOM, THU_TU_NHOM };
   if (typeof module !== "undefined" && module.exports) module.exports = { DuyetNhanh };
   else goc.DuyetNhanh = DuyetNhanh;
 })(typeof window !== "undefined" ? window : globalThis);

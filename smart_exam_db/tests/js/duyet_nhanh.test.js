@@ -42,11 +42,11 @@ test("phím tắt KHÔNG cướp phím: ô nhập (khung SBD / mã đề của l
   assert.deepEqual(D.phimCau("a", { tag: "BUTTON", laNut: true }), { loai: "chon", o: "A" });
 });
 
-test("hàng loạt: chỉ câu đang cần xem, loại câu vi_tri, giữ đáp án máy đọc", () => {
+test("hàng loạt: chỉ câu đang cần xem, loại câu vi_tri, giữ đáp án máy đọc (AF2: chỉ nhiều ô / tô nhạt – câu mờ 3, vết 12 ra 'tay')", () => {
   const { duoc, tay } = D.cauHangLoat(Q);
-  assert.deepEqual(duoc.map((c) => c.question_no), [3, 7, 12]);
-  assert.deepEqual(tay, [9]);
-  assert.deepEqual(duoc.map((c) => c.omr), ["D", "AB", ""]);
+  assert.deepEqual(duoc.map((c) => c.question_no), [7]);
+  assert.deepEqual(tay, [3, 9, 12]);
+  assert.deepEqual(duoc.map((c) => c.omr), ["AB"]);
   assert.deepEqual(D.cauHangLoat([]), { duoc: [], tay: [] });
   assert.deepEqual(D.cauHangLoat(Q.filter((q) => !q.needs_review)).duoc, []);
 });
@@ -60,10 +60,10 @@ test("hàng loạt không có SBD / mã đề: chỉ đọc mảng questions, ph
 
 test("hộp xác nhận: mỗi câu một dòng – số câu, máy đọc, dấu hiệu", () => {
   const dong = D.dongXacNhan(D.cauHangLoat(Q).duoc);
-  assert.equal(dong.length, 3);
-  assert.equal(dong[0], "Câu 3: máy đọc D – ô mờ");
-  assert.equal(dong[1], "Câu 7: máy đọc AB – nhiều ô");
-  assert.equal(dong[2], "Câu 12: máy đọc bỏ trống – vết nhỏ ở ô khác, sát ngưỡng");
+  assert.equal(dong.length, 1);                                                         // AF2: chỉ câu 7 (nhiều ô)
+  assert.equal(dong[0], "Câu 7: máy đọc AB – nhiều ô");
+  assert.equal(D.dongXacNhan([{ question_no: 12, omr: "", reasons: ["vet_nho", "tin_cay_thap"] }])[0],
+    "Câu 12: máy đọc bỏ trống – vết nhỏ ở ô khác, sát ngưỡng");                           // định dạng dòng (AF) giữ nguyên
 });
 
 test("nhãn câu: máy đọc + dấu hiệu + mức", () => {

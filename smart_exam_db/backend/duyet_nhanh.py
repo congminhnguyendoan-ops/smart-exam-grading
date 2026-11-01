@@ -1,9 +1,9 @@
 """
 duyet_nhanh.py - Lệnh AF: DUYỆT NHANH cho giáo viên. KHÔNG đổi cách chấm / ngưỡng / OMR / CNN / đối chiếu hai kênh.
 
-1. xac_nhan_hang_loat: "Xác nhận tất cả câu còn lại như máy đọc" cho MỘT phiếu.
+1. xac_nhan_hang_loat: "Xác nhận N câu nhiều ô / tô nhạt như máy đọc" cho MỘT phiếu.
    - Chỉ CÂU TRẢ LỜI đang cần xem; KHÔNG BAO GIỜ đụng SBD / mã đề (không gọi sua_dinh_danh – hai trường đó giáo viên chốt riêng).
-   - Câu cần xem vì vị trí (`vi_tri`) KHÔNG được xác nhận nhanh (service.xu_ly_cau cũng cấm) -> bỏ ra, để giáo viên chọn tay.
+   - Lệnh AF2: CHỈ câu mà mọi lý do cờ ∈ {nhieu_o, to_nhat}. Lô có câu loại khác (mờ, vết nhỏ, lưng chừng, vị trí) -> 422 cả lô, không ghi gì.
    - Client phải gửi ĐÚNG danh sách câu nó đã hiển thị trong hộp xác nhận: lệch với CSDL (ai đó vừa duyệt, phiếu đổi) -> 409, không xác nhận gì.
    - Mỗi câu đi qua ĐÚNG service.xu_ly_cau(..., 'confirm', ...) như nút xác nhận từng câu -> sheet_answers, đánh giá lại phiếu, điểm tạm /
      chính thức nhất quán với đường cũ. Cả lô một giao dịch (main.get_conn): lỗi ở câu nào thì không câu nào được ghi.
@@ -18,19 +18,28 @@ from pydantic import BaseModel, Field
 
 from . import nhat_ky, service
 
-KHONG_XAC_NHAN_NHANH = {"vi_tri"}          # lý do câu bắt buộc chọn tay (giống service.xu_ly_cau)
+# Lệnh AF2 (nhóm quyết định, dựa trên đo AE đợt 2: 0 cờ làm đổi điểm ở hai loại này): hàng loạt CHỈ cho câu mà MỌI lý do cờ thuộc tập dưới.
+# Tên lý do = mã của cv_engine.omr (MA_LY_DO_OMR) lưu ở sheet_answers.review_reasons – "nhiều ô" đúng điều kiện ap_luat_cau (≥ 2 ô p(có tô) ≥ 0,5),
+# không định nghĩa lại. Câu có thêm o_mo / vet_nho / tin_cay_thap / vi_tri -> KHÔNG hợp lệ (giáo viên quyết bằng mắt từng câu).
+LY_DO_HANG_LOAT = frozenset({"nhieu_o", "to_nhat"})
+
+
+def hop_le_hang_loat(reasons) -> bool:
+    r = set(reasons or [])
+    return bool(r) and r <= LY_DO_HANG_LOAT
 
 
 class XacNhanHangLoat(BaseModel):
     question_nos: list[int] = Field(min_length=1, max_length=40,
-                                    description="ĐÚNG các câu đã hiển thị trong hộp xác nhận (mọi câu cần xem trừ câu `vi_tri`); lệch -> 409")
+                                    description="ĐÚNG các câu đã hiển thị trong hộp xác nhận = mọi câu cần xem có lý do chỉ gồm `nhieu_o` / `to_nhat`. "
+                                                "Có câu loại khác (mờ, vết, lưng chừng, vị trí) -> 422 cả lô; danh sách cũ / lệch -> 409")
     confirm: Literal[True] = Field(description="Phải là true (giáo viên đã bấm nút trong hộp xác nhận)")
 
 
 class KetQuaHangLoat(BaseModel):
     sheet_id: int
     da_xac_nhan: list[int]
-    con_chon_tay: list[int] = Field(description="Câu cần xem vì vị trí – vẫn chờ giáo viên chọn tay")
+    con_chon_tay: list[int] = Field(description="Câu cần xem KHÔNG thuộc loại hàng loạt (mờ, vết, lưng chừng, vị trí) – vẫn chờ giáo viên chọn từng câu")
     status: str
     official: float | None
     provisional: float | None
@@ -51,12 +60,12 @@ class NhomPhieu(BaseModel):
 
 
 def cau_hang_loat(conn, sheet_id: int) -> tuple[list[dict], list[int]]:
-    """(câu được xác nhận nhanh [{question_no, omr, reasons}], câu phải chọn tay) – đọc CSDL, không khoá."""
+    """(câu hợp lệ cho hàng loạt [{question_no, omr, reasons}], câu phải chọn từng câu) – đọc CSDL, không khoá. Hợp lệ = hop_le_hang_loat (AF2)."""
     rows = conn.execute("SELECT question_no, omr_selected_options, review_reasons FROM sheet_answers "
                         "WHERE sheet_id = %s AND needs_review ORDER BY question_no", (sheet_id,)).fetchall()
     duoc = [{"question_no": r["question_no"], "omr": r["omr_selected_options"] or "", "reasons": list(r["review_reasons"] or [])}
-            for r in rows if not (set(r["review_reasons"] or []) & KHONG_XAC_NHAN_NHANH)]
-    tay = [r["question_no"] for r in rows if set(r["review_reasons"] or []) & KHONG_XAC_NHAN_NHANH]
+            for r in rows if hop_le_hang_loat(r["review_reasons"])]
+    tay = [r["question_no"] for r in rows if not hop_le_hang_loat(r["review_reasons"])]
     return duoc, tay
 
 
@@ -67,8 +76,12 @@ def xac_nhan_hang_loat(conn, sheet_id: int, question_nos: list[int], nd) -> dict
     if sh["status"] != "needs_review":
         raise service.XungDot(f"Phiếu {sheet_id} đang ở trạng thái '{sh['status']}', không có câu nào chờ xem.")
     duoc, tay = cau_hang_loat(conn, sheet_id)
+    bi_loai = sorted({n for n in question_nos if n in tay})                    # AF2: MÁY CHỦ quyết loại câu – có câu ngoài loại -> từ chối CẢ LÔ
+    if bi_loai:
+        raise service.DuLieuSai(f"Từ chối cả lô: {len(bi_loai)} câu không xác nhận hàng loạt được (câu {', '.join(map(str, bi_loai))}) – chỉ nhận câu "
+                                "'nhiều ô' / 'tô nhạt cả tờ'. Câu mờ / vết / lưng chừng / vị trí phải chọn từng câu bằng mắt. Chưa ghi câu nào.")
     if not duoc:
-        raise service.XungDot("Phiếu không còn câu trả lời nào xác nhận nhanh được (chỉ còn SBD / mã đề hoặc câu phải chọn tay).")
+        raise service.XungDot("Phiếu không còn câu 'nhiều ô' / 'tô nhạt cả tờ' nào chờ xem – các câu còn lại phải chọn từng câu.")
     gui, that = sorted(set(question_nos)), [c["question_no"] for c in duoc]
     if len(gui) != len(question_nos) or gui != that:
         raise service.XungDot(f"Danh sách câu đã thay đổi (máy chủ: {that}, màn hình: {sorted(question_nos)}) – tải lại phiếu rồi xem lại hộp xác nhận.")

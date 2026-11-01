@@ -1,22 +1,35 @@
 """Lệnh AF (01/11/2026): duyệt nhanh – POST /sheets/{id}/questions/confirm-remaining + GET /exams/{id}/review-groups.
 CSDL thật trong giao dịch ROLLBACK (conftest.py). Bất biến kiểm: mỗi câu đi qua đúng đường xác nhận từng câu (kết quả TRÙNG KHÍT với bấm từng câu);
-SBD / mã đề không bao giờ bị đụng; danh sách câu lệch -> 409 và không ghi gì; câu vi_tri không được xác nhận nhanh; có một dòng nhật ký; phân quyền."""
+SBD / mã đề không bao giờ bị đụng; danh sách câu lệch -> 409 và không ghi gì; câu vi_tri không được xác nhận nhanh; có một dòng nhật ký; phân quyền.
+Lệnh AF2: hàng loạt CHỈ cho câu nhieu_o / to_nhat -> ảnh thử đổi từ 0002_C2 (toàn câu mờ, nay không còn câu hợp lệ) sang BV07 (tô nhạt cả tờ,
+40 câu to_nhat); hang_loat() mặc định gửi đúng danh sách câu HỢP LỆ (như giao diện); câu vi_tri trong lô -> 422 (trước 409). Test riêng AF2: test_duyet_nhanh_af2.py."""
 import pytest
 
-from test_backend_api import RAW, can_anh, dem_results, giai_quyet_het, tai, tao_de, them_sv
+from conftest import can_file
+from test_backend_api import ROOT, can_anh, dem_results, giai_quyet_het, tai, tao_de, them_sv
 from test_dang_nhap import bang_moi, client_on, the_gioi  # noqa: F401  (fixture)
 
-ANH_OK = "0002_C2"          # dev: SBD / mã đề chắc, có câu mờ / nhiều ô cần xem, không câu vi_tri
-ANH_SBD = "0001_C1"         # dev: SBD cần xem (cột 6 không tô bubble)
-SBD_0002 = "795125"
+ANH_OK = ROOT / "data" / "_eval" / "demo_bv" / "anh_gia" / "BV07.jpg"   # BV07: SBD / mã đề chắc, 40 câu cần xem chỉ vì to_nhat, không câu vi_tri
+ANH_SBD = "0001_C1"         # dev: SBD cần xem (cột 6 không tô bubble); câu cần xem: mờ + nhiều ô
+SBD_0002 = "220007"         # SBD của BV07 (tên biến giữ từ AF)
+HL = {"nhieu_o", "to_nhat"}
 
 
 def can_xem(client, sid) -> list[int]:
     return [c["question_no"] for c in client.get(f"/sheets/{sid}/review-questions").json()]
 
 
+def can_xem_hl(client, sid) -> list[int]:
+    """Câu cần xem hợp lệ cho hàng loạt (AF2) – đúng danh sách giao diện gửi."""
+    return [c["question_no"] for c in client.get(f"/sheets/{sid}/review-questions").json() if c["reasons"] and set(c["reasons"]) <= HL]
+
+
 def hang_loat(client, sid, ds=None, **kw):
-    return client.post(f"/sheets/{sid}/questions/confirm-remaining", json={"question_nos": can_xem(client, sid) if ds is None else ds, "confirm": True}, **kw)
+    return client.post(f"/sheets/{sid}/questions/confirm-remaining", json={"question_nos": can_xem_hl(client, sid) if ds is None else ds, "confirm": True}, **kw)
+
+
+def tai_ok(client, eid):
+    return tai(client, eid, "BV07", du_lieu=ANH_OK.read_bytes())
 
 
 def cau_db(conn, sid) -> list[tuple]:
@@ -27,10 +40,10 @@ def cau_db(conn, sid) -> list[tuple]:
 
 @pytest.fixture
 def phieu_ok(client, conn_thu):
-    can_anh(ANH_OK)
+    can_file(ANH_OK)
     them_sv(conn_thu, SBD_0002)
     eid = tao_de(client)
-    r = tai(client, eid, ANH_OK)
+    r = tai_ok(client, eid)
     assert r.status_code == 201, r.text
     sid = r.json()["sheet_id"]
     v = client.get(f"/sheets/{sid}").json()
@@ -42,7 +55,7 @@ def phieu_ok(client, conn_thu):
 def test_hang_loat_trung_khit_xac_nhan_tung_cau(client, conn_thu, phieu_ok):
     eid, sid = phieu_ok
     eid2 = tao_de(client)                                       # cùng đề, cùng ảnh -> đường cũ: bấm "Xác nhận như máy đọc" từng câu
-    sid2 = tai(client, eid2, ANH_OK).json()["sheet_id"]
+    sid2 = tai_ok(client, eid2).json()["sheet_id"]
     ds = can_xem(client, sid)
     r = hang_loat(client, sid)
     assert r.status_code == 200, r.text
@@ -87,8 +100,9 @@ def test_danh_sach_lech_409_khong_ghi_gi(client, conn_thu, phieu_ok):
     ds = can_xem(client, sid)
     truoc = cau_db(conn_thu, sid)
     assert hang_loat(client, sid, ds[:-1]).status_code == 409                                   # thiếu một câu (màn hình cũ)
-    assert hang_loat(client, sid, ds + [40 if 40 not in ds else 1]).status_code == 409          # thừa một câu không cần xem
-    assert hang_loat(client, sid, ds + ds[:1]).status_code == 409                               # lặp
+    thua = next((n for n in range(1, 41) if n not in ds), 41)                                   # BV07: cả 40 câu đều cần xem -> câu 41 (không tồn tại)
+    assert hang_loat(client, sid, ds[1:] + [thua]).status_code == 409                           # có một câu không cần xem (giữ ≤ 40 phần tử)
+    assert hang_loat(client, sid, ds[:-1] + ds[:1]).status_code == 409                          # lặp (giữ ≤ 40 phần tử)
     assert cau_db(conn_thu, sid) == truoc
     # ai đó vừa duyệt một câu -> danh sách màn hình cũ lệch -> 409
     assert client.post(f"/sheets/{sid}/questions/{ds[0]}/review", json={"action": "confirm"}).status_code == 200
@@ -110,13 +124,13 @@ def test_cau_vi_tri_khong_xac_nhan_nhanh(client, conn_thu, phieu_ok):
     n_tay = ds[0]                                                                               # giả lập: câu này cần xem vì vị trí
     conn_thu.execute("UPDATE sheet_answers SET review_reasons = array_append(review_reasons, 'vi_tri') WHERE sheet_id = %s AND question_no = %s",
                      (sid, n_tay))
-    assert hang_loat(client, sid, ds).status_code == 409                                       # gửi kèm câu vi_tri -> lệch
+    assert hang_loat(client, sid, ds).status_code == 422                                       # AF2: lô có câu vi_tri -> từ chối CẢ LÔ (422; AF: 409)
     r = hang_loat(client, sid, ds[1:])
     assert r.status_code == 200, r.text
     j = r.json()
     assert j["da_xac_nhan"] == ds[1:] and j["con_chon_tay"] == [n_tay] and j["status"] == "needs_review" and j["official"] is None
     assert can_xem(client, sid) == [n_tay]
-    assert hang_loat(client, sid, [n_tay]).status_code == 409                                  # chỉ còn câu chọn tay: không xác nhận nhanh được
+    assert hang_loat(client, sid, [n_tay]).status_code == 422                                  # chỉ còn câu chọn tay: không xác nhận nhanh được (AF2: 422)
 
 
 def test_khong_bao_gio_dung_sbd_ma_de(client, conn_thu):
@@ -127,6 +141,8 @@ def test_khong_bao_gio_dung_sbd_ma_de(client, conn_thu):
     assert v0["status"] == "needs_review" and v0["sbd"]["can_xem"]
     od0 = conn_thu.execute("SELECT detected_sbd, detected_exam_code, omr_detail FROM answer_sheets WHERE sheet_id = %s", (sid,)).fetchone()
     dg0 = conn_thu.execute("SELECT field, position, corrected_digit FROM ocr_digits WHERE sheet_id = %s ORDER BY field, position", (sid,)).fetchall()
+    con_tay = [n for n in can_xem(client, sid) if n not in can_xem_hl(client, sid)]               # AF2: câu mờ ở lại cho giáo viên
+    assert can_xem_hl(client, sid), "0001_C1 phải có câu 'nhiều ô'"
     r = hang_loat(client, sid)
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "needs_review" and r.json()["official"] is None                # SBD chưa chốt -> chưa có điểm chính thức
@@ -135,7 +151,7 @@ def test_khong_bao_gio_dung_sbd_ma_de(client, conn_thu):
     assert conn_thu.execute("SELECT detected_sbd, detected_exam_code, omr_detail FROM answer_sheets WHERE sheet_id = %s", (sid,)).fetchone() == od0
     assert conn_thu.execute("SELECT field, position, corrected_digit FROM ocr_digits WHERE sheet_id = %s ORDER BY field, position", (sid,)).fetchall() == dg0
     assert dem_results(conn_thu, sid) == 0
-    assert can_xem(client, sid) == []                                                          # câu trả lời hết; còn SBD chờ giáo viên
+    assert can_xem(client, sid) == con_tay                                                     # câu nhiều ô hết; câu mờ + SBD còn chờ giáo viên (AF: [])
 
 
 def test_ky_thi_dong_giong_xac_nhan_tung_cau(client, conn_thu, phieu_ok):
@@ -161,9 +177,9 @@ def test_review_groups_chi_doc(client, conn_thu, phieu_ok):
 
 # ------------------------------------------------------------------------------------------------ phân quyền (AUTH_MODE=on)
 def test_phan_quyen_hang_loat_va_nhom(the_gioi, conn_thu):
-    can_anh(ANH_OK)
+    can_file(ANH_OK)
     w = the_gioi
-    r = w.c.post(f"/exams/{w.EA}/sheets", headers=w.hA, files={"file": (f"{ANH_OK}.jpg", (RAW / f"{ANH_OK}.jpg").read_bytes(), "image/jpeg")})
+    r = w.c.post(f"/exams/{w.EA}/sheets", headers=w.hA, files={"file": ("BV07.jpg", ANH_OK.read_bytes(), "image/jpeg")})
     assert r.status_code == 201, r.text
     sid = r.json()["sheet_id"]
     ds = [c["question_no"] for c in w.c.get(f"/sheets/{sid}/review-questions", headers=w.hA).json()]
