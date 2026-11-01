@@ -79,3 +79,17 @@ Lưu ý kỹ thuật cho người trình bày:
 ## 5. Sau buổi demo
 - Ctrl+C tắt server. Xoá luật tường lửa (PowerShell quản trị): `Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"`.
 - Muốn giữ kết quả demo: `& $py tools/sao_luu_demo.py`. Muốn dọn: `tools/dat_lai_demo.py` (xem trước → `--xac-nhan DAT_LAI`).
+
+## 6. Nhánh `ui-sau-bv` (lệnh AA, 31/10/2026) – CHƯA gộp, KHÔNG dùng cho buổi bảo vệ
+Bản bảo vệ vẫn là nhánh **`cai-tien-b`**; mọi bước ở mục 1–5 mô tả bản đó. Nếu sau này gộp `ui-sau-bv`, giáo viên thấy thêm (chỉ giao diện, API / CSDL / logic chấm không đổi):
+- **Màn Duyệt phiếu – khung "Chốt số báo danh / mã đề"** (bước 4):
+  - Con trỏ đặt sẵn ở ô SBD đúng (hoặc ô mã đề nếu chỉ mã đề cần chốt) – máy KHÔNG điền thay.
+  - Khối **phóng to** mỗi cột cần nhìn: chữ số ô tô cỡ lớn + ảnh ô viết tay ~110 px. Cột cần nhìn trong bảng hai kênh có khung đỏ; cột đã khớp chữ nhạt.
+  - **Phím tắt**: `Tab` từ ô SBD sang ô mã đề, `Enter` = Lưu (gợi ý phím hiện cạnh nút Lưu).
+  - **Báo lỗi ngay tại ô**: SBD không có trong danh sách dự thi (vd BV10 gõ 220010) / mã đề không thuộc kỳ thi → dòng hổ phách dưới ô + nút **gợi ý** (SBD gần giống
+    trong danh sách; mọi mã đề hợp lệ). Bấm gợi ý chỉ ĐIỀN vào ô; khi Lưu, giá trị ngoài danh sách hoặc lấy từ gợi ý phải bấm **xác nhận** (Huỷ = không lưu).
+    Chữ không phải số → ô đỏ, không lưu được.
+  - Sau khi lưu: thông báo xanh + nút **Phiếu cần xem kế tiếp (#…)** (cũng có ở đầu trang) – không phải quay về hàng đợi.
+- **Trang `/m`**: khối **"Hướng dẫn chụp thẳng"** (chạm để mở / thu gọn): song song với tờ giấy, đủ 4 ô vuông đen, đủ sáng không bóng đổ, chữ số rõ trong ô.
+- **Bảng màu** xanh ngọc – xanh dương dịu mắt cho mọi màn (`frontend/mau.css`); trạng thái vẫn luôn có chữ (Chính thức / Cần xem / Bị từ chối).
+Ảnh trước / sau: `data/_eval/ui_aa/truoc/`, `data/_eval/ui_aa/sau/` (`python tools/thu_lenh_aa.py --giai-doan sau`, chỉ ROLLBACK).

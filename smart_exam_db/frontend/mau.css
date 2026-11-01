@@ -1,0 +1,24 @@
+/* Bảng màu DÙNG CHUNG cho /app/ (style.css) và /m (m.css) – lệnh AA phần B. MỌI màu của giao diện chỉ định nghĩa ở đây.
+   Tinh thần: xanh ngọc – xanh dương dịu mắt, nền sáng; KHÔNG có chế độ tối.
+   Tương phản kiểm bằng: python tools/kiem_tuong_phan.py (chữ thường ≥ 4,5:1, chữ lớn ≥ 3:1); test tests/test_tuong_phan.py. */
+:root{
+  /* nền / chữ / viền */
+  --bg:#F3F8F8; --card:#FFFFFF; --ink:#1E2A32; --mut:#566670; --line:#D3E1E2;
+  --vien-o:#6F808A;                         /* viền Ô NHẬP (input / select / textarea) – ≥ 3:1 với thẻ, nền trang, thanh bên (lệnh AB); viền thẻ vẫn --line */
+  --th:#E8F1F2; --hover:#EEF6F6; --xam-nen:#EAF0F1;
+  /* màu chủ đạo (nút chính, mục đang chọn) + màu nhấn thứ hai */
+  --pri:#1F7A8C; --pri-dam:#17606E; --pri-nhat:#E0F0F2; --tren-pri:#FFFFFF;
+  --pri2:#3A6EA5; --pri2-nhat:#EAF1F9;      /* #E3ECF6 chỉ đạt 4,45:1 với --pri2 -> sáng hơn */
+  --link:#2A5F99;
+  /* thanh bên */
+  --side:#E4F0F0; --side-muc:#FFFFFF;
+  /* trạng thái: LUÔN kèm chữ (Chính thức / Cần xem / Bị từ chối), không chỉ dựa vào màu */
+  --ok:#276B4E; --okbg:#E3F3EA;             /* đề nghị #2E7D5B chỉ đạt 4,35:1 trên --okbg -> đậm hơn một chút */ --ok-vien:#A6D3BC;
+  --warn:#8A5A00; --warnbg:#FFF3D6; --warn-vien:#E6BE6A;
+  --bad:#A93226; --badbg:#FBE4E1; --bad-vien:#E9A79E;
+  /* lớp phủ, thông báo nổi, đổ bóng, bo góc */
+  --toast:#1E2A32; --phu:rgba(30,42,50,.45);
+  --bong:0 1px 2px rgba(30,42,50,.06),0 2px 8px rgba(30,42,50,.06);
+  --bong-nho:0 1px 2px rgba(30,42,50,.08);
+  --r:10px; --r-lon:12px; --r-nho:6px;
+}

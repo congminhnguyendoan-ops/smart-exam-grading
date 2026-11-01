@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2f5fd0">
+<meta name="theme-color" content="#1F7A8C"><!-- = --pri trong mau.css (thẻ meta không đọc được biến CSS) -->
 <title>Smart Exam – Chụp phiếu</title>
 <link rel="icon" href="data:,">
+<link rel="stylesheet" href="/app/mau.css">
 <link rel="stylesheet" href="/app/m.css">
 </head>
 <body>
@@ -35,6 +36,17 @@
 <section id="v-cap" class="view hidden">
   <button type="button" id="doi-ky-thi" class="exam-head"><span id="cap-sub" class="sub"></span><b id="cap-title"></b><span class="sub">Đổi kỳ thi ›</span></button>
   <div id="cap-dong" class="msg bad hidden">Kỳ thi này ĐÃ ĐÓNG – máy chủ không nhận ảnh mới. Nhờ quản trị viên mở lại nếu cần.</div>
+  <!-- AA3: hướng dẫn chụp thẳng – chỉ HTML/CSS (details/summary), không đổi logic camera hay hàng đợi gửi -->
+  <details id="hd-chup" class="hd-chup">
+    <summary>Hướng dẫn chụp thẳng <span class="hint">(chạm để xem / thu gọn)</span></summary>
+    <ol>
+      <li><b>Giữ điện thoại song song với tờ giấy</b> – nhìn thẳng từ trên xuống, không chụp xiên.</li>
+      <li><b>Thấy đủ 4 ô vuông đen</b> ở 4 góc phiếu, không ô nào sát mép hoặc bị cắt.</li>
+      <li><b>Đủ sáng, không bóng đổ</b> – không để bóng tay / bóng điện thoại đè lên phiếu; tránh đèn chói phản chiếu.</li>
+      <li><b>Viết chữ số rõ trong ô</b> SBD và mã đề – mỗi ô một chữ số, không lấn ra viền.</li>
+      <li>Giữ yên tay đến khi chụp xong để ảnh không bị nhoè.</li>
+    </ol>
+  </details>
   <div id="tong-ket" class="tong-ket">
     <div class="so" id="tk-so"></div>
     <div class="row-tong"><label class="tong-to">Tổng số tờ <input id="tong-to" type="number" inputmode="numeric" min="1" max="500" value="40"></label>
