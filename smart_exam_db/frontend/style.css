@@ -104,3 +104,16 @@ select,textarea{color:var(--ink);background:var(--card);border:1px solid var(--v
 .pager{display:flex;gap:8px;align-items:center;margin-top:10px}
 /* G2: tên tệp ảnh rút gọn – không làm giãn dòng bảng; tên đầy đủ ở title */
 .tentep{display:inline-block;max-width:26ch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+
+/* Lệnh AF – duyệt nhanh: câu đang chọn (phím tắt tác động), nhãn "máy đọc / dấu hiệu", nhóm hàng đợi, hộp xác nhận hàng loạt. Chỉ biến màu của mau.css. */
+.rcard.hien-tai{border-color:var(--pri);box-shadow:0 0 0 2px var(--pri)}
+.rcard:focus{outline:3px solid var(--pri);outline-offset:2px}
+.nhan-cau{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}
+.nhan-cau .tag{color:var(--ink);background:var(--xam-nen);border-color:var(--line)}
+.nhan-cau.muc-nhieu .dau-hieu{color:var(--pri2);background:var(--pri2-nhat);border-color:var(--pri2)}
+.nhan-cau.muc-mo .dau-hieu,.nhan-cau.muc-vet .dau-hieu,.nhan-cau.muc-nhat .dau-hieu{color:var(--warn);background:var(--warnbg);border-color:var(--warn-vien)}
+.nhan-cau.muc-tay .dau-hieu{color:var(--bad);background:var(--badbg);border-color:var(--bad-vien)}
+.ds-hl{max-height:40vh;overflow:auto;padding-left:20px}
+.tag[class*="nhom-"]{color:var(--ink);background:var(--xam-nen);border-color:var(--line)}
+.tag.nhom-dinh_danh,.tag.nhom-trung,.tag.nhom-vi_tri{color:var(--warn);background:var(--warnbg);border-color:var(--warn-vien)}
+.hl-tich{display:flex;gap:8px;align-items:flex-start;margin:12px 0}.hl-tich input{margin-top:3px;flex:none}

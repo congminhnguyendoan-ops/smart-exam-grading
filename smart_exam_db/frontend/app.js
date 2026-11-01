@@ -439,12 +439,27 @@ async function khoiTuChoi(p) {
 }
 
 /* ------------------------------------------------------------------ F4: duyệt */
+/* AF4: hàng đợi lọc / nhóm theo lý do chính (GET /exams/{id}/review-groups) – CHỈ hiển thị, không đổi trạng thái phiếu nào. */
+const LY_DO_NGAN = { o_mo: "mờ", nhieu_o: "nhiều ô", vet_nho: "vết nhỏ", to_nhat: "tô nhạt", tin_cay_thap: "sát ngưỡng", vi_tri: "vị trí" };
 async function manHangDoi() {
-  const ds = await api(`/exams/${state.examId}/sheets?status=needs_review`);
-  main.innerHTML = `<h2>Hàng đợi duyệt (${ds.length})</h2><div class="card"><table><thead><tr><th>#</th><th>Ảnh</th><th>SBD</th><th>Mã đề</th><th>Câu cần xem</th><th>Điểm tạm</th><th></th></tr></thead><tbody>
-    ${ds.map((p) => `<tr class="${state.moi.has(p.sheet_id) ? "moi" : ""}"><td>${p.sheet_id}${state.moi.has(p.sheet_id) ? ' <span class="tag ok">mới</span>' : ""}</td><td>${tenTepHtml(p.original_filename)}</td><td>${esc(p.detected_sbd || "–")}</td><td>${esc(p.detected_exam_code || "–")}</td>
-      <td>${p.pending_questions}</td><td>${diemTomTat(p)}</td><td><a class="btn pri" href="#/review/${p.sheet_id}">Duyệt</a></td></tr>`).join("")
-      || '<tr><td colspan="7" class="muted">Không còn phiếu nào cần duyệt.</td></tr>'}</tbody></table></div>`;
+  const ds = await api(`/exams/${state.examId}/review-groups`);
+  const dem = {};
+  ds.forEach((g) => { const k = DuyetNhanh.nhomPhieu(g); dem[k] = (dem[k] || 0) + 1; });
+  if (state.locNhom && !dem[state.locNhom]) state.locNhom = "";
+  const hien = DuyetNhanh.locSapHangDoi(ds, state.locNhom || "");
+  const lyDo = (g) => Object.entries(g.ly_do_cau || {}).map(([r, n]) => `${LY_DO_NGAN[r] || esc(r)} ${n}`).join(" · ");
+  const dd = (g) => [g.sbd_can_xem && "SBD", g.ma_de_can_xem && "mã đề", g.chua_ghep && !g.sbd_can_xem && !g.ma_de_can_xem && "chưa ghép"].filter(Boolean).join(", ");
+  main.innerHTML = `<h2>Hàng đợi duyệt (${ds.length})</h2><div class="card">
+    <div class="row"><label>Lọc theo lý do <select id="loc-nhom"><option value="">Tất cả – nhóm dễ trước</option>
+      ${DuyetNhanh.THU_TU_NHOM.filter((k) => dem[k]).map((k) => `<option value="${k}" ${k === state.locNhom ? "selected" : ""}>${DuyetNhanh.TEN_NHOM[k]} (${dem[k]})</option>`).join("")}</select></label>
+      <span class="muted small">Chỉ sắp xếp / lọc để hiển thị – không đổi trạng thái phiếu nào.</span></div>
+    <table><thead><tr><th>#</th><th>Ảnh</th><th>SBD</th><th>Nhóm</th><th>Câu cần xem</th><th>SBD / mã đề</th><th>Điểm tạm</th><th></th></tr></thead><tbody>
+    ${hien.map((g) => `<tr class="${state.moi.has(g.sheet_id) ? "moi" : ""}" data-nhom="${g.nhom}"><td>${g.sheet_id}${state.moi.has(g.sheet_id) ? ' <span class="tag ok">mới</span>' : ""}</td><td>${tenTepHtml(g.original_filename)}</td><td>${esc(g.detected_sbd || "–")}</td>
+      <td><span class="tag nhom-${g.nhom}">${DuyetNhanh.TEN_NHOM[g.nhom]}</span></td><td>${g.so_cau}${g.so_cau ? ` <span class="muted small">(${lyDo(g)})</span>` : ""}</td>
+      <td>${dd(g) ? `<span class="tag warn">${dd(g)}</span>` : '<span class="muted">–</span>'}</td><td>${g.provisional === null || g.provisional === undefined ? "–" : fmt(g.provisional)}</td>
+      <td><a class="btn pri" href="#/review/${g.sheet_id}">Duyệt</a></td></tr>`).join("")
+      || '<tr><td colspan="8" class="muted">Không còn phiếu nào cần duyệt.</td></tr>'}</tbody></table></div>`;
+  $("#loc-nhom").addEventListener("change", (e) => { state.locNhom = e.target.value; manHangDoi(); });
 }
 
 const daXem = {};   // sheet_id -> Set(question_no) đã duyệt trong phiên này (hiện thẻ "đã chốt" thay vì biến mất)
@@ -478,6 +493,7 @@ async function manDuyet(id, { datTieuDiem = false, daLuu = false } = {}) {
     ${baoDaLuu}
     ${dinhDanhCan ? khungDinhDanh(p) : ""}
     <h3>Câu cần xem (${p.questions.filter((q) => q.needs_review).length} còn lại)</h3>
+    ${p.status === "needs_review" ? khungNhanh(p) : ""}
     ${the.map((q) => theCau(id, q)).join("") || '<p class="muted">Không có câu nào cần xem.</p>'}`;
   if (trung) {
     $("#trung-bo").addEventListener("click", () => boPhieuTrung(id, trung));
@@ -486,8 +502,101 @@ async function manDuyet(id, { datTieuDiem = false, daLuu = false } = {}) {
   if (dinhDanhCan) ganDinhDanh(id, p, dsSbd, datTieuDiem);
   if (daLuu) $("#da-luu-dd").scrollIntoView({ block: "center" });
   main.querySelectorAll(".rcard").forEach((el) => gan(el, id));
+  const nut = $("#xn-tat-ca");
+  if (nut) nut.addEventListener("click", () => moXacNhanHangLoat(id, p, { dinhDanhCan, trung }));
+  datHienTai(id, cauHT[id], !(dinhDanhCan && datTieuDiem));                     // không giành tiêu điểm của ô SBD / mã đề (AA2)
   await napChiTietKyThi();
 }
+
+/* ------------------------------------------------------------------ AF: duyệt nhanh (phím tắt, xác nhận hàng loạt) */
+const cauHT = {};   // sheet_id -> số câu đang chọn (phím tắt tác động lên câu này)
+const PHIM_GOI_Y = `Phím tắt: <kbd>A</kbd>–<kbd>D</kbd> chọn đáp án · <kbd>Space</kbd> xác nhận như máy đọc · <kbd>Enter</kbd> lưu lựa chọn và sang câu kế ·
+  <kbd>N</kbd> phiếu cần xem kế tiếp · <kbd>Esc</kbd> bỏ chọn <span class="muted">(không tác dụng khi đang gõ trong ô SBD / mã đề)</span>`;
+function khungNhanh(p) {
+  const hl = DuyetNhanh.cauHangLoat(p.questions);
+  if (!hl.duoc.length && !hl.tay.length) return "";
+  return `<div class="card" id="khung-nhanh">
+    ${hl.duoc.length ? `<div class="row"><button type="button" id="xn-tat-ca">Xác nhận tất cả ${hl.duoc.length} câu còn lại như máy đọc…</button>
+      <span class="small muted">Chỉ câu trả lời bên dưới${hl.tay.length ? ` – trừ ${hl.tay.length} câu phải chọn tay (vị trí)` : ""}. SBD / mã đề KHÔNG nằm trong thao tác này.
+      Sẽ hỏi lại trước khi làm.</span></div>` : ""}
+    <p class="small muted phim-goi-y" id="goi-y-phim">${PHIM_GOI_Y}</p></div>`;
+}
+const cauConLai = () => [...main.querySelectorAll(".rcard:not(.done)")].map((el) => Number(el.dataset.q));
+function datHienTai(id, n, layTieuDiem = false) {
+  const con = cauConLai();
+  if (!con.length) { delete cauHT[id]; return; }
+  cauHT[id] = con.includes(n) ? n : con[0];
+  main.querySelectorAll(".rcard").forEach((el) => el.classList.toggle("hien-tai", Number(el.dataset.q) === cauHT[id]));
+  const el = main.querySelector(`.rcard[data-q="${cauHT[id]}"]`);
+  if (layTieuDiem && el) el.focus({ preventScroll: false });
+}
+/* AF2: hộp xác nhận – liệt kê từng câu + đáp án máy đọc, ô "đã nhìn ảnh" phải tích, tiêu điểm mặc định ở "Huỷ", nút xác nhận KHÔNG bấm sẵn. */
+function moXacNhanHangLoat(id, p, { dinhDanhCan, trung }) {
+  const hl = DuyetNhanh.cauHangLoat(p.questions);
+  if (!hl.duoc.length) return;
+  const seChot = !dinhDanhCan && !trung && !hl.tay.length;
+  const cu = $("#dlg-hl"); if (cu) cu.remove();
+  const dlg = document.createElement("div");
+  dlg.id = "dlg-hl"; dlg.className = "modal"; dlg.setAttribute("role", "dialog"); dlg.setAttribute("aria-modal", "true"); dlg.setAttribute("aria-labelledby", "dlg-hl-h");
+  dlg.innerHTML = `<div class="modal-box"><h2 id="dlg-hl-h">Xác nhận ${hl.duoc.length} câu như máy đọc?</h2>
+    <p>Phiếu #${id}. Mỗi câu dưới đây được chốt ĐÚNG như máy đọc – giống bấm "Xác nhận như máy đọc" từng câu:</p>
+    <ul class="ds-hl">${DuyetNhanh.dongXacNhan(hl.duoc).map((t, i) => `<li><a href="#" data-xem="${hl.duoc[i].question_no}">${esc(t)}</a></li>`).join("")}</ul>
+    <div class="alert warn"><b>Không hoàn tác được</b>: câu đã xác nhận không mở lại được trên hệ thống hiện tại.
+      ${seChot ? "Sau thao tác này phiếu hết mục cần xem nên sẽ <b>chốt điểm chính thức</b>." : "Phiếu vẫn còn mục khác chờ bạn (SBD / mã đề, câu chọn tay hoặc trùng SBD) – chưa có điểm chính thức."}
+      SBD / mã đề không bị thay đổi.</div>
+    <label class="hl-tich"><input type="checkbox" id="hl-da-xem"> Tôi đã nhìn ảnh từng câu ở trên và đồng ý máy đọc đúng</label>
+    <div class="row"><button type="button" id="hl-huy">Huỷ</button><button type="button" class="pri" id="hl-ok" disabled>Xác nhận ${hl.duoc.length} câu</button></div></div>`;
+  document.body.appendChild(dlg);
+  const dong = () => { dlg.remove(); const el = main.querySelector(`.rcard[data-q="${cauHT[id]}"]`); if (el) el.focus(); };
+  $("#hl-da-xem", dlg).addEventListener("change", (e) => { $("#hl-ok", dlg).disabled = !e.target.checked; });
+  $("#hl-huy", dlg).addEventListener("click", dong);
+  dlg.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); dong(); } });
+  dlg.querySelectorAll("[data-xem]").forEach((a) => a.addEventListener("click", (e) => {     // xem lại câu: đóng hộp, cuộn tới thẻ câu đó
+    e.preventDefault(); dlg.remove(); datHienTai(id, Number(a.dataset.xem), true);
+    const el = main.querySelector(`.rcard[data-q="${a.dataset.xem}"]`); if (el) el.scrollIntoView({ block: "center" });
+  }));
+  $("#hl-ok", dlg).addEventListener("click", async () => {
+    if (!$("#hl-da-xem", dlg).checked) return;
+    $("#hl-ok", dlg).disabled = true;
+    try {
+      const r = await post(`/sheets/${id}/questions/confirm-remaining`, { question_nos: hl.duoc.map((c) => c.question_no), confirm: true });
+      r.da_xac_nhan.forEach((n) => daXem[id].add(n));
+      dlg.remove();
+      toast(`Đã xác nhận ${r.da_xac_nhan.length} câu như máy đọc.${r.status === "graded" ? " Phiếu đã chốt điểm chính thức." : ""}`);
+      await manDuyet(id);
+    } catch (e) { toast(e.message, true); $("#hl-ok", dlg).disabled = !$("#hl-da-xem", dlg).checked; }
+  });
+  $("#hl-huy", dlg).focus();
+}
+/* AF1: phím tắt màn duyệt câu (logic: DuyetNhanh.phimCau). Không bắt phím trong ô nhập / khung SBD–mã đề / hộp thoại. */
+document.addEventListener("keydown", (ev) => {
+  const m = /^#\/review\/(\d+)/.exec(location.hash);
+  if (!m || ev.isComposing) return;
+  const id = Number(m[1]), t = ev.target;
+  const dt = $("#dlg-dt");
+  const a = DuyetNhanh.phimCau(ev.key, { tag: t && t.tagName, laNut: !!(t && t.closest && t.closest("button, a, label")),
+    trongKhungDd: !!(t && t.closest && t.closest("#khung-dd, #khung-trung")), phu: ev.ctrlKey || ev.altKey || ev.metaKey,
+    dangMoHop: !!$("#dlg-hl") || !!(dt && !dt.classList.contains("hidden")) });
+  if (!a) return;
+  const el = main.querySelector(`.rcard[data-q="${cauHT[id]}"]:not(.done)`);
+  if (a.loai === "phieu_ke_tiep") {
+    ev.preventDefault();
+    const k = $("#ke-tiep") || $("#ke-tiep-sau-luu");
+    if (k) location.hash = k.getAttribute("href"); else toast("Không còn phiếu cần xem khác.");
+    return;
+  }
+  if (!el) return;
+  ev.preventDefault();
+  if (a.loai === "chon") { const b = el.querySelector(`.opts button[data-o="${a.o}"]`); if (b) b.classList.toggle("sel"); }
+  else if (a.loai === "bo_chon") el.querySelectorAll(".opts .sel").forEach((b) => b.classList.remove("sel"));
+  else if (a.loai === "xac_nhan") {
+    const b = el.querySelector('[data-act="confirm"]');
+    if (b && !b.disabled) b.click(); else toast("Câu này phải chọn tay (máy chưa chắc vị trí hàng): bấm A–D rồi Enter.", true);
+  } else if (a.loai === "luu") {
+    if (el.querySelector(".opts .sel")) el.querySelector('[data-act="set"]').click();
+    else toast("Chọn đáp án bằng A–D trước, hoặc bấm Space để xác nhận như máy đọc.", true);
+  }
+});
 /* Phiếu bị giữ vì trùng SBD với một phiếu đã có điểm chính thức: giáo viên chọn giữ phiếu cũ hay dùng phiếu này. Không bao giờ tự động. */
 function khungTrung(p, cu, pc) {
   const diemCu = pc && pc.score && pc.score.official !== null ? `${fmt(pc.score.official)} / ${fmt(pc.score.max_score)}` : "–";
@@ -609,9 +718,12 @@ function theCau(id, q) {
   const xong = !q.needs_review;
   const viTri = q.reasons.includes("vi_tri");
   const dacMay = q.omr_selected_options || "bỏ trống";
-  return `<div class="rcard ${xong ? "done" : ""}" data-q="${q.question_no}">
+  const nh = DuyetNhanh.nhanCau(q);                                               // AF5: "máy đọc X · dấu hiệu Y" + gợi ý quyết nhanh
+  return `<div class="rcard ${xong ? "done" : ""}" data-q="${q.question_no}" id="the-cau-${q.question_no}" ${xong ? "" : 'tabindex="0"'} aria-label="Câu ${q.question_no}">
     <div><img src="/sheets/${id}/questions/${q.question_no}/image" alt="câu ${q.question_no}" loading="lazy"></div>
     <div><h3>Câu ${q.question_no} ${xong ? '<span class="tag ok">đã chốt</span>' : ""}</h3>
+      ${xong ? "" : `<p class="nhan-cau muc-${nh.muc}"><span class="tag">Máy đọc: <b>${esc(nh.may_doc)}</b></span> <span class="tag dau-hieu">Dấu hiệu: ${esc(nh.dau_hieu || "–")}</span>
+        ${nh.goi_y ? `<span class="small muted">${esc(nh.goi_y)}</span>` : ""}</p>`}
       <p>Máy đọc: <b>${esc(dacMay)}</b> · lý do: ${q.reasons.map((r) => LY_DO_CAU[r] || r).join(", ") || "–"}</p>
       ${xong ? `<p>Đáp án đã chốt: <b>${esc(q.selected_options || "bỏ trống")}</b>${q.manually_edited ? " (giáo viên sửa)" : " (xác nhận như máy đọc)"}</p>` : `
       <div class="opts row">${["A", "B", "C", "D"].map((o) => `<button type="button" data-o="${o}">${o}</button>`).join("")}<span class="muted small">(chọn nhiều ô nếu thực sự tô 2 ô)</span></div>
@@ -622,6 +734,7 @@ function theCau(id, q) {
 }
 function gan(el, id) {
   const n = Number(el.dataset.q);
+  if (!el.classList.contains("done")) el.addEventListener("focusin", () => datHienTai(id, n));    // bấm / Tab vào thẻ -> phím tắt tác động lên câu này
   el.querySelectorAll(".opts button").forEach((b) => b.addEventListener("click", () => b.classList.toggle("sel")));
   el.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", async () => {
     const act = b.dataset.act;
@@ -634,7 +747,8 @@ function gan(el, id) {
       body = { action: "set", selected_options: ch };
     }
     el.querySelectorAll("button").forEach((x) => (x.disabled = true));
-    try { await post(`/sheets/${id}/questions/${n}/review`, body); daXem[id].add(n); toast(`Câu ${n} đã chốt.`); await manDuyet(id); }
+    const keTiepCau = DuyetNhanh.cauKeTiep(cauConLai(), n);                       // lưu xong sang câu kế (AF1: Enter = lưu và sang câu kế)
+    try { await post(`/sheets/${id}/questions/${n}/review`, body); daXem[id].add(n); cauHT[id] = keTiepCau; toast(`Câu ${n} đã chốt.`); await manDuyet(id); }
     catch (e) { toast(e.message, true); el.querySelectorAll("button").forEach((x) => (x.disabled = false)); }
   }));
 }

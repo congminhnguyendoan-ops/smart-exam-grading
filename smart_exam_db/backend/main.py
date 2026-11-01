@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from urllib.parse import quote
 
-from . import auth, bang_diem, don_anh, loi_khuyen, mang, nguoi_dung, nhat_ky, phan_quyen, phieu_trung, quan_tri, schemas, service, trang_bia
+from . import auth, bang_diem, don_anh, duyet_nhanh, loi_khuyen, mang, nguoi_dung, nhat_ky, phan_quyen, phieu_trung, quan_tri, schemas, service, trang_bia
 from .config import CauHinh, LoiCauHinh, lay_cau_hinh
 from .db import ket_noi
 
@@ -300,6 +300,24 @@ def xu_ly_cau(sheet_id: int, question_no: int, body: schemas.XuLyCau, conn=Depen
     phan_quyen.kiem_phieu(conn, nd, sheet_id)
     service.xu_ly_cau(conn, sheet_id, question_no, body.action, body.selected_options, nd.user_id, body.note)
     return service.xem_phieu(conn, sheet_id)
+
+
+@app.post("/sheets/{sheet_id}/questions/confirm-remaining", response_model=duyet_nhanh.KetQuaHangLoat, tags=["Review"],
+          summary="Lệnh AF: xác nhận TẤT CẢ câu trả lời còn cần xem của MỘT phiếu như máy đọc (KHÔNG gồm SBD / mã đề)")
+def xac_nhan_hang_loat(sheet_id: int, body: duyet_nhanh.XacNhanHangLoat, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
+    """Mỗi câu đi qua đúng đường `POST /sheets/{id}/questions/{n}/review` action=confirm (service.xu_ly_cau). Câu `vi_tri` bị loại (chọn tay).
+    `question_nos` phải trùng đúng danh sách máy chủ đang có (lệch -> 409, không ghi gì). Một giao dịch; ghi một dòng nhật ký. Không hoàn tác được."""
+    phan_quyen.kiem_phieu(conn, nd, sheet_id)
+    return duyet_nhanh.xac_nhan_hang_loat(conn, sheet_id, body.question_nos, nd)
+
+
+@app.get("/exams/{exam_id}/review-groups", response_model=list[duyet_nhanh.NhomPhieu], tags=["Review"],
+         summary="Lệnh AF: hàng đợi duyệt kèm lý do từng phiếu (để lọc / nhóm – chỉ đọc)")
+def nhom_hang_doi(exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
+    phan_quyen.kiem_ky_thi(conn, nd, exam_id)
+    if not conn.execute("SELECT 1 FROM exams WHERE exam_id = %s", (exam_id,)).fetchone():
+        raise service.KhongTimThay(f"Không có kỳ thi {exam_id}.")
+    return duyet_nhanh.nhom_hang_doi(conn, exam_id)
 
 
 @app.put("/sheets/{sheet_id}/identity", response_model=schemas.PhieuOut, tags=["Review"],

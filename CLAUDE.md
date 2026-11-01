@@ -373,6 +373,15 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - Đề xuất (CHƯA áp dụng, chỉnh trên dev → thử đợt 2): ĐX1 nhiều ô toàn đậm (θ1 = 0,95) → chấm sai tự động: đợt 2 gỡ 54/397, 0 sai; ĐX2 luật mềm SBD (τ2 = 0,4): đợt 2 gỡ 2 cột, ảnh 9→8/20, 0 sai,
   mô phỏng tô sai bubble bị nhận 0,74%; ĐX3 "dấu mờ = có chọn": đợt 2 gỡ 147 nhưng 10 sai âm thầm → KHÔNG nên.
 
+### 4i. Lệnh AF – duyệt nhanh cho giáo viên (01/11/2026, nhánh `hoan-thien`, đã gộp `ui-sau-bv` = lệnh AA/AB; không đổi cách chấm / ngưỡng / mô hình)
+- API mới (`backend/duyet_nhanh.py`): `POST /sheets/{id}/questions/confirm-remaining` {question_nos, confirm:true} – xác nhận MỌI câu trả lời còn cần xem như máy đọc, mỗi câu qua đúng
+  `service.xu_ly_cau(confirm)`; KHÔNG đụng SBD / mã đề; loại câu `vi_tri` (chọn tay); danh sách lệch máy chủ → 409, không ghi gì; một giao dịch; một dòng `admin_audit_log`
+  `xac_nhan_hang_loat` (đối tượng exam, không cần migration). **Không có hoàn tác** (hệ thống không mở lại câu đã chốt) – hộp xác nhận nói rõ. `GET /exams/{id}/review-groups` (chỉ đọc).
+- Giao diện (`frontend/duyet_nhanh.js` logic thuần + `app.js`): phím tắt A–D / Space / Enter / N / Esc (không bắt phím trong ô nhập, khung SBD–mã đề AA, hộp thoại); nút "Xác nhận tất cả…" +
+  hộp hỏi (liệt kê từng câu + máy đọc, phải tích "đã nhìn ảnh", tiêu điểm ở Huỷ); hàng đợi lọc / nhóm theo lý do (dễ trước); nhãn "Máy đọc · Dấu hiệu".
+- Test: `tests/test_duyet_nhanh.py` (10, CSDL ROLLBACK), `tests/test_ui_af.py` + `tests/js/duyet_nhanh.test.js` (8). Trình duyệt: `python tools/thu_lenh_af.py` (CHỈ ROLLBACK, 29 mục) → `data/_eval/ui_af/`.
+  Đo: phiếu 40 câu cờ (BV07) 42 → 5 thao tác; phiếu 2 câu cờ 4 → 4 (chuột) / bàn phím không cần chuột; SBD / mã đề giữ nguyên quy trình AA.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:

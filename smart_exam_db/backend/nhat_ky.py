@@ -19,6 +19,8 @@ HANH_DONG = {
     # lớp
     "tao_lop": "class", "sua_lop": "class", "vo_hieu_hoa_lop": "class", "kich_hoat_lop": "class", "xoa_lop": "class",
     "them_giao_vien_vao_lop": "class", "bo_giao_vien_khoi_lop": "class",
+    # duyệt phiếu (lệnh AF): giáo viên xác nhận hàng loạt câu của MỘT phiếu – đối tượng là kỳ thi (CHECK của migration 005), sheet_id trong details
+    "xac_nhan_hang_loat": "exam",
 }
 _NHAY_CAM = re.compile(r"pass|mat_khau|matkhau|hash|token|secret|cookie|session", re.IGNORECASE)
 
