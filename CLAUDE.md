@@ -382,6 +382,13 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - Test: `tests/test_duyet_nhanh.py` (10; AF2 đổi ảnh thử sang BV07), `tests/test_duyet_nhanh_af2.py` (12), `tests/test_ui_af.py`, `tests/test_ui_af2.py`, `tests/js/duyet_nhanh*.test.js` (8 + 4).
   Trình duyệt (CHỈ ROLLBACK): `python tools/thu_lenh_af.py` (26 mục) · `python tools/thu_lenh_af2.py` (20 mục) → `data/_eval/ui_af*/`. Đo: BV07 (40 câu to_nhat) 42 → 5 thao tác; BV09 (2 câu mờ) 4 → 4 (không có nút).
 
+### 4j. Lệnh AG – chuẩn bị thử GIẤY THẬT (01/11/2026, nhánh `hoan-thien`; CHƯA có ảnh thật)
+- Tiêu chí chốt TRƯỚC (commit `18fd340`, trước công cụ): `docs/tieu_chi_thu_giay_that.md` – H3 chép nguyên văn (đợt 2) + H3a / H3b (cột "thiếu bubble" ở T03, T06, T10), C1 sai âm thầm = 0 (bắt buộc), C2 / C3 chỉ báo cáo.
+- `python tools/ag_tao_kich_ban.py` → `data/_eval/ag/kich_ban.json` (hạt giống 20261101, 10 tờ: 8 bi + 2 chì; nhat / hai_o / te / bo_trong / vet), `phieu_trang_in_10.pdf` (A4 100%,
+  kiểm render: 4 ô vuông lệch ≤ 0,71 px), `phieu_giao_viec_ag.pdf`. Hướng dẫn nhóm: `docs/huong_dan_thu_giay_that.md` (ảnh → `data/anh_that_ag/T01.jpg…`, `T0X_kho.jpg`).
+- `python tools/ag_cham_that.py cham` (pipeline OFFLINE, trường "nhận" = chắc + trong danh sách 1633) → `data/_eval/ag/ket_qua.md|json`; `tu-kiem` (ảnh giả lập + đối chứng âm, thư mục tạm tự xoá):
+  ảnh giả C1 / H3 ĐẠT, đối chứng âm bắt đúng 3/3 câu cài sai. Test: `tests/test_ag_giay_that.py` (17, không cần ảnh / CSDL). **Chỉ chạy `cham` MỘT lần trên bộ ảnh cuối.**
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
