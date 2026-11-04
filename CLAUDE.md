@@ -389,6 +389,14 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - `python tools/ag_cham_that.py cham` (pipeline OFFLINE, trường "nhận" = chắc + trong danh sách 1633) → `data/_eval/ag/ket_qua.md|json`; `tu-kiem` (ảnh giả lập + đối chứng âm, thư mục tạm tự xoá):
   ảnh giả C1 / H3 ĐẠT, đối chứng âm bắt đúng 3/3 câu cài sai. Test: `tests/test_ag_giay_that.py` (17, không cần ảnh / CSDL). **Chỉ chạy `cham` MỘT lần trên bộ ảnh cuối.**
 
+### 4k. Lệnh AH – nhiều tài khoản + chấm đồng thời (04/11/2026, nhánh `hoan-thien`; CHỈ ĐỌC MÃ + THỬ, không sửa mã hệ thống; chi tiết `smart_exam_db/docs/lenh_ah.md`)
+- `python tools/ah_thu_dong_thoi.py chay | dem | don`: máy chủ thử riêng cổng 8010 (cùng CSDL, kho ảnh `data/_eval/ah/kho`), dữ liệu thử `ah_thu_*` / `AH-THU-*` / `[AH-THU]` / thí sinh `97xxxx`,
+  dọn trong `finally` (đã xác minh = 0, demo nguyên vẹn: 1632 = 6, 1633 = 0). Chạy 2 lần.
+- ĐẠT: A (đăng nhập đồng thời; khoá 5 lần sai theo **(tên, IP)** – người khác cùng IP không bị khoá, phiên cũ không mất), B (18/18 trùng khít chạy tuần tự), C (310/310 = 404), D (0/40 lần hai điểm chính thức – nhờ chỉ mục `uq_results_exam_student`), E (60/60).
+- KHÔNG ĐẠT / rủi ro: hai ảnh cùng SBD đồng thời → bên thua **409, phiếu không được lưu** (13–17/20 lần); cùng tệp gửi 2 lần cùng lúc → 3/10 lỗi 500 (`_ghi_file` tên tệp tạm theo PID);
+  `/sheets/batch` hai lô chéo → **deadlock 5/5** (giao diện không dùng endpoint này); đăng xuất không thu hồi token. Thông lượng bão hoà ~2,7 ảnh/s từ 4 yêu cầu đồng thời; ~150 MB / yêu cầu, không giới hạn đồng thời.
+  Đề xuất (CHƯA làm) + có đụng tệp đóng băng không: `docs/lenh_ah.md` mục 4.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
