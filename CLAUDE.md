@@ -397,6 +397,12 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   `/sheets/batch` hai lô chéo → **deadlock 5/5** (giao diện không dùng endpoint này); đăng xuất không thu hồi token. Thông lượng bão hoà ~2,7 ảnh/s từ 4 yêu cầu đồng thời; ~150 MB / yêu cầu, không giới hạn đồng thời.
   Đề xuất (CHƯA làm) + có đụng tệp đóng băng không: `docs/lenh_ah.md` mục 4.
 
+### 4l. Lệnh AI – CNN so với thuật toán khác trên chữ số (04/11/2026, nhánh `hoan-thien`; CHỈ ĐO, không đổi mô hình)
+- Tiêu chí đăng ký TRƯỚC `docs/tieu_chi_so_sanh_thuat_toan.md` (commit `253a4b5`); kiểm kê dữ liệu `docs/kiem_ke_du_lieu.md`. Công cụ `tools/ai_so_sanh_thuat_toan.py kiem-ke | chay | bang | don`
+  (`--thu <thư mục nháp>` = chạy thử mã trên dữ liệu tí hon) → `data/_eval/ai/ket_qua.md|json`. Test `tests/test_ai_so_sanh.py`.
+- E2b (MNIST + ô thật, leave-one-writer-out trang D, TB 5 người): **CNN 95,40%** · SVM RBF 91,43% · MLP 90,96% · RF 90,46% · k-NN 87,92% · LR 83,53% → **R1: CNN đúng nhất** (CNN E2b trùng bộ đệm `oof_g0_goc`, chênh 0).
+  E1 MNIST test: CNN 98,94%, SVM 97,70%. Mẫu con chốt trước: SVM E1 20 000; E2b scikit-learn MNIST 10 000.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
