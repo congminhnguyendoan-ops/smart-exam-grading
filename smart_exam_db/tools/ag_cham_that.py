@@ -5,6 +5,9 @@ không CSDL, không server. KHÔNG thêm tiêu chí mới.
 
   python tools/ag_cham_that.py cham [--thu-muc data/anh_that_ag] [--ra data/_eval/ag]   # -> ket_qua.md + ket_qua.json
   python tools/ag_cham_that.py tu-kiem      # ảnh GIẢ LẬP vẽ từ kịch bản (thư mục tạm, xoá khi xong) -> data/_eval/ag/tu_kiem/ – KHÔNG dùng kết luận H3
+  python tools/ag_cham_that.py sau-xac-minh --lech-kich-ban data/_eval/ag/lech_kich_ban.json
+        # Lệnh AG2 (phụ lục): bảng PHỤ "sau xác minh" – đọc ket_qua.json đã có (KHÔNG đọc lại ảnh, KHÔNG ghi đè ket_qua.*), thay đáp án kịch bản bằng
+        # đáp án người tô thực tế ở các câu liệt kê, ghi sau_xac_minh.md / .json. Kết luận CHÍNH THỨC vẫn là của ket_qua.json. `cham` KHÔNG BAO GIỜ đọc tệp lệch.
 
 Tên ảnh: T01.jpg … T10.jpg (điều kiện thường), T0X_kho.jpg (điều kiện khó). JPG / JPEG / PNG / HEIC / HEIF, không phân biệt hoa thường.
 Tên khác -> liệt kê "bỏ qua (tên không đúng)". Ảnh bị tiền xử lý từ chối -> liệt kê kèm lý do (KHÔNG phải sai âm thầm). Tờ không có ảnh đọc được -> báo rõ.
@@ -149,6 +152,98 @@ def tong_hop(danh_gia: list[dict], kb: dict, tu_choi: list[dict], bo_qua: list[s
     else:
         kq["H3"]["ket_luan"] = "ĐẠT"
     return kq
+
+
+# ------------------------------------------------------------------------------------------------ AG2: bảng phụ "sau xác minh" (THUẦN)
+def loai_theo_dap_an(dap_an: str) -> str:
+    """Loại của câu khi chỉ biết đáp án thực tế: 0 ô -> bỏ trống, 1 ô -> bình thường, ≥ 2 ô -> hai ô."""
+    return "bo_trong" if not dap_an else ("binh_thuong" if len(dap_an) == 1 else "hai_o")
+
+
+def ap_lech_kich_ban(danh_gia: list[dict], lech: list[dict], kb: dict) -> tuple[list[dict], list[dict]]:
+    """Trả (bản SAO danh_gia với đáp án đúng = đáp án người tô thực tế ở các câu trong `lech`, danh sách thay đổi).
+    Không đổi gì máy đọc (doc / cx / ly_do) – chỉ đổi "đúng là gì". lech: [{"anh", "cau", "dap_an_thuc_te", "loai_thuc_te"?}]. Ảnh / câu không có -> ValueError."""
+    import copy
+    chap = {}
+    for t in kb["to"].values():
+        for c in t["cau"].values():
+            chap.setdefault(c["loai"], c["chap_nhan"])
+    ra, doi = copy.deepcopy(danh_gia), []
+    theo_anh = {a["anh"]: a for a in ra}
+    for x in lech:
+        a = theo_anh.get(x["anh"])
+        if a is None:
+            raise ValueError(f"tệp lệch: không có ảnh {x['anh']} trong kết quả")
+        c = next((c for c in a["cau"] if c["n"] == int(x["cau"])), None)
+        if c is None:
+            raise ValueError(f"tệp lệch: ảnh {x['anh']} không có câu {x['cau']}")
+        dap = "".join(sorted(x["dap_an_thuc_te"].upper()))
+        if any(o not in "ABCD" for o in dap):
+            raise ValueError(f"tệp lệch: đáp án {x['dap_an_thuc_te']!r} không hợp lệ")
+        loai = x.get("loai_thuc_te") or loai_theo_dap_an(dap)
+        cu = {k: c[k] for k in ("loai", "dap_an", "ket_qua")}
+        c["loai"], c["dap_an"] = loai, dap
+        c["ket_qua"] = phan_loai_cau(dap, c["doc"], c["cx"])
+        c["chap_nhan"] = c["ket_qua"] in chap.get(loai, [])
+        doi.append({"anh": a["anh"], "cau": c["n"], "doc": c["doc"], "cx": c["cx"], "cu": cu,
+                    "moi": {"loai": loai, "dap_an": dap, "ket_qua": c["ket_qua"]}})
+    return ra, doi
+
+
+def bao_cao_sau_xac_minh(chinh: dict, phu: dict, doi: list[dict], lech_meta: dict) -> str:
+    def pt(k, n):
+        return f"{k}/{n} ({100 * k / n:.1f}%)" if n else "–"
+    L = ["# Bảng PHỤ \"sau xác minh\" – thử giấy thật (lệnh AG2)", "",
+         "> **Xác minh SAU khi đã có kết quả.** Không thay thế `ket_qua.md`. Kết luận chính thức theo tiêu chí (commit 18fd340) giữ nguyên:",
+         f"> **C1 chính thức: {chinh['C1']}** · **H3 chính thức: {chinh['H3']['ket_luan']}**.", "",
+         f"Nguồn lệch kịch bản: {lech_meta.get('nguon', '–')} (ghi nhận: {lech_meta.get('ghi_nhan_luc', '–')}).", "",
+         "## Câu được đổi đáp án đúng", "", "| Ảnh | Câu | Máy đọc | Cần xem | Kịch bản (loại / đáp án / kết quả) | Thực tế (loại / đáp án / kết quả) |", "|---|---|---|---|---|---|"]
+    for x in doi:
+        L.append(f"| {x['anh']} | {x['cau']} | {x['doc'] or 'trống'} | {'có' if x['cx'] else 'không'} | {TEN_LOAI[x['cu']['loai']]} / {x['cu']['dap_an'] or 'trống'} / "
+                 f"{x['cu']['ket_qua']} | {TEN_LOAI[x['moi']['loai']]} / {x['moi']['dap_an'] or 'trống'} / {x['moi']['ket_qua']} |")
+    L += ["", "## Câu theo loại: chính thức | sau xác minh", "",
+          "| Loại | Số câu (CT / SXM) | Đọc đúng (CT / SXM) | Cần xem (CT) | Cần xem (SXM) | Sai âm thầm (CT / SXM) |", "|---|---|---|---|---|---|"]
+    for l in LOAI:
+        a, b = chinh["theo_loai"].get(l), phu["theo_loai"].get(l)
+        if not (a or b):
+            continue
+        a = a or {"n": 0, "doc_dung": 0, "can_xem": 0, "sai_am_tham": 0}
+        b = b or {"n": 0, "doc_dung": 0, "can_xem": 0, "sai_am_tham": 0}
+        L.append(f"| {TEN_LOAI[l]} | {a['n']} / {b['n']} | {a['doc_dung']} / {b['doc_dung']} | {pt(a['can_xem'], a['n'])} | {pt(b['can_xem'], b['n'])} | "
+                 f"**{a['sai_am_tham']} / {b['sai_am_tham']}** |")
+    sc, sp = chinh["sai_am_tham"], phu["sai_am_tham"]
+    tong_c = len(sc["cau"]) + len(sc["cot"]) + len(sc["truong"])
+    tong_p = len(sp["cau"]) + len(sp["cot"]) + len(sp["truong"])
+    bt_c, bt_p = chinh["theo_loai"].get("binh_thuong", {}), phu["theo_loai"].get("binh_thuong", {})
+    L += ["", "## Tóm tắt", "",
+          f"- Sai âm thầm (câu + cột + trường): chính thức **{tong_c}** · sau xác minh **{tong_p}**. CP95 tỉ lệ câu sai âm thầm: chính thức {chinh['C1_ci_cau']} · sau xác minh {phu['C1_ci_cau']}.",
+          f"- Câu bình thường (1 ô đậm) bị cờ: chính thức {pt(bt_c.get('can_xem', 0), bt_c.get('n', 0))} · sau xác minh {pt(bt_p.get('can_xem', 0), bt_p.get('n', 0))}.",
+          f"- SBD / mã đề không đổi (cột sai âm thầm {phu['cot']['sai_am_tham']}, trường {phu['truong']['sai_am_tham']}); H3 không phụ thuộc hai câu này.",
+          "- Bảng này CHỈ để giải thích; nó KHÔNG đổi C1 chính thức. Lệch được ghi nhận sau khi xem kết quả, nên không thể loại trừ thiên lệch "
+          "\"tìm lý do cho lỗi\" – bằng chứng là ảnh cắt từ ảnh nắn phẳng (`data/_eval/ag/phu_luc_lech/`).", ""]
+    return "\n".join(L) + "\n"
+
+
+def cmd_sau_xac_minh(lech_path: Path, ra: Path) -> dict:
+    """Đọc ket_qua.json (KHÔNG ghi đè), áp tệp lệch, ghi sau_xac_minh.md / .json."""
+    chinh = json.loads((ra / "ket_qua.json").read_text(encoding="utf-8"))
+    kb = json.loads(KICH_BAN.read_text(encoding="utf-8"))
+    lech_tep = json.loads(Path(lech_path).read_text(encoding="utf-8"))
+    tai_tao = tong_hop(chinh["chi_tiet_anh"], kb, chinh["tu_choi"], chinh["bo_qua"])
+    khop = all(tai_tao[k] == chinh[k] for k in ("theo_loai", "sai_am_tham", "C1", "H3", "cot", "truong"))
+    if not khop:
+        sys.exit("Tái tạo bảng chính thức từ ket_qua.json KHÔNG khớp – dừng (không ghi gì).")
+    dg, doi = ap_lech_kich_ban(chinh["chi_tiet_anh"], lech_tep["lech"], kb)
+    phu = tong_hop(dg, kb, chinh["tu_choi"], chinh["bo_qua"])
+    (ra / "sau_xac_minh.md").write_text(bao_cao_sau_xac_minh(chinh, phu, doi, lech_tep), encoding="utf-8")
+    out = {"ghi_chu": "BẢNG PHỤ sau xác minh – không thay thế ket_qua.json", "tep_lech": str(lech_path), "C1_chinh_thuc": chinh["C1"],
+           "H3_chinh_thuc": chinh["H3"]["ket_luan"], "doi": doi, "theo_loai": phu["theo_loai"], "sai_am_tham": phu["sai_am_tham"],
+           "C1_ci_cau": phu["C1_ci_cau"], "cot": phu["cot"], "truong": phu["truong"]}
+    (ra / "sau_xac_minh.json").write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"Tái tạo bảng chính thức từ ket_qua.json: khớp.  C1 CHÍNH THỨC: {chinh['C1']}  |  H3 CHÍNH THỨC: {chinh['H3']['ket_luan']}")
+    n_sai = len(phu["sai_am_tham"]["cau"]) + len(phu["sai_am_tham"]["cot"]) + len(phu["sai_am_tham"]["truong"])
+    print(f"Bảng PHỤ sau xác minh (không phải kết luận chính thức): sai âm thầm {n_sai}; ghi {ra / 'sau_xac_minh.md'}")
+    return out
 
 
 # ------------------------------------------------------------------------------------------------ đọc ảnh (pipeline OFFLINE)
@@ -373,11 +468,16 @@ def cmd_tu_kiem(a):
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
-    ap.add_argument("lenh", choices=["cham", "tu-kiem"])
+    ap.add_argument("lenh", choices=["cham", "tu-kiem", "sau-xac-minh"])
     ap.add_argument("--thu-muc", default=str(THU_MUC_ANH))
     ap.add_argument("--ra", default=str(AG))
+    ap.add_argument("--lech-kich-ban", default=None, help="CHỈ cho sau-xac-minh (bắt buộc ghi rõ, không có mặc định); `cham` không đọc tệp này")
     a = ap.parse_args()
-    if a.lenh == "cham":
+    if a.lenh == "sau-xac-minh":
+        if not a.lech_kich_ban:
+            sys.exit("sau-xac-minh cần --lech-kich-ban <tệp> (ví dụ data/_eval/ag/lech_kich_ban.json)")
+        cmd_sau_xac_minh(Path(a.lech_kich_ban), Path(a.ra))
+    elif a.lenh == "cham":
         if not Path(a.thu_muc).exists():
             sys.exit(f"Chưa có thư mục ảnh {a.thu_muc} – xem docs/huong_dan_thu_giay_that.md")
         cham(Path(a.thu_muc), Path(a.ra))
