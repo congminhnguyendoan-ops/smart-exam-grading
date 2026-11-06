@@ -93,6 +93,7 @@ OMR: 0 lỗi nặng trên 2 744 lượt câu + cột (OOF 7‑fold, CP95 ≤ 0,1
 ## 2. PHIÊN 2 – Máy học (≈ 3 phút)
 **Mục tiêu:** nói rõ máy học nằm ở đâu, dùng dữ liệu nào, có hơn các cách khác không, và **chỗ nào không đạt**.
 **Chuẩn bị:** tab `may_hoc_truc_tiep.html` (đã có mục chạy CNN thật). Cuộn sẵn tới từng mục để khỏi cuộn lâu.
+- Phiên 2 – bảng so sánh mở rộng (chạy ~6 giây, in từng thuật toán khi chạy): `python tools/demo_may_hoc.py --truc-tiep --so-sanh-truc-tiep --ra data\\_eval\\demo_3_phien\\may_hoc_truc_tiep.html` (thêm `--da-tinh-san` nếu muốn không chờ; trang sẽ ghi “ĐÃ TÍNH SẴN”). Cần `data/_eval/ak/` (chạy `docs/so_sanh_mo_rong_ak.md` mục 7 một lần).
 
 | Giờ | Mục trên trang | Lời dẫn (nhóm em) | Chỉ vào |
 |---|---|---|---|
@@ -111,6 +112,11 @@ Con số “92,7%” là kết quả chạy lại trực tiếp lúc dựng tran
 - *Sao CNN kém trên phiếu (92,7%) hơn trên trang chữ số (95,4%)?* — Hai phép đo khác nhau (người viết, nền phiếu có viền / bubble, ảnh điện thoại); đây chính là khoảng cách giữa ảnh quét sạch và ảnh thật nói ở mục Giới hạn. Chưa có thí nghiệm tách nguyên nhân – không khẳng định.
 - *Sao không dùng mô hình lớn hơn?* — Chỉ có 5 người viết; lệnh AD cho thấy thêm dữ liệu chỉ đổi kiểu lỗi (nhầm 8↔6 giảm, 1→7 tăng).
 - *Test có bị rò rỉ không?* — Ranh giới dev / val / test chỉ định nghĩa ở `cv_engine/tap_du_lieu.py`; phiếu test 0035–0040 chạy MỘT lần theo đăng ký trước. Lưu ý: `omr.py` đã đổi sau commit đăng ký test cuối, nên kết quả test cuối 21/10 là của bản cũ (đã ghi trong tài liệu).
+- *CNN có phải thuật toán tốt nhất không? Nhóm đã so với những gì?* — (lệnh AK, `docs/so_sanh_mo_rong_ak.md`) Nhóm so 11 thuật toán, tiêu chí đăng ký trước. Mức ô: CNN 95,40%, đứng THỨ BA sau CNN sâu 96,03% và LeNet-5 95,73%; hơn mọi thuật toán không-tích-chập (HOG+SVM 93,72%, SVM 91,43%, MLP 90,79%, RF 90,46%, k-NN 87,92%, LR 83,53%) → tiêu chí mức ô ĐẠT (chênh 0,63 < 1,0). **Nói thẳng:** mức hệ thống (đọc đúng cả chuỗi SBD / mã đề) CNN hiện tại KHÔNG đạt: 67,6% so với CNN sâu 81,3% trên phiếu dev. Vì vậy nhóm chỉ khẳng định “mạng tích chập tốt nhất trong tập đã thử”, không khẳng định “tối ưu tuyệt đối”.
+- *Vậy sao không đổi sang CNN sâu?* — Mọi thuật toán đều 0 ca nhận nhầm SBD nhờ đối chiếu bubble, nên đổi chỉ làm GIẢM số phiếu giáo viên phải xem (ước tính 42 → 26 trên 112 trường dev), không làm điểm an toàn hơn. Mô hình mới phải qua đăng ký trước + kiểm thử lại (val / test / đợt 2); đó là bước cải tiến, nhóm không đổi mô hình sát buổi bảo vệ.
+- *Sao không thử Decision Tree, Naive Bayes, Gradient Boosting?* — Đã thử Decision Tree (69,3%) và Naive Bayes (73,1%): kém nhất. Gradient Boosting (HistGradientBoosting) chỉ chạy được phần MNIST (97,74% so với 98,94% của CNN); phần theo người viết ước tính 44 phút, quá giới hạn 30 phút đã đặt, nên **không chạy** và ghi rõ trong báo cáo.
+- *Con số này có chắc không, chỉ có 5 người viết?* — Không chắc tuyệt đối: độ lệch giữa người ±2,6–7,7 điểm; kiểm định dấu CNN so với CNN sâu p = 0,36 (không phân biệt được ở mức ô). Ở mức hệ thống 1 trường giấy thật = 3,8 điểm. Huấn luyện mạng còn không tất định (hai lần cùng seed lệch ~0,2 điểm). Cần thêm người viết mới mới kết luận chắc hơn.
+- *PP-OCRv6 thì sao?* — Đúng hơn CNN 1,1 điểm (trang D) và 5,5 điểm (phiếu dev) nhưng nặng ~50 lần và làm số phiếu cần xem tăng nếu lắp nguyên trạng; không nằm trong bảng 11 thuật toán vì khác giao thức.
 **Dự phòng:** nếu `--truc-tiep` lỗi (thiếu `data/_ocr/cat/`) → dùng `may_hoc.html` (không có mục 4, các mục còn lại không phụ thuộc dữ liệu thô) và nói “đã chạy thử trước, kết quả 467/504”. Trang trống → chạy lại mục 0.3.
 
 ---

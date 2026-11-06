@@ -416,6 +416,13 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - Đã diễn tập phiên 3 trên server thật (uvicorn, kỳ thi tập 1633 / gv_binh, token dựng như `thu_bo_demo.py`): BV06 → 8,5 tạm → duyệt đúng giấy → **9,0** chính thức; ảnh thật T05 (SBD 220006) bị giữ `duplicate_sbd` rồi bỏ; ảnh mờ mô phỏng `anh_mo`;
   bảng điểm + Excel 2 sheet; gv_an 404 / gv_binh `/admin` 403. Sau đó `dat_lai_demo --xac-nhan DAT_LAI`: 1633 về 0 phiếu, 1632 giữ 6, 1380 / 1381 = 0. **Chưa diễn tập phần điện thoại thật** (không có thiết bị trong phiên).
 
+### 4n. Lệnh AK – so sánh mở rộng CNN ở mức ô và mức hệ thống (06/11/2026, nhánh `hoan-thien`; CHỈ ĐO, không đổi mô hình / tệp đóng băng / hệ thống; chi tiết `smart_exam_db/docs/so_sanh_mo_rong_ak.md`)
+- Tiêu chí đăng ký TRƯỚC `docs/tieu_chi_so_sanh_mo_rong.md` (commit `2e549da`). Công cụ `tools/ak_so_sanh_mo_rong.py chay | ag-cat | ag-doc | kiem-tat-dinh | bang | truc-tiep` (+ `tools/ak_hog.py`), kết quả `data/_eval/ak/` (ngoài git);
+  `tools/demo_may_hoc.py --so-sanh-truc-tiep [--da-tinh-san]` dựng mục chạy trực tiếp (~6 s). 11 thuật toán (6 cũ chạy lại + Decision Tree, Naive Bayes, HOG+SVM, LeNet-5, CNN sâu); **HistGradientBoosting chỉ E1** (E2b ≈ 44 phút > giới hạn 30 phút, không cắt giảm âm thầm).
+- **R3 (mức ô) ĐẠT**: CNN 95,40%, tốt nhất CNN sâu 96,03% (−0,63 điểm, ngưỡng 1,0). **R4(a) 504 ô phiếu dev KHÔNG ĐẠT**: đúng cả chuỗi CNN 67,56% so với CNN sâu 81,25% (−13,69). **R4(b) 13 ảnh giấy thật KHÔNG ĐẠT, sát ngưỡng thô**:
+  92,31% so với HOG+SVM 96,15% (đúng 1 trường). Mọi thuật toán 0 ca sai mà không cờ. **KHÔNG được nói “CNN hiện tại tối ưu”**; nói “mạng tích chập tốt nhất trong tập đã thử ở mức ô”. Mô hình triển khai không đổi (CNN sâu = hướng cải tiến, cần đăng ký + kiểm thử lại).
+- Lệch so với tiêu chí (ghi trong báo cáo): HOG cài bằng NumPy (OpenCV 5 không còn `HOGDescriptor`); MLP chạy lại lệch −0,17 điểm so với lệnh AI vì huấn luyện mạng KHÔNG tất định trên máy này (`kiem-tat-dinh`).
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:

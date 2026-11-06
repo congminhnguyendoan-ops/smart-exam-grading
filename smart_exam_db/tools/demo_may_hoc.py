@@ -240,6 +240,104 @@ Mô hình triển khai <b>chưa từng huấn luyện</b> trên các ô này (ch
 <div class="o-so">{''.join(the_o(o) for o in chon)}</div>"""
 
 
+# ------------------------------------------------------------------------------------------------ so sánh mở rộng chạy trực tiếp (lệnh AK)
+KQ_AK = ROOT / "data" / "_eval" / "ak" / "ket_qua.json"
+AK_NPZ = ROOT / "data" / "_eval" / "ak" / "truc_tiep.npz"
+
+
+def anh_o(x28: np.ndarray, px: int = 56) -> str:
+    import base64
+
+    import cv2
+    ok, buf = cv2.imencode(".png", cv2.resize(255 - x28, (px, px), interpolation=cv2.INTER_NEAREST))
+    return '<img src="data:image/png;base64,' + base64.b64encode(buf.tobytes()).decode() + f'" width="{px}" height="{px}" alt="ô chữ số">'
+
+
+def chay_so_sanh_truc_tiep(da_tinh_san: bool) -> dict:
+    """Chạy (hoặc đọc đã tính sẵn) tools/ak_so_sanh_mo_rong.truc_tiep: mô hình 'người 1 giữ ra' dự đoán ô trang D của người 1. In từng thuật toán khi chạy."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import ak_so_sanh_mo_rong as AKM
+    print("Chạy trực tiếp từng thuật toán trên ô của người viết 1 (mô hình chưa thấy người này)…" if not da_tinh_san else "Đọc kết quả ĐÃ TÍNH SẴN…", flush=True)
+    r = AKM.truc_tiep(da_tinh_san=da_tinh_san, in_ra=lambda s: print(s, flush=True))
+    r["npz"] = {k: v for k, v in np.load(AK_NPZ).items()}
+    return r
+
+
+def muc_so_sanh_truc_tiep(tt: dict, ak: dict) -> str:
+    N, E, al = ak["nhan"], ak["E2b"], tt["algos"]
+    ten = lambda t: N.get(t, t)                                                                  # noqa: E731
+    tt_nhan = (f"<b>ĐÃ TÍNH SẴN</b> (đọc từ <code>data/_eval/ak/truc_tiep.json</code>, chạy lúc {e(tt.get('ngay', '?'))}; kết quả y hệt chạy lại, chỉ bỏ thời gian chờ)"
+               if tt.get("da_tinh_san") else f"<b>Chạy THẬT bây giờ</b> ({e(tt.get('ngay', ''))})")
+    hang = sorted(al, key=lambda t: -al[t]["dung"])
+    n = tt["n"]
+    r3, r4 = ak["R3"], ak["R4"]
+    def dat(x):
+        return "ĐẠT" if x["dat"] else "KHÔNG ĐẠT"
+    ket_luan = (f'<div class="canh-bao"><b>Kết luận theo tiêu chí đặt trước (commit <code>2e549da</code>) – trung thực:</b><ul>'
+                f'<li><b>R3 mức ô: {dat(r3)}</b> – CNN {pt(r3["macro_cnn"])}, thấp hơn tốt nhất ({e(N[r3["tot_nhat"]])} {pt(r3["macro_tot_nhat"])}) {r3["chenh_diem"]:.2f} điểm (ngưỡng 1,0).</li>'
+                f'<li><b>R4(a) mức hệ thống, 504 ô phiếu dev: {dat(r4["a"])}</b> – đúng cả chuỗi: CNN {pt(r4["a"]["hw_cnn"])} so với {e(N[r4["a"]["tot_nhat_khac"]])} {pt(r4["a"]["hw_tot_nhat"])}.</li>'
+                + (f'<li><b>R4(b) giấy thật (26 trường): {dat(r4["b"])}</b> – CNN {pt(r4["b"]["hw_cnn"])} so với {e(N[r4["b"]["tot_nhat_khac"]])} {pt(r4["b"]["hw_tot_nhat"])} (chênh đúng 1 trường).</li>' if r4["b"] else "")
+                + '<li>Cả 11 thuật toán đều <b>0 lần sai mà không cờ</b> nhờ đối chiếu bubble: chọn thuật toán không ảnh hưởng độ an toàn của điểm, chỉ ảnh hưởng số phiếu giáo viên phải xem.</li>'
+                '<li>Nên nói: “mạng tích chập vượt mọi thuật toán không-tích-chập ≥ 1,7 điểm”; KHÔNG nói “CNN hiện tại tối ưu” – CNN sâu và LeNet-5 đọc cả chuỗi tốt hơn trên phiếu dev.</li></ul></div>')    # --- biểu đồ cột: độ đúng trên người 1 (chạy trực tiếp)
+    W, Lm, R, H, G = 900, 300, 190, 34, 8
+    x0, x1 = 0.60, 1.0
+    X = lambda v: Lm + (min(max(v, x0), x1) - x0) / (x1 - x0) * (W - Lm - R)                      # noqa: E731
+    h = len(hang) * (H + G) + 50
+    s = [f'<svg viewBox="0 0 {W} {h}" role="img" aria-label="Độ đúng của từng thuật toán trên ô của người viết 1" class="bd">']
+    for v in (0.6, 0.7, 0.8, 0.9, 1.0):
+        s.append(f'<line x1="{X(v):.1f}" x2="{X(v):.1f}" y1="8" y2="{h - 32}" stroke="var(--line)"/><text x="{X(v):.1f}" y="{h - 12}" text-anchor="middle" font-size="14" fill="var(--mut)">{int(v * 100)}%</text>')
+    for i, t in enumerate(hang):
+        y = 12 + i * (H + G)
+        cnn = t == "cnn"
+        s.append(f'<text x="{Lm - 10}" y="{y + H / 2 + 5}" text-anchor="end" font-size="15" fill="var(--ink)" font-weight="{700 if cnn else 400}">{e(ten(t))}</text>'
+                 f'<rect x="{Lm}" y="{y}" width="{X(al[t]["dung"]) - Lm:.1f}" height="{H}" rx="4" fill="{"var(--pri)" if cnn else "#9AA9B1"}"><title>{e(ten(t))}: {pt(al[t]["dung"])}</title></rect>'
+                 f'<text x="{X(al[t]["dung"]) + 8:.1f}" y="{y + H / 2 + 5}" font-size="15" fill="var(--ink)" font-weight="{700 if cnn else 400}">{pt(al[t]["dung"])} · sai {al[t]["sai"]}</text>')
+    s.append("</svg>")
+    # --- bảng chạy trực tiếp
+    bang = ("<table><tr><th>Thuật toán</th><th>Đúng (người 1)</th><th>Ô sai</th><th>Thời gian cả {n} ô</th><th>Kích thước</th><th>E2b – TB 5 người</th></tr>".format(n=n)
+            + "".join(f"<tr class='{'nhan' if t == 'cnn' else ''}'><td class='trai'>{e(ten(t))}</td><td>{pt(al[t]['dung'])}</td><td>{al[t]['sai']}/{n}</td><td>{al[t]['giay_tong']:.2f} s</td>"
+                      f"<td>{al[t]['byte'] / 1048576:.2f} MB</td><td>{pt(E[t]['macro']) if t in E else '–'}</td></tr>" for t in hang) + "</table>")
+    # --- R4 tóm tắt
+    ra, rb = ak["R4a"], ak.get("R4b") or {}
+    thu = sorted(ra, key=lambda t: -ra[t]["hw_gop"])
+    r4 = ("<table><tr><th>Thuật toán</th><th>(a) 504 ô phiếu dev: đúng cả chuỗi</th><th>(a) sai mà không cờ</th><th>(b) 117 ô giấy thật: đúng cả chuỗi</th><th>(b) sai mà không cờ</th></tr>"
+          + "".join(f"<tr class='{'nhan' if t == 'cnn' else ''}'><td class='trai'>{e(ten(t))}</td><td>{pt(ra[t]['hw_gop'])}</td><td>{ra[t]['sai_khong_co_cong']}</td>"
+                    + (f"<td>{pt(rb[bt]['hw_gop'])}</td><td>{rb[bt]['sai_khong_co_cong']}</td>" if (bt := ('cnn_trien_khai' if t == 'cnn' else t)) in rb else "<td>–</td><td>–</td>")
+                    + "</tr>" for t in thu) + "</table>")
+    # --- lưới ví dụ: cùng một ô, các thuật toán đọc khác nhau
+    p = tt["npz"]
+    x, y = p["x"], p["y"].astype(int)
+    co = [t for t in hang if f"p_{t}" in p]
+    P = np.stack([p[f"p_{t}"] for t in co]).astype(int)                                           # [A, N]
+    bat_dong = np.where((P != P[0]).any(0))[0]
+    rng = np.random.default_rng(2026)
+    ngau = sorted(rng.choice(bat_dong, size=min(12, len(bat_dong)), replace=False).tolist()) if len(bat_dong) else []
+    ci = co.index("cnn") if "cnn" in co else 0
+    nhieu_dung = [i for i in np.where(P[ci] != y)[0] if (P[:, i] == y[i]).sum() >= len(co) // 2]
+    co_y = sorted(nhieu_dung, key=lambda i: -(P[:, i] == y[i]).sum())[:8]
+
+    def bang_vd(ids):
+        d = "<table><tr><th>Ô</th><th>Đúng</th>" + "".join(f"<th title='{e(ten(t))}'>{e(ten(t).split(' (')[0].replace('Logistic regression', 'LR').replace('Random Forest', 'RF').replace('Decision Tree', 'Cây QĐ').replace('Naive Bayes Gaussian', 'NB').replace('HistGradientBoosting', 'HGB'))}</th>" for t in co) + "</tr>"
+        for i in ids:
+            d += f"<tr><td>{anh_o(x[i], 48)}</td><td><b>{y[i]}</b></td>" + "".join(f"<td class='{'' if P[k, i] == y[i] else 'sai-o'}'>{P[k, i]}</td>" for k in range(len(co))) + "</tr>"
+        return d + "</table>"
+    ok_cnn = int((P[ci] == y).sum())
+    return f"""<div class="canh-bao ok">{tt_nhan}: {len(co)} thuật toán, mỗi cái là mô hình đã huấn luyện <b>không có người viết 1</b>, dự đoán <b>{n} ô</b> chữ số viết tay của người 1 (trang D, ảnh điện thoại).
+Hệ thống thật dùng CNN; các thuật toán khác chỉ để so sánh. Người 1 là người viết <b>khó nhất</b> trong 5 người (cột “E2b – TB 5 người” là con số công bằng hơn).</div>
+{ket_luan}{''.join(s)}{bang}
+<h4>Mức hệ thống: thay bộ đọc chữ số rồi vẫn đối chiếu bubble</h4>
+<p class="mut">“Đúng cả chuỗi” = đọc đúng cả 6 chữ số SBD <i>và</i> 3 chữ số mã đề của một phiếu (nhóm trường gộp). “Sai mà không cờ” = hệ thống TỰ NHẬN một SBD / mã đề sai (nguy hiểm nhất). (a) 56 phiếu dev, 5 người viết chính họ → lạc quan. (b) 13 ảnh giấy thật, 26 trường → mỗi trường = 3,8 điểm, rất thô.</p>
+<div class="cuon">{r4}</div>
+<h4>Cùng một ô, các thuật toán đọc khác nhau</h4>
+<p class="mut"><b>12 ô lấy NGẪU NHIÊN</b> (seed 2026) trong {len(bat_dong)} ô mà các thuật toán KHÔNG đồng ý với nhau (ô cả {len(co)} cái cùng đọc giống nhau thì không hiện). Số đỏ = đọc sai.</p>
+<div class="cuon">{bang_vd(ngau)}</div>
+<h4>8 ô CNN đọc sai nhưng đa số thuật toán khác đọc đúng – <u>CHỌN CÓ CHỦ Ý</u></h4>
+<p class="mut">Đây KHÔNG phải mẫu đại diện: CNN đọc đúng {ok_cnn}/{n} ô ({pt(ok_cnn / n)}); hiện ra để thấy CNN không hoàn hảo.</p>
+<div class="cuon">{bang_vd(co_y)}</div>
+<div class="canh-bao"><b>Nói thẳng:</b> thư viện OCR <b>PP-OCRv6</b> (lệnh D, chỉ DEV, không nằm trong bảng trên vì khác giao thức) <b>đúng hơn CNN 1,1 điểm</b> trên chữ người lạ (96,9% so với 95,8%) và 5,5 điểm trên 504 ô phiếu dev (98,2% so với 92,7%),
+nhưng <b>nặng ~50 lần</b> (≈ 5,3 triệu so với 105 866 tham số, +71 MB thư viện) và lắp nguyên trạng làm số phiếu cần giáo viên xem tăng (53,6% so với 46,4%). Nhóm giữ CNN cho hệ thống; PP-OCRv6 là hướng cải tiến.</div>"""
+
+
 # ------------------------------------------------------------------------------------------------ trang
 CSS = """*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Segoe UI",system-ui,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:20px 16px 60px} h1{font-size:28px;margin:0 0 4px} .sub{color:var(--mut);margin:0 0 16px}
@@ -253,10 +351,10 @@ tr.nhan td{background:var(--pri-nhat);font-weight:600} .cuon{overflow-x:auto} co
 .o-so{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px} .o-the{border:1px solid var(--line);border-radius:var(--r);padding:8px;text-align:center;font-size:14px;background:var(--card)} .o-the.sai{border-color:var(--bad-vien);background:var(--badbg)}
 .o-the img{image-rendering:pixelated;border:1px solid var(--line)} .the{display:inline-block;padding:1px 9px;border-radius:99px;font-size:13px;font-weight:700;border:1px solid} .the.ok{background:var(--okbg);color:var(--ok);border-color:var(--ok-vien)} .the.bad{background:var(--badbg);color:var(--bad);border-color:var(--bad-vien)}
 .so3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:8px 0} .so3>div{background:var(--pri-nhat);border-radius:var(--r);padding:10px 14px} .so3 b{display:block;font-size:30px;color:var(--pri-dam);line-height:1.15}
-.chan{color:var(--mut);font-size:14px;margin-top:24px}"""
+.chan{color:var(--mut);font-size:14px;margin-top:24px} td.sai-o{color:var(--bad);background:var(--badbg);font-weight:700}"""
 
 
-def dung_trang(truc_tiep: dict | None) -> str:
+def dung_trang(truc_tiep: dict | None, so_sanh: dict | None = None) -> str:
     ai = json.loads(KQ_AI.read_text(encoding="utf-8"))
     ad = json.loads(KQ_AD.read_text(encoding="utf-8"))
     t = thong_tin_mo_hinh()
@@ -280,6 +378,10 @@ def dung_trang(truc_tiep: dict | None) -> str:
          sec(6, "Giới hạn", muc_gioi_han())]
     if truc_tiep:
         s.insert(3, sec(4, "Chạy CNN thật trên ô chưa dùng để huấn luyện", muc_truc_tiep(truc_tiep)))
+    if so_sanh:
+        ak = json.loads(KQ_AK.read_text(encoding="utf-8"))
+        s.insert(3, sec(4, "So sánh TRỰC TIẾP nhiều thuật toán (lệnh AK)", muc_so_sanh_truc_tiep(so_sanh, ak)))
+    if truc_tiep or so_sanh:
         # đánh số lại
         n = [0]
 
@@ -291,7 +393,7 @@ def dung_trang(truc_tiep: dict | None) -> str:
         body = "".join(s)
     return f"""<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Demo máy học</title>
 <style>{css}{CSS}</style></head><body><main><h1>Máy học trong hệ thống chấm phiếu</h1>
-<p class="sub">Dữ liệu · hai mô hình · so sánh thuật toán · kết quả âm tính · giới hạn. Mọi số lấy từ kết quả đã chạy và lưu trong <code>data/_eval/</code> và <code>docs/</code>{" · có mục chạy trực tiếp" if truc_tiep else ""}.</p>
+<p class="sub">Dữ liệu · hai mô hình · so sánh thuật toán · kết quả âm tính · giới hạn. Mọi số lấy từ kết quả đã chạy và lưu trong <code>data/_eval/</code> và <code>docs/</code>{" · có mục chạy trực tiếp" if (truc_tiep or so_sanh) else ""}.</p>
 {body}<p class="chan">Sinh bởi <code>tools/demo_may_hoc.py</code>. Không huấn luyện lại, không đổi mô hình.</p></main></body></html>"""
 
 
@@ -301,10 +403,13 @@ def main():
     ap = argparse.ArgumentParser(description="Dựng trang HTML demo máy học (chỉ đọc kết quả đã có).")
     ap.add_argument("--ra", type=Path, default=ROOT / "data" / "_eval" / "demo_3_phien" / "may_hoc.html")
     ap.add_argument("--truc-tiep", action="store_true", help="chạy CNN thật trên 504 ô phiếu dev (không huấn luyện trên chúng)")
+    ap.add_argument("--so-sanh-truc-tiep", action="store_true", help="lệnh AK: chạy trực tiếp 11 thuật toán (mô hình người 1 giữ ra) trên ô của người 1 + bảng R3 / R4; cần data/_eval/ak/")
+    ap.add_argument("--da-tinh-san", action="store_true", help="với --so-sanh-truc-tiep: đọc kết quả đã đệm thay vì chạy (ghi rõ ĐÃ TÍNH SẴN trên trang)")
     a = ap.parse_args()
     tt = chay_truc_tiep() if a.truc_tiep else None
+    ss = chay_so_sanh_truc_tiep(a.da_tinh_san) if a.so_sanh_truc_tiep else None
     a.ra.parent.mkdir(parents=True, exist_ok=True)
-    a.ra.write_text(dung_trang(tt), encoding="utf-8")
+    a.ra.write_text(dung_trang(tt, ss), encoding="utf-8")
     if tt:
         print(f"Trực tiếp: đúng {tt['dung']}/{tt['n']} = {100 * tt['dung'] / tt['n']:.2f}% (ô có mực; phiếu dev có {tt['tong_dev']} ô)")
     print(f"Đã ghi {a.ra}")
