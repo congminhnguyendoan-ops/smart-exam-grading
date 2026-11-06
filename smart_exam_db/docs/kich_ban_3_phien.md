@@ -72,7 +72,7 @@ Mật khẩu `admin`, `gv_an`, `gv_binh`: người trình bày tự nhớ; quên
 
 | Giờ | Thao tác | Lời dẫn (nhóm em) | Chỉ vào |
 |---|---|---|---|
-| 0:00–0:20 | Tab 1, đầu trang | “Đây là một phiếu thật chụp bằng điện thoại, chạy bằng đúng các hàm của hệ thống, không viết lại cho demo. Tổng thời gian khoảng 0,9 giây, trong đó nắn ảnh chiếm phần lớn.” | dòng “tổng … ms”; hộp màu vàng “4/40 câu cần giáo viên xem” |
+| 0:00–0:20 | Tab 1, đầu trang | “Đây là một phiếu thật chụp bằng điện thoại, chạy bằng đúng các hàm của hệ thống, không viết lại cho demo. Xử lý cả tờ khoảng 0,9 giây, trong đó nắn ảnh chiếm phần lớn; con số ‘tổng’ ở đầu trang (~1,3 giây) còn gồm cả thời gian vẽ các hình minh hoạ.” | dòng “tổng … ms”; hộp màu vàng “4/40 câu cần giáo viên xem” |
 | 0:20–0:50 | Bước 1 → 2 → 3 | “Bước 1 là ảnh gốc xám, đã xoay đúng chiều theo EXIF. Bước 2 đo độ nét: ảnh này gấp hơn 25 lần ngưỡng nên đạt. Bước 3 tìm bốn ô vuông đen ở góc: vòng vàng là ứng viên, vòng xanh là bộ bốn góc được chọn sau khi kiểm hình học.” | thanh độ nét; tứ giác xanh với nhãn TL, TR, BR, BL |
 | 0:50–1:20 | Bước 4 → 5 | “Từ bốn góc, nhóm em biến đổi phối cảnh về tờ A4 chuẩn 2480×3508, nên mọi ô nằm đúng toạ độ trong file layout. Giấy cong hoặc in lệch vài mi-li-mét, nên máy còn dò lại từng hàng; phiếu này lệch lớn nhất ≈ 1,2 mm.” | vòng xanh lá lệch khỏi chấm xanh dương ở bước 5 |
 | 1:20–1:50 | Bước 6 | “Mỗi ô được phân ba lớp: trống, mờ, rõ. Khung đỏ là câu máy không chắc – ví dụ câu 10 tô mờ, câu 19 tô hai ô. Máy không chấm các câu này; nó chuyển cho giáo viên.” | khung đỏ câu 10, 19, 37, 39; bảng lý do bên dưới |
