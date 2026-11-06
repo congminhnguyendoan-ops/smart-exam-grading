@@ -403,6 +403,19 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - E2b (MNIST + ô thật, leave-one-writer-out trang D, TB 5 người): **CNN 95,40%** · SVM RBF 91,43% · MLP 90,96% · RF 90,46% · k-NN 87,92% · LR 83,53% → **R1: CNN đúng nhất** (CNN E2b trùng bộ đệm `oof_g0_goc`, chênh 0).
   E1 MNIST test: CNN 98,94%, SVM 97,70%. Mẫu con chốt trước: SVM E1 20 000; E2b scikit-learn MNIST 10 000.
 
+### 4m. Lệnh AJ – bộ công cụ cho 3 phiên demo (06/11/2026, nhánh `hoan-thien`; CHỈ thêm công cụ + tài liệu, không đổi mô hình / tệp đóng băng / logic hệ thống)
+- `tools/demo_xu_ly_anh.py --anh <ảnh> --ra <html>`: chạy pipeline THẬT offline (`preprocess_anh` → `omr.doc_phieu` → `ocr.doc_chu_so` → `doi_chieu_dinh_danh`, không CSDL) và dựng MỘT trang HTML tự chứa
+  (ảnh base64) 8 bước: ảnh gốc · độ mờ · 4 góc · nắn 2480×3508 · lưới ô định vị · OMR tô màu · 9 ô chữ số 28×28 + CNN · đối chiếu hai kênh. Ảnh bị từ chối: dựng tới bước bị chặn + mã + lời khuyên.
+  Danh sách thí sinh đối chiếu lấy từ `data/_eval/ag/kich_ban.json` (kỳ thi 1633) nếu có; `--khong-danh-sach` bỏ.
+- `tools/demo_may_hoc.py [--truc-tiep] --ra <html>`: trang tổng hợp CHỈ ĐỌC kết quả đã có (`docs/kiem_ke_du_lieu.md`, `data/_eval/ai|ad/ket_qua.json`, `models/*.json`): dữ liệu, 2 mô hình (M1: 40 tham số; CNN 105 866),
+  biểu đồ E2b ± SD, kích thước / tốc độ, kết quả âm tính lệnh AD, giới hạn. `--truc-tiep`: CNN thật trên 504 ô phiếu dev 0001–0028 (mô hình triển khai không huấn luyện trên chúng; không đọc val / test):
+  **467/504 = 92,66%**, 24 ô ngẫu nhiên (seed 2026) + 8 ô sai "CHỌN CÓ CHỦ Ý" ghi rõ trên trang kèm tỉ lệ chung.
+- `docs/kich_ban_3_phien.md`: kịch bản phiên 1 (≈ 3 phút), 2 (≈ 3), 3 (6–7), hỏi đáp, dự phòng; chuẩn bị chung + đặt lại (`PUBLIC_BASE_URL`, `chay_server_lan.py --khong-xoa-anh`, `kiem_truoc_demo`, `dat_lai_demo` sau MỖI phiên 3).
+  Không chạy hai phiên cùng lúc; không để hai điện thoại gửi cùng một phiếu (409, phiếu không lưu – lệnh AH).
+- Ảnh demo `data/_eval/demo_3_phien/` (ngoài git): `T05_thuong.JPG`, `T03_kho.JPG` = bản sao ảnh THẬT; `T05_mo_phong_nhe.jpg` (Gaussian σ 4 px, vẫn qua, cờ gần ngưỡng) và `T05_mo_phong_nang.jpg` (σ 12 px, `anh_mo`) = MÔ PHỎNG, không phải ảnh chụp mờ thật.
+- Đã diễn tập phiên 3 trên server thật (uvicorn, kỳ thi tập 1633 / gv_binh, token dựng như `thu_bo_demo.py`): BV06 → 8,5 tạm → duyệt đúng giấy → **9,0** chính thức; ảnh thật T05 (SBD 220006) bị giữ `duplicate_sbd` rồi bỏ; ảnh mờ mô phỏng `anh_mo`;
+  bảng điểm + Excel 2 sheet; gv_an 404 / gv_binh `/admin` 403. Sau đó `dat_lai_demo --xac-nhan DAT_LAI`: 1633 về 0 phiếu, 1632 giữ 6, 1380 / 1381 = 0. **Chưa diễn tập phần điện thoại thật** (không có thiết bị trong phiên).
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
