@@ -95,7 +95,7 @@ def thong_tin_mo_hinh() -> dict:
     ocr = json.loads(ocr_p.read_text(encoding="utf-8"))
     omr = json.loads(omr_p.read_text(encoding="utf-8"))
     m = ocr["thanh_vien"][0]
-    n_cnn = sum(int(np.asarray(m[k]).size) for k in ("c1w", "c1b", "c2w", "c2b", "d1w", "d1b", "d2w", "d2b"))
+    n_cnn = sum(int(np.asarray(v).size) for k, v in m.items() if k not in ("seed", "T"))          # mọi kiến trúc (lệnh AN: mô hình triển khai là sau_2x2)
     n_m1 = 0
     for k in ("cau", "bubble"):
         n_m1 += int(np.asarray(omr[k]["he_so"]).size) + int(np.asarray(omr[k]["chan"]).size)
