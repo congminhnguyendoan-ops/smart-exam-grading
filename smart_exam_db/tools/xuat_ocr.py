@@ -43,6 +43,8 @@ def sha_file(p: Path) -> str:
 def tham_so(m) -> dict:
     """Trọng số torch -> dict mảng (float32) đúng tên mà cv_engine.ocr dùng."""
     sd = {k: v.detach().cpu().numpy().astype(np.float32) for k, v in m.state_dict().items()}
+    if "a1.weight" in sd:                                      # CNN sâu "sau_2x2" (lệnh AM): 4 conv a1 a2 b1 b2 + d1 d2, ghi kien_truc = ocr.KIEN_TRUC_SAU
+        return {f"{t}{u}": sd[f"{t}.{'weight' if u == 'w' else 'bias'}"] for t in ("a1", "a2", "b1", "b2", "d1", "d2") for u in ("w", "b")}
     return {"c1w": sd["c1.weight"], "c1b": sd["c1.bias"], "c2w": sd["c2.weight"], "c2b": sd["c2.bias"],
             "d1w": sd["d1.weight"], "d1b": sd["d1.bias"], "d2w": sd["d2.weight"], "d2b": sd["d2.bias"]}
 

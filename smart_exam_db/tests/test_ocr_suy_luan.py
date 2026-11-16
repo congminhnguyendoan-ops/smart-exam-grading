@@ -144,3 +144,46 @@ def test_ca_0001_sbd_viet_062384_bubble_06238_thieu_cot_6(kq0001, layout, mh):
     cot_cuoi = dc["cot"]["sbd"][5]
     assert not cot_cuoi.chac
     assert dc["can_xem"]
+
+
+# --------------------------------------------------------------------------------------------- Lệnh AM: kiến trúc "sau_2x2"
+def _mang_sau_ngau_nhien(torch, seed=20261116):
+    sys.path.insert(0, str(ROOT / "tools"))
+    import ak_so_sanh_mo_rong as K
+    torch.manual_seed(seed)
+    return K.tao_cnn_sau().eval()
+
+
+def test_cnn_sau_numpy_khop_pytorch_trong_so_ngau_nhien(tmp_path):
+    """Tiêu chí (c) của docs/tieu_chi_cnn_sau.md: ≥ 2000 ô MNIST test, cùng nhãn ≥ 99,9%, mọi logit lệch ≤ 1e-4.
+    Đi qua ĐÚNG đường xuất JSON (xuat_ocr.tham_so + lam_tron 8 chữ số) rồi nap_mo_hinh_ocr, so với PyTorch dùng trọng số GỐC."""
+    torch = pytest.importorskip("torch")
+    pytest.importorskip("sklearn")
+    can_file(DATA / "_ocr" / "nguon" / "t10k-images-idx3-ubyte.gz")
+    import huan_luyen_ocr as H
+    import xuat_ocr as X
+    net = _mang_sau_ngau_nhien(torch)
+    assert sum(v.size for v in X.tham_so(net).values()) == 467818
+    x = H.doc_mnist()[2][:2000]
+    f = tmp_path / "sau.json"
+    f.write_text(json.dumps({"phien_ban": "thu", "kien_truc": ocr.KIEN_TRUC_SAU, "tau": 0.9995, "delta": 0.99, "tau_khop": 0.5,
+                             "thanh_vien": [{"seed": 1, "T": 1.0, **{k: X.lam_tron(v) for k, v in X.tham_so(net).items()}}]}), encoding="utf-8")
+    mh_sau = ocr.nap_mo_hinh_ocr(f)
+    assert mh_sau.kien_truc == ocr.KIEN_TRUC_SAU
+    z_np = ocr.logit_mot_thanh_vien(mh_sau.thanh_vien[0], x)
+    z_pt = H.logits(net, x)
+    assert z_pt.std() > 0.01, "logit ngẫu nhiên không được suy biến"
+    assert (z_np.argmax(1) == z_pt.argmax(1)).mean() >= 0.999
+    assert np.abs(z_np - z_pt).max() <= 1e-4
+
+
+def test_mo_hinh_cu_van_nap_nhu_truoc(mh):
+    assert mh.kien_truc == "co_ban" and "c1w" in mh.thanh_vien[0] and "a1w" not in mh.thanh_vien[0]
+
+
+def test_nap_mo_hinh_sau_thieu_khoa_bi_tu_choi(tmp_path):
+    f = tmp_path / "hong.json"
+    f.write_text(json.dumps({"kien_truc": ocr.KIEN_TRUC_SAU, "tau": 0.9, "delta": 0.9, "tau_khop": 0.5,
+                             "thanh_vien": [{"seed": 1, "T": 1.0, "c1w": [0.0]}]}), encoding="utf-8")
+    with pytest.raises(ValueError):
+        ocr.nap_mo_hinh_ocr(f)

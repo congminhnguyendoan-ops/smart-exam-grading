@@ -280,6 +280,13 @@ class MoHinhOCR:
     delta: float
     tau_khop: float           # đối chiếu bubble: CNN cùng chữ số với p ≥ tau_khop
     sieu_du_lieu: dict = field(default_factory=dict)
+    kien_truc: str = "co_ban"  # "co_ban" (Conv16–Conv32–Dense64, mô hình triển khai) | "sau_2x2" (2 khối × 2 conv, lệnh AM)
+
+
+KIEN_TRUC_SAU = "sau_2x2"
+# Khoá trọng số theo kiến trúc. "sau_2x2": a1,a2 (Conv 1→32, 32→32) → pool → b1,b2 (Conv 32→64, 64→64) → pool → d1 (3136→128) → d2 (128→10); 467 818 tham số.
+KHOA_CO_BAN = ("c1w", "c1b", "c2w", "c2b", "d1w", "d1b", "d2w", "d2b")
+KHOA_SAU = ("a1w", "a1b", "a2w", "a2b", "b1w", "b1b", "b2w", "b2b", "d1w", "d1b", "d2w", "d2b")
 
 
 def nap_mo_hinh_ocr(duong_dan: str | Path | None = None) -> MoHinhOCR:
@@ -288,7 +295,13 @@ def nap_mo_hinh_ocr(duong_dan: str | Path | None = None) -> MoHinhOCR:
     tv = []
     for m in d["thanh_vien"]:
         tv.append({k: (np.asarray(v, np.float32) if k != "T" else float(v)) for k, v in m.items() if k != "seed"})
-    return MoHinhOCR(tv, d["tau"], d["delta"], d["tau_khop"], d.get("sieu_du_lieu", {}))
+    kt = KIEN_TRUC_SAU if d.get("kien_truc") == KIEN_TRUC_SAU else "co_ban"    # mô hình cũ: trường kien_truc là chuỗi mô tả -> nhánh cũ
+    khoa = KHOA_SAU if kt == KIEN_TRUC_SAU else KHOA_CO_BAN
+    for m in tv:
+        thieu = [k for k in khoa if k not in m]
+        if thieu:
+            raise ValueError(f"mô hình kiến trúc {kt} thiếu khoá trọng số: {thieu}")
+    return MoHinhOCR(tv, d["tau"], d["delta"], d["tau_khop"], d.get("sieu_du_lieu", {}), kt)
 
 
 def _conv3(x: np.ndarray, w: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -307,8 +320,12 @@ def _pool2(x: np.ndarray) -> np.ndarray:
 def logit_mot_thanh_vien(m: dict, x: np.ndarray) -> np.ndarray:
     """Logit [N,10] của một CNN. x uint8 [N,28,28] (nền 0, nét 255)."""
     a = x.astype(np.float32)[:, None] / 255.0
-    a = _pool2(_conv3(a, m["c1w"], m["c1b"]))
-    a = _pool2(_conv3(a, m["c2w"], m["c2b"]))
+    if "a1w" in m:                                                         # kiến trúc "sau_2x2" (nap_mo_hinh_ocr đã kiểm đủ khoá)
+        a = _pool2(_conv3(_conv3(a, m["a1w"], m["a1b"]), m["a2w"], m["a2b"]))
+        a = _pool2(_conv3(_conv3(a, m["b1w"], m["b1b"]), m["b2w"], m["b2b"]))
+    else:
+        a = _pool2(_conv3(a, m["c1w"], m["c1b"]))
+        a = _pool2(_conv3(a, m["c2w"], m["c2b"]))
     a = a.reshape(len(a), -1)                                              # (C, H, W) -> giống torch flatten(1)
     return np.maximum(a @ m["d1w"].T + m["d1b"], 0.0) @ m["d2w"].T + m["d2b"]
 
