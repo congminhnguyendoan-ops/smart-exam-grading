@@ -447,6 +447,12 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   4. Backend: `phien_ban_ocr` = `ocr_cnn-a151c078`; lúc khởi động backend tự ghi một dòng `ml_models` mới (hành vi cũ). `OCR_MODEL` mặc định không đổi.
   5. Test đã đổi có chủ đích: chỉ `tests/test_ocr_suy_luan.py` (xem báo cáo). Nhánh `main` / `hoan-thien` / `cai-tien-b` KHÔNG có thay đổi này.
 
+### 4r. Lệnh AO – làm nhất quán sau khi thay mô hình (16/11/2026, nhánh `cnn-sau`; không đổi `models/`, không đổi tiêu chí AN)
+- `tools/kiem_truoc_demo.py`: thêm `SHA_KY_VONG_GHI_DE` (kỳ vọng SHA của `models/ocr_cnn.json` = mô hình MỚI `a151c078…`, ghi đè CÓ CHỦ ĐÍCH sổ đóng băng `docs/dong_bang_ma_dot2.json`, sổ này KHÔNG sửa); các mục khác vẫn theo sổ → 0 KHÔNG ĐẠT về mô hình trên nhánh này.
+- `tools/demo_may_hoc.py` + trang HTML: **CNN SÂU là mô hình triển khai** (kiến trúc 2 mạng cạnh nhau + mã suy luận NumPy thật trích bằng `inspect.getsource` từ `cv_engine/ocr.py`; bảng kết quả AM / AN đọc từ `data/_eval/am|an/ket_qua.json`; bảng 11 thuật toán AK; số liệu bộ dữ liệu; giới hạn: 48 trường chưa có ý nghĩa thống kê, dev lạc quan, chưa đo người viết lạ, lỗi im lặng 0 nhờ hai kênh). CNN cũ (bản sao lưu `data/_eval/an/ocr_cnn_hien_tai_sao_luu.json`) chỉ là bản so sánh. Trang tự chứa, không tải gì từ mạng.
+- Chuỗi người dùng nhìn thấy đã đổi: `tools/demo_may_hoc.py` (toàn bộ), `tools/demo_xu_ly_anh.py` (bước 7: tên mạng + nhiệt độ T lấy từ mô hình, không còn "Conv16–Conv32–Dense64" / "T = 1,75"), `docs/kich_ban_3_phien.md` (bảng phiên 2, câu hỏi đáp, dự phòng). Chú thích mã: `cv_engine/ocr.py`. Ghi chú "CNN = mô hình cũ" trong docstring `tools/so_sanh_ocr.py`, `ai_so_sanh_thuat_toan.py`, `ak_so_sanh_mo_rong.py`.
+  Bản ghi lịch sử GIỮ NGUYÊN: mục 4d / 4e / 4l / 4n ở trên và `docs/ke_hoach_tuan6.md`, `so_sanh_ocr_cnn.md`, `so_sanh_mo_rong_ak.md`, `tieu_chi_*`, `ket_qua_*`, `lenh_*` (mô tả mô hình lúc đó).
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:

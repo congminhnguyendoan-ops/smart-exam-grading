@@ -262,7 +262,9 @@ def doi_chieu_truong(cot: list[CotDoiChieu], trong_danh_sach: bool | None) -> tu
 
 # =============================================================================================
 # Suy luận CNN bằng NumPy + JSON (Tuần 6 Phần C). Mô hình huấn luyện bằng PyTorch (tools/huan_luyen_ocr.py), xuất ra models/ocr_cnn.json
-# bởi tools/xuat_ocr.py; ở đây KHÔNG import torch. Kiến trúc: Conv16 3×3 → pool → Conv32 3×3 → pool → Dense64 → 10 (xem H.tao_cnn).
+# bởi tools/xuat_ocr.py; ở đây KHÔNG import torch. Hai kiến trúc (rẽ nhánh ở logit_mot_thanh_vien theo khoá trọng số):
+#   "sau_2x2" (MÔ HÌNH TRIỂN KHAI từ lệnh AN, 467 818 tham số): Conv32 → Conv32 → pool → Conv64 → Conv64 → pool → Dense128 → 10 (xem ak_so_sanh_mo_rong.tao_cnn_sau);
+#   "co_ban" (CNN cũ, 105 866 tham số, chỉ còn để so sánh): Conv16 3×3 → pool → Conv32 3×3 → pool → Dense64 → 10 (xem H.tao_cnn).
 # =============================================================================================
 DUONG_DAN_MO_HINH = Path(__file__).resolve().parent.parent / "models" / "ocr_cnn.json"
 NGUONG_TRONG = 30        # ink_px < ngưỡng -> ô viết tay trống (đo trên 4 612 ô dev: ô ít mực nhất 167 px; CHƯA kiểm trên ô trống thật)
@@ -275,7 +277,7 @@ LE_BAN_DO_TOI = 100      # px: lề quanh vùng 9 ô khi tính bản đồ tối
 
 @dataclass
 class MoHinhOCR:
-    thanh_vien: list          # mỗi phần tử: dict(c1w, c1b, c2w, c2b, d1w, d1b, d2w, d2b, T) – mảng float32
+    thanh_vien: list          # mỗi phần tử: dict(c1w, c1b, c2w, c2b, d1w, d1b, d2w, d2b, T) (co_ban) hoặc dict(a1w … b2b, d1w … d2b, T) (sau_2x2) – mảng float32
     tau: float                # ngưỡng độ tin cậy chữ số (CNN một mình) – chỉ để báo cáo, luật nhận là doi_chieu_cot
     delta: float
     tau_khop: float           # đối chiếu bubble: CNN cùng chữ số với p ≥ tau_khop

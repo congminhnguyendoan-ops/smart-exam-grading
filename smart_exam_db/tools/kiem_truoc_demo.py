@@ -40,6 +40,9 @@ KY_THI_TAP = 1632                                     # kỳ thi tập: có phi�
 DU_THI_THEO_KY_THI = {1380: "E1", 1381: "E2", 1632: "E1", 1633: "E2"}
 SO_DANG_KY = ROOT / "docs" / "dong_bang_ma_dot2.json"
 TEP_MO_HINH = ["models/omr_m1.json", "models/ocr_cnn.json", "answer_sheet/output/layout.json", "answer_sheet/output/phieu_trang_300dpi.png"]
+# Lệnh AO (16/11/2026): lệnh AN ĐÃ THAY models/ocr_cnn.json bằng CNN sâu (docs/ket_qua_thay_mo_hinh_an.md; SHA cũ 6D87205C… nằm trong sổ đăng ký đợt 2).
+# Sổ docs/dong_bang_ma_dot2.json là bản ghi LỊCH SỬ đóng băng nên KHÔNG sửa; kỳ vọng SHA của riêng tệp này được ghi đè ở đây, CÓ CHỦ ĐÍCH. Các tệp khác vẫn theo sổ.
+SHA_KY_VONG_GHI_DE = {"models/ocr_cnn.json": "A151C078E159E003FB668B4E4A9E00EC38554F5FEC9F870A9624D53B989AC6C8"}
 DEMO_BV = ROOT / "answer_sheet" / "demo_bv"
 ANH_BV = ROOT / "data" / "_eval" / "demo_bv" / "anh_gia"
 TEP_DEMO = [DEMO_BV / "phieu_demo_in.pdf", DEMO_BV / "phieu_giao_viec_demo.pdf"] + [ANH_BV / f"BV{i:02d}.jpg" for i in range(1, 11)]
@@ -81,13 +84,14 @@ def kiem_csdl(conn) -> list[Muc]:
 def kiem_mo_hinh(goc: Path = ROOT, tep: list[str] = TEP_MO_HINH, so_dang_ky: Path = SO_DANG_KY) -> list[Muc]:
     out = []
     dk = json.loads(so_dang_ky.read_text(encoding="utf-8")).get("sha256", {}) if so_dang_ky.exists() else {}
+    dk = {**dk, **{k: v for k, v in SHA_KY_VONG_GHI_DE.items() if k in tep}}      # lệnh AO: kỳ vọng mới của mô hình đã thay (xem chú thích ở đầu tệp)
     for t in tep:
         p = goc / t
         if not p.is_file():
             out.append(Muc("Mô hình", t, KHONG_DAT, "THIẾU tệp"))
         elif t in dk:
             ok = sha_hoa(p) == dk[t].upper()
-            out.append(Muc("Mô hình", t, DAT if ok else KHONG_DAT, f"SHA {'khớp' if ok else 'KHÁC'} {so_dang_ky.name}"))
+            out.append(Muc("Mô hình", t, DAT if ok else KHONG_DAT, f"SHA {'khớp' if ok else 'KHÁC'} {'SHA_KY_VONG_GHI_DE (mô hình đã thay, lệnh AN)' if t in SHA_KY_VONG_GHI_DE else so_dang_ky.name}"))
         else:
             out.append(Muc("Mô hình", t, DAT, "có tệp (sổ đăng ký không ghi SHA tệp này)"))
     om = os.environ.get("OMR_MODEL")

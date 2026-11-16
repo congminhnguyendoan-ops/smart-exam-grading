@@ -317,9 +317,9 @@ def chay(anh: Path, ra: Path, dung_ds: bool = True) -> dict:
                 cards.append(f'<div class="o-the {"xem" if xem else ""}"><b>{ten} · vị trí {h.vi_tri + 1}</b><div class="an"><img src="{ao}" alt="ô cắt" width="{h.anh_o.shape[1] // 2 if h.anh_o is not None else 0}"></div>'
                              f'<small>ô cắt (bỏ viền)</small><br>{a28}<br><small>28×28 vào CNN</small>{mid}</div>')
         buoc.append(the_buoc(7, "Ô viết tay → CNN nhận diện chữ số (nơi OCR hoạt động)",
-                             "Chín ô viết tay (SBD 6 + mã đề 3) được cắt bỏ viền in sẵn, chuẩn hoá về 28×28 kiểu MNIST rồi đưa vào CNN Conv16–Conv32–Dense64 chạy bằng NumPy. "
+                             "Chín ô viết tay (SBD 6 + mã đề 3) được cắt bỏ viền in sẵn, chuẩn hoá về 28×28 kiểu MNIST rồi đưa vào CNN SÂU (hai khối × hai lớp tích chập, Dense 128; mô hình triển khai từ lệnh AN) chạy bằng NumPy. "
                              "Ô trống / ít mực / bôi đen thì KHÔNG qua CNN.",
-                             '<div class="ocr-ban"><b>Đây là bước máy học nhận diện chữ số.</b> Phần bubble ở bước 6 chỉ là đo độ tối, không có CNN. Xác suất đã hiệu chỉnh nhiệt độ (T = 1,75).</div>'
+                             '<div class="ocr-ban"><b>Đây là bước máy học nhận diện chữ số.</b> Phần bubble ở bước 6 chỉ là đo độ tối, không có CNN. Xác suất đã hiệu chỉnh nhiệt độ (T = ' + f"{mh_ocr.thanh_vien[0]['T']:.2f}".replace(".", ",") + ').</div>'
                              '<div class="o-so">' + "".join(cards) + "</div>", ms["ocr"]))
         # 8 hai kênh
         hangs = []

@@ -1,6 +1,7 @@
 """
 so_sanh_ocr.py - Lệnh D: so sánh CNN chữ số hiện tại với M0 (HOG + logistic) và một thư viện OCR, CHỈ ĐO trên dữ liệu DEV. Không sửa hệ thống,
 không đổi trọng số, không ghi CSDL. Kết quả -> data/_eval/so_sanh_ocr/. Báo cáo: docs/so_sanh_ocr_cnn.md.
+(Ghi chú lệnh AO, 16/11/2026: từ lệnh AN, models/ocr_cnn.json là CNN SÂU sau_2x2 (467 818 tham số). Chữ "CNN hiện tại" / số liệu "CNN" trong công cụ và kết quả này là CNN CŨ (105 866 tham số, SHA 6d87205c…) – mô hình lúc đó; bản sao lưu data/_eval/an/ocr_cnn_hien_tai_sao_luu.json. Chạy lại công cụ này sẽ đo mô hình đang triển khai, KHÔNG tái tạo số liệu cũ.)
 
   python tools/so_sanh_ocr.py do-cnn       # Bước 1: tham số, dung lượng, RAM, phụ thuộc, thời gian (chữ số / 9 chữ số / cả phiếu)
   python tools/so_sanh_ocr.py so-sanh      # Bước 2–3: M0 + CNN (+ OCR nếu đã có data/_eval/so_sanh_ocr/du_doan_ocr.csv) trên CÙNG tập chữ số

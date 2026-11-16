@@ -1,4 +1,5 @@
 """
+(Ghi chú lệnh AO, 16/11/2026: từ lệnh AN, models/ocr_cnn.json là CNN SÂU sau_2x2 (467 818 tham số). Chữ "CNN hiện tại" / số liệu "CNN" trong công cụ và kết quả này là CNN CŨ (105 866 tham số, SHA 6d87205c…) – mô hình lúc đó; bản sao lưu data/_eval/an/ocr_cnn_hien_tai_sao_luu.json. Chạy lại công cụ này sẽ đo mô hình đang triển khai, KHÔNG tái tạo số liệu cũ.)
 ai_so_sanh_thuat_toan.py - Lệnh AI: so sánh CNN chữ số hiện tại với logistic regression / k-NN / SVM RBF / Random Forest / MLP trên CÙNG ảnh 28×28.
 Tiêu chí ĐĂNG KÝ TRƯỚC: docs/tieu_chi_so_sanh_thuat_toan.md (commit 253a4b5 – trước công cụ này). CHỈ ĐO: không sửa models/*, mã hệ thống, CSDL.
 Chỉ dev: MNIST, EMNIST Digits test, trang D001–D010, phiếu dev 0001–0028. KHÔNG đọc 0029–0040 / đợt 2 / giấy thật. Cần torch + scikit-learn.

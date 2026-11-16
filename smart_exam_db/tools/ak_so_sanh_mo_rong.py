@@ -1,4 +1,5 @@
 """
+(Ghi chú lệnh AO, 16/11/2026: từ lệnh AN, models/ocr_cnn.json là CNN SÂU sau_2x2 (467 818 tham số). Chữ "CNN hiện tại" / số liệu "CNN" trong công cụ và kết quả này là CNN CŨ (105 866 tham số, SHA 6d87205c…) – mô hình lúc đó; bản sao lưu data/_eval/an/ocr_cnn_hien_tai_sao_luu.json. Chạy lại công cụ này sẽ đo mô hình đang triển khai, KHÔNG tái tạo số liệu cũ.)
 ak_so_sanh_mo_rong.py - Lệnh AK: so sánh MỞ RỘNG CNN với 11 thuật toán khác, mức ô (R3) và mức hệ thống (R4), chi phí (R5).
 Tiêu chí ĐĂNG KÝ TRƯỚC: docs/tieu_chi_so_sanh_mo_rong.md (commit 2e549da – trước công cụ này). CHỈ ĐO: không sửa models/*, mã hệ thống, CSDL.
 Tái dùng giao thức lệnh AI (tools/ai_so_sanh_thuat_toan.py): cùng ảnh 28×28, 5 người viết, seed, mẫu con, hiệu chỉnh nhiệt độ.
