@@ -423,6 +423,13 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   92,31% so với HOG+SVM 96,15% (đúng 1 trường). Mọi thuật toán 0 ca sai mà không cờ. **KHÔNG được nói “CNN hiện tại tối ưu”**; nói “mạng tích chập tốt nhất trong tập đã thử ở mức ô”. Mô hình triển khai không đổi (CNN sâu = hướng cải tiến, cần đăng ký + kiểm thử lại).
 - Lệch so với tiêu chí (ghi trong báo cáo): HOG cài bằng NumPy (OpenCV 5 không còn `HOGDescriptor`); MLP chạy lại lệch −0,17 điểm so với lệnh AI vì huấn luyện mạng KHÔNG tất định trên máy này (`kiem-tat-dinh`).
 
+### 4o. Lệnh AL – đăng ký tiêu chí chuyển sang CNN sâu (16/11/2026, nhánh `cnn-sau`; CHỈ đăng ký + đọc mã, chưa viết mã suy luận, chưa huấn luyện, chưa sửa `models/`)
+- Tiêu chí đăng ký TRƯỚC `docs/tieu_chi_cnn_sau.md` (commit `4f97e6f`): mục tiêu = giảm số trường phải xem; (a) trường đọc đúng cả chuỗi trên 504 ô dev (112 trường) tăng ≥ 5 điểm, TB 3 seed; (b) lỗi im lặng = 0 trên dev + 13 ảnh `data/anh_that_ag`;
+  (c) NumPy ≡ PyTorch ≥ 99,9% nhãn, logit lệch ≤ 1e-4; (d) ≤ 5 ms/ô, pytest không giảm; (e) không đạt → GIỮ CNN hiện tại, CNN sâu chỉ làm so sánh ở demo Máy học. Giới hạn: 13 ảnh AG đã bị nhìn (không dùng để chọn), 1 trường giấy thật = 3,8 điểm, dev lạc quan.
+- Khảo sát mã (chỉ đọc): `models/ocr_cnn.json` = {phien_ban, kien_truc (chuỗi mô tả), thanh_vien[ {seed, T, c1w,c1b,c2w,c2b,d1w,d1b,d2w,d2b} ], tau, delta, tau_khop, sieu_du_lieu}. Nạp: `ocr.nap_mo_hinh_ocr()` → `MoHinhOCR` (`cv_engine/ocr.py`), gọi từ `backend/service.py`
+  (`OCR_MODEL`, `ocr_cnn.doc_chu_so`, `doi_chieu_dinh_danh`) và các `tools/*`. Kiến trúc CỨNG trong mã suy luận: `logit_mot_thanh_vien` (đúng 2 conv + 2 dense, tên khoá cố định), `_conv3` / `_pool2` dùng lại được. Xuất JSON: `tools/xuat_ocr.py` (`tham_so`, ánh xạ `c1.weight`→`c1w`…), `tools/ad_huan_luyen.py`.
+  Thêm 2 khối × 2 conv (467 818 tham số = 320 + 9 248 + 18 496 + 36 928 + 401 536 + 1 290; Dropout không ảnh hưởng suy luận) cần: `nap_mo_hinh_ocr` (khoá mới a1…b2, d1, d2 hoặc trường kiến trúc), `logit_mot_thanh_vien` (rẽ nhánh theo kiến trúc, 4 conv), `du_doan_xac_suat` (không đổi nếu logit đúng), xuất JSON (`xuat_ocr.py`), test `tests/test_ocr_suy_luan.py` (dựng lại PyTorch từ JSON dùng `H.tao_cnn`). Dùng chung phiên bản → `service` tự lấy SHA; `doc_chu_so` / `doi_chieu_*` không đổi.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
