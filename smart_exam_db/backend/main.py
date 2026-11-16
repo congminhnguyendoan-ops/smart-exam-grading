@@ -217,6 +217,7 @@ def tai_nhieu_anh(exam_id: int, files: list[UploadFile] = File(description="Nhi�
     if not conn.execute("SELECT 1 FROM exams WHERE exam_id = %s", (exam_id,)).fetchone():
         raise service.KhongTimThay(f"Không có kỳ thi {exam_id}.")
     quan_tri.kiem_dang_mo(conn, exam_id)
+    dong_thoi.khoa_ky_thi(conn, exam_id, "lo")           # R3: hai lô cùng kỳ chạy LẦN LƯỢT (khoá tới hết giao dịch) -> không chéo khoá chỉ mục duy nhất results
     batch_id = conn.execute("INSERT INTO scan_batches (exam_id, uploaded_by, total_sheets) VALUES (%s, %s, %s) RETURNING batch_id",
                             (exam_id, user_id, len(files))).fetchone()["batch_id"]
     ket_qua = []

@@ -125,3 +125,22 @@ def test_r2_main_lo_tai_nhieu_anh_tat_khoa_theo_anh():
     from backend import main
     nguon = inspect.getsource(main.tai_nhieu_anh)
     assert "khoa_theo_anh=False" in nguon and "khoa_theo_anh" not in inspect.getsource(main.tai_mot_anh)
+
+
+# ------------------------------------------------------------------------------------------------ R3: /sheets/batch hai lô chéo
+def test_r3_lo_lay_khoa_muc_ky_thi_dau_lo(client, conn_thu):
+    """Sau /sheets/batch giao dịch giữ khoá 'lo' của kỳ thi -> lô thứ hai CÙNG kỳ phải chờ (không chéo khoá); kỳ thi khác không bị chặn."""
+    from test_backend_api import anh_trang, tao_de
+    eid = tao_de(client)
+    r = client.post(f"/exams/{eid}/sheets/batch", files=[("files", ("t.jpg", anh_trang(), "image/jpeg"))])
+    assert r.status_code == 201 and r.json()["tong"] == 1
+    assert _khoa_dang_giu(f"ar:lo:{eid}"), "lô phải giữ khoá mức kỳ thi tới hết giao dịch"
+    assert not _khoa_dang_giu(f"ar:lo:{eid + 1}")
+
+
+def test_r3_khoa_lo_lay_truoc_khi_xu_ly_anh_dau_tien():
+    import inspect
+
+    from backend import main
+    nguon = inspect.getsource(main.tai_nhieu_anh)
+    assert nguon.index('khoa_ky_thi(conn, exam_id, "lo")') < nguon.index("INSERT INTO scan_batches") < nguon.index("nhan_anh_an_toan(")
