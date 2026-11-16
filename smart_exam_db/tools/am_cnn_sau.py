@@ -136,7 +136,7 @@ def cmd_do(a):
     kq["a"] = {"baseline": {k: v for k, v in ra_cu.items()}, "tung_seed": {str(s): ra_sau[s] for s in SEEDS}, "tb": ra_tb,
                "hw_gop_tung_seed": hw, "hw_gop_tb": float(np.mean(hw)), "hw_gop_sd": float(np.std(hw, ddof=1)), "hw_gop_baseline": ra_cu["hw_gop"],
                "chenh_diem": 100 * (float(np.mean(hw)) - ra_cu["hw_gop"])}
-    kq["b"] = {"dev_sai_khong_co_tung_seed": {str(s): ra_sau[s]["sai_khong_co"] for s in SEEDS}, "dev_baseline": ra_cu["sai_khong_co"],
+    kq["b"] = {"dev_sai_khong_co_tung_seed": {str(s): ra_sau[s]["sai_khong_co_cong"] for s in SEEDS}, "dev_baseline": ra_cu["sai_khong_co_cong"],
                "ag": rb, "ag_meta": meta_b}
     AM.mkdir(parents=True, exist_ok=True)
     (AM / "ket_qua.json").write_text(json.dumps(kq, ensure_ascii=False, indent=1, default=float), encoding="utf-8")
