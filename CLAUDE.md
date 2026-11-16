@@ -453,6 +453,17 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - Chuỗi người dùng nhìn thấy đã đổi: `tools/demo_may_hoc.py` (toàn bộ), `tools/demo_xu_ly_anh.py` (bước 7: tên mạng + nhiệt độ T lấy từ mô hình, không còn "Conv16–Conv32–Dense64" / "T = 1,75"), `docs/kich_ban_3_phien.md` (bảng phiên 2, câu hỏi đáp, dự phòng). Chú thích mã: `cv_engine/ocr.py`. Ghi chú "CNN = mô hình cũ" trong docstring `tools/so_sanh_ocr.py`, `ai_so_sanh_thuat_toan.py`, `ak_so_sanh_mo_rong.py`.
   Bản ghi lịch sử GIỮ NGUYÊN: mục 4d / 4e / 4l / 4n ở trên và `docs/ke_hoach_tuan6.md`, `so_sanh_ocr_cnn.md`, `so_sanh_mo_rong_ak.md`, `tieu_chi_*`, `ket_qua_*`, `lenh_*` (mô tả mô hình lúc đó).
 
+### 4s. Lệnh AP – ba demo theo môn, một lệnh mỗi buổi (16/11/2026, nhánh `cnn-sau`; không đổi `models/`; chi tiết `docs/huong_dan_chay_3_demo.md`)
+- **Ba lệnh** (từ `smart_exam_db\`): `python tools/chay_demo.py xla | ml | dacn`. Mỗi lệnh: kiểm nhánh `cnn-sau` + SHA mô hình `a151c078…` → đặt lại RIÊNG kỳ thi của demo (`dat_lai_demo.py --ky-thi`) → mở máy chủ / dựng trang → mở trình duyệt → in 9 dòng "bấm gì, nói gì".
+  Cờ: `--chi-in`, `--khong-dat-lai`, `--khong-mo`, `--bo-qua-kiem-tra`, `--cong`, `--da-tinh-san` (ml). `xla` = công cụ ngoại tuyến (stdlib `http.server`, chỉ 127.0.0.1, không đăng nhập, không CSDL, ảnh tải lên ở thư mục tạm rồi xoá);
+  `ml` = `demo_may_hoc.py` (thêm mục "CNN và CNN sâu bằng lời", số mục tự đánh lại); `dacn` = `chay_server_lan.py` + `tools/demo_ly_thuyet_mon.py` ("Lý thuyết các môn": môn SUY RA từ hệ thống – là GIẢ ĐỊNH, ghi trên trang).
+- **Ba kỳ thi** (`python tools/nap_bo_demo.py --ba-mon [--ap-dung]`, chỉ INSERT, chạy lại không trùng; ĐÃ NẠP 16/11/2026): `[XLA] Xử lý ảnh` (exam_id 9694), `[ML] Máy học` (9695), `[ĐACN] Đồ án chuyên ngành` (9696): 40 câu, mã đề 101–104 (đáp án của bộ BV),
+  môn XLA / ML / DACN, lớp CNTT-K22A, `gv_an`, dự thi 220001–220009 (220010 ngoài danh sách = BV10). `dat_lai_demo.py --ky-thi xla|ml|dacn [--xac-nhan DAT_LAI]`: phạm vi = đúng MỘT exam_id (tiêu đề nguyên văn, phải có đúng một); hành vi cũ (không tham số) không đổi.
+- `demo_xu_ly_anh.py` bổ sung: bước 4b chuẩn hoá ánh sáng, bước 9 điểm TẠM (dùng `backend.grading.cham_diem`, đáp án từ `demo_bv_dap_an.csv`), bước 10 "CNN là gì?" (hình SVG + lời ngắn), tham số `ds` / `dau_trang` của `chay()`.
+- **Bước 0 đã làm**: `dat_lai_demo.py` thật 16/11/2026: xoá 1 phiếu demo của kỳ 1633 (#14798, BV06, kèm 1 điểm chính thức diễn tập); sao lưu `data/_eval/sao_luu_don_du_lieu/20261116_122521_dat_lai_demo/`. 1380, 1381 = 0 phiếu; 1632 giữ nguyên.
+- Test `tests/test_chay_demo.py` (29; không mở máy chủ / trình duyệt thật, CSDL trong ROLLBACK). Mật khẩu tài khoản demo KHÔNG nằm trong git (người dùng tự đặt).
+- Chưa kiểm được: tự mở trình duyệt thật (chỉ thử bằng giả lập), đăng nhập + thao tác trên giao diện `/app/` của `dacn` (cần mật khẩu), chạy `/m` trên điện thoại.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:

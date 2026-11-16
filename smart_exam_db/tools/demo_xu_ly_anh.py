@@ -185,13 +185,80 @@ tr.xem td{{background:var(--warnbg)}} .thanh{{height:18px;background:var(--xam-n
 .chu{{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:middle;margin-right:4px}} code{{background:var(--xam-nen);padding:1px 5px;border-radius:4px}}
 .chan{{color:var(--mut);font-size:14px;margin-top:24px}}
 </style></head><body><main>
-<h1>Pipeline xử lý ảnh phiếu – từng bước</h1>
+{ctx.get('dau_trang', '')}<h1>Pipeline xử lý ảnh phiếu – từng bước</h1>
 <p class="sub">Ảnh: <code>{e(ctx['ten'])}</code> · chạy OFFLINE bằng đúng hàm của hệ thống (không viết lại thuật toán, không ghi CSDL) · tổng {ctx['tong_ms']:.0f} ms</p>
 {ctx['canh_bao']}
 {ctx['buoc']}
 <p class="chan">Trang này do <code>tools/demo_xu_ly_anh.py</code> sinh ra; mọi số trong trang là kết quả chạy thật trên ảnh trên, không lấy từ nơi khác.
 Ngưỡng và mô hình: <code>cv_engine/preprocessing.py</code>, <code>models/omr_m1.json</code>, <code>models/ocr_cnn.json</code> (không sửa).</p>
 </main></body></html>"""
+
+
+DAP_AN_BV = ROOT / "answer_sheet" / "demo_bv" / "demo_bv_dap_an.csv"
+
+
+DANH_SACH_XLA = ([str(s) for s in range(220001, 220010)], ["101", "102", "103", "104"])      # = danh sách dự thi + mã đề của kỳ thi [XLA] (nap_bo_demo --ba-mon)
+
+
+def dap_an_theo_ma_de() -> dict[str, str]:
+    """{mã đề: chuỗi 40 đáp án} của bộ demo BV (cùng đáp án với các kỳ thi [XLA] / [ML] / [ĐACN] trong CSDL). Chỉ đọc CSV, không cần CSDL."""
+    import csv
+    if not DAP_AN_BV.exists():
+        return {}
+    with DAP_AN_BV.open(encoding="utf-8-sig", newline="") as f:
+        return {r["exam_code"]: r["answers"] for r in csv.DictReader(f)}
+
+
+def buoc_diem_tam(omr, dc) -> str:
+    """Điểm TẠM bằng đúng hàm chấm của hệ thống (backend.grading.cham_diem): câu cần xem KHÔNG được chấm."""
+    from decimal import Decimal
+
+    from backend import grading
+    from cv_engine.omr import sang_bubble_state
+    ma = dc["ma_de"][0]
+    keys = dap_an_theo_ma_de()
+    if "?" in ma or ma not in keys:
+        return (f'<div class="canh-bao"><b>Chưa chấm được:</b> mã đề đọc được là <code>{e(ma)}</code>, không có trong đáp án demo (mã đề {", ".join(sorted(keys)) or "–"}). '
+                'Hệ thống thật cũng không chấm khi mã đề chưa rõ: phiếu vào hàng đợi giáo viên.</div>')
+    rows = [{"question_no": c.cau, "selected_options": c.dap_an, "state": sang_bubble_state(c.trang_thai), "needs_review": c.can_xem} for c in omr.cau]
+    kq = grading.cham_diem(rows, {i + 1: (ch, None) for i, ch in enumerate(keys[ma])}, Decimal("0.25"))
+    cx = [c for c in kq.cau if c.is_correct is None]
+    chac = ('<span class="the ok">mã đề chắc</span>' if dc["ma_de"][1] else '<span class="the can">mã đề CHƯA chắc – giáo viên phải xác nhận</span>')
+    return (f'<div class="luoi hai"><div><div class="doc">{kq.diem_tam}</div><p>điểm TẠM trên thang 10 (chỉ tính {kq.num_correct} câu máy chắc là đúng)</p></div>'
+            f'<div><p>Nếu {kq.so_cau_can_xem} câu cần xem đều đúng, điểm tối đa là <b>{kq.diem_toi_da}</b>. Mã đề <b>{e(ma)}</b> {chac}.</p>'
+            f'<p><b>Đây KHÔNG phải điểm chính thức.</b> Điểm chính thức chỉ có khi giáo viên xem hết các câu / SBD cần xem (hoặc máy không còn gì cần xem). '
+            f'Câu cần xem: {", ".join(str(c.question_no) for c in cx) or "không có"}.</p></div></div>')
+
+
+def giai_thich_cnn(mau28, ten_mang: str = "CNN sâu") -> str:
+    """Hình + lời ngắn: CNN là gì và nó nhận ra chữ số thế nào. Ô mẫu là ô viết tay THẬT vừa cắt từ phiếu (nếu có)."""
+    from_img = ""
+    if mau28 is not None:
+        from_img = (f'<figure style="margin:0 12px 0 0"><img src="{uri(cv2.resize(mau28, (112, 112), interpolation=cv2.INTER_NEAREST), png=True)}" width="112" height="112" alt="ô chữ số 28x28" '
+                    'style="image-rendering:pixelated;border:1px solid var(--line)"><figcaption>Ô viết tay thật vừa cắt (28×28 điểm ảnh)</figcaption></figure>')
+    svg = """<svg viewBox="0 0 900 190" role="img" aria-label="Sơ đồ CNN: ảnh 28 nhân 28, lớp tích chập, gộp, lớp tích chập, gộp, lớp đầy đủ, mười xác suất" style="width:100%;height:auto">
+<defs><marker id="mt" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="var(--mut)"/></marker></defs>
+<g font-size="15" fill="var(--ink)" text-anchor="middle">
+<rect x="10" y="40" width="90" height="90" rx="6" fill="var(--hover)" stroke="var(--pri)" stroke-width="2"/><text x="55" y="92">28×28</text><text x="55" y="158">1. Ảnh</text>
+<line x1="104" y1="85" x2="150" y2="85" stroke="var(--mut)" stroke-width="2" marker-end="url(#mt)"/>
+<rect x="160" y="30" width="80" height="80" rx="6" fill="var(--pri-nhat)" stroke="var(--pri)" stroke-width="2"/><rect x="170" y="40" width="80" height="80" rx="6" fill="var(--pri-nhat)" stroke="var(--pri)" stroke-width="2"/><rect x="180" y="50" width="80" height="80" rx="6" fill="var(--pri-nhat)" stroke="var(--pri)" stroke-width="2"/><text x="220" y="96">nhiều</text><text x="220" y="114">“kính lúp”</text><text x="220" y="158">2. Tích chập</text>
+<line x1="270" y1="85" x2="316" y2="85" stroke="var(--mut)" stroke-width="2" marker-end="url(#mt)"/>
+<rect x="326" y="55" width="55" height="55" rx="6" fill="var(--pri-nhat)" stroke="var(--pri)" stroke-width="2"/><text x="353" y="88">nhỏ</text><text x="353" y="106">1/2</text><text x="353" y="158">3. Gộp</text>
+<line x1="390" y1="85" x2="436" y2="85" stroke="var(--mut)" stroke-width="2" marker-end="url(#mt)"/>
+<rect x="446" y="45" width="70" height="70" rx="6" fill="var(--pri-nhat)" stroke="var(--pri)" stroke-width="2"/><rect x="456" y="55" width="70" height="70" rx="6" fill="var(--pri-nhat)" stroke="var(--pri)" stroke-width="2"/><text x="491" y="94">nét</text><text x="491" y="112">phức tạp</text><text x="491" y="158">4. Lặp lại</text>
+<line x1="536" y1="85" x2="582" y2="85" stroke="var(--mut)" stroke-width="2" marker-end="url(#mt)"/>
+<rect x="592" y="30" width="30" height="110" rx="6" fill="var(--hover)" stroke="var(--pri)" stroke-width="2"/><text x="607" y="164">5. Cộng điểm</text>
+<line x1="630" y1="85" x2="676" y2="85" stroke="var(--mut)" stroke-width="2" marker-end="url(#mt)"/>
+<g text-anchor="start" font-size="13"><rect x="686" y="15" width="40" height="12" fill="var(--pri2)"/><text x="732" y="26">0</text><rect x="686" y="31" width="25" height="12" fill="var(--pri2)"/><text x="732" y="42">1</text><rect x="686" y="47" width="8" height="12" fill="var(--pri2)"/><text x="732" y="58">2</text>
+<rect x="686" y="63" width="150" height="12" fill="var(--pri)"/><text x="842" y="74">3  ← lớn nhất</text><rect x="686" y="79" width="12" height="12" fill="var(--pri2)"/><text x="732" y="90">4</text><rect x="686" y="95" width="20" height="12" fill="var(--pri2)"/><text x="732" y="106">5</text>
+<text x="686" y="124" fill="var(--mut)">… 6, 7, 8, 9</text></g>
+<text x="760" y="164" text-anchor="middle">6. Mười xác suất</text></g></svg>"""
+    return (f'<div style="display:flex;flex-wrap:wrap;align-items:center">{from_img}<div style="flex:1;min-width:320px">{svg}</div></div>'
+            '<ul><li><b>CNN là gì?</b> Một chương trình biết “nhìn” ảnh bằng cách <b>học từ ví dụ</b>, thay vì có người viết từng luật “số 3 thì có hai nét cong”.</li>'
+            '<li><b>“Kính lúp” (tích chập):</b> các ô lọc nhỏ 3×3 trượt khắp ảnh, mỗi ô lọc tìm một kiểu nét (ngang, dọc, cong…). <b>Gộp</b> giữ lại chỗ nét rõ nhất và thu ảnh nhỏ đi một nửa.</li>'
+            f'<li><b>{e(ten_mang)}:</b> làm hai lần “kính lúp” liền nhau trong mỗi khối, hai khối, nên nhìn được nét phức tạp hơn; cuối cùng cộng điểm và đưa ra <b>10 con số</b> – số nào lớn nhất là chữ số máy đọc.</li>'
+            '<li><b>Học thế nào?</b> Cho xem hàng chục nghìn chữ số đã biết đáp án (MNIST và 10 trang viết tay của nhóm); đọc sai thì chỉnh các con số bên trong một chút, lặp lại nhiều lần.</li>'
+            '<li><b>Vì sao vẫn cần bubble?</b> CNN không hoàn hảo (khoảng 96% ô trong đo của nhóm). Hệ thống chỉ tin chữ số khi <b>trùng</b> với ô tô bubble; lệch thì để giáo viên xem.</li></ul>')
 
 
 def tom_tat_canh_bao(kq, omr, dc, blur_gan_nguong: bool) -> str:
@@ -216,7 +283,7 @@ def tom_tat_canh_bao(kq, omr, dc, blur_gan_nguong: bool) -> str:
     return '<div class="canh-bao"><b>Cờ cảnh báo (phiếu sẽ vào hàng đợi giáo viên):</b><ul>' + "".join(f"<li>{x}</li>" for x in ds) + "</ul></div>"
 
 
-def chay(anh: Path, ra: Path, dung_ds: bool = True) -> dict:
+def chay(anh: Path, ra: Path, dung_ds: bool = True, dau_trang: str = "", ds=None) -> dict:
     from cv_engine import ocr
     from cv_engine.omr import MA_LY_DO_OMR, doc_phieu, nap_mo_hinh
     from cv_engine.preprocessing import MA_LY_DO, MO_MIN, doc_anh, nap_layout, preprocess_anh
@@ -260,6 +327,9 @@ def chay(anh: Path, ra: Path, dung_ds: bool = True) -> dict:
                              anh_tag(uri(kq.anh_nan, 900), f"Ảnh nắn {kq.anh_nan.shape[1]}×{kq.anh_nan.shape[0]} px (thu nhỏ khi hiển thị)"), ms["tien_xu_ly"], lop))
     else:
         buoc.append(the_buoc(4, "Nắn phối cảnh", "Không nắn được vì ảnh bị từ chối ở bước trước.", "<p><span class='the bad'>Dừng tại đây.</span></p>"))
+    if kq.ok and kq.anh_chuan_hoa is not None:
+        buoc.append(the_buoc("4b", "Chuẩn hoá ánh sáng (bỏ bóng đổ)", "Ước lượng độ sáng nền của giấy (cửa sổ ≈ 15 mm) rồi chia ảnh cho nền đó: bóng tay, ánh đèn lệch không còn làm ô trống trông như ô đã tô.",
+                             '<div class="luoi hai">' + anh_tag(uri(kq.anh_nan, 700), "Trước: ảnh nắn (nền không đều)") + anh_tag(uri(kq.anh_chuan_hoa, 700), "Sau: đã chuẩn hoá") + "</div>"))
     if kq.ok:
         t = time.perf_counter()
         omr = doc_phieu(kq, lay, mh)
@@ -268,9 +338,12 @@ def chay(anh: Path, ra: Path, dung_ds: bool = True) -> dict:
         hv = ocr.doc_chu_so(kq, lay, mh_ocr)
         ms["ocr"] = (time.perf_counter() - t) * 1000
         sbd_ds = ma_ds = None
-        if dung_ds and KICH_BAN.exists():
-            ds = json.loads(KICH_BAN.read_text(encoding="utf-8"))["ky_thi_danh_sach"]
-            sbd_ds, ma_ds = set(ds["sbd"]), set(ds["ma_de"])
+        if ds is not None:                                  # lệnh AP: danh sách dự thi của kỳ thi demo [XLA] (220001–220009; mã đề 101–104)
+            sbd_ds, ma_ds = set(ds[0]), set(ds[1])
+            ten_ds = "Danh sách dự thi lấy từ kỳ thi demo [XLA] Xử lý ảnh (SBD 220001–220009, mã đề 101–104)."
+        elif dung_ds and KICH_BAN.exists():
+            ds_ag = json.loads(KICH_BAN.read_text(encoding="utf-8"))["ky_thi_danh_sach"]
+            sbd_ds, ma_ds = set(ds_ag["sbd"]), set(ds_ag["ma_de"])
             ten_ds = "Danh sách dự thi lấy từ kịch bản AG (kỳ thi 1633), giống cách công cụ chấm AG làm."
         sbd_trong = None if (sbd_ds is None or "?" in omr.sbd) else omr.sbd in sbd_ds
         ma_trong = None if (ma_ds is None or "?" in omr.ma_de) else omr.ma_de in ma_ds
@@ -339,8 +412,11 @@ def chay(anh: Path, ra: Path, dung_ds: bool = True) -> dict:
         buoc.append(the_buoc(8, "Đối chiếu hai kênh: bubble ↔ chữ viết tay",
                              "Hai kênh độc lập: <b>bubble</b> (OMR, thí sinh tô) và <b>chữ viết tay</b> (CNN). Chỉ khi hai kênh cùng chữ số (CNN p ≥ 0,5) cột mới được tự nhận; lệch → giáo viên xem. Đây là cách tránh ghi nhầm điểm vì đọc sai SBD.",
                              f'<p class="mo-ta">{e(ten_ds)}</p><table><tr><th>Cột</th><th>Bubble</th><th>CNN (xác suất)</th><th>Chốt</th><th>Kết quả</th><th>Lý do</th></tr>' + "".join(hangs) + "</table><ul>" + "".join(tr) + "</ul>"))
+        buoc.append(the_buoc(9, "Điểm tạm (chưa phải điểm chính thức)", "Máy chấm các câu CHẮC CHẮN bằng đáp án của mã đề; câu “cần xem” bị bỏ ra, chờ giáo viên. Dùng đúng hàm chấm của hệ thống.", buoc_diem_tam(omr, dc)))
+    mau28 = next((h.anh28 for h in (hv.sbd + hv.ma_de) if h.anh28 is not None), None) if hv is not None else None
+    buoc.append(the_buoc(10, "CNN là gì? (giải thích ngắn)", "Bước 7 dùng CNN. Đây là cách nó nhìn một chữ số.", giai_thich_cnn(mau28)))
     tong_ms = (time.perf_counter() - t_tong) * 1000
-    ctx = {"ten": anh.name, "tong_ms": tong_ms, "buoc": "\n".join(buoc), "canh_bao": tom_tat_canh_bao(kq, omr, dc, gan_nguong)}
+    ctx = {"ten": anh.name, "tong_ms": tong_ms, "buoc": "\n".join(buoc), "canh_bao": tom_tat_canh_bao(kq, omr, dc, gan_nguong), "dau_trang": dau_trang}
     ra.parent.mkdir(parents=True, exist_ok=True)
     ra.write_text(dung_trang(ctx), encoding="utf-8")
     ket = {"anh": anh.name, "ok": kq.ok, "ly_do": kq.ly_do, "blur_score": bs, "ms": {k: round(v, 1) for k, v in ms.items()}}

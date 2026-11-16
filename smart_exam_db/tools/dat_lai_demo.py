@@ -3,6 +3,8 @@ dat_lai_demo.py - Lệnh U (30/10/2026): ĐẶT LẠI dữ liệu demo trước 
 
   python tools/dat_lai_demo.py                          # XEM TRƯỚC (mặc định, giao dịch CHỈ ĐỌC): liệt kê đúng phiếu + tệp ảnh sẽ xoá
   python tools/dat_lai_demo.py --xac-nhan DAT_LAI       # sao lưu CSV + ảnh -> xoá trong MỘT giao dịch -> xoá tệp ảnh -> in số trước / sau
+  python tools/dat_lai_demo.py --ky-thi xla|ml|dacn [--xac-nhan DAT_LAI]   # lệnh AP: đặt lại RIÊNG MỘT kỳ thi theo môn ([XLA] / [ML] / [ĐACN]) về 0 phiếu;
+                                                        #   không đụng kỳ thi nào khác (phạm vi = đúng một exam_id, tìm theo tiêu đề nguyên văn)
 
 Mục tiêu:
 - Kỳ thi demo chính 1380, 1381 [DEMO-BV] và 1633 [DEMO-BV-TẬP K22B] về 0 phiếu (XOÁ CẢ phiếu có điểm chính thức – đó là kết quả diễn tập).
@@ -50,20 +52,21 @@ def dem_ky_thi(conn, ky_thi) -> dict:
     return out
 
 
-def lap_ke_hoach(conn, xoa_het=KY_THI_XOA_HET, tap=KY_THI_TAP, nen=NEN_TAP, moc=MOC_TAP) -> dict:
+def lap_ke_hoach(conn, xoa_het=KY_THI_XOA_HET, tap=KY_THI_TAP, nen=NEN_TAP, moc=MOC_TAP, ten_hop_le=None) -> dict:
     """CHỈ ĐỌC. Trả kế hoạch cùng dạng với don_du_lieu_test (ids, dem, tep, pham_vi) + xoa (chi tiết phiếu), bat_thuong, nen_doi, tep_dung_chung, truoc."""
-    pham_vi = [*xoa_het, tap]
+    pham_vi = [*xoa_het, tap] if tap is not None else list(xoa_het)          # tap = None: chỉ các kỳ thi xoá hết (lệnh AP, đặt lại từng kỳ)
     ten = {r["exam_id"]: r["exam_title"] for r in conn.execute("SELECT exam_id, exam_title FROM exams WHERE exam_id = ANY(%s)", (pham_vi,)).fetchall()}
     thieu = [e for e in pham_vi if e not in ten]
     if thieu:
         raise LoiDatLai(f"không có kỳ thi {thieu}")
-    la = [e for e in pham_vi if "[DEMO" not in ten[e]]
+    la = [e for e in pham_vi if not (ten_hop_le(ten[e]) if ten_hop_le else "[DEMO" in ten[e])]
     if la:
         raise LoiDatLai(f"kỳ thi {la} không có dấu [DEMO trong tên – công cụ từ chối đụng kỳ thi thật")
     cot = ("a.sheet_id, a.exam_id, a.status::text AS status, a.detected_sbd, a.original_filename, a.uploaded_at, "
            "EXISTS (SELECT 1 FROM results r WHERE r.sheet_id = a.sheet_id AND r.status <> 'void') AS chinh_thuc")
     xoa = conn.execute(f"SELECT {cot} FROM answer_sheets a WHERE a.exam_id = ANY(%s) ORDER BY a.exam_id, a.sheet_id", (list(xoa_het),)).fetchall()
-    la_tap = conn.execute(f"SELECT {cot} FROM answer_sheets a WHERE a.exam_id = %s AND NOT (a.sheet_id = ANY(%s)) ORDER BY a.sheet_id", (tap, list(nen))).fetchall()
+    la_tap = (conn.execute(f"SELECT {cot} FROM answer_sheets a WHERE a.exam_id = %s AND NOT (a.sheet_id = ANY(%s)) ORDER BY a.sheet_id", (tap, list(nen))).fetchall()
+              if tap is not None else [])
     xoa += [p for p in la_tap if p["uploaded_at"] > moc]
     bat_thuong = [p for p in la_tap if p["uploaded_at"] <= moc]
     lot = sorted({p["exam_id"] for p in xoa} - set(pham_vi))                  # hậu kiểm (lệnh V): phiếu xoá chỉ được thuộc ĐÚNG các id trong phạm vi
@@ -85,7 +88,7 @@ def lap_ke_hoach(conn, xoa_het=KY_THI_XOA_HET, tap=KY_THI_TAP, nen=NEN_TAP, moc=
             "SELECT unnest(ARRAY[image_path, aligned_image_path]) AS p FROM answer_sheets WHERE NOT (sheet_id = ANY(%s)) "
             "UNION SELECT crop_image_path FROM ocr_digits WHERE NOT (sheet_id = ANY(%s))", (ids, ids)).fetchall()} & set(tep_tat_ca)
     return {"pham_vi": pham_vi, "ten": ten, "xoa": xoa, "ids": ids, "dem": dem, "tep": [t for t in tep_tat_ca if t not in dung_chung],
-            "tep_dung_chung": sorted(dung_chung), "bat_thuong": bat_thuong, "nen_doi": nen_doi, "truoc": dem_ky_thi(conn, pham_vi), "moc": moc.isoformat()}
+            "tep_dung_chung": sorted(dung_chung), "bat_thuong": bat_thuong, "nen_doi": nen_doi, "truoc": dem_ky_thi(conn, pham_vi), "moc": moc.isoformat(), "co_tap": tap is not None}
 
 
 def in_xem_truoc(kh: dict) -> str:
@@ -105,7 +108,8 @@ def in_xem_truoc(kh: dict) -> str:
     if kh["tep_dung_chung"]:
         w(f"\nTệp GIỮ vì phiếu khác cũng dùng ({len(kh['tep_dung_chung'])}):")
         d += [f"  {t}" for t in kh["tep_dung_chung"]]
-    w(f"\nKỳ thi tập: giữ nền {sorted(NEN_TAP)}; xoá phiếu khác tải SAU {kh['moc']}.")
+    if kh.get("co_tap", True):
+        w(f"\nKỳ thi tập: giữ nền {sorted(NEN_TAP)}; xoá phiếu khác tải SAU {kh['moc']}.")
     if kh["bat_thuong"]:
         w(f"BẤT THƯỜNG – phiếu lạ trong kỳ thi tập tải TRƯỚC mốc ({len(kh['bat_thuong'])}), KHÔNG xoá: " + ", ".join(f"#{p['sheet_id']}" for p in kh["bat_thuong"]))
     if kh["nen_doi"]:
@@ -118,11 +122,79 @@ def thuc_hien(conn, kh: dict) -> dict:
     return D.thuc_hien(conn, kh)
 
 
+KY_THI_BA_MON = {"xla": "[XLA] Xử lý ảnh", "ml": "[ML] Máy học", "dacn": "[ĐACN] Đồ án chuyên ngành"}      # lệnh AP; trùng nap_bo_demo.TIEU_DE_BA_MON
+
+
+def lap_ke_hoach_ky(conn, ma: str) -> dict:
+    """CHỈ ĐỌC. Kế hoạch đặt lại RIÊNG một kỳ thi theo môn: phạm vi = đúng MỘT exam_id (tìm theo tiêu đề nguyên văn, phải có đúng một)."""
+    if ma not in KY_THI_BA_MON:
+        raise LoiDatLai(f"kỳ thi '{ma}' không thuộc {sorted(KY_THI_BA_MON)}")
+    tieu_de = KY_THI_BA_MON[ma]
+    dong = conn.execute("SELECT exam_id FROM exams WHERE exam_title = %s", (tieu_de,)).fetchall()
+    if len(dong) != 1:
+        raise LoiDatLai(f"cần đúng 1 kỳ thi '{tieu_de}', thấy {len(dong)} – chạy python tools/nap_bo_demo.py --ba-mon --ap-dung")
+    kh = lap_ke_hoach(conn, xoa_het=(dong[0]["exam_id"],), tap=None, nen={}, ten_hop_le=lambda t: t == tieu_de)
+    if kh["pham_vi"] != [dong[0]["exam_id"]] or {p["exam_id"] for p in kh["xoa"]} - {dong[0]["exam_id"]}:
+        raise LoiDatLai("kế hoạch vượt ra ngoài kỳ thi đã chọn – từ chối")
+    return kh
+
+
+def dat_lai_ky(ma: str, xac_nhan: str | None = None, in_ra=print) -> int:
+    """Đặt lại một kỳ thi theo môn. xac_nhan != XAC_NHAN -> chỉ xem trước. Trả 0 = ổn (kể cả 'không có gì để xoá'), 2 = lỗi phạm vi, 3 = hoàn tác."""
+    from backend.config import lay_cau_hinh
+    from backend.db import ket_noi
+    kho = lay_cau_hinh().storage_dir
+    conn = ket_noi()
+    try:
+        conn.read_only = True
+        try:
+            kh = lap_ke_hoach_ky(conn, ma)
+        except LoiDatLai as e:
+            in_ra(f"LỖI: {e}")
+            return 2
+        in_ra(in_xem_truoc(kh))
+        if not kh["ids"]:
+            in_ra(f"\nKỳ thi {KY_THI_BA_MON[ma]}: 0 phiếu – dữ liệu đã ở trạng thái đặt lại.")
+            return 0
+        if xac_nhan != XAC_NHAN:
+            in_ra(f"\n(Chỉ xem trước – không ghi gì. Xoá thật: python tools/dat_lai_demo.py --ky-thi {ma} --xac-nhan {XAC_NHAN})")
+            return 0
+        conn.rollback()
+        conn.read_only = False
+        thu_muc = THU_MUC_SAO_LUU / (datetime.now().strftime("%Y%m%d_%H%M%S") + f"_dat_lai_{ma}")
+        tep = D.sao_luu(conn, kh, thu_muc, kho)
+        in_ra(f"\nĐã SAO LƯU {len(tep)} tệp vào {thu_muc}")
+        try:
+            da = thuc_hien(conn, kh)
+        except D.LoiDon as e:
+            conn.rollback()
+            in_ra(f"HOÀN TÁC: {e}")
+            return 3
+        ks = D.kiem_sau(conn, kh["pham_vi"])
+        if any(ks["mo_coi"].values()):
+            conn.rollback()
+            in_ra(f"HOÀN TÁC: còn dòng mồ côi {ks['mo_coi']}")
+            return 3
+        conn.commit()
+        in_ra(f"\nĐÃ XOÁ (commit): {da}")
+        in_ra(f"Tệp ảnh: {D.xoa_tep(kho, kh['tep'])}")
+        sau = dem_ky_thi(conn, kh["pham_vi"])
+        conn.rollback()
+        e_id = kh["pham_vi"][0]
+        in_ra(f"Trước → sau: #{e_id} {kh['truoc'][e_id]['tong']} → {sau[e_id]['tong']} phiếu")
+        return 0
+    finally:
+        conn.close()
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--xac-nhan", default=None, help=f'gõ đúng {XAC_NHAN} để xoá thật (không có = chỉ xem trước)')
+    ap.add_argument("--ky-thi", choices=sorted(KY_THI_BA_MON), default=None, help="lệnh AP: chỉ đặt lại MỘT kỳ thi theo môn (không đụng kỳ nào khác)")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
+    if a.ky_thi:
+        return dat_lai_ky(a.ky_thi, a.xac_nhan)
     from backend.config import lay_cau_hinh
     from backend.db import ket_noi
     kho = lay_cau_hinh().storage_dir

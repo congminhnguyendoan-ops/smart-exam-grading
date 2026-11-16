@@ -144,6 +144,34 @@ def the_mo_hinh(t: dict, ai: dict) -> str:
 <p class="mut">Huấn luyện bằng PyTorch, xuất sang JSON; NumPy ↔ PyTorch trùng nhãn 4 376/4 376 chữ số dev. CNN cũ ({so(cu['so_tham_so'])} tham số, {cu['byte'] / 1024:.0f} KB) chỉ còn là bản so sánh – xem mục sau.</p></div></div>"""
 
 
+def muc_ly_thuyet_cnn() -> str:
+    """Lý thuyết CNN và CNN sâu BẰNG LỜI (lệnh AP). Không có số liệu mới: các con số nhắc lại lấy từ phần còn lại của trang (tham số 105 866 / 467 818, độ lệch 3,3–3,7 ms)."""
+    return """<p>Mục này giải thích bằng lời, không cần biết toán trước. Các mục sau cho thấy số liệu thật.</p>
+<h3>1. Máy học là gì?</h3>
+<p>Thay vì viết luật “chữ số 3 có hai nét cong”, ta cho máy xem <b>rất nhiều ví dụ có đáp án</b> và để nó tự chỉnh các con số bên trong (gọi là <b>trọng số</b>) cho đến khi đoán đúng nhiều nhất. Ở đồ án có hai chỗ dùng máy học: đọc <b>ô tô đáp án</b> (mô hình nhỏ 40 tham số, hồi quy logistic) và đọc <b>chữ số viết tay</b> (CNN).</p>
+<h3>2. CNN – mạng nơ-ron tích chập – nhìn ảnh thế nào?</h3>
+<ul><li><b>Ảnh</b> là bảng số: ô chữ số là 28×28 = 784 điểm sáng / tối.</li>
+<li><b>Tích chập (“kính lúp”):</b> một ô lọc nhỏ 3×3 trượt khắp ảnh, tại mỗi chỗ nó đo xem vùng đó giống một kiểu nét đến đâu (nét ngang, nét dọc, nét cong…). Nhiều ô lọc → nhiều “bản đồ nét”. Ô lọc <b>không do người thiết kế</b>: nó được học.</li>
+<li><b>ReLU:</b> bỏ các giá trị âm (chỗ không có nét) để mạng chỉ giữ lại chỗ “có tín hiệu”.</li>
+<li><b>Gộp (pooling):</b> trong mỗi khung 2×2 chỉ giữ giá trị lớn nhất → ảnh nhỏ đi một nửa, chữ hơi lệch một chút vẫn nhận ra.</li>
+<li><b>Lớp đầy đủ (dense):</b> cộng điểm tất cả các nét tìm được rồi cho ra <b>10 con số</b>; <b>softmax</b> đổi thành 10 xác suất cho chữ số 0–9. Số lớn nhất là chữ số máy đọc.</li></ul>
+<h3>3. Máy học cách nào? (huấn luyện)</h3>
+<ul><li>Cho xem một ô có đáp án, máy đoán, ta đo độ sai (<b>hàm mất mát</b>), rồi chỉnh trọng số theo hướng giảm sai (<b>giảm dần độ dốc</b>, thuật toán Adam). Lặp qua toàn bộ dữ liệu nhiều lần (mỗi lần gọi là một <b>epoch</b>).</li>
+<li>Hệ thống học hai giai đoạn: <b>tiền huấn luyện</b> trên 55 000 chữ số MNIST (ảnh quét sạch), rồi <b>tinh chỉnh</b> trên 3 872 ô viết tay thật của nhóm (ảnh điện thoại).</li>
+<li><b>Quá khớp:</b> học thuộc ví dụ mà không hiểu. Cách kiểm: thử trên <b>người viết chưa từng thấy</b> (chia 5 phần theo người viết), không thử trên chính dữ liệu đã học.</li>
+<li><b>Hiệu chỉnh nhiệt độ:</b> làm cho xác suất máy báo ra “khiêm tốn” hơn, để con số 90% thật sự nghĩa là khoảng 90%.</li></ul>
+<h3>4. CNN nhỏ so với CNN sâu</h3>
+<div class="cuon"><table><tr><th></th><th>CNN nhỏ (cũ)</th><th>CNN sâu (đang triển khai)</th></tr>
+<tr><td class="trai">Số lớp tích chập</td><td>2 (16 rồi 32 ô lọc)</td><td>4 (32, 32, rồi 64, 64 ô lọc), hai khối, mỗi khối hai lớp liền nhau</td></tr>
+<tr><td class="trai">Tham số</td><td>105 866</td><td>467 818</td></tr>
+<tr><td class="trai">Nhìn được gì</td><td>nét đơn giản, rồi ghép một lần</td><td>nét đơn giản rồi nét ghép từ nét ghép: hợp với chữ viết tay méo, nghiêng</td></tr>
+<tr><td class="trai">Giá phải trả</td><td>nhẹ, 0,6 ms / ô</td><td>nặng hơn, chậm hơn khoảng 5 lần (≈ 3,3–3,7 ms / ô), cần nhiều dữ liệu hơn để khỏi học thuộc</td></tr>
+<tr><td class="trai">Chống học thuộc khi huấn luyện</td><td>Dropout 0,3</td><td>Dropout 0,3 (chỉ dùng lúc học, tắt lúc chạy thật)</td></tr></table></div>
+<p class="mut">“Sâu hơn” không tự động là “tốt hơn”: nhóm đã đo bằng tiêu chí đặt trước (xem mục sau) rồi mới đổi; và vẫn dựa vào đối chiếu với ô tô bubble để không ghi nhầm.</p>
+<h3>5. Vì sao máy học ở đây luôn đi kèm “hai kênh”?</h3>
+<p>Không mô hình nào đúng 100%. Hệ thống đọc SBD / mã đề bằng <b>hai cách độc lập</b>: ô tô bubble (đo độ đậm) và chữ viết tay (CNN). Chỉ khi hai cách <b>cùng chữ số</b> mới tự nhận; lệch thì chuyển giáo viên. Vì vậy dù CNN đọc sai một số ô, hệ thống hầu như không ghi nhầm điểm im lặng.</p>"""
+
+
 def muc_hai_mang(t: dict) -> str:
     """Hai mạng cạnh nhau + mã suy luận NumPy THẬT trích từ cv_engine/ocr.py (inspect.getsource), không viết lại."""
     import inspect
@@ -485,6 +513,7 @@ def dung_trang(truc_tiep: dict | None, so_sanh: dict | None = None) -> str:
         return f'<section><h2><span class="so">{n}</span>{e(tieu_de)}</h2>{nd}</section>'
     s = [sec(1, "Dữ liệu: có bao nhiêu mẫu, từ đâu", tom_tat_du_lieu() + '<p class="mut">Nguyên văn các bảng của <code>docs/kiem_ke_du_lieu.md</code> (lệnh AI) – chỉ có số liệu, không có dữ liệu.</p>' + du_lieu),
          sec(2, "Hai mô hình trong hệ thống", the_mo_hinh(t, ai)),
+         sec(3, "CNN và CNN sâu – giải thích bằng lời", muc_ly_thuyet_cnn()),
          sec(3, "Hai mạng CNN cạnh nhau, kèm mã suy luận NumPy thật", muc_hai_mang(t)),
          sec(4, "Vì sao chuyển sang CNN sâu: kết quả lệnh AM và AN", muc_ket_qua_thay()),
          sec(5, "CNN cũ so với 5 thuật toán khác (thí nghiệm E2b, lệnh AI)",
@@ -496,11 +525,11 @@ def dung_trang(truc_tiep: dict | None, so_sanh: dict | None = None) -> str:
          sec(8, "Kết quả không đạt (âm tính) – nói thẳng", muc_am_tinh(ad)),
          sec(9, "Giới hạn", muc_gioi_han())]
     if truc_tiep:
-        s.insert(4, sec(4, "Chạy CNN sâu thật trên ô chưa dùng để huấn luyện", muc_truc_tiep(truc_tiep)))
+        s.insert(5, sec(4, "Chạy CNN sâu thật trên ô chưa dùng để huấn luyện", muc_truc_tiep(truc_tiep)))
     if so_sanh:
         ak = json.loads(KQ_AK.read_text(encoding="utf-8"))
-        s.insert(4, sec(4, "So sánh TRỰC TIẾP nhiều thuật toán (lệnh AK)", muc_so_sanh_truc_tiep(so_sanh, ak)))
-    if truc_tiep or so_sanh:
+        s.insert(5, sec(4, "So sánh TRỰC TIẾP nhiều thuật toán (lệnh AK)", muc_so_sanh_truc_tiep(so_sanh, ak)))
+    if True:                                   # luôn đánh số lại (lệnh AP: số mục đổi theo cờ --truc-tiep / --so-sanh-truc-tiep)
         # đánh số lại
         n = [0]
 
