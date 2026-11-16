@@ -63,6 +63,11 @@ def get_mo_hinh(request: Request) -> service.MoHinhDichVu:
     return request.app.state.mo_hinh
 
 
+def get_cong_cham(request: Request, cfg: CauHinh = Depends(get_cau_hinh)) -> dong_thoi.CongCham:
+    """Cổng giới hạn số ảnh chấm đồng thời của tiến trình (lệnh AR – R5; CHAM_DONG_THOI / CHAM_CHO_GIAY)."""
+    return dong_thoi.cong_cham_cua(request.app.state, cfg)
+
+
 def get_conn():
     """Một kết nối + một giao dịch cho mỗi yêu cầu (pytest ghi đè hàm này bằng giao dịch rollback)."""
     conn = ket_noi()
@@ -122,6 +127,12 @@ async def _loi_dau_vao(request: Request, e: RequestValidationError):
 @app.exception_handler(psycopg.errors.IntegrityError)
 def _loi_rang_buoc(_: Request, e: psycopg.errors.IntegrityError):
     return JSONResponse({"detail": f"Vi phạm ràng buộc dữ liệu: {e.diag.message_primary}"}, status_code=409)
+
+
+@app.exception_handler(dong_thoi.QuaTai)
+def _qua_tai(_: Request, e: dong_thoi.QuaTai):
+    """Hết thời hạn chờ trong hàng đợi chấm: 503 kèm Retry-After (giây). Giao diện (frontend/loi_tai.js) coi 5xx là lỗi tạm -> nút Gửi lại."""
+    return JSONResponse({"detail": str(e)}, status_code=503, headers={"Retry-After": str(e.retry_after)})
 
 
 @app.exception_handler(LoiCauHinh)
@@ -205,43 +216,48 @@ def _tom_tat_tai(conn, sheet_id: int, da_ton_tai: bool) -> dict:
 @app.post("/exams/{exam_id}/sheets", status_code=201, response_model=schemas.TaiAnhOut, tags=["Phiếu"],
           summary="Tải MỘT ảnh phiếu và chấm ngay")
 def tai_mot_anh(exam_id: int, file: UploadFile = File(description="Ảnh phiếu (JPG / PNG / HEIC)"), conn=Depends(get_conn),
-                cfg: CauHinh = Depends(get_cau_hinh), mh=Depends(get_mo_hinh), nd: auth.NguoiDung = Depends(giao_vien)):
+                cfg: CauHinh = Depends(get_cau_hinh), mh=Depends(get_mo_hinh), nd: auth.NguoiDung = Depends(giao_vien),
+                cong: dong_thoi.CongCham = Depends(get_cong_cham)):
     """Ảnh không dùng được (mờ, thiếu marker, ...) vẫn trả 201 với `status = rejected` + `reject_code` + thông báo – không có điểm.
     Kỳ thi đã đóng (quản trị viên đóng) -> 409, không nhận ảnh."""
     phan_quyen.kiem_ky_thi(conn, nd, exam_id)
     quan_tri.kiem_dang_mo(conn, exam_id)
-    sheet_id, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, file.file.read(), file.filename, nd.user_id)
+    du_lieu = file.file.read()
+    with cong.vao():                                         # R5: chờ trong hàng đợi (có thời hạn, quá hạn 503) TRƯỚC mọi khoá CSDL
+        sheet_id, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, du_lieu, file.filename, nd.user_id)
     return _tom_tat_tai(conn, sheet_id, da_co)
 
 
 @app.post("/exams/{exam_id}/sheets/batch", status_code=201, response_model=schemas.TaiNhieuOut, tags=["Phiếu"],
           summary="Tải NHIỀU ảnh phiếu (một lô) và chấm")
 def tai_nhieu_anh(exam_id: int, files: list[UploadFile] = File(description="Nhiều ảnh phiếu"), conn=Depends(get_conn),
-                  cfg: CauHinh = Depends(get_cau_hinh), mh=Depends(get_mo_hinh), nd: auth.NguoiDung = Depends(giao_vien)):
+                  cfg: CauHinh = Depends(get_cau_hinh), mh=Depends(get_mo_hinh), nd: auth.NguoiDung = Depends(giao_vien),
+                  cong: dong_thoi.CongCham = Depends(get_cong_cham)):
     """Mỗi ảnh xử lý độc lập (điểm lưu riêng): ảnh lỗi không làm hỏng các ảnh còn lại; lỗi của ảnh nào ghi ở `error` của ảnh đó."""
     user_id = nd.user_id
     phan_quyen.kiem_ky_thi(conn, nd, exam_id)
     if not conn.execute("SELECT 1 FROM exams WHERE exam_id = %s", (exam_id,)).fetchone():
         raise service.KhongTimThay(f"Không có kỳ thi {exam_id}.")
     quan_tri.kiem_dang_mo(conn, exam_id)
-    dong_thoi.khoa_ky_thi(conn, exam_id, "lo")           # R3: hai lô cùng kỳ chạy LẦN LƯỢT (khoá tới hết giao dịch) -> không chéo khoá chỉ mục duy nhất results
-    batch_id = conn.execute("INSERT INTO scan_batches (exam_id, uploaded_by, total_sheets) VALUES (%s, %s, %s) RETURNING batch_id",
-                            (exam_id, user_id, len(files))).fetchone()["batch_id"]
-    ket_qua = []
-    for f in files:
-        try:
-            with conn.transaction():                       # savepoint: lỗi một ảnh không kéo cả lô
-                sid, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, f.file.read(), f.filename, user_id, batch_id, khoa_theo_anh=False)   # lô: không khoá theo ảnh (xem dong_thoi.py)
-                t = _tom_tat_tai(conn, sid, da_co)
-            ket_qua.append({"filename": f.filename, "sheet_id": sid, "da_ton_tai": da_co, "status": t["status"],
-                            "reject_code": t["reject_code"], "reject_message": t["reject_message"],
-                            "pending_questions": t["pending_questions"]})
-        except service.LoiDichVu as e:
-            ket_qua.append({"filename": f.filename, "error": str(e)})
-        except Exception as e:  # noqa: BLE001 – ghi log đầy đủ, báo lỗi theo từng ảnh
-            log.exception("Lỗi xử lý ảnh %s", f.filename)
-            ket_qua.append({"filename": f.filename, "error": f"Lỗi nội bộ: {type(e).__name__}"})
-    return {"batch_id": batch_id, "tong": len(files), "results": ket_qua}
+    with cong.vao():                                         # R5: một lô chiếm MỘT chỗ trong hàng đợi chấm; lấy TRƯỚC khoá 'lo' của CSDL
+        dong_thoi.khoa_ky_thi(conn, exam_id, "lo")           # R3: hai lô cùng kỳ chạy LẦN LƯỢT (khoá tới hết giao dịch) -> không chéo khoá chỉ mục duy nhất results
+        batch_id = conn.execute("INSERT INTO scan_batches (exam_id, uploaded_by, total_sheets) VALUES (%s, %s, %s) RETURNING batch_id",
+                                (exam_id, user_id, len(files))).fetchone()["batch_id"]
+        ket_qua = []
+        for f in files:
+            try:
+                with conn.transaction():                       # savepoint: lỗi một ảnh không kéo cả lô
+                    sid, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, f.file.read(), f.filename, user_id, batch_id, khoa_theo_anh=False)   # lô: không khoá theo ảnh (xem dong_thoi.py)
+                    t = _tom_tat_tai(conn, sid, da_co)
+                ket_qua.append({"filename": f.filename, "sheet_id": sid, "da_ton_tai": da_co, "status": t["status"],
+                                "reject_code": t["reject_code"], "reject_message": t["reject_message"],
+                                "pending_questions": t["pending_questions"]})
+            except service.LoiDichVu as e:
+                ket_qua.append({"filename": f.filename, "error": str(e)})
+            except Exception as e:  # noqa: BLE001 – ghi log đầy đủ, báo lỗi theo từng ảnh
+                log.exception("Lỗi xử lý ảnh %s", f.filename)
+                ket_qua.append({"filename": f.filename, "error": f"Lỗi nội bộ: {type(e).__name__}"})
+        return {"batch_id": batch_id, "tong": len(files), "results": ket_qua}
 
 
 @app.get("/exams/{exam_id}/sheets", response_model=list[schemas.PhieuTomTat], tags=["Phiếu"], summary="Danh sách phiếu của kỳ thi")

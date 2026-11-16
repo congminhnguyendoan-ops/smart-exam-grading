@@ -239,3 +239,133 @@ def test_r4_khoi_dong_thieu_bang_thu_hoi_thi_tu_choi():
     from backend import main
     nguon = inspect.getsource(main.lifespan)
     assert "revoked_tokens" in nguon and "LoiCauHinh" in nguon
+
+
+# ------------------------------------------------------------------------------------------------ R5: giới hạn chấm đồng thời
+def test_r5_cong_cham_gioi_han_va_503_khi_qua_han():
+    import threading
+    import time
+
+    cong = dong_thoi.CongCham(2, 0.3)
+    dang, dinh, ket = [0], [0], []
+    khoa = threading.Lock()
+
+    def viec():
+        try:
+            with cong.vao():
+                with khoa:
+                    dang[0] += 1
+                    dinh[0] = max(dinh[0], dang[0])
+                time.sleep(0.5)
+                with khoa:
+                    dang[0] -= 1
+            ket.append("ok")
+        except dong_thoi.QuaTai as e:
+            ket.append(("503", e.retry_after))
+    ts = [threading.Thread(target=viec) for _ in range(6)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    assert dinh[0] <= 2, "không bao giờ quá giới hạn đồng thời"
+    assert ket.count("ok") == 2 and sum(1 for x in ket if isinstance(x, tuple)) == 4, ket       # 2 chạy, 4 quá hạn chờ 0,3 giây
+    assert all(x[1] >= 1 and isinstance(x[1], int) for x in ket if isinstance(x, tuple))
+    with cong.vao():                                                                              # nhả chỗ đúng: sau đó vào lại được
+        pass
+
+
+def test_r5_nha_cho_ca_khi_viec_ném_loi():
+    cong = dong_thoi.CongCham(1, 0.2)
+    with pytest.raises(RuntimeError):
+        with cong.vao():
+            raise RuntimeError("x")
+    with cong.vao():
+        pass
+
+
+def test_r5_20_yeu_cau_cung_luc_moi_yeu_cau_thanh_cong_hoac_503_va_khong_vuot_gioi_han():
+    import threading
+    import time
+
+    cong = dong_thoi.CongCham(3, 2.0)
+    dang, dinh, ket, khoa = [0], [0], [], threading.Lock()
+
+    def viec(i):
+        try:
+            with cong.vao():
+                with khoa:
+                    dang[0] += 1
+                    dinh[0] = max(dinh[0], dang[0])
+                time.sleep(0.15)
+                with khoa:
+                    dang[0] -= 1
+            ket.append(200)
+        except dong_thoi.QuaTai:
+            ket.append(503)
+    ts = [threading.Thread(target=viec, args=(i,)) for i in range(20)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    assert set(ket) <= {200, 503} and len(ket) == 20 and dinh[0] <= 3 and ket.count(200) >= 3
+
+
+def test_r5_mac_dinh_toi_thieu_2_hai_luot_cua_giao_dien_khong_bao_gio_cho():
+    import threading
+    import time
+
+    from backend.config import CauHinh
+    assert CauHinh.__dataclass_fields__["cham_dong_thoi"].default >= 2 and CauHinh.__dataclass_fields__["cham_cho_giay"].default > 0
+    cong = dong_thoi.CongCham(CauHinh.__dataclass_fields__["cham_dong_thoi"].default, 0.05)      # thời hạn chờ RẤT ngắn: nếu phải chờ là 503
+    ok = []
+
+    def luot():
+        with cong.vao():
+            time.sleep(0.2)
+        ok.append(1)
+    ts = [threading.Thread(target=luot) for _ in range(2)]                                        # 2 lượt song song của MỘT giao diện
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    assert len(ok) == 2
+
+
+def test_r5_cau_hinh_bien_moi_truong(monkeypatch):
+    from backend.config import LoiCauHinh, lay_cau_hinh
+    monkeypatch.delenv("CHAM_DONG_THOI", raising=False)
+    monkeypatch.delenv("CHAM_CHO_GIAY", raising=False)
+    c = lay_cau_hinh()
+    assert (c.cham_dong_thoi, c.cham_cho_giay) == (4, 30.0)
+    monkeypatch.setenv("CHAM_DONG_THOI", "3")
+    monkeypatch.setenv("CHAM_CHO_GIAY", "8")
+    c = lay_cau_hinh()
+    assert (c.cham_dong_thoi, c.cham_cho_giay) == (3, 8.0)
+    for ten, xau in (("CHAM_DONG_THOI", "0"), ("CHAM_DONG_THOI", "abc"), ("CHAM_DONG_THOI", "-2"), ("CHAM_CHO_GIAY", "0"), ("CHAM_CHO_GIAY", "x"), ("CHAM_CHO_GIAY", "99999")):
+        monkeypatch.setenv(ten, xau)
+        with pytest.raises(LoiCauHinh):
+            lay_cau_hinh()
+        monkeypatch.setenv(ten, "3" if ten == "CHAM_DONG_THOI" else "8")
+
+
+def test_r5_endpoint_tra_503_kem_retry_after_khi_cong_day(client, conn_thu):
+    from test_backend_api import anh_trang, tao_de
+    eid = tao_de(client)
+    app_state = client.app.state
+    cu = getattr(app_state, "cong_cham", None)
+    app_state.cong_cham = cong = dong_thoi.CongCham(1, 0.2)
+    try:
+        with cong.vao():                                                                          # chiếm hết chỗ
+            r = client.post(f"/exams/{eid}/sheets", files={"file": ("a.jpg", anh_trang(), "image/jpeg")})
+            rl = client.post(f"/exams/{eid}/sheets/batch", files=[("files", ("a.jpg", anh_trang(), "image/jpeg"))])
+        assert r.status_code == 503 and r.headers["retry-after"].isdigit() and int(r.headers["retry-after"]) >= 1 and "bận" in r.json()["detail"]
+        assert rl.status_code == 503 and rl.headers["retry-after"].isdigit()
+        assert client.post(f"/exams/{eid}/sheets", files={"file": ("a.jpg", anh_trang(), "image/jpeg")}).status_code == 201     # hết bận thì nhận lại
+    finally:
+        if cu is None:
+            del app_state.cong_cham
+        else:
+            app_state.cong_cham = cu
+
+
+def test_r5_cong_cham_lay_truoc_khoa_csdl():
+    import inspect
+
+    from backend import main
+    don, lo = inspect.getsource(main.tai_mot_anh), inspect.getsource(main.tai_nhieu_anh)
+    assert don.index("cong.vao()") < don.index("nhan_anh_an_toan(")
+    assert lo.index("cong.vao()") < lo.index('khoa_ky_thi(conn, exam_id, "lo")')
