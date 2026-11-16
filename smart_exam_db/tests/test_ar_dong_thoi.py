@@ -87,3 +87,41 @@ def test_r1_tep_dong_bang_khong_bi_cham():
     for tep, sha in mong.items():
         du_lieu = (ROOT / tep).read_bytes().replace(b"\r\n", b"\n")
         assert hashlib.sha256(du_lieu).hexdigest() == sha, f"{tep} đã bị đổi – tệp đóng băng (docs/tieu_chi_sua_ah.md mục 0)"
+
+
+# ------------------------------------------------------------------------------------------------ R2: cùng một tệp ảnh gửi hai lần đồng thời
+def _khoa_dang_giu(ten: str) -> bool:
+    """True nếu MỘT KẾT NỐI KHÁC không lấy được khoá advisory `ten` (tức giao dịch của test đang giữ)."""
+    from backend.db import ket_noi
+    with ket_noi() as c2:
+        c2.execute("SET TRANSACTION READ ONLY")
+        ok = c2.execute("SELECT pg_try_advisory_xact_lock(hashtextextended(%s, 0)) AS ok", (ten,)).fetchone()["ok"]
+        c2.rollback()
+    return not ok
+
+
+def test_r2_khoa_theo_ky_thi_va_bam_anh(conn_thu):
+    import hashlib
+    nhan, _ = _gia_dua(conn_thu, 0)
+    anh = b"noi dung anh r2"
+    dong_thoi.nhan_anh_an_toan(conn_thu, None, None, 31337, anh, "a.jpg", 1, nhan=nhan)
+    sha = hashlib.sha256(anh).hexdigest()
+    assert _khoa_dang_giu(f"ar:anh:31337:{sha}"), "yêu cầu thứ hai CÙNG ảnh, CÙNG kỳ thi phải bị chặn tới khi giao dịch này kết thúc"
+    assert not _khoa_dang_giu(f"ar:anh:31338:{sha}"), "kỳ thi khác: không chặn"
+    assert not _khoa_dang_giu(f"ar:anh:31337:{hashlib.sha256(b'anh khac').hexdigest()}"), "ảnh khác: không chặn"
+
+
+def test_r2_lo_khong_khoa_theo_anh(conn_thu):
+    import hashlib
+    nhan, _ = _gia_dua(conn_thu, 0)
+    anh = b"anh trong lo r2"
+    dong_thoi.nhan_anh_an_toan(conn_thu, None, None, 31339, anh, "a.jpg", 1, nhan=nhan, khoa_theo_anh=False)
+    assert not _khoa_dang_giu(f"ar:anh:31339:{hashlib.sha256(anh).hexdigest()}")
+
+
+def test_r2_main_lo_tai_nhieu_anh_tat_khoa_theo_anh():
+    import inspect
+
+    from backend import main
+    nguon = inspect.getsource(main.tai_nhieu_anh)
+    assert "khoa_theo_anh=False" in nguon and "khoa_theo_anh" not in inspect.getsource(main.tai_mot_anh)

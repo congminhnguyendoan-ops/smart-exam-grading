@@ -223,7 +223,7 @@ def tai_nhieu_anh(exam_id: int, files: list[UploadFile] = File(description="Nhi�
     for f in files:
         try:
             with conn.transaction():                       # savepoint: lỗi một ảnh không kéo cả lô
-                sid, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, f.file.read(), f.filename, user_id, batch_id)
+                sid, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, f.file.read(), f.filename, user_id, batch_id, khoa_theo_anh=False)   # lô: không khoá theo ảnh (xem dong_thoi.py)
                 t = _tom_tat_tai(conn, sid, da_co)
             ket_qua.append({"filename": f.filename, "sheet_id": sid, "da_ton_tai": da_co, "status": t["status"],
                             "reject_code": t["reject_code"], "reject_message": t["reject_message"],

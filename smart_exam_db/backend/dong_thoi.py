@@ -85,7 +85,7 @@ def _la_dua(e: psycopg.errors.UniqueViolation) -> bool:
     return (e.diag.constraint_name or "") in RANG_BUOC_DUA
 
 
-def nhan_anh_an_toan(conn, cfg, mh, exam_id: int, du_lieu: bytes, ten_file, user_id: int, batch_id=None, *, khoa_theo_anh: bool = False, nhan=None):
+def nhan_anh_an_toan(conn, cfg, mh, exam_id: int, du_lieu: bytes, ten_file, user_id: int, batch_id=None, *, khoa_theo_anh: bool = True, nhan=None):
     """service.nhan_anh + R1 (thử lại sau cuộc đua cùng SBD) + R2 (khoá theo ảnh). Trả (sheet_id, da_ton_tai).
     Phải gọi khi connection ĐANG trong giao dịch (get_conn của main.py luôn vậy): conn.transaction() khi đó là SAVEPOINT, lỗi chỉ hoàn tác phần của ảnh này."""
     nhan = nhan or service.nhan_anh
