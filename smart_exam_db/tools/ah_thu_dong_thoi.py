@@ -455,7 +455,8 @@ class Thu:
         self.ss[u1], self.ss[u2] = c1, c2
 
         X = self.hs["exams"]
-        mong_exams = {u1: sorted([X["X1"], X["X1s"], X["XD"], X["XR"]]), u2: sorted([X["X2"], X["X2s"], X["XD"]]), u3: sorted([X["X3"], X["X3s"]])}
+        xa = [X[k] for k in ("XA1", "XA2", "XA3", "XA5") if k in X]            # kỳ thi của lệnh AR (lớp LD): GV1 sở hữu, GV2 thuộc lớp -> cả hai thấy
+        mong_exams = {u1: sorted([X["X1"], X["X1s"], X["XD"], X["XR"], *xa]), u2: sorted([X["X2"], X["X2s"], X["XD"], *xa]), u3: sorted([X["X3"], X["X3s"]])}
         mong_lop = {u1: ["AH-THU-L1", "AH-THU-LD"], u2: ["AH-THU-L2", "AH-THU-LD"], u3: ["AH-THU-L3"]}
         kiem = []
         for khoa, ghi in nhat_ky.items():
@@ -586,7 +587,8 @@ class Thu:
     # ---------------------------------------------------------------- C
     def kich_ban_c(self, phieu_b: list) -> dict:
         X = self.hs["exams"]
-        cua = {self.u[0]: {X["X1"], X["X1s"], X["XD"], X["XR"]}, self.u[1]: {X["X2"], X["X2s"], X["XD"]}, self.u[2]: {X["X3"], X["X3s"]}}
+        xa = {X[k] for k in ("XA1", "XA2", "XA3", "XA5") if k in X}              # kỳ thi của lệnh AR (lớp LD): GV1 + GV2 được phép
+        cua = {self.u[0]: {X["X1"], X["X1s"], X["XD"], X["XR"]} | xa, self.u[1]: {X["X2"], X["X2s"], X["XD"]} | xa, self.u[2]: {X["X3"], X["X3s"]}}
         lop = {self.u[0]: {self.hs["classes"]["L1"], self.hs["classes"]["LD"]}, self.u[1]: {self.hs["classes"]["L2"], self.hs["classes"]["LD"]},
                self.u[2]: {self.hs["classes"]["L3"]}}
         phieu = {}                                                 # exam_id -> [sheet_id]
@@ -935,7 +937,7 @@ class Thu:
         """R4: đăng xuất thu hồi token. ĐẠT: sau logout T1 (cookie + Bearer) 401 trên ≥ 8 đường dẫn có xác thực; T2 cùng tài khoản vẫn dùng được; token giả 401 và không ghi revoked_tokens; logout lặp lại / không token 204."""
         import httpx
         from backend.db import ket_noi
-        ten, eid = self.u[2], self.X("X3")
+        ten, eid = self.u[1], self.X("X2")                                      # KHÔNG dùng GV3: kịch bản A cố ý khoá (GV3, IP) 15 phút
 
         def dem_thu_hoi():
             try:
