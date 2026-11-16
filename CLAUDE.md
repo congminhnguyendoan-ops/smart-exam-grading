@@ -430,6 +430,12 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   (`OCR_MODEL`, `ocr_cnn.doc_chu_so`, `doi_chieu_dinh_danh`) và các `tools/*`. Kiến trúc CỨNG trong mã suy luận: `logit_mot_thanh_vien` (đúng 2 conv + 2 dense, tên khoá cố định), `_conv3` / `_pool2` dùng lại được. Xuất JSON: `tools/xuat_ocr.py` (`tham_so`, ánh xạ `c1.weight`→`c1w`…), `tools/ad_huan_luyen.py`.
   Thêm 2 khối × 2 conv (467 818 tham số = 320 + 9 248 + 18 496 + 36 928 + 401 536 + 1 290; Dropout không ảnh hưởng suy luận) cần: `nap_mo_hinh_ocr` (khoá mới a1…b2, d1, d2 hoặc trường kiến trúc), `logit_mot_thanh_vien` (rẽ nhánh theo kiến trúc, 4 conv), `du_doan_xac_suat` (không đổi nếu logit đúng), xuất JSON (`xuat_ocr.py`), test `tests/test_ocr_suy_luan.py` (dựng lại PyTorch từ JSON dùng `H.tao_cnn`). Dùng chung phiên bản → `service` tự lấy SHA; `doc_chu_so` / `doi_chieu_*` không đổi.
 
+### 4p. Lệnh AM – hiện thực + đo CNN sâu `sau_2x2` (16/11/2026, nhánh `cnn-sau`; KHÔNG ghi `models/ocr_cnn.json`, chưa push; chi tiết `docs/ket_qua_cnn_sau.md`)
+- Giai đoạn 1 (commit `a8da59b`): `cv_engine/ocr.py` nhận `kien_truc = "sau_2x2"` (`MoHinhOCR.kien_truc`, khoá a1/a2/b1/b2/d1/d2, kiểm đủ khoá; `logit_mot_thanh_vien` rẽ nhánh, dùng lại `_conv3` / `_pool2`); `tools/xuat_ocr.tham_so` xuất được mạng sâu; mô hình cũ bit-giống (SHA logit + xác suất trên 2 000 ô).
+- Giai đoạn 2: `python tools/am_cnn_sau.py huan-luyen | do` (tiến độ `data/_eval/am/tien_do.txt`, chạy tiếp được; ứng viên `data/_eval/am/ocr_cnn_sau_seed{2026,1,2}.json`, ngoài git).
+- **Kết quả (tiêu chí `docs/tieu_chi_cnn_sau.md`, 4f97e6f): (a) ĐẠT** 83,63% so với 67,56% (+16,07; seed 82,14 / 83,93 / 84,82); **(b) ĐẠT** lỗi im lặng 0 ở dev + 13 ảnh AG, cả 3 seed; **(c) ĐẠT** 100% cùng nhãn, logit lệch ≤ 1,1e-5; **(d) ĐẠT** 3,3–3,7 ms/ô trung vị (p95 tới 25 ms; CNN hiện tại 0,65 ms), pytest 570 đạt + 1 skip; (e) không kích hoạt "giữ".
+  Giới hạn: dev lạc quan, giấy thật không phân biệt được (cả hai 92,31%, 26 trường), huấn luyện không tất định. **CHƯA triển khai**: thay `models/ocr_cnn.json` cần đăng ký + kiểm thử riêng (người dùng quyết).
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
