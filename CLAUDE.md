@@ -464,6 +464,15 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - Test `tests/test_chay_demo.py` (29; không mở máy chủ / trình duyệt thật, CSDL trong ROLLBACK). Mật khẩu tài khoản demo KHÔNG nằm trong git (người dùng tự đặt).
 - Chưa kiểm được: tự mở trình duyệt thật (chỉ thử bằng giả lập), đăng nhập + thao tác trên giao diện `/app/` của `dacn` (cần mật khẩu), chạy `/m` trên điện thoại.
 
+### 4t. Lệnh AR – sửa 5 rủi ro đồng thời của lệnh AH (16/11/2026, nhánh `cnn-sau`; chi tiết `docs/tieu_chi_sua_ah.md`, `docs/ket_qua_sua_ah.md`)
+- Tiêu chí đăng ký TRƯỚC (`e1a4ef4`); sao lưu CSDL `data/_backup/smart_exam_db_20261116_133358_demo.dump`. **Tệp đóng băng (không chạm, băm kiểm lại)**: `models/*`, `cv_engine/*`, `backend/service.py`, `backend/schemas.py`, `layout.json` / mẫu PNG.
+  R1, R2, R3, R5 làm ở tầng điều phối mới `backend/dong_thoi.py` + `backend/main.py` (không đóng băng); R4 ở `auth.py`, `nguoi_dung.py`, `main.py` + migration 006.
+- **R1** (`185e071`): `dong_thoi.nhan_anh_an_toan` thử lại trong savepoint khi `UniqueViolation` (`uq_results_exam_student` / `uq_sheets_image_hash`) → hết 409 + mất phiếu; 60/60 (trước 17/60). **R2** (`c012bcb`): `pg_advisory_xact_lock` theo (kỳ thi, SHA-256 ảnh) cho đường tải một ảnh; 60/60 (trước 0/60, 13 lỗi 500).
+  **R3** (`5a150fc`): `/sheets/batch` lấy khoá mức kỳ thi đầu lô; 100/100, 0 deadlock (trước 100/100 deadlock). **R4** (`d305d23`): **migration 006 ĐÃ ÁP** (bảng `revoked_tokens`, băm SHA-256 token, chỉ thêm); token có nonce; `/auth/logout` thu hồi đúng một phiên (cookie, không có thì Bearer);
+  `xac_thuc` kiểm bảng + bộ nhớ tiến trình ở MỌI yêu cầu; backend KHÔNG khởi động khi `AUTH_MODE=on` mà thiếu bảng; 3/3 lượt. **R5** (`5befb21`): `CongCham` (BoundedSemaphore) `CHAM_DONG_THOI` (mặc định 4, ≥ 2) / `CHAM_CHO_GIAY` (30) trong `.env`; quá hạn → 503 + `Retry-After`; 20 yêu cầu: đỉnh bộ nhớ 620 MB (trước 3 158 MB).
+- Kiểm: pytest **626 đạt + 1 skip**; `tools/ah_thu_dong_thoi.py chay` (A–E + R1–R5, `--chi-ar [--chon R1,…]`) tất cả đạt; băm đầu ra 56 ảnh dev = mốc `54e54baa…` (`tools/ar_bam_dau_ra.py`); `kiem_truoc_demo` 0 KHÔNG ĐẠT. Không chậm đi ở ảnh đơn (830 → 747 ms) và thông lượng (2,93 → 2,95 ảnh/s).
+- **Còn lại**: R2 không phủ `/sheets/batch`; giới hạn chấm theo tiến trình (nhiều worker nhân lên); 503 chỉ kiểm bằng test (chưa gặp ở phép đo sống); `revoked_tokens` chưa có công cụ dọn; rủi ro #6 (khoá đăng nhập) và #7 (pool) của AH chưa làm. Các CSDL / nhánh khác dùng chung CSDL không bị ảnh hưởng (chỉ thêm một bảng).
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
