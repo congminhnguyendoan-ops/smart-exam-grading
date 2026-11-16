@@ -1135,6 +1135,8 @@ def chay(args) -> int:
                                         ("D_lo_cheo", t.kich_ban_d_lo_cheo), ("E", t.kich_ban_e), ("E_thang_tai", t.thang_tai)]
         if not args.khong_ar:
             ds_kb += [("R1", t.kich_ban_r1), ("R2", t.kich_ban_r2), ("R3", t.kich_ban_r3), ("R4", t.kich_ban_r4)]
+        chon = {x.strip().upper() for x in (args.chon or "").split(",") if x.strip()}
+        ds_kb = [(ten, ham) for ten, ham in ds_kb if not chon or ten.upper() in chon]
         for ten, ham in ds_kb:
             print(f"Kịch bản {ten}…", flush=True)
             try:
@@ -1143,7 +1145,7 @@ def chay(args) -> int:
                 ket_qua[ten] = {"dat": False, "loi_cong_cu": f"{type(e).__name__}: {e}", "tb": traceback.format_exc()[-1500:]}
             print(f"  -> {'ĐẠT' if ket_qua[ten]['dat'] else 'KHÔNG ĐẠT'}", flush=True)
         ket_qua["may_chu"]["bo_nho_cuoi"] = bo_nho_mb(mc.pid) if mc.pid else None
-        if not args.khong_ar:                                              # R5: máy chủ riêng với giới hạn nhỏ để THẤY hàng đợi + 503 (mặc định 4 / 30 giây)
+        if not args.khong_ar and (not chon or "R5" in chon):               # R5: máy chủ riêng với giới hạn nhỏ để THẤY hàng đợi + 503 (mặc định 4 / 30 giây)
             print("Kịch bản R5 (khởi động lại máy chủ với CHAM_DONG_THOI=3, CHAM_CHO_GIAY=8)…", flush=True)
             mc.tat()
             time.sleep(2)
@@ -1168,7 +1170,8 @@ def chay(args) -> int:
         if ket_qua["don"]["sach"] and HO_SO.exists():
             HO_SO.unlink()
     print(f"Kết quả: {OUT / 'ket_qua.json'}")
-    bat_buoc = (() if args.chi_ar else ("A", "B", "C", "D", "E")) + (() if args.khong_ar else ("R1", "R2", "R3", "R4", "R5"))
+    bat_buoc = tuple(k for k in ((() if args.chi_ar else ("A", "B", "C", "D", "E")) + (() if args.khong_ar else ("R1", "R2", "R3", "R4", "R5")))
+                     if k in ket_qua)
     return 0 if all(ket_qua.get(k, {}).get("dat") for k in bat_buoc) and ket_qua["don"]["sach"] else 1
 
 
@@ -1178,6 +1181,7 @@ def main() -> int:
     p = sub.add_parser("chay")
     p.add_argument("--lap-d", type=int, default=20)
     p.add_argument("--chi-ar", action="store_true", help="CHỈ R1–R5 (lệnh AR)")
+    p.add_argument("--chon", default="", help="chỉ chạy các kịch bản R này (vd R1,R3); cần --chi-ar")
     p.add_argument("--khong-ar", action="store_true", help="CHỈ A–E (như lệnh AH)")
     sub.add_parser("don")
     sub.add_parser("dem")

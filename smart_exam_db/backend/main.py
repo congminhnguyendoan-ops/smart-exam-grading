@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from urllib.parse import quote
 
-from . import auth, bang_diem, don_anh, duyet_nhanh, loi_khuyen, mang, nguoi_dung, nhat_ky, phan_quyen, phieu_trung, quan_tri, schemas, service, trang_bia
+from . import auth, bang_diem, don_anh, dong_thoi, duyet_nhanh, loi_khuyen, mang, nguoi_dung, nhat_ky, phan_quyen, phieu_trung, quan_tri, schemas, service, trang_bia
 from .config import CauHinh, LoiCauHinh, lay_cau_hinh
 from .db import ket_noi
 
@@ -203,7 +203,7 @@ def tai_mot_anh(exam_id: int, file: UploadFile = File(description="Ảnh phiếu
     Kỳ thi đã đóng (quản trị viên đóng) -> 409, không nhận ảnh."""
     phan_quyen.kiem_ky_thi(conn, nd, exam_id)
     quan_tri.kiem_dang_mo(conn, exam_id)
-    sheet_id, da_co = service.nhan_anh(conn, cfg, mh, exam_id, file.file.read(), file.filename, nd.user_id)
+    sheet_id, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, file.file.read(), file.filename, nd.user_id)
     return _tom_tat_tai(conn, sheet_id, da_co)
 
 
@@ -223,7 +223,7 @@ def tai_nhieu_anh(exam_id: int, files: list[UploadFile] = File(description="Nhi�
     for f in files:
         try:
             with conn.transaction():                       # savepoint: lỗi một ảnh không kéo cả lô
-                sid, da_co = service.nhan_anh(conn, cfg, mh, exam_id, f.file.read(), f.filename, user_id, batch_id)
+                sid, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, f.file.read(), f.filename, user_id, batch_id)
                 t = _tom_tat_tai(conn, sid, da_co)
             ket_qua.append({"filename": f.filename, "sheet_id": sid, "da_ton_tai": da_co, "status": t["status"],
                             "reject_code": t["reject_code"], "reject_message": t["reject_message"],
