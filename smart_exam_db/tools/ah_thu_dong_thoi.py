@@ -9,7 +9,8 @@ STORAGE_DIR = data/_eval/ah/kho). Dữ liệu thử RIÊNG, tạo mới, ghi h�
 Ảnh tải lên = ảnh GIẢ HOÁ vẽ trên mẫu phiếu trắng (cùng quy ước tools/thu_bo_demo.py: ô đậm xám 30, ô mờ xám 170, bubble SBD / mã đề đậm, KHÔNG có
 chữ viết tay) – chỉ để thử đồng thời / an toàn, KHÔNG phải số đo độ chính xác.
 
-  python tools/ah_thu_dong_thoi.py chay       # dựng -> kịch bản A, B, C, D (+D-ép, D-ảnh trùng, D-lô chéo), E (+ thang tải) -> dọn -> data/_eval/ah/ket_qua.{json,md}
+  python tools/ah_thu_dong_thoi.py chay       # dựng -> kịch bản A, B, C, D (+D-ép, D-ảnh trùng, D-lô chéo), E (+ thang tải) + R1–R5 (lệnh AR) -> dọn -> data/_eval/ah/ket_qua.json
+  python tools/ah_thu_dong_thoi.py chay --chi-ar   # CHỈ R1–R5 (kịch bản tái hiện 5 rủi ro, tiêu chí docs/tieu_chi_sua_ah.md); --khong-ar: chỉ A–E như lệnh AH
   python tools/ah_thu_dong_thoi.py don        # chỉ dọn (khi lần chạy trước bị ngắt giữa chừng)
   python tools/ah_thu_dong_thoi.py dem        # đếm dữ liệu thử còn sót (chỉ đọc)
 """
@@ -60,6 +61,11 @@ def ma_sv(nhom: int, i: int) -> str:
     return f"97{nhom}0{i:02d}" if nhom in (1, 2, 3) else f"979{i:03d}"
 
 
+def ma_ar(k: int, i: int) -> str:
+    """Lệnh AR: SBD 6 chữ số tiền tố 96 (96 + k + nnn), k = 1 (R1), 2 (R2), 3 (R3), 5 (R5). Dọn theo tiền tố 96 / 97 + tên 'AH thử'."""
+    return f"96{k}{i:03d}"
+
+
 def _dap_an() -> str:
     r = random.Random(HAT_GIONG)
     return "".join(r.choice("ABCD") for _ in range(SO_CAU))
@@ -68,7 +74,7 @@ def _dap_an() -> str:
 DAP_AN = _dap_an()
 
 
-def dung(conn) -> dict:
+def dung(conn, ar: bool = True) -> dict:
     """Tạo dữ liệu thử trong MỘT giao dịch (người gọi commit). Trả hồ sơ (id + mật khẩu chỉ giữ trong bộ nhớ, KHÔNG ghi ra tệp)."""
     from backend import auth, service
     hs = {"luc": datetime.now().isoformat(timespec="seconds"), "users": {}, "classes": {}, "exams": {}, "students": {}, "_mk": {}}
@@ -107,6 +113,9 @@ def dung(conn) -> dict:
     ids_d = [sv(ma_sv(9, i), "LD") for i in range(1, 61)]                 # D 20 + D-ép 10 + D-lô chéo 20 + dự phòng
     ky_thi("XD", "lớp chung GV1+GV2 – tranh chấp SBD", "LD", f"{TIEN_TO_USER}1", ids_d)
     ky_thi("XR", "GV1 – thang tải", "L1", f"{TIEN_TO_USER}1", [])
+    if ar:                                                                 # lệnh AR: thí sinh MỚI cho mỗi lần lặp (không dùng lại SBD)
+        for khoa, k, so in (("XA1", 1, 70), ("XA2", 2, 70), ("XA3", 3, 200), ("XA5", 5, 20)):
+            ky_thi(khoa, f"AR {khoa}", "LD", f"{TIEN_TO_USER}1", [sv(ma_ar(k, i), "LD") for i in range(1, so + 1)])
     return hs
 
 
@@ -131,8 +140,8 @@ def pham_vi_don(conn) -> dict:
         if not t.startswith(TIEN_TO_USER):
             raise SystemExit(f"DỪNG: tài khoản {i} '{t}' không phải tài khoản thử – không dọn")
     classes = [r["class_id"] for r in conn.execute("SELECT class_id FROM classes WHERE class_code LIKE %s", (TIEN_TO_LOP + "%",)).fetchall()]
-    students = [r["student_id"] for r in conn.execute("SELECT student_id FROM students WHERE student_code LIKE '97%%' AND full_name LIKE %s",
-                                                      (TEN_SV + "%",)).fetchall()]
+    students = [r["student_id"] for r in conn.execute("SELECT student_id FROM students WHERE (student_code LIKE '97%%' OR student_code LIKE '96%%') "
+                                                      "AND full_name LIKE %s", (TEN_SV + "%",)).fetchall()]
     return {"exams": sorted(exams), "users": sorted(users), "classes": classes, "students": students}
 
 
@@ -149,6 +158,16 @@ def dem_con_lai(conn) -> dict:
             "admin_audit_log_cua_tai_khoan_thu": conn.execute("SELECT count(*) AS n FROM admin_audit_log WHERE actor_user_id = ANY(%s)",
                                                               (pv["users"],)).fetchone()["n"],
             "tep_trong_kho": sum(1 for p in KHO.rglob("*") if p.is_file()) if KHO.exists() else 0}
+
+
+def dem_thu_hoi_token(conn) -> int | None:
+    """Số dòng revoked_tokens của tài khoản thử (None nếu chưa có bảng – mã trước lệnh AR). Dọn tự động nhờ ON DELETE CASCADE khi xoá tài khoản."""
+    try:
+        return conn.execute("SELECT count(*) AS n FROM revoked_tokens WHERE user_id IN (SELECT user_id FROM users WHERE username LIKE %s)",
+                            (TIEN_TO_USER.replace("_", "\\_") + "%",)).fetchone()["n"]
+    except Exception:  # noqa: BLE001
+        conn.rollback()
+        return None
 
 
 def don(conn) -> dict:
@@ -271,12 +290,12 @@ class MayChu:
         self.p = None
         self.pid = None
 
-    def bat(self) -> None:
+    def bat(self, env_them: dict | None = None) -> None:
         if _cong_dang_nghe(CONG):
             raise SystemExit(f"DỪNG: cổng {CONG} đang bận")
-        env = dict(os.environ, AUTH_MODE="on", ANH_XOA_TU_DONG="0", STORAGE_DIR=str(KHO), PYTHONIOENCODING="utf-8")
+        env = dict(os.environ, AUTH_MODE="on", ANH_XOA_TU_DONG="0", STORAGE_DIR=str(KHO), PYTHONIOENCODING="utf-8", **(env_them or {}))
         KHO.mkdir(parents=True, exist_ok=True)
-        self.log = open(LOG_MAY_CHU, "w", encoding="utf-8")
+        self.log = open(LOG_MAY_CHU, "a" if env_them else "w", encoding="utf-8")
         self.p = subprocess.Popen([sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", str(CONG),
                                    "--log-level", "warning"], cwd=ROOT, env=env, stdout=self.log, stderr=subprocess.STDOUT)
         import httpx
@@ -778,6 +797,239 @@ class Thu:
         return {"dat": loi_deadlock == 0 and all(x["chinh_thuc_p"] <= 1 and x["chinh_thuc_q"] <= 1 for x in lan),
                 "so_anh_loi_deadlock": loi_deadlock, "so_anh_co_loi": loi_khac, "lan": lan}
 
+    # ---------------------------------------------------------------- AR: R1–R5 (docs/tieu_chi_sua_ah.md)
+    def _cap_ar(self, hat: int, sbd: str) -> tuple[dict, dict]:
+        """Hai ảnh KHÁC nhau cùng một SBD: ảnh 1 đúng 40 câu, ảnh 2 đúng 20 câu (cả hai 'sạch': không câu nào cần xem)."""
+        out = []
+        for j, nd in enumerate((40, 20)):
+            r = random.Random(HAT_GIONG + 70000 + 10 * hat + j)
+            vt = set(r.sample(range(SO_CAU), nd))
+            cau = [DAP_AN[q] if q in vt else r.choice([x for x in "ABCD" if x != DAP_AN[q]]) for q in range(SO_CAU)]
+            out.append({"ten": f"ar_{sbd}_{'ab'[j]}.jpg", "anh": self.ve.anh(cau, sbd), "sbd": sbd, "n_dung": nd})
+        return out[0], out[1]
+
+    def _chu_ky_sbd(self, eid: int, sbd: str) -> tuple:
+        k = self._ket_qua_sv(eid, sbd)
+        return (len(k["phieu"]), k["chinh_thuc"], tuple(sorted(st for _, st in k["phieu"])), sum(1 for r in k["ly_do_cho"] if "duplicate_sbd" in r))
+
+    def _dua_ep(self, eid: int, a: dict, b: dict, ta: str, tb: str) -> list[dict]:
+        """Cuộc đua ÉP: giữ LOCK TABLE results IN SHARE MODE tới khi cả hai yêu cầu đều đã qua bước kiểm trùng và chờ ở INSERT INTO results (như D-ép)."""
+        from backend.db import ket_noi
+        khoa = ket_noi()
+        khoa.execute("SET lock_timeout = '60s'")
+        khoa.execute("LOCK TABLE results IN SHARE MODE")
+        nhin = ket_noi()
+        nhin.autocommit = True
+
+        def doi_roi_tha():
+            t0 = time.time()
+            while time.time() - t0 < 25:
+                n = nhin.execute("SELECT count(*) AS n FROM pg_stat_activity WHERE usename = current_user AND wait_event_type = 'Lock' "
+                                 "AND query ILIKE 'INSERT INTO results%%'").fetchone()["n"]
+                if n >= 2:
+                    break
+                time.sleep(0.05)
+            khoa.rollback()
+        try:
+            return self._hai_cung_luc(eid, a, b, ta, tb, truoc_khi_doi=doi_roi_tha)
+        finally:
+            khoa.rollback()
+            khoa.close()
+            nhin.close()
+
+    def kich_ban_r1(self, n_tu_nhien: int = 50, n_ep: int = 10, n_tuan_tu: int = 10) -> dict:
+        """R1: hai phiếu CÙNG SBD gửi đồng thời trong cùng kỳ. ĐẠT: cả 60 lần cả hai 201, 2 phiếu lưu, đúng 1 điểm chính thức, chữ ký kết quả = chữ ký gửi TUẦN TỰ."""
+        eid, u1, u2 = self.X("XA1"), self.u[0], self.u[1]
+        tt = []
+        for i in range(1, n_tuan_tu + 1):                                    # đối chứng tuần tự
+            sbd = ma_ar(1, i)
+            a, b = self._cap_ar(i, sbd)
+            r1, r2 = tai(self.phien_phu(u1), eid, a["anh"], a["ten"]), tai(self.phien_phu(u2), eid, b["anh"], b["ten"])
+            tt.append({"sbd": sbd, "http": [r1["http"], r2["http"]], "ky": self._chu_ky_sbd(eid, sbd)})
+        mau = tt[0]["ky"]
+        lan = []
+        for j in range(n_tu_nhien + n_ep):
+            i = n_tuan_tu + 1 + j
+            sbd = ma_ar(1, i)
+            a, b = self._cap_ar(i, sbd)
+            ep = j >= n_tu_nhien
+            t0 = time.perf_counter()
+            rr = self._dua_ep(eid, a, b, u1, u2) if ep else self._hai_cung_luc(eid, a, b, u1, u2)
+            lan.append({"lan": j + 1, "ep": ep, "sbd": sbd, "http": [rr[0]["http"], rr[1]["http"]], "ky": self._chu_ky_sbd(eid, sbd),
+                        "ms": round((time.perf_counter() - t0) * 1000), "chi_tiet": [str(r["body"])[:120] for r in rr if r["http"] != 201]})
+        tt_dat = all(x["http"] == [201, 201] and x["ky"] == mau for x in tt)
+        dua_dat = [x for x in lan if x["http"] == [201, 201] and x["ky"] == mau]
+        return {"dat": tt_dat and len(dua_dat) == len(lan) and len(lan) >= 60, "chu_ky_tuan_tu": mau, "tuan_tu_dat": tt_dat,
+                "so_lan": len(lan), "so_lan_dat": len(dua_dat), "lan_co_409": sum(1 for x in lan if 409 in x["http"]),
+                "lan_co_5xx_hoac_mang": sum(1 for x in lan if any(h == -1 or 500 <= h < 600 for h in x["http"])),
+                "lan_co_2_chinh_thuc": sum(1 for x in lan if x["ky"][1] > 1), "lan_mat_phieu": sum(1 for x in lan if x["ky"][0] < 2),
+                "ms_moi_cuoc_dua": tk([x["ms"] for x in lan]), "lan_loi": [x for x in lan if x not in dua_dat][:6]}
+
+    def kich_ban_r2(self, n_hai_tk: int = 30, n_cung_tk: int = 30, n_tuan_tu: int = 10) -> dict:
+        """R2: cùng MỘT tệp ảnh gửi hai lần đồng thời. ĐẠT: không 500, cả hai 201, đúng 1 phiếu theo băm, một da_ton_tai=false + một true, cùng sheet_id."""
+        import hashlib
+        from backend.db import ket_noi
+        eid, u1, u2 = self.X("XA2"), self.u[0], self.u[1]
+
+        def n_phieu(anh: bytes) -> int:
+            with ket_noi() as c:
+                c.execute("SET TRANSACTION READ ONLY")
+                return c.execute("SELECT count(*) AS n FROM answer_sheets WHERE exam_id = %s AND image_hash = %s", (eid, hashlib.sha256(anh).hexdigest())).fetchone()["n"]
+        tt = []
+        for i in range(1, n_tuan_tu + 1):                                    # đối chứng tuần tự: lần hai trả phiếu cũ
+            a, _ = self._cap_ar(100 + i, ma_ar(2, i))
+            c = self.phien_phu(u1)
+            r1, r2 = tai(c, eid, a["anh"], a["ten"]), tai(c, eid, a["anh"], a["ten"])
+            tt.append(bool(r1["http"] == 201 and r2["http"] == 201 and r1["body"]["da_ton_tai"] is False and r2["body"]["da_ton_tai"] is True
+                           and r1["body"]["sheet_id"] == r2["body"]["sheet_id"]))
+        lan = []
+        for j in range(n_hai_tk + n_cung_tk):
+            i = n_tuan_tu + 1 + j
+            a, _ = self._cap_ar(100 + i, ma_ar(2, i))
+            cap = "hai_tai_khoan" if j < n_hai_tk else "cung_tai_khoan"
+            rr = self._hai_cung_luc(eid, a, dict(a), u1, u2 if cap == "hai_tai_khoan" else u1)
+            gon = [(r["http"], (r["body"] or {}).get("da_ton_tai") if isinstance(r["body"], dict) else None, (r["body"] or {}).get("sheet_id") if isinstance(r["body"], dict) else None) for r in rr]
+            ok = (all(g[0] == 201 for g in gon) and sorted(g[1] for g in gon) == [False, True] and gon[0][2] == gon[1][2] and n_phieu(a["anh"]) == 1)
+            lan.append({"lan": j + 1, "cap": cap, "gon": gon, "ok": ok})
+        return {"dat": all(tt) and all(x["ok"] for x in lan), "so_lan": len(lan), "so_lan_dat": sum(1 for x in lan if x["ok"]), "tuan_tu_dat": all(tt),
+                "lan_co_500_hoac_mang": sum(1 for x in lan if any(g[0] == -1 or 500 <= g[0] < 600 for g in x["gon"])),
+                "lan_co_409": sum(1 for x in lan if any(g[0] == 409 for g in x["gon"])), "lan_loi": [x for x in lan if not x["ok"]][:6]}
+
+    def kich_ban_r3(self, so_lan: int = 100) -> dict:
+        """R3: /sheets/batch, hai lô CHÉO (cùng hai thí sinh, thứ tự ngược nhau). ĐẠT: cả 100 lần cả hai lô 201, không ảnh nào lỗi, 0 Deadlock (thân + log), mỗi thí sinh ≤ 1 chính thức."""
+        import httpx
+        eid, u1, u2 = self.X("XA3"), self.u[0], self.u[1]
+        dl_truoc = _dem_log("DeadlockDetected")
+        lan = []
+        for rep in range(so_lan):
+            p, q = ma_ar(3, 2 * rep + 1), ma_ar(3, 2 * rep + 2)
+            p1, p2 = self._cap_ar(200 + 2 * rep, p)
+            q1, q2 = self._cap_ar(200 + 2 * rep + 1, q)
+            rao = threading.Barrier(2)
+
+            def lo(ten, ds):
+                c = self.phien_phu(ten)
+                rao.wait()
+                t0 = time.perf_counter()
+                try:
+                    r = c.post(f"/exams/{eid}/sheets/batch", files=[("files", (x["ten"], x["anh"], "image/jpeg")) for x in ds])
+                    return r.status_code, r.json(), round((time.perf_counter() - t0) * 1000)
+                except httpx.HTTPError as e:
+                    return -1, str(e), 0
+            with ThreadPoolExecutor(2) as ex:
+                fa, fb = ex.submit(lo, u1, [p1, q1]), ex.submit(lo, u2, [q2, p2])
+                ra, rb = fa.result(), fb.result()
+
+            def loi_anh(r):
+                return [x.get("error") for x in r[1]["results"] if x.get("error")] if r[0] == 201 else [str(r[1])[:150]]
+            kp, kq_ = self._ket_qua_sv(eid, p), self._ket_qua_sv(eid, q)
+            lan.append({"lan": rep + 1, "http": [ra[0], rb[0]], "loi": loi_anh(ra) + loi_anh(rb), "ms": [ra[2], rb[2]], "chinh_thuc": [kp["chinh_thuc"], kq_["chinh_thuc"]]})
+        dl_sau = _dem_log("DeadlockDetected")
+        dl_than = sum(1 for x in lan if any("eadlock" in e for e in x["loi"]))
+        ok = [x for x in lan if x["http"] == [201, 201] and not x["loi"] and max(x["chinh_thuc"]) <= 1]
+        return {"dat": len(ok) == len(lan) == so_lan and dl_than == 0 and dl_sau == dl_truoc, "so_lan": len(lan), "so_lan_dat": len(ok), "deadlock_trong_than": dl_than,
+                "deadlock_trong_log": dl_sau - dl_truoc, "lan_co_500_hoac_mang": sum(1 for x in lan if any(h == -1 or 500 <= h < 600 for h in x["http"])),
+                "ms_moi_lo": tk([m for x in lan for m in x["ms"]]), "lan_loi": [x for x in lan if x not in ok][:5]}
+
+    def kich_ban_r4(self, so_luot: int = 3) -> dict:
+        """R4: đăng xuất thu hồi token. ĐẠT: sau logout T1 (cookie + Bearer) 401 trên ≥ 8 đường dẫn có xác thực; T2 cùng tài khoản vẫn dùng được; token giả 401 và không ghi revoked_tokens; logout lặp lại / không token 204."""
+        import httpx
+        from backend.db import ket_noi
+        ten, eid = self.u[2], self.X("X3")
+
+        def dem_thu_hoi():
+            try:
+                with ket_noi() as c:
+                    c.execute("SET TRANSACTION READ ONLY")
+                    return c.execute("SELECT count(*) AS n FROM revoked_tokens").fetchone()["n"]
+            except Exception:  # noqa: BLE001 – bảng chưa có (mã cũ / chưa áp migration 006)
+                return None
+        DUONG = [("GET", "/me", None), ("GET", "/me/classes", None), ("GET", "/exams", None), ("GET", f"/exams/{eid}/sheets", None), ("GET", f"/exams/{eid}/results", None),
+                 ("GET", "/sheets/1", None), ("GET", "/meta/ket-noi", None), ("PATCH", "/me", {"full_name": "AH thử R4"}), ("POST", "/me/password", {})]
+
+        def goi(token: str | None, cach: str) -> list[int]:
+            c = httpx.Client(base_url=GOC, timeout=60)
+            if token and cach == "cookie":
+                c.cookies.set("se_session", token)
+            h = {"Authorization": f"Bearer {token}"} if token and cach == "bearer" else {}
+            out = []
+            for m, d, js in DUONG:
+                try:
+                    out.append(c.request(m, d, json=js, headers=h).status_code)
+                except httpx.HTTPError:
+                    out.append(-1)
+            c.close()
+            return out
+        luot = []
+        for k in range(so_luot):
+            c1, c2 = self.phien_dang_nhap(ten), self.phien_dang_nhap(ten)
+            t1, t2 = c1.cookies.get("se_session"), c2.cookies.get("se_session")
+            truoc = {"t1_cookie": goi(t1, "cookie"), "t2_cookie": goi(t2, "cookie")}
+            n0 = dem_thu_hoi()
+            r_out = c1.post("/auth/logout")
+            sau = {"t1_cookie": goi(t1, "cookie"), "t1_bearer": goi(t1, "bearer"), "t2_cookie": goi(t2, "cookie"), "t2_bearer": goi(t2, "bearer")}
+            gia = {"ngau_nhien": goi("v1.abc.def", "bearer"), "sai_chu_ky": goi(t2[:-3] + ("AAA" if not t2.endswith("AAA") else "BBB"), "cookie"), "khong_co": goi(None, "cookie")}
+            n1 = dem_thu_hoi()
+            r_gia = httpx.post(f"{GOC}/auth/logout", cookies={"se_session": "v1.abc.def"}, timeout=60)
+            r_lai = httpx.post(f"{GOC}/auth/logout", headers={"Authorization": f"Bearer {t1}"}, timeout=60)
+            r_khong = httpx.post(f"{GOC}/auth/logout", timeout=60)
+            n2 = dem_thu_hoi()
+            c1.close()
+            c2.close()
+            ok_a = all(x == 401 for x in sau["t1_cookie"] + sau["t1_bearer"])
+            ok_b = all(x not in (401, -1) for x in sau["t2_cookie"] + sau["t2_bearer"])
+            ok_c = all(x == 401 for v in gia.values() for x in v) and r_gia.status_code == 204 and (n1 is None or n2 == n1)
+            ok_d = r_out.status_code == 204 and r_lai.status_code == 204 and r_khong.status_code == 204
+            ok_e = n0 is not None and n1 is not None and n1 == n0 + 1
+            luot.append({"luot": k + 1, "truoc_logout_ok": all(x != 401 for v in truoc.values() for x in v), "a_t1_bi_401_moi_duong": ok_a, "b_t2_van_dung_duoc": ok_b,
+                         "c_token_gia_401_khong_ghi": ok_c, "d_logout_lap_lai_204": ok_d, "e_ghi_dung_1_dong": ok_e, "sau": sau, "gia": gia,
+                         "revoked_truoc_sau_gia_sau": [n0, n1, n2]})
+        dat = all(x["truoc_logout_ok"] and x["a_t1_bi_401_moi_duong"] and x["b_t2_van_dung_duoc"] and x["c_token_gia_401_khong_ghi"] and x["d_logout_lap_lai_204"] and x["e_ghi_dung_1_dong"]
+                  for x in luot)
+        return {"dat": dat, "so_luot": so_luot, "so_duong_dan": len(DUONG), "luot": luot}
+
+    def kich_ban_r5(self, n: int = 20) -> dict:
+        """R5: 20 yêu cầu tải ảnh đồng thời trên máy chủ đặt CHAM_DONG_THOI=3, CHAM_CHO_GIAY=8. ĐẠT: mỗi yêu cầu 201 hoặc 503 CÓ Retry-After; không mã khác; mọi 201 chấm đúng; đỉnh bộ nhớ ≤ 1500 MB."""
+        eid = self.X("XA5")
+        ds = []
+        for i in range(1, n + 1):
+            sbd = ma_ar(5, i)
+            cau, nd = bai_lam(HAT_GIONG + 120000 + i, "sach")
+            ds.append({"ten": f"ar5_{i}.jpg", "anh": self.ve.anh(cau, sbd), "sbd": sbd, "n_dung": nd})
+        mau = LayMau(self.mc.pid)
+        mau.start()
+        time.sleep(1.0)
+        rao = threading.Barrier(n)
+
+        def gui(i):
+            c = self.phien_phu(self.u[i % 2])
+            rao.wait()
+            t0 = time.perf_counter()
+            try:
+                r = c.post(f"/exams/{eid}/sheets", files={"file": (ds[i]["ten"], ds[i]["anh"], "image/jpeg")})
+                return {"i": i, "http": r.status_code, "retry_after": r.headers.get("retry-after"), "body": r.json() if r.headers.get("content-type", "").startswith("application/json") else r.text[:200],
+                        "ms": round((time.perf_counter() - t0) * 1000)}
+            except Exception as e:  # noqa: BLE001
+                return {"i": i, "http": -1, "retry_after": None, "body": f"{type(e).__name__}: {e}", "ms": round((time.perf_counter() - t0) * 1000)}
+        with ThreadPoolExecutor(n) as ex:
+            kq = list(ex.map(gui, range(n)))
+        time.sleep(1.0)
+        mau.dung_lai.set()
+        mau.join()
+        bm = mau.tom_tat()
+        sai_ma = [(r["i"], r["http"]) for r in kq if r["http"] not in (201, 503)]
+        thieu_ra = [r["i"] for r in kq if r["http"] == 503 and not (r["retry_after"] or "").strip().isdigit()]
+        sai_cham = []
+        for r in kq:
+            if r["http"] == 201:
+                t = tom_tat_phieu(self.phien_phu(self.u[r["i"] % 2]), r["body"]["sheet_id"])
+                if not (t["status"] == "graded" and float(t["chinh_thuc"]) == ds[r["i"]]["n_dung"] * 0.25 and t["sv"] == ds[r["i"]]["sbd"]):
+                    sai_cham.append((r["i"], t["status"], t["chinh_thuc"]))
+        return {"dat": not sai_ma and not thieu_ra and not sai_cham and bm["mb_dinh"] is not None and bm["mb_dinh"] <= 1500, "so_yeu_cau": n,
+                "dem_ma": {str(m): sum(1 for r in kq if r["http"] == m) for m in sorted({r["http"] for r in kq})}, "ma_la": sai_ma, "503_thieu_retry_after": thieu_ra,
+                "retry_after": sorted({r["retry_after"] for r in kq if r["retry_after"]}), "sai_cham": sai_cham, "bo_nho": bm, "gioi_han_mb": 1500,
+                "ms": tk([r["ms"] for r in kq if r["http"] == 201])}
+
     # ---------------------------------------------------------------- E
     def kich_ban_e(self) -> dict:
         anh = {k: self.anh_tai_khoan(k, range(7, 27), ["sach"] * 8 + ["nhieu"] + ["sach"] * 8 + ["mo"] + ["sach"] * 2) for k in (1, 2, 3)}
@@ -834,6 +1086,13 @@ class Thu:
 
 
 # ------------------------------------------------------------------------------------------------ chạy
+def _dem_log(khoa: str) -> int:
+    try:
+        return LOG_MAY_CHU.read_text(encoding="utf-8", errors="replace").count(khoa)
+    except OSError:
+        return 0
+
+
 def _quet_log() -> dict:
     if not LOG_MAY_CHU.exists():
         return {}
@@ -856,21 +1115,27 @@ def chay(args) -> int:
     hs = None
     try:
         with ket_noi() as c:                    # thoát khối = commit
-            hs = dung(c)
+            hs = dung(c, ar=not args.khong_ar)
         luu_ho_so(hs)
         print("Đã dựng dữ liệu thử:", {k: len(v) for k, v in hs.items() if isinstance(v, dict) and k != "_mk"})
         mc.bat()
         ket_qua["may_chu"] = {"pid": mc.pid, "bo_nho_luc_bat": bo_nho_mb(mc.pid) if mc.pid else None}
         t = Thu(hs, mc)
-        for ten, ham in (("A", t.kich_ban_a), ("B", t.kich_ban_b)):
-            print(f"Kịch bản {ten}…", flush=True)
-            ket_qua[ten] = ham()
-            print(f"  -> {'ĐẠT' if ket_qua[ten]['dat'] else 'KHÔNG ĐẠT'}", flush=True)
-        print("Kịch bản C…", flush=True)
-        ket_qua["C"] = t.kich_ban_c(ket_qua["B"].pop("_phieu")["dong"])
-        print(f"  -> {'ĐẠT' if ket_qua['C']['dat'] else 'KHÔNG ĐẠT'}", flush=True)
-        for ten, ham in (("D", lambda: t.kich_ban_d(args.lap_d)), ("D_ep", t.kich_ban_d_ep), ("D_anh_trung", t.kich_ban_d_anh_trung),
-                         ("D_lo_cheo", t.kich_ban_d_lo_cheo), ("E", t.kich_ban_e), ("E_thang_tai", t.thang_tai)):
+        if not args.chi_ar:
+            for ten, ham in (("A", t.kich_ban_a), ("B", t.kich_ban_b)):
+                print(f"Kịch bản {ten}…", flush=True)
+                ket_qua[ten] = ham()
+                print(f"  -> {'ĐẠT' if ket_qua[ten]['dat'] else 'KHÔNG ĐẠT'}", flush=True)
+            print("Kịch bản C…", flush=True)
+            ket_qua["C"] = t.kich_ban_c(ket_qua["B"].pop("_phieu")["dong"])
+            print(f"  -> {'ĐẠT' if ket_qua['C']['dat'] else 'KHÔNG ĐẠT'}", flush=True)
+        else:
+            t.ss[t.u[0]], t.ss[t.u[1]], t.ss[t.u[2]] = (t.phien_dang_nhap(x) for x in t.u)
+        ds_kb = [] if args.chi_ar else [("D", lambda: t.kich_ban_d(args.lap_d)), ("D_ep", t.kich_ban_d_ep), ("D_anh_trung", t.kich_ban_d_anh_trung),
+                                        ("D_lo_cheo", t.kich_ban_d_lo_cheo), ("E", t.kich_ban_e), ("E_thang_tai", t.thang_tai)]
+        if not args.khong_ar:
+            ds_kb += [("R1", t.kich_ban_r1), ("R2", t.kich_ban_r2), ("R3", t.kich_ban_r3), ("R4", t.kich_ban_r4)]
+        for ten, ham in ds_kb:
             print(f"Kịch bản {ten}…", flush=True)
             try:
                 ket_qua[ten] = ham()
@@ -878,6 +1143,17 @@ def chay(args) -> int:
                 ket_qua[ten] = {"dat": False, "loi_cong_cu": f"{type(e).__name__}: {e}", "tb": traceback.format_exc()[-1500:]}
             print(f"  -> {'ĐẠT' if ket_qua[ten]['dat'] else 'KHÔNG ĐẠT'}", flush=True)
         ket_qua["may_chu"]["bo_nho_cuoi"] = bo_nho_mb(mc.pid) if mc.pid else None
+        if not args.khong_ar:                                              # R5: máy chủ riêng với giới hạn nhỏ để THẤY hàng đợi + 503 (mặc định 4 / 30 giây)
+            print("Kịch bản R5 (khởi động lại máy chủ với CHAM_DONG_THOI=3, CHAM_CHO_GIAY=8)…", flush=True)
+            mc.tat()
+            time.sleep(2)
+            mc.bat({"CHAM_DONG_THOI": "3", "CHAM_CHO_GIAY": "8"})
+            ket_qua["may_chu"]["pid_r5"] = mc.pid
+            try:
+                ket_qua["R5"] = t.kich_ban_r5()
+            except Exception as e:  # noqa: BLE001
+                ket_qua["R5"] = {"dat": False, "loi_cong_cu": f"{type(e).__name__}: {e}", "tb": traceback.format_exc()[-1500:]}
+            print(f"  -> {'ĐẠT' if ket_qua['R5']['dat'] else 'KHÔNG ĐẠT'}", flush=True)
     except Exception as e:  # noqa: BLE001
         ket_qua["loi_cong_cu"] = f"{type(e).__name__}: {e}"
         ket_qua["tb"] = traceback.format_exc()[-3000:]
@@ -892,7 +1168,8 @@ def chay(args) -> int:
         if ket_qua["don"]["sach"] and HO_SO.exists():
             HO_SO.unlink()
     print(f"Kết quả: {OUT / 'ket_qua.json'}")
-    return 0 if all(ket_qua.get(k, {}).get("dat") for k in ("A", "B", "C", "D", "E")) and ket_qua["don"]["sach"] else 1
+    bat_buoc = (() if args.chi_ar else ("A", "B", "C", "D", "E")) + (() if args.khong_ar else ("R1", "R2", "R3", "R4", "R5"))
+    return 0 if all(ket_qua.get(k, {}).get("dat") for k in bat_buoc) and ket_qua["don"]["sach"] else 1
 
 
 def main() -> int:
@@ -900,6 +1177,8 @@ def main() -> int:
     sub = ap.add_subparsers(dest="lenh", required=True)
     p = sub.add_parser("chay")
     p.add_argument("--lap-d", type=int, default=20)
+    p.add_argument("--chi-ar", action="store_true", help="CHỈ R1–R5 (lệnh AR)")
+    p.add_argument("--khong-ar", action="store_true", help="CHỈ A–E (như lệnh AH)")
     sub.add_parser("don")
     sub.add_parser("dem")
     a = ap.parse_args()
