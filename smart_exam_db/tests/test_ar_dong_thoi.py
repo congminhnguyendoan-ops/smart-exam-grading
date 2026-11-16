@@ -144,3 +144,98 @@ def test_r3_khoa_lo_lay_truoc_khi_xu_ly_anh_dau_tien():
     from backend import main
     nguon = inspect.getsource(main.tai_nhieu_anh)
     assert nguon.index('khoa_ky_thi(conn, exam_id, "lo")') < nguon.index("INSERT INTO scan_batches") < nguon.index("nhan_anh_an_toan(")
+
+
+# ------------------------------------------------------------------------------------------------ R4: đăng xuất thu hồi token
+from test_dang_nhap import MK, bang_moi, client_on, tao_user  # noqa: E402,F401  (fixture dùng lại)
+
+DUONG_CO_XAC_THUC = [("GET", "/me", None), ("GET", "/me/classes", None), ("GET", "/exams", None), ("GET", "/exams/1/sheets", None), ("GET", "/exams/1/results", None),
+                     ("GET", "/sheets/1", None), ("GET", "/meta/ket-noi", None), ("PATCH", "/me", {"full_name": "Tên mới"}), ("POST", "/me/password", {})]
+
+
+def _goi(client_on, token, cach):
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    with TestClient(app) as c:                                   # phiên riêng, KHÔNG dùng cookie của client_on
+        h = {"Authorization": f"Bearer {token}"} if cach == "bearer" and token else {}
+        if cach == "cookie" and token:
+            c.cookies.set("se_session", token)
+        return [c.request(m, d, json=js, headers=h).status_code for m, d, js in DUONG_CO_XAC_THUC]
+
+
+def _dang_xuat(token, cach="bearer"):
+    """Đăng xuất bằng một client MỚI (không dính cookie của client_on)."""
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    with TestClient(app) as c:
+        if cach == "cookie" and token:
+            c.cookies.set("se_session", token)
+        return c.post("/auth/logout", headers={"Authorization": f"Bearer {token}"} if cach == "bearer" and token else {}).status_code
+
+
+def _dang_nhap_lay_token(client_on, ten):
+    r = client_on.post("/auth/login", json={"username": ten, "password": MK})
+    assert r.status_code == 200
+    return r.cookies.get("se_session") or client_on.cookies.get("se_session")
+
+
+def test_r4_moi_lan_dang_nhap_mot_token_khac_nhau(client_on, bang_moi):
+    ten, _ = tao_user(bang_moi)
+    t1, t2 = _dang_nhap_lay_token(client_on, ten), _dang_nhap_lay_token(client_on, ten)
+    assert t1 != t2, "hai lần đăng nhập (kể cả cùng một giây) phải ra hai token khác nhau"
+
+
+def test_r4_dang_xuat_thu_hoi_dung_mot_phien(client_on, bang_moi):
+    ten, _ = tao_user(bang_moi)
+    t1, t2 = _dang_nhap_lay_token(client_on, ten), _dang_nhap_lay_token(client_on, ten)
+    assert all(x != 401 for x in _goi(client_on, t1, "cookie") + _goi(client_on, t1, "bearer"))
+    assert _dang_xuat(t1, "bearer") == 204
+    assert _goi(client_on, t1, "cookie") == [401] * len(DUONG_CO_XAC_THUC), "T1 (cookie) phải 401 trên MỌI đường dẫn có xác thực"
+    assert _goi(client_on, t1, "bearer") == [401] * len(DUONG_CO_XAC_THUC), "T1 (Bearer) phải 401 trên mọi đường dẫn"
+    assert all(x != 401 for x in _goi(client_on, t2, "cookie") + _goi(client_on, t2, "bearer")), "phiên khác của CÙNG tài khoản không bị ảnh hưởng"
+    n = bang_moi.execute("SELECT count(*) AS n, bool_and(token_sha256 <> %s) AS khong_luu_token_tho FROM revoked_tokens WHERE user_id = (SELECT user_id FROM users WHERE username = %s)",
+                         (t1, ten)).fetchone()
+    assert n["n"] == 1 and n["khong_luu_token_tho"], "chỉ 1 dòng (băm), không lưu token thô"
+
+
+def test_r4_token_gia_van_401_va_khong_ghi_bang(client_on, bang_moi):
+    ten, _ = tao_user(bang_moi)
+    t = _dang_nhap_lay_token(client_on, ten)
+    truoc = bang_moi.execute("SELECT count(*) AS n FROM revoked_tokens").fetchone()["n"]
+    for gia in ("v1.abc.def", "rac", t[:-3] + ("AAA" if not t.endswith("AAA") else "BBB"), t.replace("v1.", "v2.", 1)):
+        assert _goi(client_on, gia, "bearer") == [401] * len(DUONG_CO_XAC_THUC)
+        assert _dang_xuat(gia, "bearer") == 204 and _dang_xuat(gia, "cookie") == 204
+    assert _dang_xuat(None) == 204                                                                # không token
+    assert bang_moi.execute("SELECT count(*) AS n FROM revoked_tokens").fetchone()["n"] == truoc, "token giả / không token KHÔNG được ghi vào bảng"
+
+
+def test_r4_dang_xuat_lap_lai_an_toan(client_on, bang_moi):
+    ten, _ = tao_user(bang_moi)
+    t = _dang_nhap_lay_token(client_on, ten)
+    for _ in range(3):
+        assert _dang_xuat(t, "bearer") == 204
+    assert bang_moi.execute("SELECT count(*) AS n FROM revoked_tokens WHERE user_id = (SELECT user_id FROM users WHERE username = %s)", (ten,)).fetchone()["n"] == 1
+
+
+def test_r4_thu_hoi_hieu_luc_ngay_ca_khi_chua_commit(client_on, bang_moi, monkeypatch):
+    """Bộ nhớ trong tiến trình làm thu hồi có hiệu lực tức thì (get_conn commit SAU khi trả lời): giả lập bảng chưa thấy dòng mới."""
+    from backend import nguoi_dung
+    ten, _ = tao_user(bang_moi)
+    t = _dang_nhap_lay_token(client_on, ten)
+    assert _dang_xuat(t, "bearer") == 204
+    bang_moi.execute("DELETE FROM revoked_tokens WHERE user_id = (SELECT user_id FROM users WHERE username = %s)", (ten,))
+    assert _goi(client_on, t, "bearer") == [401] * len(DUONG_CO_XAC_THUC) and nguoi_dung.bam_token(t) in nguoi_dung._THU_HOI_TRONG_BO_NHO
+
+
+def test_r4_demo_mode_dang_xuat_khong_dung_bang(client):
+    """AUTH_MODE=demo (client mặc định của test): đăng xuất vẫn 204 và không ghi bảng thu hồi."""
+    truoc = client.app.state.cfg.auth_mode
+    assert client.post("/auth/logout").status_code == 204 and truoc in ("on", "demo")
+
+
+def test_r4_khoi_dong_thieu_bang_thu_hoi_thi_tu_choi():
+    import inspect
+
+    from backend import main
+    nguon = inspect.getsource(main.lifespan)
+    assert "revoked_tokens" in nguon and "LoiCauHinh" in nguon

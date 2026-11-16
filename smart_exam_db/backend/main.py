@@ -33,6 +33,11 @@ VERSION = "0.1.0"
 async def lifespan(app: FastAPI):
     cfg = lay_cau_hinh()
     app.state.cfg = cfg
+    if cfg.auth_mode == "on":                              # lệnh AR – R4: thiếu bảng thu hồi token thì KHÔNG khởi động (không "mở" im lặng việc đăng xuất)
+        with ket_noi() as c0:
+            c0.execute("SET TRANSACTION READ ONLY")
+            if c0.execute("SELECT to_regclass('revoked_tokens') AS t").fetchone()["t"] is None:
+                raise LoiCauHinh("Chưa áp migration 006 (bảng revoked_tokens – thu hồi token khi đăng xuất). Chạy: python -m backend.migrate")
     app.state.mo_hinh = service.nap_mo_hinh(cfg)          # nạp OMR + CNN chữ số một lần
     log.info("Đã nạp mô hình OMR %s, CNN chữ số %s", app.state.mo_hinh.phien_ban, app.state.mo_hinh.phien_ban_ocr)
     # Dọn ảnh tạm CHỈ khi ANH_XOA_TU_DONG=1 (tools/chay_server_lan.py --bat-don-anh – lệnh Z). pytest / tools/* (TestClient trên CSDL thật) để tắt.
@@ -71,13 +76,15 @@ def get_conn():
         conn.close()
 
 
+def _bearer(authorization: str | None) -> str | None:
+    return authorization[7:].strip() if authorization and authorization.lower().startswith("bearer ") else None
+
+
 def get_nguoi_dung(request: Request, conn=Depends(get_conn), cfg: CauHinh = Depends(get_cau_hinh),
                    authorization: str | None = Header(default=None, description="Bearer <token> (công cụ / test; trình duyệt dùng cookie)"),
                    x_user: str | None = Header(default=None, description="CHỈ khi AUTH_MODE=demo: username giáo viên")) -> auth.NguoiDung:
-    """Người dùng hiện tại: 401 nếu chưa đăng nhập / phiên hết hạn. Trong AUTH_MODE=on header X-User bị BỎ QUA."""
-    token = request.cookies.get(auth.COOKIE)
-    if not token and authorization and authorization.lower().startswith("bearer "):
-        token = authorization[7:].strip()
+    """Người dùng hiện tại: 401 nếu chưa đăng nhập / phiên hết hạn / đã đăng xuất (token bị thu hồi). Trong AUTH_MODE=on header X-User bị BỎ QUA."""
+    token = request.cookies.get(auth.COOKIE) or _bearer(authorization)
     return nguoi_dung.xac_thuc(conn, cfg, token, x_user)
 
 
@@ -379,8 +386,15 @@ def dang_nhap(body: schemas.DangNhap, request: Request, response: Response, conn
     return nguoi_dung.ho_so(conn, nd)
 
 
-@app.post("/auth/logout", status_code=204, tags=["Tài khoản"], summary="Đăng xuất (xoá cookie phiên)")
-def dang_xuat():
+@app.post("/auth/logout", status_code=204, tags=["Tài khoản"], summary="Đăng xuất (thu hồi token + xoá cookie phiên)")
+def dang_xuat(request: Request, conn=Depends(get_conn), cfg: CauHinh = Depends(get_cau_hinh),
+              authorization: str | None = Header(default=None, description="Bearer <token> (công cụ / test)")):
+    """Thu hồi token đang dùng (cookie, không có / không hợp lệ thì Bearer) – từ đây token đó trả 401 trên MỌI đường dẫn có xác thực; phiên khác của cùng tài khoản không bị ảnh hưởng.
+    Không cần đăng nhập, không lỗi nếu token giả / đã thu hồi / không có (luôn 204); token giả KHÔNG ghi gì."""
+    if cfg.auth_mode == "on":
+        for token in (request.cookies.get(auth.COOKIE), _bearer(authorization)):       # cùng thứ tự ưu tiên như get_nguoi_dung: chỉ MỘT phiên bị thu hồi
+            if token and nguoi_dung.thu_hoi_token(conn, cfg, token):
+                break
     r = Response(status_code=204)
     r.delete_cookie(auth.COOKIE, path="/", httponly=True, samesite="lax")
     return r
