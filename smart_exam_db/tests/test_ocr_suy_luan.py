@@ -60,10 +60,17 @@ def test_numpy_khop_pytorch_tren_moi_chu_so_dev(mh):
     assert len(x) > 4000
     d = json.loads(MO_HINH.read_text(encoding="utf-8"))
     ps = []
+    sau = d.get("kien_truc") == ocr.KIEN_TRUC_SAU                  # lệnh AN: mô hình triển khai là CNN sâu "sau_2x2"
     for m_json in d["thanh_vien"]:
-        m = H.tao_cnn()
-        ten = {"c1.weight": "c1w", "c1.bias": "c1b", "c2.weight": "c2w", "c2.bias": "c2b",
-               "d1.weight": "d1w", "d1.bias": "d1b", "d2.weight": "d2w", "d2.bias": "d2b"}
+        if sau:
+            sys.path.insert(0, str(ROOT / "tools"))
+            import ak_so_sanh_mo_rong as K
+            m = K.tao_cnn_sau()
+            ten = {f"{t}.{'weight' if u == 'w' else 'bias'}": f"{t}{u}" for t in ("a1", "a2", "b1", "b2", "d1", "d2") for u in ("w", "b")}
+        else:
+            m = H.tao_cnn()
+            ten = {"c1.weight": "c1w", "c1.bias": "c1b", "c2.weight": "c2w", "c2.bias": "c2b",
+                   "d1.weight": "d1w", "d1.bias": "d1b", "d2.weight": "d2w", "d2.bias": "d2b"}
         m.load_state_dict({k: torch.tensor(np.array(m_json[v], np.float32)) for k, v in ten.items()})
         m.eval()
         z = H.logits(m, x).astype(np.float64) / m_json["T"]
@@ -177,8 +184,22 @@ def test_cnn_sau_numpy_khop_pytorch_trong_so_ngau_nhien(tmp_path):
     assert np.abs(z_np - z_pt).max() <= 1e-4
 
 
-def test_mo_hinh_cu_van_nap_nhu_truoc(mh):
-    assert mh.kien_truc == "co_ban" and "c1w" in mh.thanh_vien[0] and "a1w" not in mh.thanh_vien[0]
+def test_mo_hinh_trien_khai_la_cnn_sau(mh):
+    """Lệnh AN: models/ocr_cnn.json = CNN sâu seed 2026 (docs/tieu_chi_thay_mo_hinh_an.md). Nhánh mô hình cũ vẫn được kiểm bằng tệp tạm bên dưới."""
+    assert mh.kien_truc == ocr.KIEN_TRUC_SAU and "a1w" in mh.thanh_vien[0] and "c1w" not in mh.thanh_vien[0]
+    assert sum(v.size for k, v in mh.thanh_vien[0].items() if k != "T") == 467818
+
+
+def test_nhanh_mo_hinh_co_ban_van_nap_va_chay(tmp_path):
+    """Nhánh kiến trúc cũ (Conv16–Conv32–Dense64) không được hỏng dù mô hình triển khai đã đổi: nạp một tệp tạm có khoá cũ + chạy được."""
+    rng = np.random.default_rng(0)
+    m = {"seed": 1, "T": 1.0, "c1w": rng.normal(size=(16, 1, 3, 3)).tolist(), "c1b": [0.0] * 16, "c2w": rng.normal(size=(32, 16, 3, 3)).tolist(), "c2b": [0.0] * 32,
+         "d1w": rng.normal(size=(64, 1568)).tolist(), "d1b": [0.0] * 64, "d2w": rng.normal(size=(10, 64)).tolist(), "d2b": [0.0] * 10}
+    f = tmp_path / "cu.json"
+    f.write_text(json.dumps({"kien_truc": "Conv16(3x3)-pool-Conv32(3x3)-pool-Dense64-Dense10", "tau": 0.9, "delta": 0.9, "tau_khop": 0.5, "thanh_vien": [m]}), encoding="utf-8")
+    mh_cu = ocr.nap_mo_hinh_ocr(f)
+    assert mh_cu.kien_truc == "co_ban"
+    assert ocr.du_doan_xac_suat(mh_cu, np.zeros((3, 28, 28), np.uint8)).shape == (3, 10)
 
 
 def test_nap_mo_hinh_sau_thieu_khoa_bi_tu_choi(tmp_path):
