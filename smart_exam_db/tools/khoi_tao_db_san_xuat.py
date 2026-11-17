@@ -1,7 +1,8 @@
 """
 khoi_tao_db_san_xuat.py - Lệnh AU (T5): khởi tạo CSDL cho bản CÔNG KHAI (chạy từ smart_exam_db/, venv đã bật, cần DATABASE_URL trong .env hoặc môi trường).
 
-Làm đúng MỘT việc: 01_schema + 02_functions_triggers + 03_views, rồi `python -m backend.migrate` (001–006).
+Làm đúng MỘT việc: 01_schema + 02_functions_triggers + 03_views, rồi `python -m backend.migrate` (001–006), rồi nạp MẪU PHIẾU CHUẨN (dữ liệu THAM CHIẾU bắt buộc:
+không có dòng `sheet_templates` thì không tạo được kỳ thi nào – lỗi "Không tìm thấy mẫu phiếu"; đây không phải dữ liệu mẫu).
 KHÔNG chạy 04_seed.sql, KHÔNG chạy 05_demo_workflow.sql, KHÔNG tạo tài khoản mặc định (04_seed có admin / gv_an / gv_binh / sv220001 – bản công khai không được có).
 KHÔNG DROP / TRUNCATE / DELETE gì. Role và CSDL do người vận hành tạo trước (docker-compose tạo sẵn; máy thường: CREATE DATABASE + CREATE ROLE bằng quyền postgres).
 
@@ -45,6 +46,21 @@ def ap_nen(conn) -> list[str]:
     return list(FILE_NEN)
 
 
+TEN_MAU_PHIEU = "Phiếu chuẩn 40 câu A4"
+
+
+def ap_mau_phieu(conn) -> bool:
+    """INSERT mẫu phiếu chuẩn (toạ độ lấy từ answer_sheet/output/layout.json – cùng nguồn với update_template.sql). Chạy lại an toàn (đã có thì không đổi). True = vừa thêm."""
+    import json
+    from psycopg.types.json import Jsonb
+    layout = json.loads((ROOT / "answer_sheet" / "output" / "layout.json").read_text(encoding="utf-8"))
+    r = conn.execute(
+        "INSERT INTO sheet_templates (template_name, num_questions, options_per_question, sbd_digits, exam_code_digits, page_width_px, page_height_px, layout_config, pdf_path) "
+        "VALUES (%s, 40, 4, 6, 3, 2480, 3508, %s, 'answer_sheet/output/phieu_trang.pdf') ON CONFLICT (template_name) DO NOTHING RETURNING template_id",
+        (TEN_MAU_PHIEU, Jsonb(layout))).fetchone()
+    return r is not None
+
+
 def ap_migration_trong_giao_dich(conn) -> list[str]:
     """Như backend.migrate.ap_dung nhưng KHÔNG commit (để thử trong schema tạm rồi ROLLBACK)."""
     xong = migrate.da_ap(conn)
@@ -69,6 +85,8 @@ def kiem_sau_khoi_tao(conn, so_dong_users_mong_doi: int) -> list[tuple[str, bool
         n = conn.execute(f"SELECT count(*) AS n FROM {b}").fetchone()["n"]          # tên bảng lấy từ hằng số nội bộ
         mong = so_dong_users_mong_doi if b == "users" else 0
         kq.append((f"bảng {b} đúng {mong} dòng (không có dữ liệu mẫu / tài khoản mặc định)", n == mong, f"{n} dòng"))
+    n_mau = conn.execute("SELECT count(*) AS n FROM sheet_templates").fetchone()["n"]
+    kq.append(("có đúng 1 mẫu phiếu chuẩn (dữ liệu tham chiếu để tạo kỳ thi)", n_mau == 1, f"{n_mau} mẫu"))
     ten_sv = [r["username"] for r in conn.execute("SELECT username FROM users WHERE username IN ('admin', 'gv_an', 'gv_binh', 'sv220001') ORDER BY 1")]
     if so_dong_users_mong_doi == 0:
         kq.append(("không có tài khoản mẫu của 04_seed", not ten_sv, ", ".join(ten_sv) or "không có"))
@@ -99,6 +117,8 @@ def thu_schema_tam() -> dict:
         conn.execute(f"SET LOCAL search_path = {ten_schema}")
         trinh_tu += ap_nen(conn)
         trinh_tu += ap_migration_trong_giao_dich(conn)
+        if ap_mau_phieu(conn):
+            trinh_tu.append("mẫu phiếu chuẩn")
         kiem += kiem_sau_khoi_tao(conn, 0)
         mk = tao_admin(conn, "quan_tri_thu", None, None)
         kiem.append(("tạo admin đầu tiên (mật khẩu ngẫu nhiên, hợp lệ, scrypt)", auth.mat_khau_hop_le(mk) is None and len(mk) >= 12, f"{len(mk)} ký tự (không in)"))
@@ -151,6 +171,9 @@ def main(argv: list[str] | None = None) -> int:
             print("Đã chạy:", ", ".join(FILE_NEN))
         moi = migrate.ap_dung(conn)
         print("Migration đã áp:", ", ".join(moi) if moi else "không có mới")
+        if ap_mau_phieu(conn):
+            conn.commit()
+            print("Đã nạp mẫu phiếu chuẩn:", TEN_MAU_PHIEU)
         mk = None
         if a.tao_admin:
             mk = tao_admin(conn, a.tao_admin, a.email, a.ho_ten)

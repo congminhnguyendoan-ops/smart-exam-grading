@@ -27,7 +27,8 @@ def test_tao_admin_can_ap_dung():
 def test_thu_schema_tam_dat_va_rollback(conn_thu):
     r = K.thu_schema_tam()
     assert r["dat"], r
-    assert r["trinh_tu"][:3] == K.FILE_NEN and [x for x in r["trinh_tu"][3:]] == [f.name for f in K.migrate.ds_file()]
+    assert r["trinh_tu"][:3] == K.FILE_NEN and [x for x in r["trinh_tu"][3:]] == [f.name for f in K.migrate.ds_file()] + ["mẫu phiếu chuẩn"]
+    assert any(m.startswith("có đúng 1 mẫu phiếu chuẩn") and d for m, d, _ in r["kiem"])
     assert r["schema_con_lai_sau_rollback"] == 0
 
 
@@ -48,3 +49,14 @@ def test_tao_admin_moi_dung_vai_tro_va_mat_khau_ngau_nhien(conn_thu):
     assert h["r"] == "admin" and auth.kiem_mat_khau(mk1, h["password_hash"]) and mk1 not in h["password_hash"]
     with pytest.raises(SystemExit):
         K.tao_admin(conn_thu, "co khoang trang", None, None)
+
+
+def test_v_mau_phieu_chuan_idempotent_va_dung_cho_tao_ky_thi(conn_thu):
+    """Lệnh AV: DB sản xuất không seed vẫn tạo được kỳ thi nhờ mẫu phiếu chuẩn; chạy lại không nhân đôi."""
+    conn_thu.execute("UPDATE sheet_templates SET template_name = template_name || ' (tạm)' WHERE template_name = %s", (K.TEN_MAU_PHIEU,))   # đổi tên (kỳ thi thật còn trỏ tới), trong giao dịch ROLLBACK
+    assert K.ap_mau_phieu(conn_thu) is True
+    assert K.ap_mau_phieu(conn_thu) is False
+    r = conn_thu.execute("SELECT num_questions, sbd_digits, exam_code_digits, page_width_px, page_height_px, layout_config FROM sheet_templates WHERE template_name = %s",
+                         (K.TEN_MAU_PHIEU,)).fetchone()
+    assert (r["num_questions"], r["sbd_digits"], r["exam_code_digits"], r["page_width_px"], r["page_height_px"]) == (40, 6, 3, 2480, 3508)
+    assert r["layout_config"]
