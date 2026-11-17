@@ -473,6 +473,16 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - Kiểm: pytest **626 đạt + 1 skip**; `tools/ah_thu_dong_thoi.py chay` (A–E + R1–R5, `--chi-ar [--chon R1,…]`) tất cả đạt; băm đầu ra 56 ảnh dev = mốc `54e54baa…` (`tools/ar_bam_dau_ra.py`); `kiem_truoc_demo` 0 KHÔNG ĐẠT. Không chậm đi ở ảnh đơn (830 → 747 ms) và thông lượng (2,93 → 2,95 ảnh/s).
 - **Còn lại**: R2 không phủ `/sheets/batch`; giới hạn chấm theo tiến trình (nhiều worker nhân lên); 503 chỉ kiểm bằng test (chưa gặp ở phép đo sống); `revoked_tokens` chưa có công cụ dọn; rủi ro #6 (khoá đăng nhập) và #7 (pool) của AH chưa làm. Các CSDL / nhánh khác dùng chung CSDL không bị ảnh hưởng (chỉ thêm một bảng).
 
+### 4u. Lệnh AS – gộp `cnn-sau` vào `main` (17/11/2026)
+- **`main` = CNN sâu (AM/AN) + sửa rủi ro đồng thời AH (AR) + 3 demo theo môn (AP)**. Gộp `--no-ff`, không xung đột; cây `main` sau gộp trùng cây `cnn-sau` (`b56b1fa`) trước khi thêm commit chỉnh này.
+  Commit `1d3433f` (gộp `cai-tien-b` 30/10) chỉ là dấu gộp: cây của nó = `9ea1909`, đã nằm trong lịch sử `cnn-sau`.
+- **Bản bảo vệ 12/11 = tag `ban-bao-ve-12-11`** (CNN CŨ, SHA `6d87205c…`). Tag lưu trạng thái: `main-truoc-gop-cnn-sau-16-11` (main cũ `1d3433f`), `ban-cnn-sau-16-11` (`b56b1fa`).
+- **Migration 006 (`revoked_tokens`) là BẮT BUỘC trên mọi máy mới / CSDL mới**: `python -m backend.migrate` (backend không khởi động khi `AUTH_MODE=on` mà thiếu bảng).
+- **Quay lại trước khi gộp**: `git checkout main-truoc-gop-cnn-sau-16-11` (xem) hoặc tạo nhánh từ tag đó; KHÔNG force push `main`.
+- Trên `main`: pytest 626 đạt + 1 skip; `kiem_truoc_demo` 0 KHÔNG ĐẠT. `tools/chay_demo.py` chấp nhận nhánh `main` hoặc `cnn-sau` (điều quyết định là SHA mô hình `a151c078…`).
+  `test_ocr_suy_luan::test_thoi_gian_cat_9_o_va_suy_luan` (ngưỡng 50 ms) có thể đỏ chập chờn khi máy đang tải nặng (đo 52,5 ms một lần; chạy lại đạt) – lỗi môi trường, không phải mã.
+  Test đợt 2 / sổ đóng băng vẫn chạy từ TAG `dang-ky-dot2` (ghim SHA mô hình CŨ), không từ `main`.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:

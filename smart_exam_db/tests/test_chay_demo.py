@@ -22,11 +22,13 @@ ANH_BV01 = DATA / "_eval" / "demo_bv" / "anh_gia" / "BV01.jpg"
 # ------------------------------------------------------------------------------------------------ kiểm tra nhánh + mô hình
 def test_kiem_truoc_dat_khi_dung_nhanh_va_sha():
     assert all(m.dat for m in C.kiem_truoc("cnn-sau", C.SHA_MO_HINH_OCR))
+    assert all(m.dat for m in C.kiem_truoc("main", C.SHA_MO_HINH_OCR))      # sau gộp lệnh AS
 
 
 def test_kiem_truoc_khong_dat_khi_sai_nhanh_hoac_sha():
-    sai_nhanh = C.kiem_truoc("main", C.SHA_MO_HINH_OCR)
+    sai_nhanh = C.kiem_truoc("cai-tien-b", C.SHA_MO_HINH_OCR)
     assert [m.dat for m in sai_nhanh] == [False, True] and "cnn-sau" in sai_nhanh[0].chi_tiet
+    assert [m.dat for m in C.kiem_truoc("main", "0" * 64)] == [True, False]     # main nhưng SHA sai vẫn bị chặn
     sai_sha = C.kiem_truoc("cnn-sau", "0" * 64)
     assert [m.dat for m in sai_sha] == [True, False]
     assert C.kiem_truoc("cnn-sau", "")[1].dat is False
@@ -38,7 +40,7 @@ def test_sha_mo_hinh_thuc_te_khop_hang_so():
 
 
 def test_main_dung_khi_kiem_tra_khong_dat(monkeypatch, capsys):
-    monkeypatch.setattr(C, "kiem_truoc", lambda: KIEM_GOC("main", C.SHA_MO_HINH_OCR))
+    monkeypatch.setattr(C, "kiem_truoc", lambda: KIEM_GOC("cai-tien-b", C.SHA_MO_HINH_OCR))
     monkeypatch.setattr(C, "dat_lai", lambda *a, **k: pytest.fail("không được đặt lại khi kiểm tra không đạt"))
     assert C.main(["xla"]) == 2
     assert "DỪNG" in capsys.readouterr().out
