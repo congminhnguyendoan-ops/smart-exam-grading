@@ -198,3 +198,70 @@ def test_t3_dat_image_max_image_pixels():
         assert Image.MAX_IMAGE_PIXELS == 12_345_678
     finally:
         Image.MAX_IMAGE_PIXELS = cu
+
+
+# ------------------------------------------------------------------------------------------------ T4 / T4b
+from backend.config import LoiCauHinh, lay_cau_hinh
+
+GOC_ENV = {"DATABASE_URL": "postgresql://x:y@localhost/z", "AUTH_MODE": "on", "AUTH_SECRET": "s" * 40, "COOKIE_SECURE": "1"}
+
+
+def _dat_env(monkeypatch, **bien):
+    for k in ("MOI_TRUONG", "WEB_CONCURRENCY", "COOKIE_SECURE", "AUTH_SECRET", "AUTH_MODE"):
+        monkeypatch.delenv(k, raising=False)
+    for k, v in {**GOC_ENV, **bien}.items():
+        if v is None:
+            monkeypatch.delenv(k, raising=False)
+        else:
+            monkeypatch.setenv(k, v)
+
+
+def test_t4_production_hop_le_khoi_dong_duoc(monkeypatch):
+    _dat_env(monkeypatch, MOI_TRUONG="production")
+    c = lay_cau_hinh()
+    assert c.moi_truong == "production" and c.cookie_secure and c.auth_mode == "on"
+
+
+@pytest.mark.parametrize("sai,noi_dung", [({"AUTH_MODE": "demo"}, "AUTH_MODE"), ({"COOKIE_SECURE": "0"}, "COOKIE_SECURE"), ({"COOKIE_SECURE": None}, "COOKIE_SECURE"),
+                                          ({"AUTH_SECRET": "ngan" * 5}, "AUTH_SECRET"), ({"WEB_CONCURRENCY": "2"}, "1 worker")])
+def test_t4_production_tu_choi_cau_hinh_khong_an_toan(monkeypatch, sai, noi_dung):
+    _dat_env(monkeypatch, MOI_TRUONG="production", **sai)
+    with pytest.raises(LoiCauHinh) as e:
+        lay_cau_hinh()
+    assert noi_dung in str(e.value) and "s" * 40 not in str(e.value)          # không lộ giá trị bí mật
+
+
+def test_t4_production_gom_het_loi_mot_lan(monkeypatch):
+    _dat_env(monkeypatch, MOI_TRUONG="production", AUTH_MODE="demo", COOKIE_SECURE="0", AUTH_SECRET="x")
+    with pytest.raises(LoiCauHinh) as e:
+        lay_cau_hinh()
+    assert all(k in str(e.value) for k in ("AUTH_MODE", "COOKIE_SECURE", "AUTH_SECRET"))
+
+
+@pytest.mark.parametrize("env", [{}, {"AUTH_MODE": "demo", "COOKIE_SECURE": "0", "WEB_CONCURRENCY": "4"}])
+def test_t4_mac_dinh_khong_doi_hanh_vi_lan(monkeypatch, env):
+    _dat_env(monkeypatch, **env)                     # không đặt MOI_TRUONG -> mọi kiểm tra production KHÔNG chạy
+    assert lay_cau_hinh().moi_truong == ""
+
+
+def test_t4_moi_truong_sai_gia_tri(monkeypatch):
+    _dat_env(monkeypatch, MOI_TRUONG="prod")
+    with pytest.raises(LoiCauHinh):
+        lay_cau_hinh()
+
+
+def test_t4_tep_mau_production_du_bien_bat_buoc_va_vuot_kiem_tra(monkeypatch):
+    mau = (ROOT / ".env.production.example").read_text(encoding="utf-8")
+    bien = dict(l.split("=", 1) for l in mau.splitlines() if l and not l.startswith("#") and "=" in l)
+    for k in ("MOI_TRUONG", "DATABASE_URL", "AUTH_SECRET", "AUTH_MODE", "COOKIE_SECURE", "PUBLIC_BASE_URL", "CHAM_DONG_THOI", "DOCS_ENABLED"):
+        assert k in bien, k
+    assert bien["MOI_TRUONG"] == "production" and bien["COOKIE_SECURE"] == "1" and bien["DOCS_ENABLED"] == "0" and bien["PUBLIC_BASE_URL"].startswith("https://")
+    for k in ("MOI_TRUONG", "WEB_CONCURRENCY", "COOKIE_SECURE", "AUTH_SECRET", "AUTH_MODE", "PUBLIC_BASE_URL", "FORWARDED_ALLOW_IPS", "STORAGE_DIR"):
+        monkeypatch.delenv(k, raising=False)
+    for k, v in bien.items():
+        monkeypatch.setenv(k, v)
+    with pytest.raises(LoiCauHinh) as e:             # sao chép nguyên mẫu mà không đổi khoá -> bị từ chối (giá trị giữ chỗ "DOI_…" dài > 32 ký tự)
+        lay_cau_hinh()
+    assert "giá trị mẫu" in str(e.value)
+    monkeypatch.setenv("AUTH_SECRET", "k" * 48)      # đổi khoá thật -> mẫu còn lại hợp lệ
+    assert lay_cau_hinh().moi_truong == "production"

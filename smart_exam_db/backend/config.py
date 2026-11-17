@@ -45,6 +45,7 @@ class CauHinh:
     # Lệnh AU – T1: /health công khai chỉ trả trạng thái; HEALTH_CHI_TIET=1 mới thêm phiên bản + SHA mô hình (nội bộ / kiểm thử).
     health_chi_tiet: bool = False
     # Lệnh AU – T3: giới hạn tải lên ở tầng ứng dụng (backend/kiem_anh.py). gioi_han_anh_mb (MAX_UPLOAD_MB) = tối đa MỘT ảnh.
+    moi_truong: str = ""             # "" (mặc định: hành vi LAN / dev như cũ) | "production" (lệnh AU – T4: từ chối khởi động nếu cấu hình không an toàn)
     max_anh_moi_lo: int = 30
     max_diem_anh: int = 60_000_000
 
@@ -70,6 +71,11 @@ def lay_cau_hinh() -> CauHinh:
     if mode == "on" and len(secret) < 32:
         raise LoiCauHinh("Chưa đặt AUTH_SECRET (≥ 32 ký tự) trong .env – cần để ký phiên đăng nhập. Sinh khoá: "
                          "python -c \"import secrets; print(secrets.token_urlsafe(48))\"  (hoặc AUTH_MODE=demo chỉ để dev).")
+    moi_truong = os.environ.get("MOI_TRUONG", "").strip().lower()
+    if moi_truong not in ("", "production"):
+        raise LoiCauHinh(f"MOI_TRUONG chỉ nhận 'production' hoặc để trống (đang là '{moi_truong}').")
+    if moi_truong == "production":
+        kiem_san_xuat(mode, secret, os.environ.get("COOKIE_SECURE", "0"), os.environ.get("WEB_CONCURRENCY", "1"))
     return CauHinh(
         database_url=url,
         storage_dir=kho if kho.is_absolute() else ROOT / kho,
@@ -85,8 +91,29 @@ def lay_cau_hinh() -> CauHinh:
         public_base_url=dia_chi_goc_hop_le(os.environ.get("PUBLIC_BASE_URL", "")),
         cham_dong_thoi=_so_nguyen_duong("CHAM_DONG_THOI", "4"), cham_cho_giay=_so_thuc_duong("CHAM_CHO_GIAY", "30"),
         health_chi_tiet=_bat(os.environ.get("HEALTH_CHI_TIET", "0")),
+        moi_truong=moi_truong,
         max_anh_moi_lo=_so_nguyen_duong("MAX_ANH_MOI_LO", "30"), max_diem_anh=_so_nguyen_duong("MAX_DIEM_ANH", "60000000"),
     )
+
+
+def kiem_san_xuat(auth_mode: str, auth_secret: str, cookie_secure: str, web_concurrency: str) -> None:
+    """Lệnh AU – T4 / T4b. MOI_TRUONG=production: gom MỌI lỗi cấu hình rồi từ chối khởi động một lần (không lộ giá trị bí mật).
+    1 worker: bộ đếm khoá đăng nhập (auth.gioi_han) và giới hạn chấm đồng thời (CHAM_DONG_THOI) nằm trong BỘ NHỚ TỪNG TIẾN TRÌNH –
+    N worker nhân giới hạn lên N lần. Ở đây chỉ phát hiện được WEB_CONCURRENCY; cờ `--workers` trên dòng lệnh do Dockerfile / docs cố định là 1."""
+    loi = []
+    if auth_mode != "on":
+        loi.append(f"AUTH_MODE phải là 'on' (đang là '{auth_mode}'): chế độ demo bỏ đăng nhập")
+    if not _bat(cookie_secure):
+        loi.append("COOKIE_SECURE phải là 1 (cookie đăng nhập chỉ đi qua HTTPS)")
+    if len(auth_secret) < 32:
+        loi.append("AUTH_SECRET phải dài ≥ 32 ký tự")
+    elif auth_secret.startswith("DOI_"):
+        loi.append("AUTH_SECRET vẫn là giá trị mẫu (bắt đầu bằng 'DOI_') – hãy sinh khoá thật")
+    wc = web_concurrency.strip()
+    if wc and (not wc.isdigit() or int(wc) != 1):
+        loi.append(f"chỉ chạy 1 worker (WEB_CONCURRENCY='{wc}'): khoá đăng nhập và giới hạn chấm tính theo từng tiến trình")
+    if loi:
+        raise LoiCauHinh("MOI_TRUONG=production nhưng cấu hình chưa an toàn: " + "; ".join(loi) + ". Xem .env.production.example.")
 
 
 def docs_bat() -> bool:
