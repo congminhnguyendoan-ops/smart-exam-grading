@@ -483,6 +483,18 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   `test_ocr_suy_luan::test_thoi_gian_cat_9_o_va_suy_luan` (ngưỡng 50 ms) có thể đỏ chập chờn khi máy đang tải nặng (đo 52,5 ms một lần; chạy lại đạt) – lỗi môi trường, không phải mã.
   Test đợt 2 / sổ đóng băng vẫn chạy từ TAG `dang-ky-dot2` (ghim SHA mô hình CŨ), không từ `main`.
 
+### 4v. Lệnh AU – chuẩn bị mã cho bản công khai (17/11/2026, nhánh `trien-khai` từ `main` @ `f812cb2`; CHƯA gộp `main`; chi tiết `docs/tieu_chi_trien_khai.md`, `docs/trien_khai_public.md`)
+- Tiêu chí T1–T9 đăng ký TRƯỚC (`2b1920f`). Khung đóng băng KHÔNG đụng (`cv_engine/`, `models/`, `service.py`, `schemas.py`). **Mặc định (không đặt biến mới) giữ hành vi LAN**, trừ ba điều ĐỔI CÓ CHỦ ĐÍCH dưới đây.
+- **T1** `DOCS_ENABLED` (0 → `/docs` `/redoc` `/openapi.json` 404), `HEALTH_CHI_TIET` (0 → `/health` chỉ `{status, db}`; tests/conftest đặt 1). **ĐỔI mặc định LAN**: `/docs` giờ 404 (liên kết "API (Swagger)" ở trang đăng nhập cụt) và `/health` không còn phiên bản / SHA.
+  Ba test từng đọc `/openapi.json` (`test_frontend`, `test_quan_tri_ky_thi`, …) đổi sang `app.openapi()`.
+- **T2** `FORWARDED_ALLOW_IPS` (IP / CIDR): `ProxyHeadersMiddleware` chỉ tin `X-Forwarded-*` từ nguồn đó; nguồn khác bị bỏ qua. Test bằng khoá đăng nhập thật (tin cậy → khoá theo IP thật; không tin → đổi header không né được khoá).
+- **T3** `backend/kiem_anh.py`: middleware 413 theo `Content-Length` + đếm byte (kể cả chunked), đọc từng đoạn dừng khi vượt `MAX_UPLOAD_MB`, `MAX_ANH_MOI_LO` (30), kiểm CHỮ KÝ JPEG/PNG/HEIC, số điểm ảnh từ tiêu đề `MAX_DIEM_ANH` (60 triệu) → 422, `Image.MAX_IMAGE_PIXELS`.
+  **ĐỔI hành vi**: tệp không phải ảnh nay 422 (trước: 201 + `rejected`/`khong_doc_duoc`); ảnh quá lớn 413 (trước 422); trong `/sheets/batch` tệp hỏng báo `error` theo ảnh, không tạo phiếu. Đã sửa 3 test cũ tương ứng (`test_backend_api`, `test_dien_thoai` ×2). Hồi quy 56 ảnh qua API: 56/56, 0 sai.
+- **T4/T4b** `MOI_TRUONG=production`: từ chối khởi động nếu `AUTH_MODE != on`, `COOKIE_SECURE != 1`, `AUTH_SECRET` < 32 ký tự hoặc còn là mẫu `DOI_…`, `WEB_CONCURRENCY > 1` (cờ `--workers` trên dòng lệnh KHÔNG bắt được). `.env.production.example`.
+- **T5** `tools/khoi_tao_db_san_xuat.py` (xem trước mặc định; `--thu-schema-tam` = thử trong schema tạm + ROLLBACK, ĐẠT; `--ap-dung [--tao-admin TÊN]`): chỉ 01–03 + migrate 001–006; KHÔNG seed / demo / tài khoản mặc định. **Chưa chạy `--ap-dung` trên CSDL nào.**
+- **T6/T7** `Dockerfile` (python:3.14-slim, không root, 1 worker, `--proxy-headers`), `.dockerignore`, `docker-compose.yml` (caddy + app + postgres:17), `deploy/Caddyfile`, `requirements-prod.txt` (test đối chiếu import ↔ gói bắt được thiếu `ifaddr`). **CHƯA BUILD THỬ**: máy có Docker CLI nhưng engine không chạy; chỉ `docker compose config` đạt. Caddyfile chưa kiểm cú pháp.
+- `tools/chay_demo.py` chấp nhận thêm nhánh `trien-khai`. Mật khẩu DB cũ vẫn nằm trong lịch sử git (báo cáo AT) – **đổi mật khẩu trước khi công khai**; việc chưa làm: pool kết nối, rate limit toàn cục, khoá batch cùng tệp, ép đổi mật khẩu, dọn `revoked_tokens`.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:

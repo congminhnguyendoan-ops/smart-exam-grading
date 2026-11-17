@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-NHANH_DUNG = ("main", "cnn-sau")       # CNN sâu có trên cả hai (gộp lệnh AS, 17/11/2026); điều quyết định là SHA mô hình
+NHANH_DUNG = ("main", "cnn-sau", "trien-khai")       # CNN sâu có trên cả ba (gộp lệnh AS, nhánh lệnh AU); điều quyết định là SHA mô hình
 SHA_MO_HINH_OCR = "a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8"       # CNN sâu (lệnh AN)
 XAC_NHAN = "DAT_LAI"
 CHE_DO = ("xla", "ml", "dacn")
@@ -69,7 +69,7 @@ def sha_mo_hinh(duong_dan: Path | None = None) -> str:
 def kiem_truoc(nhanh: str | None = None, sha: str | None = None) -> list[Muc]:
     nhanh = nhanh_hien_tai() if nhanh is None else nhanh
     sha = sha_mo_hinh() if sha is None else sha
-    return [Muc("Nhánh git", nhanh in NHANH_DUNG, f"đang ở '{nhanh}'" + ("" if nhanh in NHANH_DUNG else f" – demo này dùng CNN sâu nên phải ở nhánh '{NHANH_DUNG[0]}' hoặc '{NHANH_DUNG[1]}' (git switch {NHANH_DUNG[0]})")),
+    return [Muc("Nhánh git", nhanh in NHANH_DUNG, f"đang ở '{nhanh}'" + ("" if nhanh in NHANH_DUNG else f" – demo này dùng CNN sâu nên phải ở một trong các nhánh {', '.join(repr(n) for n in NHANH_DUNG)} (git switch {NHANH_DUNG[0]})")),
             Muc("Mô hình models/ocr_cnn.json", sha == SHA_MO_HINH_OCR,
                 f"SHA {sha[:12] or 'THIẾU TỆP'}… " + ("khớp CNN sâu (lệnh AN)" if sha == SHA_MO_HINH_OCR else f"KHÁC {SHA_MO_HINH_OCR[:12]}… (không phải CNN sâu đã đo)"))]
 
