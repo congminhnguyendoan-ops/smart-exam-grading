@@ -32,7 +32,8 @@ def test_trang_tinh_tham_chieu_dung_file_va_dung_endpoint(client):
     for ref in re.findall(r'(?:src|href)="([a-z.]+\.(?:js|css))"', html):
         assert (FRONTEND / ref).exists(), ref
     js = (FRONTEND / "app.js").read_text(encoding="utf-8")
-    paths = client.get("/openapi.json").json()["paths"]
+    from backend.main import app
+    paths = app.openapi()["paths"]                        # lệnh AU T1: /openapi.json mặc định 404, schema vẫn sinh được
     # mọi đường dẫn API mà JS gọi phải có trong OpenAPI (đổi ${...} thành {tham_so})
     for m in set(re.findall(r"`(/(?:exams|sheets|meta)[^`?]*)", js)) | set(re.findall(r'"(/(?:exams|sheets|meta)[^"?]*)"', js)):
         chuan = re.sub(r"(?<!/)\$\{[^}]+\}", "", re.sub(r"(?<=/)\$\{[^}]+\}", "{x}", m))   # ${..} đầu đoạn = tham số, còn lại = query

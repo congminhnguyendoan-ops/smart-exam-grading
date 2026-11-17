@@ -16,6 +16,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent           # smart_exam_db/
 sys.path.insert(0, str(ROOT))
 os.environ["AUTH_MODE"] = "demo"      # test CŨ chạy không đăng nhập; test đăng nhập (test_dang_nhap.py) tự bật 'on' qua cấu hình
+os.environ["HEALTH_CHI_TIET"] = "1"   # test cũ đọc phiên bản mô hình ở /health (mặc định công khai: chỉ trạng thái – lệnh AU T1)
 os.environ["ANH_XOA_TU_DONG"] = "0"   # TestClient chạy lifespan trên CSDL thật: KHÔNG bao giờ để luồng dọn ảnh tạm chạy khi kiểm thử
 
 ANSWER_SHEET_DIR = ROOT / "answer_sheet"

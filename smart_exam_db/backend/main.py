@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from urllib.parse import quote
 
 from . import auth, bang_diem, don_anh, dong_thoi, duyet_nhanh, loi_khuyen, mang, nguoi_dung, nhat_ky, phan_quyen, phieu_trung, quan_tri, schemas, service, trang_bia
-from .config import CauHinh, LoiCauHinh, lay_cau_hinh
+from .config import CauHinh, LoiCauHinh, docs_bat, lay_cau_hinh
 from .db import ket_noi
 
 log = logging.getLogger("smart_exam.api")
@@ -47,8 +47,13 @@ async def lifespan(app: FastAPI):
         luong.tat()
 
 
+def tham_so_tai_lieu() -> dict:
+    """Lệnh AU – T1: DOCS_ENABLED=0 (mặc định) -> tắt trang tài liệu tự sinh (404); =1 -> như cũ."""
+    return {} if docs_bat() else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+
+
 app = FastAPI(
-    title="Smart Exam API", version=VERSION, lifespan=lifespan,
+    title="Smart Exam API", version=VERSION, lifespan=lifespan, **tham_so_tai_lieu(),
     description="Chấm tự động phiếu trắc nghiệm từ ảnh chụp điện thoại. Câu OMR **cần xem** không bao giờ được chấm như câu "
                 "chắc chắn: phiếu còn mục cần xem có status `needs_review`, chỉ có điểm tạm; điểm chính thức (`results`) chỉ có "
                 "khi giáo viên đã xem hết. Cần đăng nhập (POST /auth/login); giáo viên chỉ thấy lớp / kỳ thi / phiếu của mình.")
@@ -145,15 +150,18 @@ def _loi_cau_hinh(_: Request, e: LoiCauHinh):
 def health(request: Request):
     """Trả 200 khi API chạy và nối được CSDL; 503 nếu không nối được CSDL."""
     mh = getattr(request.app.state, "mo_hinh", None)
-    thong_tin = {"status": "ok", "version": VERSION, "omr_model": mh.phien_ban if mh else None,
-                 "ocr_model": mh.phien_ban_ocr if mh else None}
+    cfg = getattr(request.app.state, "cfg", None)
+    thong_tin = {"status": "ok"}
+    if cfg is not None and cfg.health_chi_tiet:          # T1: chỉ chế độ nội bộ mới lộ phiên bản + mô hình
+        thong_tin.update({"version": VERSION, "omr_model": mh.phien_ban if mh else None,
+                          "ocr_model": mh.phien_ban_ocr if mh else None})
     try:
         with ket_noi() as conn:
             conn.execute("SELECT 1")
         thong_tin["db"] = "ok"
         return thong_tin
     except psycopg.Error as e:
-        return JSONResponse({**thong_tin, "status": "loi", "db": f"không nối được CSDL: {type(e).__name__}"}, status_code=503)
+        return JSONResponse({**thong_tin, "status": "loi", "db": "không nối được CSDL"}, status_code=503)
 
 
 @app.get("/meta/reject-reasons", response_model=dict[str, schemas.LyDoTuChoi], tags=["Hệ thống"],

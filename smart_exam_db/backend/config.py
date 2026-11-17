@@ -42,6 +42,8 @@ class CauHinh:
     # Mặc định 4 (≥ 2 để không chạm hàng đợi tải 2 lượt của giao diện). Vượt giới hạn: yêu cầu CHỜ tối đa cham_cho_giay rồi 503 + Retry-After.
     cham_dong_thoi: int = 4
     cham_cho_giay: float = 30.0
+    # Lệnh AU – T1: /health công khai chỉ trả trạng thái; HEALTH_CHI_TIET=1 mới thêm phiên bản + SHA mô hình (nội bộ / kiểm thử).
+    health_chi_tiet: bool = False
 
 
 def lay_database_url() -> str:
@@ -79,7 +81,13 @@ def lay_cau_hinh() -> CauHinh:
         anh_giu_demo=_bat(os.environ.get("ANH_GIU_DEMO", "1")),
         public_base_url=dia_chi_goc_hop_le(os.environ.get("PUBLIC_BASE_URL", "")),
         cham_dong_thoi=_so_nguyen_duong("CHAM_DONG_THOI", "4"), cham_cho_giay=_so_thuc_duong("CHAM_CHO_GIAY", "30"),
+        health_chi_tiet=_bat(os.environ.get("HEALTH_CHI_TIET", "0")),
     )
+
+
+def docs_bat() -> bool:
+    """DOCS_ENABLED (mặc định 0). Đọc lúc tạo app (trước lifespan) nên tách khỏi CauHinh. 0 -> /docs, /redoc, /openapi.json trả 404."""
+    return _bat(os.environ.get("DOCS_ENABLED", "0"))
 
 
 def _so_nguyen_duong(ten: str, mac_dinh: str) -> int:
