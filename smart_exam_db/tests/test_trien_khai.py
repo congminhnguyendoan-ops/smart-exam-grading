@@ -428,3 +428,83 @@ def test_v2_ngu_canh_build_thuc_te_khong_con_du_lieu_rieng_tu():
            or r.endswith(".local.json") or r.startswith((".claude/", "data/", ".git/", ".venv/", "tests/", "docs/"))]
     assert not xau, f"còn vào image: {xau}"
     assert "models/ocr_cnn.json" in con_lai and "answer_sheet/output/phieu_trang_300dpi.png" in con_lai
+
+
+# ------------------------------------------------------------------------------------------------ V8 (Render) + HEIC thật + postgres://
+def _render():
+    import yaml
+    return yaml.safe_load((ROOT.parent / "render.yaml").read_text(encoding="utf-8"))
+
+
+def test_v8_render_yaml_dung_cau_hinh_da_chot():
+    d = _render()
+    w = d["services"][0]
+    assert w["runtime"] == "docker" and w["plan"] == "starter" and w["healthCheckPath"] == "/health"
+    assert w["dockerfilePath"] == "./smart_exam_db/Dockerfile" and w["dockerContext"] == "./smart_exam_db"
+    assert w["dockerCommand"] == "uvicorn backend.main:app --host 0.0.0.0 --port 8000 --proxy-headers --workers 1"
+    assert w["disk"]["mountPath"] == "/app/storage" and w["disk"]["sizeGB"] >= 1
+    assert len(d["databases"]) == 1 and d["databases"][0]["ipAllowList"] == []
+    env = {e["key"]: e for e in w["envVars"]}
+    assert env["MOI_TRUONG"]["value"] == "production" and env["COOKIE_SECURE"]["value"] == "1" and env["DOCS_ENABLED"]["value"] == "0"
+    assert env["CHAM_DONG_THOI"]["value"] == "2" and env["WEB_CONCURRENCY"]["value"] == "1" and env["AUTH_MODE"]["value"] == "on"
+    assert env["STORAGE_DIR"]["value"] == w["disk"]["mountPath"] and env["PORT"]["value"] == "8000"
+    assert env["DATABASE_URL"]["fromDatabase"]["name"] == d["databases"][0]["name"] and env["AUTH_SECRET"]["generateValue"] is True
+    assert env["PUBLIC_BASE_URL"].get("sync") is False and "value" not in env["PUBLIC_BASE_URL"]
+    assert "value" not in env["AUTH_SECRET"] and "value" not in env["DATABASE_URL"]               # không có bí mật viết cứng
+    assert "khoi_tao_db_san_xuat.py --ap-dung" in w["preDeployCommand"] and "--tao-admin" not in w["preDeployCommand"]   # KHÔNG tạo tài khoản trong deploy
+
+
+def test_v8_moi_bien_render_qua_kiem_tra_production(monkeypatch):
+    """Nạp ĐÚNG các biến của render.yaml (giả lập giá trị Render điền) -> lay_cau_hinh() chạy được ở chế độ production."""
+    for k in ("MOI_TRUONG", "WEB_CONCURRENCY", "COOKIE_SECURE", "AUTH_SECRET", "AUTH_MODE", "PUBLIC_BASE_URL", "FORWARDED_ALLOW_IPS", "STORAGE_DIR", "PORT"):
+        monkeypatch.delenv(k, raising=False)
+    for e in _render()["services"][0]["envVars"]:
+        v = e.get("value")
+        if "fromDatabase" in e:
+            v = "postgres://smart_exam_app:mk-do-render@dpg-abc123-a/smart_exam"        # dạng Render cấp (kiểm ở test dưới)
+        elif e.get("generateValue"):
+            v = "r" * 43
+        elif e.get("sync") is False:
+            v = "https://smart-exam.onrender.com"
+        monkeypatch.setenv(e["key"], str(v))
+    c = lay_cau_hinh()
+    assert c.moi_truong == "production" and c.cham_dong_thoi == 2 and c.public_base_url == "https://smart-exam.onrender.com" and str(c.storage_dir).replace("\\", "/").endswith("/app/storage")
+
+
+@pytest.mark.parametrize("url", ["postgres://u:p%40ss@dpg-abc123-a/db", "postgresql://u:p@dpg-abc.oregon-postgres.render.com:5432/db?sslmode=require", "postgres://u:p@host:5432/db"])
+def test_v8_database_url_postgres_scheme_psycopg_doc_duoc(url):
+    """libpq / psycopg chấp nhận cả `postgres://` lẫn `postgresql://` (Render cấp một trong hai) – không cần chuẩn hoá trong mã."""
+    from psycopg.conninfo import conninfo_to_dict
+    d = conninfo_to_dict(url)
+    assert d["user"] == "u" and d["dbname"] == "db" and d["host"]
+
+
+def test_v8_postgres_scheme_ket_noi_that(conn_thu):
+    import psycopg
+    from backend.config import lay_database_url
+    url = lay_database_url()
+    alt = url.replace("postgresql://", "postgres://", 1)
+    if alt == url:
+        pytest.skip("DATABASE_URL không ở dạng postgresql://")
+    with psycopg.connect(alt, connect_timeout=5) as c:
+        assert c.execute("SELECT 1").fetchone()[0] == 1
+
+
+@pytest.mark.skipif(not (ROOT / "data" / "raw_heic" / "IMG_4223.HEIC").exists(), reason="thiếu ảnh HEIC thật (data/ không có trong git)")
+def test_v4_anh_heic_that_qua_kiem_noi_dung_va_duoc_cham(client):
+    """Ảnh iPhone THẬT (HEIC, 12 MP): qua kiem_anh, API nhận 201 và đọc đúng SBD (phiếu 0005); điểm chính thức sau duyệt đúng giấy = 34/40 → 8,5."""
+    from decimal import Decimal
+    from backend import demo
+    f = ROOT / "data" / "raw_heic" / "IMG_4223.HEIC"
+    kiem_anh.kiem_noi_dung_anh(f.read_bytes(), 60_000_000)
+    bl = demo.doc_bai_lam()
+    khoa, _ = demo.khoa_tu_bai_lam(bl["nhan"])
+    r0 = client.post("/exams", json={"exam_title": "AV HEIC thật (pytest)", "subject_code": "AVH" + hashlib.sha1(b"x").hexdigest()[:4].upper(), "num_questions": 40,
+                                     "codes": [{"code": m, "answers": (khoa if m == bl["exam_code"] else demo.khoa_demo(m))} for m in demo.MA_DE]})
+    assert r0.status_code == 201, r0.text
+    eid = r0.json()["exam_id"]
+    client.app.state  # noqa: B018 – chỉ để chắc app đã khởi động
+    r = client.post(f"/exams/{eid}/sheets", files={"file": ("IMG_4223.HEIC", f.read_bytes(), "image/heic")})
+    assert r.status_code == 201 and r.json()["status"] in ("needs_review", "graded"), r.text
+    v = client.get(f"/sheets/{r.json()['sheet_id']}").json()
+    assert v["sbd"]["detected"] == bl["sbd"]

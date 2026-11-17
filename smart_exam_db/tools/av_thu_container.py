@@ -4,7 +4,7 @@ KHÔNG chứa bí mật: mật khẩu quản trị lấy từ biến môi trư�
 
   AV_ADMIN_PW=... python tools/av_thu_container.py bv  --goc http://localhost:8080 --admin quan_tri_av          # V4: JPG BV01 + HEIC thật + lô 5 ảnh, so điểm kỳ vọng
   AV_ADMIN_PW=... python tools/av_thu_container.py ram --goc http://localhost:8080 --admin quan_tri_av --ten smart-exam-app-1 --nhan cd1
-                                                                                                                  # V5: docker stats lúc nghỉ / 1 ảnh / lô 5 / 5 ảnh đồng thời
+                                                                                                                  # V5: đỉnh RAM cgroup (nghỉ / 1 ảnh / lô 5 / 5 ảnh đồng thời), mỗi pha trên container vừa tạo lại
 Điều kiện: đã có sinh viên 220001–220009 và 823451 trong bảng students (bản triển khai sạch KHÔNG có đường nhập sinh viên qua web – xem docs/trien_khai_public.md).
 """
 import argparse
@@ -15,7 +15,6 @@ import secrets
 import string
 import subprocess
 import sys
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
@@ -51,8 +50,8 @@ def api(cl: httpx.Client, ptt: str, url: str, **kw):
     return r.json() if r.content else None
 
 
-def chuan_bi(goc: str, admin: str) -> tuple[httpx.Client, dict, dict]:
-    """Tạo (nếu chưa có) lớp + giáo viên thử; trả (client, header admin, header giáo viên)."""
+def chuan_bi(goc: str, admin: str) -> tuple[httpx.Client, dict, dict, int]:
+    """Tạo (nếu chưa có) lớp + giáo viên thử; trả (client, header admin, header giáo viên, user_id giáo viên)."""
     cl = httpx.Client(base_url=goc, timeout=120)
     ha = dang_nhap(goc, admin, os.environ["AV_ADMIN_PW"])
     lop = next((x for x in api(cl, "GET", "/admin/classes", headers=ha) if x["class_code"] == LOP), None) \
@@ -62,8 +61,8 @@ def chuan_bi(goc: str, admin: str) -> tuple[httpx.Client, dict, dict]:
     if gv is None:
         gv = api(cl, "POST", "/admin/users", headers=ha, json={"username": "gv_thu_av", "full_name": "Giáo viên thử AV", "password": mk, "class_ids": [lop["class_id"]]})
     else:
-        api(cl, "POST", f"/admin/users/{gv['user_id']}/password", headers=ha, json={"password": mk})
-    return cl, ha, dang_nhap(goc, "gv_thu_av", mk) | {"_gv": gv["user_id"]}
+        api(cl, "POST", f"/admin/users/{gv['user_id']}/password", headers=ha, json={"new_password": mk})
+    return cl, ha, dang_nhap(goc, "gv_thu_av", mk), gv["user_id"]
 
 
 def tao_ky_thi(cl, ha, gv_id: int, tieu_de: str, ma_de: dict[str, str]) -> int:
@@ -87,16 +86,14 @@ def duyet_dung_giay(cl, h, sid: int, nhan: list[str], sbd: str, ma_de: str) -> d
 
 
 def tai(cl, h, eid: int, duong_dan: Path, mime: str) -> dict:
-    hd = {k: v for k, v in h.items() if not k.startswith("_")}
-    r = cl.post(f"/exams/{eid}/sheets", headers=hd, files={"file": (duong_dan.name, duong_dan.read_bytes(), mime)})
+    r = cl.post(f"/exams/{eid}/sheets", headers=h, files={"file": (duong_dan.name, duong_dan.read_bytes(), mime)})
     return {"http": r.status_code, **(r.json() if r.headers.get("content-type", "").startswith("application/json") else {})}
 
 
 # ------------------------------------------------------------------------------------------------ V4
 def chay_bv(a) -> int:
     from backend import demo
-    cl, ha, hg = chuan_bi(a.goc, a.admin)
-    gv = hg["_gv"]
+    cl, ha, hg, gv = chuan_bi(a.goc, a.admin)
     kb = {r["sheet_id"]: r for r in doc_csv(KB)}
     e1 = {r["exam_code"]: r["answers"] for r in doc_csv(DAP_AN) if r["exam"] == "E1"}
     ket_qua = []
@@ -129,13 +126,13 @@ def chay_bv(a) -> int:
 
     # (3) lô 5 ảnh (BV01–BV05) trong kỳ thi mới
     eid3 = tao_ky_thi(cl, ha, gv, "[AV] E3 lô 5", e1)
-    hd = {k: x for k, x in hg.items() if not k.startswith("_")}
+    hd = hg
     files = [("files", (f"BV0{i}.jpg", (ANH / f"BV0{i}.jpg").read_bytes(), "image/jpeg")) for i in range(1, 6)]
     t0 = time.time()
     r = cl.post(f"/exams/{eid3}/sheets/batch", headers=hd, files=files)
     dt = time.time() - t0
     j = r.json()
-    kiem("lô 5 ảnh: 201, 5 kết quả không lỗi", r.status_code == 201 and j["tong"] == 5 and all("error" not in x for x in j["results"]), f"{dt:.1f} s, trạng thái {[x['status'] for x in j['results']]}")
+    kiem("lô 5 ảnh: 201, 5 kết quả không lỗi", r.status_code == 201 and j["tong"] == 5 and not any(x.get("error") for x in j["results"]), f"{dt:.1f} s, trạng thái {[x['status'] for x in j['results']]}")
     sai = []
     for x in j["results"]:
         ma_p = x["filename"].split(".")[0]
@@ -150,58 +147,36 @@ def chay_bv(a) -> int:
 
 
 # ------------------------------------------------------------------------------------------------ V5
-def doc_ram(ten: str) -> float:
-    s = subprocess.run(["docker", "stats", "--no-stream", "--format", "{{.MemUsage}}", ten], capture_output=True, text=True).stdout.split("/")[0].strip()
-    m = re.match(r"([\d.]+)\s*([KMG]i?B)", s)
-    if not m:
-        return 0.0
-    return float(m.group(1)) * {"KiB": 1 / 1024, "MiB": 1.0, "GiB": 1024.0, "KB": 1 / 1024, "MB": 1.0, "GB": 1024.0}[m.group(2)]
-
-
-class LayMau(threading.Thread):
-    """Lấy mẫu RAM container liên tục (mỗi lần ~1 s) cho tới khi dừng; giữ giá trị lớn nhất."""
-
-    def __init__(self, ten):
-        super().__init__(daemon=True)
-        self.ten, self.dung, self.cao, self.n = ten, False, 0.0, 0
-
-    def run(self):
-        while not self.dung:
-            self.cao = max(self.cao, doc_ram(self.ten))
-            self.n += 1
+def cgroup(ten: str) -> tuple[float, float, float]:
+    """(hiện tại, ĐỈNH từ lúc container bắt đầu, anon) MiB của container, đọc từ cgroup v2 trong container (chính xác hơn docker stats lấy mẫu thưa)."""
+    out = subprocess.run(["docker", "exec", ten, "sh", "-c", "cat /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.peak; grep '^anon ' /sys/fs/cgroup/memory.stat"],
+                         capture_output=True, text=True).stdout.split()
+    return int(out[0]) / 2**20, int(out[1]) / 2**20, int(out[3]) / 2**20
 
 
 def chay_ram(a) -> int:
-    cl, ha, hg = chuan_bi(a.goc, a.admin)
-    gv = hg["_gv"]
-    hd = {k: x for k, x in hg.items() if not k.startswith("_")}
+    """MỘT pha mỗi lần chạy, trên container VỪA tạo lại (đỉnh cgroup = đỉnh của khởi động + pha đó). Gọi từ vòng lặp bên ngoài: tạo lại app -> chạy pha."""
+    cl, ha, hg, gv = chuan_bi(a.goc, a.admin)
+    hd = hg
     e1 = {r["exam_code"]: r["answers"] for r in doc_csv(DAP_AN) if r["exam"] == "E1"}
     anh = [(f"BV{i:02d}.jpg", (ANH / f"BV{i:02d}.jpg").read_bytes()) for i in range(1, 11)]
-
-    def do(ten_pha, fn):
-        m = LayMau(a.ten)
-        m.start()
-        t0 = time.time()
-        fn()
-        dt = time.time() - t0
-        m.dung = True
-        m.join(timeout=10)
-        print(f"{a.nhan} | {ten_pha} | đỉnh RAM {m.cao:.0f} MiB ({m.n} mẫu) | {dt:.1f} s")
-
-    time.sleep(8)
-    print(f"{a.nhan} | nghỉ (sau khởi động) | RAM {doc_ram(a.ten):.0f} MiB")
-    e = tao_ky_thi(cl, ha, gv, f"[AV] RAM {a.nhan} 1 ảnh", e1)
-    do("chấm 1 ảnh", lambda: cl.post(f"/exams/{e}/sheets", headers=hd, files={"file": anh[0]}).raise_for_status())
-    e = tao_ky_thi(cl, ha, gv, f"[AV] RAM {a.nhan} lô 5", e1)
-    do("lô 5 ảnh (1 yêu cầu /batch)", lambda: cl.post(f"/exams/{e}/sheets/batch", headers=hd, files=[("files", x) for x in anh[:5]]).raise_for_status())
-    e = tao_ky_thi(cl, ha, gv, f"[AV] RAM {a.nhan} 5 song song", e1)
-
-    def song_song():
+    cur, dinh, anon = cgroup(a.ten)
+    print(f"{a.nhan} | {a.pha:<5} | nghỉ: hiện tại {cur:.0f} MiB (anon {anon:.0f}), đỉnh khởi động {dinh:.0f} MiB")
+    e = tao_ky_thi(cl, ha, gv, f"[AV] RAM {a.nhan} {a.pha} {secrets.token_hex(3)}", e1)
+    t0 = time.time()
+    if a.pha == "nghi":
+        time.sleep(1)
+    elif a.pha == "1anh":
+        cl.post(f"/exams/{e}/sheets", headers=hd, files={"file": anh[0]}).raise_for_status()
+    elif a.pha == "lo5":
+        cl.post(f"/exams/{e}/sheets/batch", headers=hd, files=[("files", x) for x in anh[:5]]).raise_for_status()
+    elif a.pha == "ss5":
         with ThreadPoolExecutor(5) as ex:
             rs = list(ex.map(lambda x: httpx.post(f"{a.goc}/exams/{e}/sheets", headers=hd, files={"file": x}, timeout=180), anh[:5]))
-        print(f"{a.nhan} |   mã HTTP của 5 yêu cầu song song: {[r.status_code for r in rs]}")
-    do("5 ảnh gửi SONG SONG (5 yêu cầu)", song_song)
-    print(f"{a.nhan} | nghỉ (sau tải) | RAM {doc_ram(a.ten):.0f} MiB")
+        print(f"{a.nhan} | {a.pha:<5} | mã HTTP 5 yêu cầu song song: {[r.status_code for r in rs]}")
+    dt = time.time() - t0
+    cur2, dinh2, anon2 = cgroup(a.ten)
+    print(f"{a.nhan} | {a.pha:<5} | {dt:.1f} s | ĐỈNH {dinh2:.0f} MiB | cuối pha: hiện tại {cur2:.0f} MiB (anon {anon2:.0f})")
     return 0
 
 
@@ -212,6 +187,7 @@ def main() -> int:
     ap.add_argument("--admin", required=True)
     ap.add_argument("--ten", default="smart-exam-app-1", help="tên container app (docker stats)")
     ap.add_argument("--nhan", default="thu", help="nhãn cấu hình in ở bảng V5 (vd cd1, cd2)")
+    ap.add_argument("--pha", default="1anh", choices=["nghi", "1anh", "lo5", "ss5"], help="V5: pha cần đo (chạy trên container vừa tạo lại)")
     a = ap.parse_args()
     if not os.environ.get("AV_ADMIN_PW"):
         raise SystemExit("DỪNG: đặt biến môi trường AV_ADMIN_PW (mật khẩu quản trị của bản thử).")
