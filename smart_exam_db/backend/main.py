@@ -8,6 +8,7 @@ rollback khi lỗi). ĐĂNG NHẬP (nhánh cai-tien-b): AUTH_MODE=on (mặc đ�
 kiểm quyền theo lớp (backend/phan_quyen.py). AUTH_MODE=demo giữ hành vi cũ (DEMO_USER / header X-User, không kiểm quyền) – chỉ dev + test cũ.
 """
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path as DuongDan
 
@@ -18,6 +19,7 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from urllib.parse import quote
 
@@ -57,6 +59,18 @@ app = FastAPI(
     description="Chấm tự động phiếu trắc nghiệm từ ảnh chụp điện thoại. Câu OMR **cần xem** không bao giờ được chấm như câu "
                 "chắc chắn: phiếu còn mục cần xem có status `needs_review`, chỉ có điểm tạm; điểm chính thức (`results`) chỉ có "
                 "khi giáo viên đã xem hết. Cần đăng nhập (POST /auth/login); giáo viên chỉ thấy lớp / kỳ thi / phiếu của mình.")
+
+
+def ip_proxy_tin_cay() -> list[str]:
+    """FORWARDED_ALLOW_IPS (danh sách phân tách bằng dấu phẩy; '*' = tin mọi nguồn – chỉ khi cổng ứng dụng KHÔNG ra Internet). Trống = không gắn middleware."""
+    return [x.strip() for x in os.environ.get("FORWARDED_ALLOW_IPS", "").split(",") if x.strip()]
+
+
+# Lệnh AU – T2: sau proxy (Caddy / nginx) request.client.host là IP của proxy -> khoá đăng nhập theo (tên, IP) sẽ dồn mọi người một khoá.
+# Khi đặt FORWARDED_ALLOW_IPS: chỉ nơi kết nối từ IP trong danh sách này mới được đổi client / scheme bằng X-Forwarded-For / -Proto; nơi khác bị BỎ QUA header.
+# (uvicorn --proxy-headers làm việc tương tự và cũng đọc FORWARDED_ALLOW_IPS; gắn ở đây để hành vi giống nhau mọi cách chạy và kiểm thử được.)
+if ip_proxy_tin_cay():
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=ip_proxy_tin_cay())
 
 
 # ------------------------------------------------------------------------------------------------ phụ thuộc
