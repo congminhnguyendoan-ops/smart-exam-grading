@@ -19,3 +19,22 @@ Nếu một sửa buộc phải đụng vào đó thì DỪNG và hỏi. Mặc �
 
 Không làm trong lệnh này: pool kết nối, rate limit toàn cục, ép đổi mật khẩu, khoá batch cùng tệp, dọn `revoked_tokens`.
 Báo cáo kết quả phải nêu rõ những gì CHƯA thử thật (ví dụ: không có proxy thật, không có Docker, không thử HTTPS thật).
+
+---
+
+# Mục AV – Lệnh AV: hoàn tất T6 + T10 (17/11/2026, nhánh `trien-khai`)
+
+Đăng ký TRƯỚC khi làm; không đổi sau khi thấy kết quả. Không gộp `main`; không sửa `cv_engine/`, `models/`, logic chấm của `service.py`.
+
+| Mã | Tiêu chí |
+|---|---|
+| V1 | Build image từ `Dockerfile` thành công. Nếu `python:3.14-slim` hoặc `opencv-python-headless==5.0.0.93` không dùng được thì đổi sang phiên bản build được VÀ cho kết quả chấm giống bản phát triển (không đổi ngưỡng / mô hình). Ghi kích thước image. |
+| V2 | Trong image KHÔNG có `data/`, `storage/` (dữ liệu), `.env*` (trừ `.env.production.example`), `.venv/`, `.git/` (liệt kê bằng `docker run … ls`). `models/ocr_cnn.json` SHA `a151c078…`; `/health` chế độ chi tiết báo đúng. |
+| V3 | `docker compose up` với `.env` tạm tự sinh (bí mật ngẫu nhiên, không dùng lại mật khẩu thật): `/health` 200; `/docs` 404; khởi tạo DB sản xuất rỗng; tạo admin bằng `khoi_tao_db_san_xuat`; đăng nhập đúng; sai 5 lần → khoá THEO IP THẬT qua proxy (Caddy chuyển `X-Forwarded-For`, `FORWARDED_ALLOW_IPS` khớp dải compose). Nếu HTTPS cục bộ khó thì thử qua HTTP và ghi rõ HTTPS / chứng chỉ CHƯA thử. |
+| V4 | Chấm thật trong container: 1 ảnh JPG BV01 + ÍT NHẤT 1 ảnh HEIC thật (từ `data/` nếu có) + 1 lô 5 ảnh; điểm bằng điểm kỳ vọng đã biết. Nếu HEIC bị kiểm nội dung từ chối thì sửa (đăng ký `pillow_heif` trước bước kiểm) và thêm test HEIC. |
+| V5 | `docker stats`: RAM lúc nghỉ, lúc chấm 1 ảnh, lúc chấm lô 5 ảnh với `CHAM_DONG_THOI=1` và `=2`; thời gian khởi động tới `/health` 200. Bảng số liệu, ghi rõ máy nào; không suy ra cho Render. |
+| V6 | Dọn: `docker compose down -v`, xoá `.env` tạm, xoá image / container thử, xác nhận không còn dữ liệu thật trong volume. |
+| V7 | Ẩn liên kết "API (Swagger)" ở `frontend/index.html` khi `DOCS_ENABLED=0` (sửa tối thiểu, không đổi bố cục khác); cập nhật test. |
+| V8 | `render.yaml` (web Docker gói Starter, 1 worker, đĩa bền gắn `STORAGE_DIR`, health check `/health`; 1 Postgres) + mục Render trong `docs/trien_khai_public.md` (biến phải đặt, cách chạy không Caddy, `--workers 1` cố định). `DATABASE_URL` dạng `postgres://` của Render phải chạy với psycopg (không thì chuẩn hoá trong cấu hình, kèm test). Ghi rõ CHƯA thử trên Render thật. |
+| V9 | Mật khẩu role `smart_exam_app` cục bộ: sinh ngẫu nhiên 24 ký tự, `ALTER ROLE`, cập nhật `.env` cục bộ, KHÔNG in mật khẩu ra màn hình / log / báo cáo; tìm mọi chỗ khác đọc mật khẩu cũ và báo cáo; mật khẩu cũ bị từ chối; server cục bộ khởi động và chấm 1 phiếu. Thiếu quyền → DỪNG, đưa lệnh cho người dùng. |
+| V10 | pytest toàn bộ ≥ 698 đạt + test mới; `kiem_truoc_demo` 0 KHÔNG ĐẠT (cây làm việc sạch trước khi chạy). |
