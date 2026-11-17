@@ -44,6 +44,9 @@ class CauHinh:
     cham_cho_giay: float = 30.0
     # Lệnh AU – T1: /health công khai chỉ trả trạng thái; HEALTH_CHI_TIET=1 mới thêm phiên bản + SHA mô hình (nội bộ / kiểm thử).
     health_chi_tiet: bool = False
+    # Lệnh AU – T3: giới hạn tải lên ở tầng ứng dụng (backend/kiem_anh.py). gioi_han_anh_mb (MAX_UPLOAD_MB) = tối đa MỘT ảnh.
+    max_anh_moi_lo: int = 30
+    max_diem_anh: int = 60_000_000
 
 
 def lay_database_url() -> str:
@@ -82,6 +85,7 @@ def lay_cau_hinh() -> CauHinh:
         public_base_url=dia_chi_goc_hop_le(os.environ.get("PUBLIC_BASE_URL", "")),
         cham_dong_thoi=_so_nguyen_duong("CHAM_DONG_THOI", "4"), cham_cho_giay=_so_thuc_duong("CHAM_CHO_GIAY", "30"),
         health_chi_tiet=_bat(os.environ.get("HEALTH_CHI_TIET", "0")),
+        max_anh_moi_lo=_so_nguyen_duong("MAX_ANH_MOI_LO", "30"), max_diem_anh=_so_nguyen_duong("MAX_DIEM_ANH", "60000000"),
     )
 
 

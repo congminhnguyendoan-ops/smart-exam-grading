@@ -24,6 +24,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from urllib.parse import quote
 
 from . import auth, bang_diem, don_anh, dong_thoi, duyet_nhanh, loi_khuyen, mang, nguoi_dung, nhat_ky, phan_quyen, phieu_trung, quan_tri, schemas, service, trang_bia
+from . import kiem_anh
 from .config import CauHinh, LoiCauHinh, docs_bat, lay_cau_hinh
 from .db import ket_noi
 
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
             c0.execute("SET TRANSACTION READ ONLY")
             if c0.execute("SELECT to_regclass('revoked_tokens') AS t").fetchone()["t"] is None:
                 raise LoiCauHinh("Chưa áp migration 006 (bảng revoked_tokens – thu hồi token khi đăng xuất). Chạy: python -m backend.migrate")
+    kiem_anh.ap_dung_gioi_han_diem_anh(cfg.max_diem_anh)   # T3: Image.MAX_IMAGE_PIXELS
     app.state.mo_hinh = service.nap_mo_hinh(cfg)          # nạp OMR + CNN chữ số một lần
     log.info("Đã nạp mô hình OMR %s, CNN chữ số %s", app.state.mo_hinh.phien_ban, app.state.mo_hinh.phien_ban_ocr)
     # Dọn ảnh tạm CHỈ khi ANH_XOA_TU_DONG=1 (tools/chay_server_lan.py --bat-don-anh – lệnh Z). pytest / tools/* (TestClient trên CSDL thật) để tắt.
@@ -71,6 +73,17 @@ def ip_proxy_tin_cay() -> list[str]:
 # (uvicorn --proxy-headers làm việc tương tự và cũng đọc FORWARDED_ALLOW_IPS; gắn ở đây để hành vi giống nhau mọi cách chạy và kiểm thử được.)
 if ip_proxy_tin_cay():
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=ip_proxy_tin_cay())
+
+
+def _gioi_han_tai_len() -> tuple[int, int]:
+    """(MAX_UPLOAD_MB, MAX_ANH_MOI_LO) đang hiệu lực cho middleware giới hạn thân (cấu hình đã nạp; chưa nạp thì đọc biến môi trường)."""
+    cfg = getattr(app.state, "cfg", None)
+    if cfg is not None:
+        return cfg.gioi_han_anh_mb, cfg.max_anh_moi_lo
+    return int(os.environ.get("MAX_UPLOAD_MB", "25")), int(os.environ.get("MAX_ANH_MOI_LO", "30"))
+
+
+app.add_middleware(kiem_anh.GioiHanThanMiddleware, lay_gioi_han=_gioi_han_tai_len)   # T3: 413 sớm theo Content-Length / đếm byte, TRƯỚC khi đọc thân
 
 
 # ------------------------------------------------------------------------------------------------ phụ thuộc
@@ -244,7 +257,7 @@ def tai_mot_anh(exam_id: int, file: UploadFile = File(description="Ảnh phiếu
     Kỳ thi đã đóng (quản trị viên đóng) -> 409, không nhận ảnh."""
     phan_quyen.kiem_ky_thi(conn, nd, exam_id)
     quan_tri.kiem_dang_mo(conn, exam_id)
-    du_lieu = file.file.read()
+    du_lieu = kiem_anh.nhan_tep_an_toan(file.file, cfg.gioi_han_anh_mb, cfg.max_diem_anh)   # T3: dừng đọc khi vượt giới hạn; kiểm chữ ký + số điểm ảnh
     with cong.vao():                                         # R5: chờ trong hàng đợi (có thời hạn, quá hạn 503) TRƯỚC mọi khoá CSDL
         sheet_id, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, du_lieu, file.filename, nd.user_id)
     return _tom_tat_tai(conn, sheet_id, da_co)
@@ -261,6 +274,8 @@ def tai_nhieu_anh(exam_id: int, files: list[UploadFile] = File(description="Nhi�
     if not conn.execute("SELECT 1 FROM exams WHERE exam_id = %s", (exam_id,)).fetchone():
         raise service.KhongTimThay(f"Không có kỳ thi {exam_id}.")
     quan_tri.kiem_dang_mo(conn, exam_id)
+    if len(files) > cfg.max_anh_moi_lo:                       # T3: giới hạn số ảnh mỗi lô
+        raise kiem_anh.QuaNhieuAnh(f"Một lô tối đa {cfg.max_anh_moi_lo} ảnh (đang gửi {len(files)}). Hãy chia nhỏ lô.")
     with cong.vao():                                         # R5: một lô chiếm MỘT chỗ trong hàng đợi chấm; lấy TRƯỚC khoá 'lo' của CSDL
         dong_thoi.khoa_ky_thi(conn, exam_id, "lo")           # R3: hai lô cùng kỳ chạy LẦN LƯỢT (khoá tới hết giao dịch) -> không chéo khoá chỉ mục duy nhất results
         batch_id = conn.execute("INSERT INTO scan_batches (exam_id, uploaded_by, total_sheets) VALUES (%s, %s, %s) RETURNING batch_id",
@@ -269,7 +284,7 @@ def tai_nhieu_anh(exam_id: int, files: list[UploadFile] = File(description="Nhi�
         for f in files:
             try:
                 with conn.transaction():                       # savepoint: lỗi một ảnh không kéo cả lô
-                    sid, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, f.file.read(), f.filename, user_id, batch_id, khoa_theo_anh=False)   # lô: không khoá theo ảnh (xem dong_thoi.py)
+                    sid, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, kiem_anh.nhan_tep_an_toan(f.file, cfg.gioi_han_anh_mb, cfg.max_diem_anh), f.filename, user_id, batch_id, khoa_theo_anh=False)   # lô: không khoá theo ảnh (xem dong_thoi.py)
                     t = _tom_tat_tai(conn, sid, da_co)
                 ket_qua.append({"filename": f.filename, "sheet_id": sid, "da_ton_tai": da_co, "status": t["status"],
                                 "reject_code": t["reject_code"], "reject_message": t["reject_message"],
