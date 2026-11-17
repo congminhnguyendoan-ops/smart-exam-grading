@@ -265,3 +265,112 @@ def test_t4_tep_mau_production_du_bien_bat_buoc_va_vuot_kiem_tra(monkeypatch):
     assert "giá trị mẫu" in str(e.value)
     monkeypatch.setenv("AUTH_SECRET", "k" * 48)      # đổi khoá thật -> mẫu còn lại hợp lệ
     assert lay_cau_hinh().moi_truong == "production"
+
+
+# ------------------------------------------------------------------------------------------------ T6 / T7 (kiểm TĨNH: máy có thể không chạy được Docker)
+import ast
+import fnmatch
+import hashlib
+import re as _re
+
+
+def _khop_dockerignore(duong_dan: str, mau: list[str]) -> bool:
+    """True nếu `duong_dan` (tương đối, dùng '/') BỊ LOẠI theo .dockerignore (mẫu sau thắng; '!' = giữ lại). Đủ cho các dạng dùng trong repo này."""
+    bi_loai = False
+    for dong in mau:
+        dong = dong.strip()
+        if not dong or dong.startswith("#"):
+            continue
+        phu_dinh = dong.startswith("!")
+        m = dong[1:] if phu_dinh else dong
+        if m.endswith("/"):
+            m = m + "**"
+        ok = False
+        for g in (m, m[3:] if m.startswith("**/") else None):
+            if g is None:
+                continue
+            re_ = "^" + _re.escape(g).replace(r"\*\*/", "(?:.*/)?").replace(r"\*\*", ".*").replace(r"\*", "[^/]*") + "(?:/.*)?$"
+            if _re.match(re_, duong_dan):
+                ok = True
+        if ok:
+            bi_loai = not phu_dinh
+    return bi_loai
+
+
+MAU_DI = (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines() if (ROOT / ".dockerignore").exists() else []
+
+
+@pytest.mark.parametrize("p", ["data/raw/0001_C1.jpg", "data/ground_truth.csv", "storage/uploads/1/ab/x.jpg", ".env", ".env.local", ".venv/Scripts/python.exe",
+                               ".git/config", "tests/test_backend_api.py", "docs/ERD.png", "backend/__pycache__/main.cpython-314.pyc", "tools/ah_thu_dong_thoi.py",
+                               "answer_sheet/demo_bv/phieu_demo_in.pdf", "Dockerfile", "backups/smart_exam_x.dump"])
+def test_t6_dockerignore_loai_du_lieu_bi_mat_va_nang(p):
+    assert _khop_dockerignore(p, MAU_DI), f"{p} KHÔNG bị loại khỏi image"
+
+
+@pytest.mark.parametrize("p", ["backend/main.py", "backend/migrations/006_thu_hoi_token.sql", "cv_engine/omr.py", "frontend/index.html", "frontend/m.html",
+                               "models/ocr_cnn.json", "models/omr_m1.json", "answer_sheet/output/layout.json", "answer_sheet/output/phieu_trang_300dpi.png",
+                               "answer_sheet/output/phieu_trang_300dpi.json", "answer_sheet/fonts/DejaVuSans.ttf", "database/01_schema.sql",
+                               "database/02_functions_triggers.sql", "database/03_views.sql", "tools/khoi_tao_db_san_xuat.py", "requirements-prod.txt",
+                               ".env.production.example"])
+def test_t6_dockerignore_giu_du_tep_can_de_chay(p):
+    assert (ROOT / p).exists(), f"{p} không tồn tại trong repo"
+    assert not _khop_dockerignore(p, MAU_DI), f"{p} bị loại nhầm khỏi image"
+
+
+def test_t6_dockerfile_lenh_khoi_dong_va_an_toan():
+    d = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert 'CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--workers", "1"]' in d
+    assert "USER app" in d and "MOI_TRUONG=production" in d and "HEALTHCHECK" in d and "requirements-prod.txt" in d
+    assert "COPY . ." in d and ".env" not in d.replace("MOI_TRUONG", "").split("COPY . .")[1].split("RUN")[0]
+
+
+def test_t6_compose_chi_caddy_mo_cong_va_db_khong_publish():
+    c = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "postgres:17" in c and "pgdata:" in c and "storage:" in c and "caddy:2" in c
+    assert len(_re.findall(r"^s+ports:", c, _re.M)) == 1 and '"443:443"' in c and "5432:5432" not in c and "8000:8000" not in c
+
+
+def test_t6_caddyfile_co_tls_gioi_han_than_va_proxy():
+    c = (ROOT / "deploy" / "Caddyfile").read_text(encoding="utf-8")
+    assert "reverse_proxy app:8000" in c and c.count("request_body") >= 3 and "max_size 26MB" in c and "{$PUBLIC_HOST" in c
+
+
+def test_t6_requirements_prod_du_goi_cho_moi_import_cua_backend():
+    """Mọi gói ngoài thư viện chuẩn mà backend/, cv_engine/, tools/khoi_tao_db_san_xuat.py import đều có trong requirements-prod.txt."""
+    ten_goi = {"cv2": "opencv-python-headless", "PIL": "pillow", "dotenv": "python-dotenv", "multipart": "python-multipart", "pillow_heif": "pillow-heif"}
+    chuan = {l.split("==")[0].strip().lower().replace("_", "-") for l in (ROOT / "requirements-prod.txt").read_text(encoding="utf-8").splitlines()
+             if "==" in l and not l.startswith("#")}
+    noi_bo = {"backend", "cv_engine", "tools", "answer_sheet"}
+    can = set()
+    for tep in [*(ROOT / "backend").glob("*.py"), *(ROOT / "cv_engine").glob("*.py"), ROOT / "tools" / "khoi_tao_db_san_xuat.py"]:
+        for nut in ast.walk(ast.parse(tep.read_text(encoding="utf-8"))):
+            mods = [a.name for a in nut.names] if isinstance(nut, ast.Import) else [nut.module] if isinstance(nut, ast.ImportFrom) and nut.level == 0 and nut.module else []
+            for m in mods:
+                goc = m.split(".")[0]
+                if goc not in sys.stdlib_module_names and goc not in noi_bo and goc != "khoi_tao_db_san_xuat":
+                    can.add(ten_goi.get(goc, goc).lower().replace("_", "-"))
+    thieu = sorted(g for g in can if g not in chuan)
+    assert not thieu, f"requirements-prod.txt thiếu: {thieu}"
+    assert {"fastapi", "uvicorn", "numpy", "opencv-python-headless", "pillow", "pillow-heif", "psycopg", "python-multipart"} <= chuan
+
+
+def test_t6_requirements_prod_khop_phien_ban_voi_freeze():
+    freeze = {l.split("==")[0].lower().replace("_", "-"): l.split("==")[1].strip() for l in
+              (ROOT / "requirements-freeze.txt").read_text(encoding="utf-8-sig").splitlines() if "==" in l}
+    for l in (ROOT / "requirements-prod.txt").read_text(encoding="utf-8").splitlines():
+        if "==" in l and not l.startswith("#"):
+            ten, ver = l.split("==")
+            ten = ten.lower().replace("_", "-")
+            goc = "opencv-python" if ten == "opencv-python-headless" else ten
+            assert freeze.get(goc) == ver.strip(), f"{ten}: prod {ver} ≠ freeze {freeze.get(goc)}"
+
+
+def test_t7_mo_hinh_co_san_va_sha_dung():
+    sha = hashlib.sha256((ROOT / "models" / "ocr_cnn.json").read_bytes()).hexdigest()
+    assert sha.startswith("a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8"[:8]) and sha == "a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8"
+    assert (ROOT / "models" / "omr_m1.json").stat().st_size > 0
+
+
+def test_t7_health_chi_tiet_bao_dung_sha_mo_hinh(client):
+    j = client.get("/health").json()                  # conftest đặt HEALTH_CHI_TIET=1 (chế độ nội bộ)
+    assert j["ocr_model"] == "ocr_cnn-a151c078" and j["omr_model"].startswith("omr_m1-")

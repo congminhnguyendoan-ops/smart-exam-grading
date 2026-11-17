@@ -1,0 +1,44 @@
+# Lệnh AU – T6: Caddy làm TLS (tự xin / gia hạn chứng chỉ) + giới hạn thân yêu cầu ở tầng proxy (lớp phòng thủ thứ nhất; ứng dụng vẫn tự kiểm – backend/kiem_anh.py).
+# PUBLIC_HOST = tên miền công khai, DNS phải trỏ về máy này, cổng 80 / 443 mở.
+{$PUBLIC_HOST:localhost} {
+	encode zstd gzip
+
+	# Một ảnh: MAX_UPLOAD_MB (25) + phần multipart
+	@anh path_regexp anh ^/exams/[0-9]+/sheets$
+	handle @anh {
+		request_body {
+			max_size 26MB
+		}
+		reverse_proxy app:8000
+	}
+
+	# Lô ảnh (giao diện không dùng; API / công cụ): ứng dụng cho tối đa MAX_ANH_MOI_LO × MAX_UPLOAD_MB; proxy siết chặt hơn
+	@lo path_regexp lo ^/exams/[0-9]+/sheets/batch$
+	handle @lo {
+		request_body {
+			max_size 200MB
+		}
+		reverse_proxy app:8000
+	}
+
+	# Mọi đường dẫn khác (JSON, đăng nhập, giao diện tĩnh): thân rất nhỏ
+	handle {
+		request_body {
+			max_size 2MB
+		}
+		reverse_proxy app:8000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=86400"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

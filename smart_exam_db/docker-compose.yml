@@ -1,0 +1,64 @@
+# Lệnh AU – T6: MẪU triển khai công khai: caddy (TLS) → app (FastAPI, 1 worker) → db (PostgreSQL 17). Chỉ caddy mở cổng ra ngoài.
+# Chuẩn bị:  cp .env.production.example .env   (điền giá trị thật)   rồi   docker compose up -d --build
+# Khởi tạo CSDL (một lần):  docker compose run --rm app python tools/khoi_tao_db_san_xuat.py --ap-dung --tao-admin <tên>
+# Chi tiết từng bước, sao lưu / khôi phục: docs/trien_khai_public.md
+name: smart-exam
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: smart_exam_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?đặt POSTGRES_PASSWORD trong .env}
+      POSTGRES_DB: smart_exam
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smart_exam_app -d smart_exam"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [noi_bo]
+    # KHÔNG publish cổng 5432 ra ngoài
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - storage:/app/storage
+    # Không có `ports:` – chỉ caddy tới được cổng 8000 qua mạng nội bộ
+    expose: ["8000"]
+    networks: [noi_bo]
+    mem_limit: 2g               # RAM tối thiểu 1 GB; 4 ảnh chấm cùng lúc ≈ 600 MB đỉnh (docs/trien_khai_public.md)
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}      # tên miền công khai (không có https://) – Caddy tự xin chứng chỉ Let's Encrypt
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [noi_bo]
+
+networks:
+  noi_bo:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24     # FORWARDED_ALLOW_IPS trong .env phải chứa dải này (chỉ caddy nằm trong mạng này và được tin X-Forwarded-For)
+
+volumes:
+  pgdata:
+  storage:
+  caddy_data:
+  caddy_config:
