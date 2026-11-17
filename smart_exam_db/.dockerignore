@@ -15,6 +15,9 @@ venv/
 tests/
 docs/
 **/*.dump
+# cấu hình cục bộ của công cụ phát triển (quyền, đường dẫn máy) – không bao giờ vào image
+.claude/
+**/*.local.json
 # công cụ + tài liệu không cần khi chạy – chỉ giữ tệp khởi tạo CSDL sản xuất
 tools/*
 !tools/khoi_tao_db_san_xuat.py
@@ -25,6 +28,11 @@ answer_sheet/output/*.pdf
 answer_sheet/output/*.csv
 answer_sheet/output/ground_truth.csv
 answer_sheet/output/update_template.sql
+# ảnh sinh cục bộ (không nằm trong git): chỉ giữ mẫu định vị phieu_trang_300dpi.png
+answer_sheet/output/*.jpg
+answer_sheet/output/*.png
+!answer_sheet/output/phieu_trang_300dpi.png
+database/tests/
 answer_sheet/.venv/
 answer_sheet/.idea/
 # tệp triển khai không nằm trong image

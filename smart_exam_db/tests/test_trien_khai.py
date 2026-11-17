@@ -11,6 +11,7 @@ from conftest import ROOT
 def chay_py(ma: str, env_them: dict | None = None) -> subprocess.CompletedProcess:
     """Chạy một đoạn Python trong tiến trình mới (app đọc biến môi trường lúc import) với môi trường sạch của các biến AU."""
     import os
+    from pathlib import Path
     env = {k: v for k, v in os.environ.items() if k not in ("DOCS_ENABLED", "MOI_TRUONG", "FORWARDED_ALLOW_IPS")}
     env.update(env_them or {})
     return subprocess.run([sys.executable, "-c", ma], cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120)
@@ -302,7 +303,8 @@ MAU_DI = (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines() if (R
 
 @pytest.mark.parametrize("p", ["data/raw/0001_C1.jpg", "data/ground_truth.csv", "storage/uploads/1/ab/x.jpg", ".env", ".env.local", ".venv/Scripts/python.exe",
                                ".git/config", "tests/test_backend_api.py", "docs/ERD.png", "backend/__pycache__/main.cpython-314.pyc", "tools/ah_thu_dong_thoi.py",
-                               "answer_sheet/demo_bv/phieu_demo_in.pdf", "Dockerfile", "backups/smart_exam_x.dump"])
+                               "answer_sheet/demo_bv/phieu_demo_in.pdf", "Dockerfile", "backups/smart_exam_x.dump",
+                               ".claude/settings.local.json", "answer_sheet/output/synthetic_photo.jpg", "answer_sheet/output/preview_phieu.png"])
 def test_t6_dockerignore_loai_du_lieu_bi_mat_va_nang(p):
     assert _khop_dockerignore(p, MAU_DI), f"{p} KHÔNG bị loại khỏi image"
 
@@ -408,3 +410,21 @@ def test_v7_js_logic_va_cu_phap():
 def test_v7_may_chu_phuc_vu_script_va_docs_404_mac_dinh(client):
     assert client.get("/app/lien_ket_docs.js").status_code == 200
     assert client.get("/app/").status_code == 200
+
+
+def test_v2_ngu_canh_build_thuc_te_khong_con_du_lieu_rieng_tu():
+    """Duyệt THẬT thư mục smart_exam_db/ (bỏ qua nhánh đã bị loại cả thư mục): tệp còn lại KHÔNG có ảnh / dump / .env / cấu hình cục bộ."""
+    import os
+    from pathlib import Path
+    con_lai = []
+    for goc, thu_muc, tep in os.walk(ROOT):
+        rel_goc = Path(goc).relative_to(ROOT).as_posix()
+        thu_muc[:] = [d for d in thu_muc if not _khop_dockerignore(f"{rel_goc}/{d}".lstrip("./") + "/x", MAU_DI) or d in ("storage",)]
+        for f in tep:
+            rel = (Path(goc) / f).relative_to(ROOT).as_posix()
+            if not _khop_dockerignore(rel, MAU_DI):
+                con_lai.append(rel)
+    xau = [r for r in con_lai if r.lower().endswith((".jpg", ".jpeg", ".heic", ".dump", ".pdf", ".csv")) or Path(r).name.startswith(".env") and r != ".env.production.example"
+           or r.endswith(".local.json") or r.startswith((".claude/", "data/", ".git/", ".venv/", "tests/", "docs/"))]
+    assert not xau, f"còn vào image: {xau}"
+    assert "models/ocr_cnn.json" in con_lai and "answer_sheet/output/phieu_trang_300dpi.png" in con_lai
