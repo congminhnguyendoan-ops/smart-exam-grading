@@ -186,7 +186,7 @@ def test_quan_tri_js_goi_dung_endpoint_va_cu_phap(client):
     import subprocess
     from conftest import ROOT
     js = (ROOT / "frontend" / "quan_tri.js").read_text(encoding="utf-8")
-    paths = client.get("/openapi.json").json()["paths"]
+    paths = __import__("backend.main", fromlist=["app"]).app.openapi()["paths"]     # lệnh AU T1: /openapi.json mặc định 404; schema vẫn sinh được
     goi = set(re.findall(r"`(/(?:admin|exams|sheets|meta)[^`?]*)", js)) | set(re.findall(r'"(/(?:admin|exams|sheets|meta)[^"?]*)"', js))
     assert goi
     for m in goi:

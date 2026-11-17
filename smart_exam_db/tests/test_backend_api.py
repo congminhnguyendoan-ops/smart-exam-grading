@@ -87,8 +87,9 @@ def test_tao_ky_thi_sai_bi_tu_choi(client, sua):
 
 
 # ------------------------------------------------------------------------------------------------ ảnh bị từ chối
-@pytest.mark.parametrize("du_lieu,ma", [pytest.param(b"khong phai anh", "khong_doc_duoc", id="khong_doc_duoc"),
-                                        pytest.param(anh_trang(), "thieu_marker", id="thieu_marker")])
+# Lệnh AU (T3): tệp KHÔNG phải ảnh nay bị từ chối sớm bằng 422 (kiem_anh.py, test_trien_khai.py) thay vì lưu rồi báo `khong_doc_duoc`;
+# mã `khong_doc_duoc` vẫn còn cho tệp đúng chữ ký ảnh nhưng hỏng bên trong. Ảnh thiếu marker vẫn 201 + rejected như cũ.
+@pytest.mark.parametrize("du_lieu,ma", [pytest.param(anh_trang(), "thieu_marker", id="thieu_marker")])
 def test_anh_hong_bi_tu_choi_dung_ma(client, conn_thu, du_lieu, ma):
     eid = tao_de(client)
     r = tai(client, eid, "hong", du_lieu)
@@ -237,12 +238,14 @@ def test_tai_nhieu_anh_loi_mot_anh_khong_keo_ca_lo(client, conn_thu):
     r = client.post(f"/exams/{eid}/sheets/batch", files=files)
     assert r.status_code == 201 and r.json()["tong"] == 4
     kq = r.json()["results"]
-    assert [x["status"] for x in kq] == ["needs_review", "rejected", "rejected", "needs_review"]
-    assert [x["reject_code"] for x in kq] == [None, "thieu_marker", "khong_doc_duoc", None]
+    # Lệnh AU (T3): tệp rác (không phải ảnh) nay bị kiem_anh.py từ chối theo TỪNG ẢNH (`error`, không tạo phiếu); các ảnh còn lại không bị ảnh hưởng.
+    assert [x.get("status") for x in kq] == ["needs_review", "rejected", None, "needs_review"]
+    assert [x.get("reject_code") for x in kq] == [None, "thieu_marker", None, None]
+    assert "không phải ảnh" in kq[2]["error"] and kq[2]["filename"] == "rac.jpg"
     d = client.get(f"/exams/{eid}").json()["sheets"]
-    assert d == {"tong": 4, "da_cham": 0, "can_xem": 2, "bi_tu_choi": 2}
-    assert conn_thu.execute("SELECT count(*) AS n FROM answer_sheets WHERE batch_id = %s", (r.json()["batch_id"],)).fetchone()["n"] == 4
-    assert client.get(f"/exams/{eid}/sheets?status=rejected").json().__len__() == 2
+    assert d == {"tong": 3, "da_cham": 0, "can_xem": 2, "bi_tu_choi": 1}
+    assert conn_thu.execute("SELECT count(*) AS n FROM answer_sheets WHERE batch_id = %s", (r.json()["batch_id"],)).fetchone()["n"] == 3
+    assert client.get(f"/exams/{eid}/sheets?status=rejected").json().__len__() == 1
 
 
 def test_anh_len_ky_thi_khong_ton_tai(client):

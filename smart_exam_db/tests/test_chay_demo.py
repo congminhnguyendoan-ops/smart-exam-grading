@@ -23,6 +23,7 @@ ANH_BV01 = DATA / "_eval" / "demo_bv" / "anh_gia" / "BV01.jpg"
 def test_kiem_truoc_dat_khi_dung_nhanh_va_sha():
     assert all(m.dat for m in C.kiem_truoc("cnn-sau", C.SHA_MO_HINH_OCR))
     assert all(m.dat for m in C.kiem_truoc("main", C.SHA_MO_HINH_OCR))      # sau gộp lệnh AS
+    assert all(m.dat for m in C.kiem_truoc("trien-khai", C.SHA_MO_HINH_OCR))   # nhánh lệnh AU
 
 
 def test_kiem_truoc_khong_dat_khi_sai_nhanh_hoac_sha():

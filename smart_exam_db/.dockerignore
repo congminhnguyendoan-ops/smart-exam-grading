@@ -1,0 +1,42 @@
+# Lệnh AU – T6. Ngữ cảnh build = thư mục smart_exam_db/. KHÔNG đưa vào image: dữ liệu thật, ảnh phiếu, bí mật, môi trường ảo, git, test nặng.
+data/
+storage/
+.env
+.env.*
+!.env.production.example
+.venv/
+venv/
+.git/
+.gitignore
+.idea/
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+tests/
+docs/
+**/*.dump
+# cấu hình cục bộ của công cụ phát triển (quyền, đường dẫn máy) – không bao giờ vào image
+.claude/
+**/*.local.json
+# công cụ + tài liệu không cần khi chạy – chỉ giữ tệp khởi tạo CSDL sản xuất
+tools/*
+!tools/khoi_tao_db_san_xuat.py
+# phiếu PDF / nhãn / bộ demo / đợt 2: không cần khi chạy (giữ layout.json, phieu_trang_300dpi.*, digit_sheet_layout.json, fonts, sheet_layout.py)
+answer_sheet/demo_bv/
+answer_sheet/dot2/
+answer_sheet/output/*.pdf
+answer_sheet/output/*.csv
+answer_sheet/output/ground_truth.csv
+answer_sheet/output/update_template.sql
+# ảnh sinh cục bộ (không nằm trong git): chỉ giữ mẫu định vị phieu_trang_300dpi.png
+answer_sheet/output/*.jpg
+answer_sheet/output/*.png
+!answer_sheet/output/phieu_trang_300dpi.png
+database/tests/
+answer_sheet/.venv/
+answer_sheet/.idea/
+# tệp triển khai không nằm trong image
+Dockerfile
+docker-compose.yml
+deploy/
+requirements-freeze.txt

@@ -240,11 +240,11 @@ def gv_ky_thi(client_on, bang_moi):
 
 def test_tai_anh_hong_va_anh_trang_bi_tu_choi(client_on, gv_ky_thi):
     h, eid = gv_ky_thi
-    for du_lieu, ma in ((b"khong phai anh", "khong_doc_duoc"), (anh_trang(), None)):
-        r = client_on.post(f"/exams/{eid}/sheets", headers=h, files={"file": ("a.jpg", du_lieu, "image/jpeg")})
-        assert r.status_code == 201 and r.json()["status"] == "rejected" and r.json()["reject_message"]
-        if ma:
-            assert r.json()["reject_code"] == ma
+    # Lệnh AU (T3): tệp không phải ảnh bị từ chối sớm 422 (không lưu); ảnh thật nhưng không phải phiếu vẫn 201 + rejected.
+    r = client_on.post(f"/exams/{eid}/sheets", headers=h, files={"file": ("a.jpg", b"khong phai anh", "image/jpeg")})
+    assert r.status_code == 422 and "không phải ảnh" in r.json()["detail"]
+    r = client_on.post(f"/exams/{eid}/sheets", headers=h, files={"file": ("a.jpg", anh_trang(), "image/jpeg")})
+    assert r.status_code == 201 and r.json()["status"] == "rejected" and r.json()["reject_message"]
     lk = client_on.get("/meta/reject-reasons").json()
     assert lk["khong_doc_duoc"]["advice"]                                    # m.js lấy lời khuyên chụp lại từ đây
 
@@ -254,7 +254,7 @@ def test_tai_anh_qua_lon_bi_chan(client_on, gv_ky_thi):
     h, eid = gv_ky_thi
     app.dependency_overrides[get_cau_hinh] = lambda: replace(client_on.cfg, gioi_han_anh_mb=1)
     r = client_on.post(f"/exams/{eid}/sheets", headers=h, files={"file": ("lon.jpg", b"\xff" * (1024 * 1024 + 1), "image/jpeg")})
-    assert r.status_code == 422 and "lớn hơn 1 MB" in r.json()["detail"]
+    assert r.status_code == 413 and "lớn hơn 1 MB" in r.json()["detail"]          # lệnh AU (T3): 413 (trước là 422); frontend/loi_tai.js đã có nhánh 413
 
 
 def test_tai_anh_hop_le_tra_du_truong_cho_dien_thoai(client_on, gv_ky_thi):

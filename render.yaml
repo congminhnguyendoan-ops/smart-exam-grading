@@ -1,0 +1,65 @@
+# Lệnh AV (V8 / T10): Render Blueprint – MỘT web service Docker (gói Starter, 1 worker, đĩa bền) + MỘT PostgreSQL.
+# CHƯA thử trên Render thật. Render đã có TLS + proxy nên KHÔNG dùng Caddy / docker-compose ở đây. Hướng dẫn: smart_exam_db/docs/trien_khai_public.md mục "Render".
+# Cách dùng: đẩy repo lên GitHub -> Render Dashboard > New > Blueprint -> chọn repo; điền các biến `sync: false` khi được hỏi (hoặc ở Environment sau đó).
+databases:
+  - name: smart-exam-db
+    databaseName: smart_exam
+    user: smart_exam_app
+    plan: basic-256mb            # tên gói có thể đã đổi trên Render – kiểm lại ở dashboard. Tối thiểu cần ~1 GB dữ liệu cho đồ án nhỏ.
+    ipAllowList: []              # [] = chỉ truy cập từ mạng nội bộ Render (web service); không mở ra Internet
+
+services:
+  - type: web
+    name: smart-exam
+    runtime: docker
+    plan: starter                # LƯU Ý: Starter chỉ ~512 MB RAM – xem mục RAM trong docs (đỉnh đo được 300–530 MiB). Cân nhắc gói lớn hơn.
+    region: singapore            # chọn cùng khu vực với database bên dưới (không đặt `region` ở database thì Render dùng mặc định; đặt cho khớp)
+    dockerfilePath: ./smart_exam_db/Dockerfile
+    dockerContext: ./smart_exam_db
+    # Lệnh khởi động CỐ ĐỊNH 1 worker (khoá đăng nhập + giới hạn chấm tính theo từng tiến trình). Cổng 8000 = biến PORT bên dưới.
+    dockerCommand: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --proxy-headers --workers 1
+    # Mỗi lần deploy: áp migration còn thiếu + mẫu phiếu (idempotent; KHÔNG tạo tài khoản, KHÔNG seed). Tạo admin đầu tiên: xem docs (Shell của Render).
+    preDeployCommand: python tools/khoi_tao_db_san_xuat.py --ap-dung
+    healthCheckPath: /health
+    autoDeploy: false            # chỉ deploy khi người vận hành bấm
+    disk:
+      name: smart-exam-storage
+      mountPath: /app/storage    # = STORAGE_DIR; đĩa bền giữ ảnh phiếu qua các lần deploy (cần gói trả phí)
+      sizeGB: 10
+    envVars:
+      - key: MOI_TRUONG
+        value: production
+      - key: PORT
+        value: "8000"
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smart-exam-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true      # Render sinh chuỗi ngẫu nhiên (đủ dài, > 32 ký tự)
+      - key: AUTH_MODE
+        value: "on"
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: PUBLIC_BASE_URL
+        sync: false              # điền SAU lần deploy đầu: https://<tên-dịch-vụ>.onrender.com (hoặc tên miền riêng)
+      - key: DOCS_ENABLED
+        value: "0"
+      - key: HEALTH_CHI_TIET
+        value: "0"
+      - key: CHAM_DONG_THOI
+        value: "2"
+      - key: CHAM_CHO_GIAY
+        value: "30"
+      - key: MAX_UPLOAD_MB
+        value: "25"
+      - key: MAX_ANH_MOI_LO
+        value: "30"
+      - key: MAX_DIEM_ANH
+        value: "60000000"
+      - key: STORAGE_DIR
+        value: /app/storage
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"               # Render: cổng ứng dụng chỉ nhận từ proxy của Render; dải IP của proxy KHÔNG cố định/không được công bố ổn định -> xem docs mục Render (CHƯA kiểm)
