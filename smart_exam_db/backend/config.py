@@ -32,12 +32,16 @@ class CauHinh:
     session_hours: float = 8.0
     cookie_secure: bool = False  # bật khi chạy sau https (COOKIE_SECURE=1)
     # Ảnh tạm (docs/thiet_ke_chup_dien_thoai.md mục 7): xoá ảnh của phiếu đã chốt sau anh_giu_gio giờ. Luồng dọn CHỈ chạy khi anh_xoa_tu_dong
-    # (tools/chay_server_lan.py bật sẵn); pytest / tools/* dùng TestClient trên CSDL thật nên mặc định TẮT – không bao giờ xoá ảnh thật khi kiểm thử.
+    # (chỉ tools/chay_server_lan.py --bat-don-anh bật – lệnh Z); pytest / tools/* dùng TestClient trên CSDL thật nên mặc định TẮT – không bao giờ xoá ảnh thật khi kiểm thử.
     anh_xoa_tu_dong: bool = False
     anh_giu_gio: float = 24.0
     anh_giu_demo: bool = True    # không xoá ảnh của kỳ thi có "[DEMO" trong tên (demo / báo cáo cần ảnh)
     # Địa chỉ gốc in trong mã QR trang bìa kỳ thi (vd https://thi.truong.edu.vn hoặc http://192.168.1.5:8000). Rỗng = lấy từ yêu cầu (request.base_url).
     public_base_url: str = ""
+    # Lệnh AR – R5: giới hạn số ảnh được chấm CÙNG LÚC trong một tiến trình (mỗi ảnh ~150 MB bộ nhớ; thông lượng bão hoà từ ~4 yêu cầu – docs/lenh_ah.md).
+    # Mặc định 4 (≥ 2 để không chạm hàng đợi tải 2 lượt của giao diện). Vượt giới hạn: yêu cầu CHỜ tối đa cham_cho_giay rồi 503 + Retry-After.
+    cham_dong_thoi: int = 4
+    cham_cho_giay: float = 30.0
 
 
 def lay_database_url() -> str:
@@ -74,7 +78,25 @@ def lay_cau_hinh() -> CauHinh:
         anh_giu_gio=float(os.environ.get("ANH_GIU_GIO", "24")),
         anh_giu_demo=_bat(os.environ.get("ANH_GIU_DEMO", "1")),
         public_base_url=dia_chi_goc_hop_le(os.environ.get("PUBLIC_BASE_URL", "")),
+        cham_dong_thoi=_so_nguyen_duong("CHAM_DONG_THOI", "4"), cham_cho_giay=_so_thuc_duong("CHAM_CHO_GIAY", "30"),
     )
+
+
+def _so_nguyen_duong(ten: str, mac_dinh: str) -> int:
+    v = os.environ.get(ten, mac_dinh).strip()
+    if not v.isdigit() or int(v) < 1:
+        raise LoiCauHinh(f"{ten} phải là số nguyên ≥ 1 (đang là '{v}').")
+    return int(v)
+
+
+def _so_thuc_duong(ten: str, mac_dinh: str) -> float:
+    try:
+        x = float(os.environ.get(ten, mac_dinh).strip())
+    except ValueError:
+        raise LoiCauHinh(f"{ten} phải là số giây > 0 (đang là '{os.environ.get(ten)}').") from None
+    if not 0 < x <= 3600:
+        raise LoiCauHinh(f"{ten} phải trong (0; 3600] giây (đang là {x}).")
+    return x
 
 
 def dia_chi_goc_hop_le(v: str) -> str:

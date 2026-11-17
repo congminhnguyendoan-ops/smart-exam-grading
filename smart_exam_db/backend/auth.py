@@ -85,7 +85,8 @@ def _ky(khoa: str, payload: str) -> str:
 
 
 def tao_token(khoa: str, user_id: int, bam_mat_khau_hien_tai: str, gio: float, bay_gio: float | None = None) -> str:
-    payload = _b64(json.dumps({"u": user_id, "e": int((bay_gio or time.time()) + gio * 3600), "f": _vet_mat_khau(bam_mat_khau_hien_tai)},
+    # "n" = nonce ngẫu nhiên (lệnh AR – R4): mỗi lần đăng nhập một token KHÁC NHAU kể cả trong cùng một giây -> đăng xuất thu hồi đúng MỘT phiên, phiên khác không bị ảnh hưởng.
+    payload = _b64(json.dumps({"u": user_id, "e": int((bay_gio or time.time()) + gio * 3600), "f": _vet_mat_khau(bam_mat_khau_hien_tai), "n": secrets.token_hex(8)},
                               separators=(",", ":")).encode())
     return f"v1.{payload}.{_ky(khoa, 'v1.' + payload)}"
 

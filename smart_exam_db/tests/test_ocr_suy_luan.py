@@ -60,10 +60,17 @@ def test_numpy_khop_pytorch_tren_moi_chu_so_dev(mh):
     assert len(x) > 4000
     d = json.loads(MO_HINH.read_text(encoding="utf-8"))
     ps = []
+    sau = d.get("kien_truc") == ocr.KIEN_TRUC_SAU                  # lệnh AN: mô hình triển khai là CNN sâu "sau_2x2"
     for m_json in d["thanh_vien"]:
-        m = H.tao_cnn()
-        ten = {"c1.weight": "c1w", "c1.bias": "c1b", "c2.weight": "c2w", "c2.bias": "c2b",
-               "d1.weight": "d1w", "d1.bias": "d1b", "d2.weight": "d2w", "d2.bias": "d2b"}
+        if sau:
+            sys.path.insert(0, str(ROOT / "tools"))
+            import ak_so_sanh_mo_rong as K
+            m = K.tao_cnn_sau()
+            ten = {f"{t}.{'weight' if u == 'w' else 'bias'}": f"{t}{u}" for t in ("a1", "a2", "b1", "b2", "d1", "d2") for u in ("w", "b")}
+        else:
+            m = H.tao_cnn()
+            ten = {"c1.weight": "c1w", "c1.bias": "c1b", "c2.weight": "c2w", "c2.bias": "c2b",
+                   "d1.weight": "d1w", "d1.bias": "d1b", "d2.weight": "d2w", "d2.bias": "d2b"}
         m.load_state_dict({k: torch.tensor(np.array(m_json[v], np.float32)) for k, v in ten.items()})
         m.eval()
         z = H.logits(m, x).astype(np.float64) / m_json["T"]
@@ -144,3 +151,60 @@ def test_ca_0001_sbd_viet_062384_bubble_06238_thieu_cot_6(kq0001, layout, mh):
     cot_cuoi = dc["cot"]["sbd"][5]
     assert not cot_cuoi.chac
     assert dc["can_xem"]
+
+
+# --------------------------------------------------------------------------------------------- Lệnh AM: kiến trúc "sau_2x2"
+def _mang_sau_ngau_nhien(torch, seed=20261116):
+    sys.path.insert(0, str(ROOT / "tools"))
+    import ak_so_sanh_mo_rong as K
+    torch.manual_seed(seed)
+    return K.tao_cnn_sau().eval()
+
+
+def test_cnn_sau_numpy_khop_pytorch_trong_so_ngau_nhien(tmp_path):
+    """Tiêu chí (c) của docs/tieu_chi_cnn_sau.md: ≥ 2000 ô MNIST test, cùng nhãn ≥ 99,9%, mọi logit lệch ≤ 1e-4.
+    Đi qua ĐÚNG đường xuất JSON (xuat_ocr.tham_so + lam_tron 8 chữ số) rồi nap_mo_hinh_ocr, so với PyTorch dùng trọng số GỐC."""
+    torch = pytest.importorskip("torch")
+    pytest.importorskip("sklearn")
+    can_file(DATA / "_ocr" / "nguon" / "t10k-images-idx3-ubyte.gz")
+    import huan_luyen_ocr as H
+    import xuat_ocr as X
+    net = _mang_sau_ngau_nhien(torch)
+    assert sum(v.size for v in X.tham_so(net).values()) == 467818
+    x = H.doc_mnist()[2][:2000]
+    f = tmp_path / "sau.json"
+    f.write_text(json.dumps({"phien_ban": "thu", "kien_truc": ocr.KIEN_TRUC_SAU, "tau": 0.9995, "delta": 0.99, "tau_khop": 0.5,
+                             "thanh_vien": [{"seed": 1, "T": 1.0, **{k: X.lam_tron(v) for k, v in X.tham_so(net).items()}}]}), encoding="utf-8")
+    mh_sau = ocr.nap_mo_hinh_ocr(f)
+    assert mh_sau.kien_truc == ocr.KIEN_TRUC_SAU
+    z_np = ocr.logit_mot_thanh_vien(mh_sau.thanh_vien[0], x)
+    z_pt = H.logits(net, x)
+    assert z_pt.std() > 0.01, "logit ngẫu nhiên không được suy biến"
+    assert (z_np.argmax(1) == z_pt.argmax(1)).mean() >= 0.999
+    assert np.abs(z_np - z_pt).max() <= 1e-4
+
+
+def test_mo_hinh_trien_khai_la_cnn_sau(mh):
+    """Lệnh AN: models/ocr_cnn.json = CNN sâu seed 2026 (docs/tieu_chi_thay_mo_hinh_an.md). Nhánh mô hình cũ vẫn được kiểm bằng tệp tạm bên dưới."""
+    assert mh.kien_truc == ocr.KIEN_TRUC_SAU and "a1w" in mh.thanh_vien[0] and "c1w" not in mh.thanh_vien[0]
+    assert sum(v.size for k, v in mh.thanh_vien[0].items() if k != "T") == 467818
+
+
+def test_nhanh_mo_hinh_co_ban_van_nap_va_chay(tmp_path):
+    """Nhánh kiến trúc cũ (Conv16–Conv32–Dense64) không được hỏng dù mô hình triển khai đã đổi: nạp một tệp tạm có khoá cũ + chạy được."""
+    rng = np.random.default_rng(0)
+    m = {"seed": 1, "T": 1.0, "c1w": rng.normal(size=(16, 1, 3, 3)).tolist(), "c1b": [0.0] * 16, "c2w": rng.normal(size=(32, 16, 3, 3)).tolist(), "c2b": [0.0] * 32,
+         "d1w": rng.normal(size=(64, 1568)).tolist(), "d1b": [0.0] * 64, "d2w": rng.normal(size=(10, 64)).tolist(), "d2b": [0.0] * 10}
+    f = tmp_path / "cu.json"
+    f.write_text(json.dumps({"kien_truc": "Conv16(3x3)-pool-Conv32(3x3)-pool-Dense64-Dense10", "tau": 0.9, "delta": 0.9, "tau_khop": 0.5, "thanh_vien": [m]}), encoding="utf-8")
+    mh_cu = ocr.nap_mo_hinh_ocr(f)
+    assert mh_cu.kien_truc == "co_ban"
+    assert ocr.du_doan_xac_suat(mh_cu, np.zeros((3, 28, 28), np.uint8)).shape == (3, 10)
+
+
+def test_nap_mo_hinh_sau_thieu_khoa_bi_tu_choi(tmp_path):
+    f = tmp_path / "hong.json"
+    f.write_text(json.dumps({"kien_truc": ocr.KIEN_TRUC_SAU, "tau": 0.9, "delta": 0.9, "tau_khop": 0.5,
+                             "thanh_vien": [{"seed": 1, "T": 1.0, "c1w": [0.0]}]}), encoding="utf-8")
+    with pytest.raises(ValueError):
+        ocr.nap_mo_hinh_ocr(f)

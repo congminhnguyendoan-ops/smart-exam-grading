@@ -8,7 +8,7 @@ image_deleted_at (đứt giữa chừng thì lần sau làm lại – không bao
 
   python -m backend.don_anh              # XEM TRƯỚC (chỉ đọc): phiếu nào sẽ bị xoá ảnh
   python -m backend.don_anh --ap-dung    # xoá thật (cần migration 003)
-Máy chủ: luồng nền chạy lúc khởi động + mỗi giờ khi ANH_XOA_TU_DONG=1 (tools/chay_server_lan.py bật sẵn).
+Máy chủ: luồng nền chạy lúc khởi động + mỗi giờ khi ANH_XOA_TU_DONG=1 (chỉ tools/chay_server_lan.py --bat-don-anh bật; mặc định TẮT từ lệnh Z).
 """
 import argparse
 import logging

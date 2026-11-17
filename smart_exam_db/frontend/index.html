@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Smart Exam – Chấm phiếu trắc nghiệm</title>
 <link rel="icon" href="data:,">
+<link rel="stylesheet" href="mau.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -26,6 +27,7 @@
   <label class="exam-pick">Kỳ thi
     <select id="exam-select"></select>
   </label>
+  <label class="small hien-dong hidden" id="hien-dong-wrap"><input type="checkbox" id="hien-dong"> Hiện cả kỳ thi đã đóng <span id="so-dong" class="muted"></span></label>
   <p class="exam-name" id="exam-name"></p>
   <p class="muted small" id="exam-info"></p>
   <button type="button" id="ket-noi-dt" class="phone-btn">📱 Kết nối điện thoại</button>
@@ -39,6 +41,12 @@
   <h2 id="dlg-dt-h">Kết nối điện thoại</h2><div id="dlg-dt-body"><p class="muted">Đang lấy địa chỉ…</p></div>
 </div></div>
 <script src="ten_tep.js"></script>
+<script src="chon_tep.js"></script>
+<script src="loi_tai.js"></script>
+<script src="ky_thi_dong.js"></script>
+<script src="ly_do_cot.js"></script>
+<script src="duyet_dinh_danh.js"></script>
+<script src="duyet_nhanh.js"></script>
 <script src="app.js"></script>
 <script src="quan_tri.js"></script>
 </body>

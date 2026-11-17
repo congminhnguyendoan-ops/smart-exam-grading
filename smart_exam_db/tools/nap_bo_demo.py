@@ -12,6 +12,9 @@ exam_students ON CONFLICT DO NOTHING). Không sửa / xoá kỳ thi [DEMO], [DEM
   python tools/nap_bo_demo.py --ap-dung     # GHI vào CSDL
   python tools/nap_bo_demo.py --ban-tap [--ap-dung]   # BẢN TẬP: 2 kỳ thi "[DEMO-BV-TẬP]" giống hệt E1 / E2 (đáp án, môn, lớp, GV, dự thi)
                                                       #   để diễn tập chụp bằng điện thoại mà không làm bẩn kỳ thi demo 1380 / 1381
+  python tools/nap_bo_demo.py --ba-mon [--ap-dung]    # LỆNH AP: 3 kỳ thi theo môn "[XLA] Xử lý ảnh", "[ML] Máy học", "[ĐACN] Đồ án chuyên ngành":
+                                                      #   mỗi kỳ có 4 mã đề 101–104 (đáp án của bộ BV), gv_an, lớp CNTT-K22A, dự thi 220001–220009 (220010 ngoài danh sách);
+                                                      #   ảnh BV01–BV10 là vật liệu. Chỉ INSERT (môn mới được tạo nếu chưa có); chạy lại không trùng.
 """
 import argparse
 import os
@@ -48,6 +51,19 @@ def ke_hoach(ban_tap: bool = False) -> list[dict]:
     return list(kt.values())
 
 
+BA_MON = (("xla", "[XLA] Xử lý ảnh", "XLA", "Xử lý ảnh"), ("ml", "[ML] Máy học", "ML", "Máy học"), ("dacn", "[ĐACN] Đồ án chuyên ngành", "DACN", "Đồ án chuyên ngành"))
+TIEU_DE_BA_MON = {ma: tieu_de for ma, tieu_de, _, _ in BA_MON}
+
+
+def ke_hoach_ba_mon() -> list[dict]:
+    """Lệnh AP: 3 kỳ thi theo môn, dựng từ bộ BV (đáp án 4 mã đề 101–104 của E1 + E2; lớp + giáo viên của E1; dự thi 220001–220009)."""
+    goc = ke_hoach(False)
+    codes = [c for e in goc for c in e["codes"]]
+    du_thi = [s for e in goc for s in e["du_thi"]]
+    return [{"ma": ma, "exam_title": tieu_de, "subject_code": ma_mon, "subject_name": ten_mon, "class_code": goc[0]["class_code"], "teacher": goc[0]["teacher"],
+             "codes": codes, "du_thi": du_thi, "tao_mon": True} for ma, tieu_de, ma_mon, ten_mon in BA_MON]
+
+
 def doi_chieu(conn, kh: list[dict]) -> list[dict]:
     """Tra (chỉ đọc) id môn / lớp / giáo viên / sinh viên + kỳ thi đã có. Thiếu thứ gì thì DỪNG (không tự tạo)."""
     ra = []
@@ -57,7 +73,7 @@ def doi_chieu(conn, kh: list[dict]) -> list[dict]:
         gv = conn.execute("SELECT user_id, full_name FROM users WHERE username = %s AND role = 'teacher' AND is_active", (e["teacher"],)).fetchone()
         sv = conn.execute("SELECT student_id, student_code, full_name FROM students WHERE student_code = ANY(%s) ORDER BY student_code",
                           (e["du_thi"],)).fetchall()
-        thieu = ([f"môn {e['subject_code']}"] if not mon else []) + ([f"lớp {e['class_code']}"] if not lop else []) + \
+        thieu = ([f"môn {e['subject_code']}"] if (not mon and not e.get("tao_mon")) else []) + ([f"lớp {e['class_code']}"] if not lop else []) + \
                 ([f"giáo viên {e['teacher']}"] if not gv else []) + [f"sinh viên {s}" for s in sorted(set(e["du_thi"]) - {x["student_code"] for x in sv})]
         if thieu:
             raise SystemExit(f"DỪNG: {e['ma']} thiếu dữ liệu có sẵn: {', '.join(thieu)} (công cụ không tự tạo).")
@@ -70,11 +86,12 @@ def doi_chieu(conn, kh: list[dict]) -> list[dict]:
     return ra
 
 
-def nap(conn, ap_dung: bool, ban_tap: bool = False) -> list[dict]:
+def nap(conn, ap_dung: bool, ban_tap: bool = False, ba_mon: bool = False) -> list[dict]:
     """Trả tóm tắt từng kỳ thi (số dòng sẽ / đã INSERT mỗi bảng). ap_dung=False: chỉ đọc. KHÔNG commit (người gọi quyết định)."""
     from backend import service
     tom = []
-    for e in doi_chieu(conn, ke_hoach(ban_tap)):
+    for e in doi_chieu(conn, ke_hoach_ba_mon() if ba_mon else ke_hoach(ban_tap)):
+        ten_mon = (e["mon"] or {"subject_name": e["subject_name"]})["subject_name"]          # môn mới (lệnh AP): chưa có trong bảng subjects, tao_ky_thi sẽ tạo
         moi = e["exam_id"] is None
         da_du_thi = set() if moi else {r["student_id"] for r in conn.execute("SELECT student_id FROM exam_students WHERE exam_id = %s",
                                                                                  (e["exam_id"],)).fetchall()}
@@ -84,14 +101,14 @@ def nap(conn, ap_dung: bool, ban_tap: bool = False) -> list[dict]:
         if ap_dung:
             eid = e["exam_id"]
             if moi:
-                eid = service.tao_ky_thi(conn, {"exam_title": e["exam_title"], "subject_code": e["subject_code"], "subject_name": e["mon"]["subject_name"],
+                eid = service.tao_ky_thi(conn, {"exam_title": e["exam_title"], "subject_code": e["subject_code"], "subject_name": ten_mon,
                                                 "num_questions": SO_CAU, "max_score": THANG, "pass_score": DAT, "class_id": e["lop"]["class_id"],
                                                 "codes": e["codes"]}, e["gv"]["user_id"])
             with conn.cursor() as cur:
                 cur.executemany("INSERT INTO exam_students (exam_id, student_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                                 [(eid, s["student_id"]) for s in can_du_thi])
             e["exam_id"] = eid
-        tom.append({"ma": e["ma"], "exam_id": e["exam_id"], "exam_title": e["exam_title"], "mon": f"{e['subject_code']} – {e['mon']['subject_name']}",
+        tom.append({"ma": e["ma"], "exam_id": e["exam_id"], "exam_title": e["exam_title"], "mon": f"{e['subject_code']} – {ten_mon}",
                     "lop": f"{e['class_code']} – {e['lop']['class_name']}", "giao_vien": f"{e['teacher']} ({e['gv']['full_name']})",
                     "ma_de": [c["code"] for c in e["codes"]], "du_thi": [s["student_code"] for s in e["sv"]], "insert": dong})
     return tom
@@ -111,14 +128,15 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ap-dung", action="store_true", help="GHI vào CSDL (mặc định chỉ xem trước)")
     ap.add_argument("--ban-tap", action="store_true", help="bản TẬP [DEMO-BV-TẬP] (diễn tập, không đụng kỳ thi demo)")
+    ap.add_argument("--ba-mon", action="store_true", help="lệnh AP: 3 kỳ thi theo môn [XLA] / [ML] / [ĐACN]")
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     from backend.db import ket_noi
-    print("CHẾ ĐỘ:", "ÁP DỤNG (ghi CSDL)" if a.ap_dung else "XEM TRƯỚC (giao dịch chỉ đọc, không ghi)", "· BẢN TẬP" if a.ban_tap else "")
+    print("CHẾ ĐỘ:", "ÁP DỤNG (ghi CSDL)" if a.ap_dung else "XEM TRƯỚC (giao dịch chỉ đọc, không ghi)", "· BẢN TẬP" if a.ban_tap else "", "· BA MÔN [XLA] [ML] [ĐACN]" if a.ba_mon else "")
     with ket_noi() as conn:
         if not a.ap_dung:
             conn.execute("SET TRANSACTION READ ONLY")
-        tom = nap(conn, a.ap_dung, a.ban_tap)
+        tom = nap(conn, a.ap_dung, a.ban_tap, a.ba_mon)
         if a.ap_dung:
             conn.commit()
         else:

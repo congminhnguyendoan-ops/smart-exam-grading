@@ -64,7 +64,9 @@ Khớp 10/10; 0 câu chấm sai mà không gắn cần xem. Câu tô hai ô: GV 
    `New-NetFirewallRule -DisplayName "SmartExam-8000-LAN" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Public,Private -RemoteAddress LocalSubnet`
    (chỉ máy cùng mạng con nội bộ vào được, không mở ra Internet). **Sau buổi demo xoá**: `Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"`.
 2. Chạy server cho mạng nội bộ (thay cho `uvicorn … --port 8000`): `python tools/chay_server_lan.py` – in địa chỉ `http://<IP>:8000/m` + mã QR + hai lệnh trên.
-   Lượt dọn ảnh tạm đầu tiên sẽ xoá ảnh của 3 phiếu kỳ thi `[THU] Kiểm giao diện F1-F4` (bản sao ảnh dev) – muốn giữ: `--khong-xoa-anh`.
+   Từ lệnh Z (30/10/2026) **mặc định KHÔNG dọn ảnh**; dòng cuối lúc khởi động phải là "Dọn ảnh tạm: TẮT (mặc định)". `--khong-xoa-anh` (cách gọi cũ) vẫn chạy, kết quả như mặc định.
+   **CẢNH BÁO:** chỉ thêm `--bat-don-anh` khi CHỦ Ý – lượt dọn chạy ngay lúc khởi động rồi mỗi giờ, xoá ảnh phiếu đã chốt / bị từ chối quá 24 giờ ở MỌI kỳ thi
+   không có "[DEMO" trong tên (kể cả kỳ thi thật). Không bao giờ dùng cờ này trong demo. (Ảnh kỳ thi `[THU]` 115 đã mất vì mặc định cũ, 28/10/2026 09:16.)
 3. Điện thoại nối **cùng Wi‑Fi**; trên máy tính bấm **📱 Kết nối điện thoại** → quét QR → đăng nhập. Hộp thoại báo vàng "chỉ nghe 127.0.0.1" = đang chạy nhầm `uvicorn` thường.
 
 **Diễn tập trên kỳ thi TẬP, KHÔNG trên 1380 / 1381**: **1632** "Giữa kỳ Cơ sở dữ liệu – K22A [DEMO-BV-TẬP]" (gv_an) và **1633** "… K22B [DEMO-BV-TẬP]" (gv_binh) – cùng đáp án, môn,

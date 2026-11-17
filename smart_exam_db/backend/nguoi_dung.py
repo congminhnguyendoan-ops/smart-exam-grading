@@ -2,7 +2,9 @@
 nguoi_dung.py - Dịch vụ tài khoản: đăng nhập, hồ sơ, đổi mật khẩu, lớp của giáo viên, danh sách sinh viên của lớp.
 Mọi truy vấn SQL dùng tham số. KHÔNG tự commit (API / test quyết định). Không log mật khẩu / token.
 """
+import hashlib
 import re
+import threading
 import time
 
 from . import auth
@@ -22,6 +24,39 @@ class KhongCoQuyen(LoiDichVu):
 
 class QuaNhieuLan(LoiDichVu):
     ma_http = 429
+
+
+# ------------------------------------------------------------------------------------------------ thu hồi token (lệnh AR – R4)
+# Nguồn sự thật = bảng revoked_tokens (migration 006; sống qua khởi động lại và nhiều worker). Thêm một bộ nhớ NGAY trong tiến trình: hiệu lực tức thì
+# kể cả khi giao dịch ghi bảng chưa kịp commit lúc trình duyệt gửi yêu cầu kế tiếp (get_conn commit SAU khi trả lời). Chỉ lưu BĂM SHA-256, không lưu token thô.
+_THU_HOI_TRONG_BO_NHO: dict[str, float] = {}               # băm token -> hạn của token (epoch giây); dọn dòng quá hạn mỗi lần thêm
+_KHOA_THU_HOI = threading.Lock()
+
+
+def bam_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def thu_hoi_token(conn, cfg: CauHinh, token: str | None) -> bool:
+    """Đăng xuất: thu hồi MỘT token. Chỉ khi chữ ký đúng và chưa hết hạn (token giả / hết hạn: không ghi gì, trả False). Lặp lại an toàn (ON CONFLICT)."""
+    d = auth.doc_token(cfg.auth_secret, token) if token else None
+    if not d:
+        return False
+    h, bay_gio = bam_token(token), time.time()
+    with _KHOA_THU_HOI:
+        for k in [k for k, e in _THU_HOI_TRONG_BO_NHO.items() if e < bay_gio]:
+            del _THU_HOI_TRONG_BO_NHO[k]
+        _THU_HOI_TRONG_BO_NHO[h] = float(d["e"])
+    conn.execute("INSERT INTO revoked_tokens (token_sha256, user_id, expires_at) SELECT %s, user_id, to_timestamp(%s) FROM users WHERE user_id = %s "
+                 "ON CONFLICT (token_sha256) DO NOTHING", (h, int(d["e"]), int(d["u"])))
+    return True
+
+
+def da_thu_hoi(conn, token: str) -> bool:
+    h = bam_token(token)
+    if h in _THU_HOI_TRONG_BO_NHO:
+        return True
+    return conn.execute("SELECT 1 FROM revoked_tokens WHERE token_sha256 = %s", (h,)).fetchone() is not None
 
 
 # ------------------------------------------------------------------------------------------------ đăng nhập / phiên
@@ -58,6 +93,8 @@ def xac_thuc(conn, cfg: CauHinh, token: str | None, x_user: str | None) -> auth.
     if not token:
         raise ChuaDangNhap("Cần đăng nhập.")
     d = auth.doc_token(cfg.auth_secret, token)
+    if d and da_thu_hoi(conn, token):                                          # đã đăng xuất (lệnh AR – R4): cùng thông báo như token sai / hết hạn
+        raise ChuaDangNhap("Phiên đăng nhập không hợp lệ hoặc đã hết hạn.")
     u = conn.execute("SELECT user_id, username, full_name, email, role::text AS role, is_active, password_hash FROM users WHERE user_id = %s",
                      (d["u"],)).fetchone() if d else None
     if not d or not u or not u["is_active"] or auth._vet_mat_khau(u["password_hash"]) != d["f"]:

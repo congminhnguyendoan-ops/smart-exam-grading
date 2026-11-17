@@ -262,7 +262,9 @@ def doi_chieu_truong(cot: list[CotDoiChieu], trong_danh_sach: bool | None) -> tu
 
 # =============================================================================================
 # Suy luận CNN bằng NumPy + JSON (Tuần 6 Phần C). Mô hình huấn luyện bằng PyTorch (tools/huan_luyen_ocr.py), xuất ra models/ocr_cnn.json
-# bởi tools/xuat_ocr.py; ở đây KHÔNG import torch. Kiến trúc: Conv16 3×3 → pool → Conv32 3×3 → pool → Dense64 → 10 (xem H.tao_cnn).
+# bởi tools/xuat_ocr.py; ở đây KHÔNG import torch. Hai kiến trúc (rẽ nhánh ở logit_mot_thanh_vien theo khoá trọng số):
+#   "sau_2x2" (MÔ HÌNH TRIỂN KHAI từ lệnh AN, 467 818 tham số): Conv32 → Conv32 → pool → Conv64 → Conv64 → pool → Dense128 → 10 (xem ak_so_sanh_mo_rong.tao_cnn_sau);
+#   "co_ban" (CNN cũ, 105 866 tham số, chỉ còn để so sánh): Conv16 3×3 → pool → Conv32 3×3 → pool → Dense64 → 10 (xem H.tao_cnn).
 # =============================================================================================
 DUONG_DAN_MO_HINH = Path(__file__).resolve().parent.parent / "models" / "ocr_cnn.json"
 NGUONG_TRONG = 30        # ink_px < ngưỡng -> ô viết tay trống (đo trên 4 612 ô dev: ô ít mực nhất 167 px; CHƯA kiểm trên ô trống thật)
@@ -275,11 +277,18 @@ LE_BAN_DO_TOI = 100      # px: lề quanh vùng 9 ô khi tính bản đồ tối
 
 @dataclass
 class MoHinhOCR:
-    thanh_vien: list          # mỗi phần tử: dict(c1w, c1b, c2w, c2b, d1w, d1b, d2w, d2b, T) – mảng float32
+    thanh_vien: list          # mỗi phần tử: dict(c1w, c1b, c2w, c2b, d1w, d1b, d2w, d2b, T) (co_ban) hoặc dict(a1w … b2b, d1w … d2b, T) (sau_2x2) – mảng float32
     tau: float                # ngưỡng độ tin cậy chữ số (CNN một mình) – chỉ để báo cáo, luật nhận là doi_chieu_cot
     delta: float
     tau_khop: float           # đối chiếu bubble: CNN cùng chữ số với p ≥ tau_khop
     sieu_du_lieu: dict = field(default_factory=dict)
+    kien_truc: str = "co_ban"  # "co_ban" (Conv16–Conv32–Dense64, mô hình triển khai) | "sau_2x2" (2 khối × 2 conv, lệnh AM)
+
+
+KIEN_TRUC_SAU = "sau_2x2"
+# Khoá trọng số theo kiến trúc. "sau_2x2": a1,a2 (Conv 1→32, 32→32) → pool → b1,b2 (Conv 32→64, 64→64) → pool → d1 (3136→128) → d2 (128→10); 467 818 tham số.
+KHOA_CO_BAN = ("c1w", "c1b", "c2w", "c2b", "d1w", "d1b", "d2w", "d2b")
+KHOA_SAU = ("a1w", "a1b", "a2w", "a2b", "b1w", "b1b", "b2w", "b2b", "d1w", "d1b", "d2w", "d2b")
 
 
 def nap_mo_hinh_ocr(duong_dan: str | Path | None = None) -> MoHinhOCR:
@@ -288,7 +297,13 @@ def nap_mo_hinh_ocr(duong_dan: str | Path | None = None) -> MoHinhOCR:
     tv = []
     for m in d["thanh_vien"]:
         tv.append({k: (np.asarray(v, np.float32) if k != "T" else float(v)) for k, v in m.items() if k != "seed"})
-    return MoHinhOCR(tv, d["tau"], d["delta"], d["tau_khop"], d.get("sieu_du_lieu", {}))
+    kt = KIEN_TRUC_SAU if d.get("kien_truc") == KIEN_TRUC_SAU else "co_ban"    # mô hình cũ: trường kien_truc là chuỗi mô tả -> nhánh cũ
+    khoa = KHOA_SAU if kt == KIEN_TRUC_SAU else KHOA_CO_BAN
+    for m in tv:
+        thieu = [k for k in khoa if k not in m]
+        if thieu:
+            raise ValueError(f"mô hình kiến trúc {kt} thiếu khoá trọng số: {thieu}")
+    return MoHinhOCR(tv, d["tau"], d["delta"], d["tau_khop"], d.get("sieu_du_lieu", {}), kt)
 
 
 def _conv3(x: np.ndarray, w: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -307,8 +322,12 @@ def _pool2(x: np.ndarray) -> np.ndarray:
 def logit_mot_thanh_vien(m: dict, x: np.ndarray) -> np.ndarray:
     """Logit [N,10] của một CNN. x uint8 [N,28,28] (nền 0, nét 255)."""
     a = x.astype(np.float32)[:, None] / 255.0
-    a = _pool2(_conv3(a, m["c1w"], m["c1b"]))
-    a = _pool2(_conv3(a, m["c2w"], m["c2b"]))
+    if "a1w" in m:                                                         # kiến trúc "sau_2x2" (nap_mo_hinh_ocr đã kiểm đủ khoá)
+        a = _pool2(_conv3(_conv3(a, m["a1w"], m["a1b"]), m["a2w"], m["a2b"]))
+        a = _pool2(_conv3(_conv3(a, m["b1w"], m["b1b"]), m["b2w"], m["b2b"]))
+    else:
+        a = _pool2(_conv3(a, m["c1w"], m["c1b"]))
+        a = _pool2(_conv3(a, m["c2w"], m["c2b"]))
     a = a.reshape(len(a), -1)                                              # (C, H, W) -> giống torch flatten(1)
     return np.maximum(a @ m["d1w"].T + m["d1b"], 0.0) @ m["d2w"].T + m["d2b"]
 

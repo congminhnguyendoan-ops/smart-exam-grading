@@ -1,9 +1,11 @@
 /* Hàng đợi tải ảnh của trang điện thoại /m (chụp LIÊN TỤC): mỗi tờ chụp xong vào hàng, gửi nền tối đa `toiDa` yêu cầu song song, KHÔNG chặn việc chụp tờ kế.
    Thuần logic (không DOM) – dùng được trong trình duyệt (window.HangDoi) và Node (module.exports) để kiểm thử: tests/js/hang_doi.test.js.
 
-   Trạng thái một tờ: cho (chờ gửi) → gui (đang gửi ảnh) → cham (ảnh đã lên, máy chủ đang chấm) → xong | loi | trung.
+   Trạng thái một tờ: cho (chờ gửi) → gui (đang gửi ảnh) → cham (ảnh đã lên, máy chủ đang chấm) → xong | loi | tuchoi | trung.
      - xong : có kết quả (gồm cả ảnh bị từ chối – ketQua.status = "rejected"); giải phóng File (không còn cần).
-     - loi  : lỗi mạng / máy chủ – GIỮ File để "Gửi lại" (không bắt chụp lại nếu chỉ rớt mạng).
+     - loi  : lỗi mạng / máy chủ (LoiTai "mang", "anh_lon") – GIỮ File để "Gửi lại" (không bắt chụp lại nếu chỉ rớt mạng).
+     - tuchoi (lệnh V1): máy chủ TRẢ LỜI RÕ là không nhận (409 kỳ thi đã đóng, 404 ngoài phạm vi …, frontend/loi_tai.js) – gửi lại chắc chắn hỏng nên
+       KHÔNG có Gửi lại; giải phóng File; tính vào "từ chối".
      - trung: máy chủ báo ảnh đã tải trước đó (da_ton_tai) – không tính là chấm được; nếu phiếu đó đã có dòng trong phiên thì `an = true` (không lặp dòng).
      - Lỗi 401 (hết phiên): tờ quay về "cho", hàng đợi TẠM DỪNG cho tới khi tiepTuc() (sau khi đăng nhập lại).
    Chụp lại một tờ bị từ chối: chupLai(stt, file) – tờ cũ gắn `thayBang`, tờ mới mang `thayCho` và giữ số thứ tự tờ (soTo) của tờ cũ.
@@ -13,6 +15,8 @@
 "use strict";
 
 (function (goc) {
+  const LoiTai = goc.LoiTai || (typeof require !== "undefined" ? require("./loi_tai.js").LoiTai : null);
+
   class HangDoi {
     /** gui(to, baoTienTrinh) -> Promise<ketQua>; lỗi ném ra có thuộc tính `ma` (mã HTTP, 0 = mạng). */
     constructor({ gui, toiDa = 2, khiDoi = () => {}, bayGio = () => Date.now() }) {
@@ -56,6 +60,7 @@
         k.daChup++;
         if (["cho", "gui", "cham"].includes(t.trangThai)) k.dangCho++;
         else if (t.trangThai === "loi") k.loi++;
+        else if (t.trangThai === "tuchoi") k.tuChoi++;
         else if (t.ketQua && t.ketQua.status === "rejected") k.tuChoi++;
         else if (t.ketQua) { k.chamDuoc++; if (t.ketQua.status === "needs_review") k.canXem++; }
       }
@@ -71,7 +76,7 @@
     xuatSieuDuLieu() {
       return this.ds.map((t) => ({ stt: t.stt, soTo: t.soTo, ten: t.ten || null, kichThuoc: t.kichThuoc || null, examId: t.examId || null,
         trangThai: t.trangThai, sheetId: t.ketQua ? t.ketQua.sheet_id : null, daTonTai: !!(t.ketQua && t.ketQua.da_ton_tai),
-        thayCho: t.thayCho, thayBang: t.thayBang, an: t.an }));
+        thayCho: t.thayCho, thayBang: t.thayBang, an: t.an, ...(t.trangThai === "tuchoi" ? { loi: t.loi, maLoi: t.maLoi } : {}) }));
     }
 
     /** Dựng lại danh sách từ siêu dữ liệu. `traCuu(sheetId, meta)` -> Promise<ketQua> (hỏi API); lỗi 401 ném ra để đăng nhập lại; lỗi khác -> tờ `mat`. */
@@ -87,7 +92,8 @@
             if (e && e.ma === 401) throw e;
             t.trangThai = "mat"; t.loi = (e && e.message) || "Không hỏi lại được trạng thái phiếu."; mat++;
           }
-        } else { t.trangThai = "mat"; t.loi = "Tờ này chưa gửi xong khi trang được tải lại, ảnh không còn trên máy."; mat++; }
+        } else if (m.trangThai === "tuchoi") { t.trangThai = "tuchoi"; t.loi = m.loi || "Máy chủ đã từ chối tờ này."; t.maLoi = m.maLoi; phucHoi++; }
+        else { t.trangThai = "mat"; t.loi = "Tờ này chưa gửi xong khi trang được tải lại, ảnh không còn trên máy."; mat++; }
         this.ds.push(t);
         this._stt = Math.max(this._stt, t.stt); this._soTo = Math.max(this._soTo, t.soTo);
       }
@@ -124,6 +130,9 @@
         t.file = null;                                                   // đã có kết quả: không giữ ảnh trong bộ nhớ điện thoại
       } catch (e) {
         if (e && e.ma === 401) { t.trangThai = "cho"; this.tamDung = true; t.loi = e.message; }
+        else if (LoiTai && LoiTai.phanLoai(e && e.ma) === "tu_choi") {   // máy chủ trả lời rõ: gửi lại cũng hỏng -> không giữ ảnh
+          t.trangThai = "tuchoi"; t.loi = (e && e.message) || String(e); t.maLoi = e.ma; t.tXong = this.bayGio(); t.file = null;
+        }
         else { t.trangThai = "loi"; t.loi = (e && e.message) || String(e); t.maLoi = e && e.ma; }
       } finally {
         this.dangChay--; this.khiDoi(); this._bom();

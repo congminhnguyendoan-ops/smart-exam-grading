@@ -22,7 +22,7 @@ Script sẽ hỏi mật khẩu `postgres` một lần, sau đó tự làm lần 
 
 | File | Nội dung |
 |---|---|
-| `00_create_database.sql` | Tạo user `smart_exam_app` (mật khẩu `smartexam123`) và database `smart_exam` UTF-8 |
+| `00_create_database.sql` | Tạo user `smart_exam_app` (mật khẩu lấy từ `SMART_EXAM_DB_PASSWORD`, không ghi trong tệp – lệnh W) và database `smart_exam` UTF-8 |
 | `01_schema.sql` | 10 kiểu ENUM + 20 bảng, khóa chính/ngoại, CHECK, index |
 | `02_functions_triggers.sql` | Logic chấm điểm, match SBD, hàng đợi review, audit log |
 | `03_views.sql` | 8 view cho dashboard, thống kê, tra cứu, đối soát |
@@ -95,7 +95,7 @@ smart-exam/
 ├── frontend/            ← Streamlit: app.py, pages/
 ├── data/                ← raw/, cells/, digits_real/ (không push ảnh lớn lên Git)
 ├── tests/
-├── .env                 ← DATABASE_URL=postgresql://smart_exam_app:smartexam123@localhost:5432/smart_exam
+├── .env                 ← DATABASE_URL=postgresql://smart_exam_app:<mật khẩu>@localhost:5432/smart_exam
 └── requirements.txt
 ```
 
@@ -209,7 +209,8 @@ SELECT crop_image_path, corrected_digit FROM ocr_digits WHERE corrected_digit IS
 3. Điện thoại cùng Wi‑Fi → quét QR (hoặc nút **📱 Kết nối điện thoại** trên máy tính) → đăng nhập → chọn kỳ thi → **Chụp phiếu**. Kết quả (điểm TẠM, câu cần xem) hiện ngay trên điện thoại;
    phiếu mới tự hiện ở "Danh sách phiếu" trên máy tính – giáo viên duyệt ở máy tính.
 4. Wi‑Fi trường chặn kết nối giữa các thiết bị → bật hotspot trên điện thoại, máy tính nối vào, chạy lại bước 2.
-5. Ảnh tạm: server ở bước 2 xoá ảnh của phiếu đã chốt (điểm chính thức) / bị từ chối sau 24 giờ (`ANH_GIU_GIO`), giữ phiếu chờ duyệt và kỳ thi `[DEMO…]`; điểm, đáp án, lý do
-   vẫn giữ. Không muốn xoá: `--khong-xoa-anh`. Xem trước: `python -m backend.don_anh`. Ảnh trong thư viện ảnh của điện thoại phải tự xoá tay.
+5. Ảnh tạm: MẶC ĐỊNH server ở bước 2 KHÔNG xoá ảnh (lệnh Z, 30/10/2026). Chỉ khi CHỦ Ý thêm `--bat-don-anh` mới xoá ảnh của phiếu đã chốt (điểm chính thức) /
+   bị từ chối sau 24 giờ (`ANH_GIU_GIO`) ở mọi kỳ thi không có `[DEMO` trong tên (kể cả kỳ thi thật), giữ phiếu chờ duyệt; điểm, đáp án, lý do vẫn giữ.
+   Xem trước: `python -m backend.don_anh`. Ảnh trong thư viện ảnh của điện thoại phải tự xoá tay.
 Chi tiết: `docs/thiet_ke_chup_dien_thoai.md`.
 

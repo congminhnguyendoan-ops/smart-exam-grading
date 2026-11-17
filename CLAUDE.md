@@ -294,11 +294,12 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   Diễn tập bằng `thu_bo_demo.py`, KHÔNG tải ảnh thật lên 1380 / 1381 trước buổi bảo vệ (phiếu nằm lại; xoá phải hỏi).
   **Kỳ thi TẬP** `[DEMO-BV-TẬP]` (`nap_bo_demo.py --ban-tap --ap-dung`, đã nạp 27/10): **1632** (gv_an, K22A), **1633** (gv_binh, K22B) – diễn tập chụp điện thoại ở đây
   (đang TRỐNG: 21 phiếu thử đã xoá 27/10 theo đồng ý). Ảnh dự phòng: `data/_eval/demo_bv/anh_gia/` (`thu_bo_demo.py xuat`). Lệnh vận hành nguyên văn: `docs/chay_server_va_tai_khoan.md`.
-  Người dùng chọn GIỮ 5 ảnh exam 115 `[THU]` → luôn chạy `chay_server_lan.py --khong-xoa-anh`.
+  Demo / diễn tập: chạy `chay_server_lan.py` KHÔNG thêm `--bat-don-anh` (lệnh Z: dọn ảnh mặc định TẮT – mục "Ảnh tạm" dưới).
 - **Chụp bằng điện thoại → chấm ngay** (27/10/2026, yêu cầu 2; `docs/thiet_ke_chup_dien_thoai.md`): trang **`/m`** (HTML tĩnh `frontend/m.html|js|css`, camera gốc `capture=environment`,
   ảnh gốc không nén) → `POST /exams/{id}/sheets` → thẻ kết quả (điểm TẠM, câu cần xem, cảnh báo); điện thoại KHÔNG duyệt câu. Máy tính: nút "Kết nối điện thoại" (`GET /meta/ket-noi`, chỉ
   người đăng nhập: IP LAN + QR), danh sách phiếu / hàng đợi tự làm mới 4 s khi tab hiện. **Chạy cho điện thoại**: `python tools/chay_server_lan.py` (`--host 0.0.0.0`, in URL + QR + lệnh tường lửa;
-  `--khong-xoa-anh`, `--chi-in`). Tường lửa (người dùng TỰ chạy, PowerShell quản trị; KHÔNG BAO GIỜ tự chạy lệnh mạng / tường lửa):
+  `--chi-in`; dọn ảnh tạm **mặc định TẮT** từ lệnh Z 30/10/2026, in "Dọn ảnh tạm: TẮT (mặc định)" lúc khởi động; `--khong-xoa-anh` vẫn nhận (tương thích);
+  **CẢNH BÁO: chỉ thêm `--bat-don-anh` khi chủ ý** – xoá ảnh phiếu đã chốt / bị từ chối quá 24 giờ ở mọi kỳ thi không có "[DEMO" (kể cả kỳ thi thật), ngay lúc khởi động rồi mỗi giờ). Tường lửa (người dùng TỰ chạy, PowerShell quản trị; KHÔNG BAO GIỜ tự chạy lệnh mạng / tường lửa):
   `New-NetFirewallRule -DisplayName "SmartExam-8000-LAN" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Public,Private -RemoteAddress LocalSubnet` · xoá sau demo:
   `Remove-NetFirewallRule -DisplayName "SmartExam-8000-LAN"` (Wi‑Fi máy người dùng ở hồ sơ Public). Wi‑Fi chặn thiết bị → hotspot điện thoại.
   **Chụp LIÊN TỤC** (lệnh M): `frontend/m_hang_doi.js` (hàng đợi thuần logic, tối đa 2 song song, Gửi lại / Chụp lại / ảnh trùng / 401 tạm dừng; test `node --test tests/js/hang_doi.test.js`,
@@ -306,8 +307,10 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   giao dịch) → `data/_eval/ui_m/lien_tuc/`. **ĐÃ thử điện thoại thật 27/10/2026** (người dùng đo trực tiếp, MỘT iPhone / Safari, cùng Wi‑Fi với máy chủ; có ảnh chụp màn hình + nhật ký 27/10): chụp 1 tờ → kết quả **1,8 s**
   (một tờ, một lần), chụp liên tục, rớt Wi‑Fi rồi gửi lại (~2 s, ước chừng), chụp mờ bị từ chối kèm lý do, chọn nhiều ảnh, xuất Excel, phân quyền (gv_binh không xem được phiếu K22A). **CHƯA thử Android; chưa đo 40 tờ liên tục qua Wi‑Fi thật.** Camera trực tiếp getUserMedia (cần HTTPS): chỉ khảo sát `docs/khao_sat_camera_truc_tiep.md`, không làm trước bảo vệ.
 - **Ảnh tạm** (migration **003 ĐÃ ÁP** 27/10: `answer_sheets.image_deleted_at`): `backend/don_anh.py` xoá ảnh gốc + nắn + ô viết tay của phiếu `graded` / `rejected` sau `ANH_GIU_GIO` (24) giờ;
-  giữ phiếu `needs_review` và kỳ thi `[DEMO…]` (`ANH_GIU_DEMO=1`); chỉ tệp trong `STORAGE_DIR`; API ảnh → 410. Luồng dọn chỉ chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py` bật;
-  `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Không có `--khong-xoa-anh` thì lượt đầu xoá 5 tệp của exam 115 `[THU]` (người dùng muốn GIỮ).
+  giữ phiếu `needs_review` và kỳ thi `[DEMO…]` (`ANH_GIU_DEMO=1`); chỉ tệp trong `STORAGE_DIR`; API ảnh → 410. Luồng dọn chỉ chạy khi `ANH_XOA_TU_DONG=1` (chỉ `chay_server_lan.py --bat-don-anh` bật – lệnh Z;
+  `conftest.py` và `tools/thu_*` ép 0). Xem trước / chạy tay: `python -m backend.don_anh [--ap-dung]`. Ảnh exam 115 `[THU]` (5 tệp) và
+  9 phiếu mẫu kỳ thi 1 ĐÃ bị một lượt dọn đánh dấu xoá lúc 28/10/2026 09:16:21 (lệnh Y: nhiều khả năng máy chủ khởi động thiếu `--khong-xoa-anh`; không có log để xác nhận) – không còn ảnh để giữ.
+  Không có cờ thì MỌI kỳ thi không có "[DEMO" trong tên (kể cả kỳ thi thật, `[THU]`) mất ảnh phiếu đã chốt / bị từ chối sau 24 giờ.
 - **Migration trong test / công cụ**: `migrate.chua_ap()` chỉ đọc; `migrate.TUY_CHON` (003) không chặn test; fixture `csdl_003`. `kiem_backend_dau_cuoi.py`, `eval_he_thong.py`, `thu_bo_demo.py`
   chỉ KIỂM migration (trước 27/10 hai công cụ đầu tự áp). Nhánh này: **pytest 403 đạt + 1 skip có chủ đích (28/10/2026, sau lệnh G)** (cây sạch; cây bẩn thì `test_eval_he_thong` đỏ / skip – không phải lỗi mã).
 
@@ -335,9 +338,140 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   Lớp vô hiệu: không chọn cho kỳ thi mới / gán mới; giáo viên đã gán vẫn xem kỳ thi cũ. Lớp của kỳ thi chọn từ danh sách (PATCH `/admin/exams` nhận `class_id`).
   Quyền xem kỳ thi = phụ trách (`created_by`) HỢP thuộc lớp (không đổi `phan_quyen.py`). Thử trình duyệt: `python tools/thu_lenh_i.py`.
   **pytest 452 đạt + 1 skip có chủ đích; hồi quy đầu-cuối 56/56 (29/10/2026, sau lệnh I).**
+  **Lệnh V (30/10/2026)**: V0 `tools/dat_lai_demo.py` chỉ theo id cố định 1380/1381/1633 (về 0) + 1632 (nền), hậu kiểm phạm vi; ĐÃ diễn tập thật (sao lưu → BV01 vào 1633
+  → đặt lại → trùng khít trước). V1 `frontend/loi_tai.js`: lỗi mạng / 5xx → Gửi lại; 409 / 404 / 403 / 422 → "bị từ chối", không Gửi lại (/m + /app/). V2 `frontend/ky_thi_dong.js`:
+  ẩn kỳ thi đã đóng ở ô chọn (khoá localStorage `hienKyThiDong`, xoá khi đăng xuất; Quản trị hiện đủ). V3 `frontend/ly_do_cot.js`: lý do SBD / mã đề theo cột (`vi_tri` TỪ 1;
+  chỉ câu chữ). V4 **migration 005 ĐÃ ÁP** (bảng `admin_audit_log`, sao lưu `data/_backup/smart_exam_20261030_174500_truoc_005.dump`), `backend/nhat_ky.py`, `GET /admin/audit`,
+  thẻ Quản trị → Nhật ký (chỉ thao tác thành công, không mật khẩu). Thử trình duyệt: `python tools/thu_lenh_v.py` → `data/_eval/ui_v/`.
+  **pytest 481 đạt + 1 skip có chủ đích; hồi quy đầu-cuối 56/56 (30/10/2026, sau lệnh V).**
   **Lệnh G (28/10/2026)**: G1 `tools/don_du_lieu_test.py` – dọn phiếu test thừa ở kỳ thi 1632 / 1633 (mặc định XEM TRƯỚC chỉ đọc; `--thuc-hien` = sao lưu CSV + ảnh vào `data/_eval/sao_luu_don_du_lieu/`, gõ "XOA", MỘT giao dịch, lệch số dòng
   thì ROLLBACK, rồi xoá tệp ảnh; `--ids` / `--giu`; giữ mọi phiếu `graded` có điểm chính thức hợp lệ). G2 `frontend/ten_tep.js` – tên tệp ảnh > 24 ký tự hiển thị "10 ký tự đầu…đuôi" (title = tên đầy đủ), dùng ở /app/ và /m. G3 `bang_diem.ly_do_chua_ghep`
   – Bảng điểm: phiếu cần xem chưa ghép được thí sinh nói đúng nguyên nhân (SBD máy chưa chắc → "cần giáo viên chốt"; ngoài danh sách → câu cũ), chỉ đổi câu chữ. Thử trình duyệt: `python tools/thu_lenh_f.py g2` → `data/_eval/ui_g/`.
+- **Lệnh AA + AB (31/10/2026) – giao diện sau bảo vệ, CHỈ trên nhánh `ui-sau-bv`** (tách từ `cai-tien-b` @ `9842af1`; **CHƯA gộp** vào `cai-tien-b` / `main`, chưa push). **Bản bảo vệ vẫn là
+  `cai-tien-b`** – demo / diễn tập / `kiem_truoc_demo.py` cho buổi bảo vệ chạy từ `cai-tien-b`. Chỉ đổi `frontend/`, test, công cụ thử, tài liệu (không đổi cv_engine, models, layout, API, CSDL, logic chấm).
+  **AA2** màn Duyệt phiếu – khung "Chốt SBD / mã đề": `frontend/duyet_dinh_danh.js` (logic thuần, `tests/js/duyet_dinh_danh.test.js`): phóng to ô viết tay cột cần nhìn, cột khớp nhạt, con trỏ đặt sẵn,
+  `Enter` lưu / `Tab` SBD → mã đề, lỗi TẠI Ô (SBD ngoài danh sách dự thi lấy từ `GET /exams/{id}/results`, mã đề ngoài kỳ thi) + gợi ý (chỉ điền khi giáo viên bấm), XÁC NHẬN khi lưu giá trị ngoài danh sách
+  hoặc SBD lấy từ gợi ý, nút "Phiếu cần xem kế tiếp". Máy KHÔNG tự chọn. Id cũ giữ (`in-sbd`, `in-ma`, `luu-dd`, `data-fill`). **AA3** `/m`: khối "Hướng dẫn chụp thẳng" (`<details id="hd-chup">`, thu gọn).
+  **Bảng màu** (AA-B): mọi màu chỉ ở **`frontend/mau.css`** (nạp trước `style.css` / `m.css`; không mã màu viết cứng – `tests/test_tuong_phan.py`), xanh ngọc `--pri #1F7A8C`, `--ok #276B4E`
+  (đề nghị #2E7D5B không đạt 4,5:1), không chế độ tối. **`tools/kiem_tuong_phan.py`**: tỷ lệ WCAG cho 41 cặp đọc từ mau.css (chữ thường ≥ 4,5, chữ lớn / thành phần ≥ 3), mã thoát 1 nếu không đạt.
+  **AB1** viền ô nhập `--vien-o #6F808A` (≥ 3:1 với thẻ / nền / thanh bên), viền thẻ giữ `--line`. **AB2** màn Tải ảnh: nút "📁 Chọn ảnh" bọc `#files` (id giữ nguyên) + dòng `#sel`
+  "Chưa chọn ảnh." / "Đã chọn N ảnh: tên…" (`frontend/chon_tep.js`, `tests/js/chon_tep.test.js`); kéo thả, chọn nhiều không đổi.
+  Thử trình duyệt (CHỈ ROLLBACK, máy tính + Pixel 7): `python tools/thu_lenh_aa.py --giai-doan sau` → `data/_eval/ui_aa/sau/`; ảnh "trước" (`--giai-doan truoc`) phải chạy BẢN SAO công cụ với
+  `AA_ROOT` khi đang ở `cai-tien-b` (nhánh đó không có tệp này). Tài liệu: `docs/kich_ban_demo.md` mục 6, `docs/huong_dan_quan_tri.md` mục 9.
+  Lưu ý môi trường: chạy pytest SONG SONG với `kiem_backend_dau_cuoi.py` / `kiem_truoc_demo.py` trên cùng CSDL từng gây `DeadlockDetected` (lỗi cách chạy, không do mã) – chạy từng cái một.
+
+### 4g. Lệnh AD (nhánh `hoan-thien` từ `cai-tien-b`, 01/11/2026; chi tiết `smart_exam_db/docs/lenh_ad.md`)
+- Mục tiêu: thử CNN chữ số tiền huấn luyện trên MNIST + EMNIST Digits (qua `ocr.ve_mnist`) + 60 000 ô phiếu giả (qua đúng `ocr.cat_o`), so với
+  mô hình hiện tại dưới cùng CV theo người viết, 3 seed, tiêu chí chốt trước (commit `5af47ab`). Công cụ: `tools/ad_nap_emnist.py`, `tools/ad_sinh_o_gia.py`, `tools/ad_huan_luyen.py`.
+- **KẾT QUẢ: KHÔNG ĐẠT, giữ `models/ocr_cnn.json`** – độ đúng trang D macro 95,40% → 95,75% (+0,36 < +1,0 điểm); cột SBD / mã đề cần xem 9,85% → 10,19% (tăng);
+  sai-mà-tự-tin 535 → 512 (đạt). Nhầm 8↔6 giảm (76 → 29), nhầm 1→7 tăng (51 → 77). KHÔNG có tệp ứng viên (không xuất vì không đạt). Dữ liệu: `data/nguon_ngoai/emnist_digits.npz`, `data/_eval/ad/` (ngoài git).
+
+### 4h. Lệnh AE – vì sao "cần xem" (01/11/2026, nhánh `hoan-thien`; CHỈ ĐO, không sửa mã hệ thống)
+- `python tools/ae_phan_ra.py doc --tap dev|dot2` (pipeline offline = backend, không CSDL; đợt 2 trùng 800/800 câu + 180/180 cột với lần chạy API) → `phan-ra` → `de-xuat`; kết quả `data/_eval/ae/`.
+- Câu trả lời đợt 2: 397/800 cần xem; chỉ 11 (2,8%) là cờ làm đổi điểm (10 = vết chấm đọc thành "mờ"); 386 (97,2%) máy đã cho đúng điểm theo quy ước nhãn, nhưng chỉ 83 (20,9%)
+  không phụ thuộc quy ước (thật 1 đậm / trống, nhiều ô toàn đậm) – còn lại là dấu mờ / vết mà người phải quyết. SBD / mã đề đợt 2: 15/180 cột, 11 do hai kênh lệch (CNN đọc sai 9; 2 ca 0103 thí sinh TÔ SAI bubble, CNN đúng).
+- Đề xuất (CHƯA áp dụng, chỉnh trên dev → thử đợt 2): ĐX1 nhiều ô toàn đậm (θ1 = 0,95) → chấm sai tự động: đợt 2 gỡ 54/397, 0 sai; ĐX2 luật mềm SBD (τ2 = 0,4): đợt 2 gỡ 2 cột, ảnh 9→8/20, 0 sai,
+  mô phỏng tô sai bubble bị nhận 0,74%; ĐX3 "dấu mờ = có chọn": đợt 2 gỡ 147 nhưng 10 sai âm thầm → KHÔNG nên.
+
+### 4i. Lệnh AF + AF2 – duyệt nhanh cho giáo viên (01/11/2026, nhánh `hoan-thien`, đã gộp `ui-sau-bv` = lệnh AA/AB; không đổi cách chấm / ngưỡng / mô hình)
+- API (`backend/duyet_nhanh.py`): `POST /sheets/{id}/questions/confirm-remaining` {question_nos, confirm:true} – mỗi câu qua đúng `service.xu_ly_cau(confirm)`; KHÔNG đụng SBD / mã đề;
+  **AF2: CHỈ câu mà mọi lý do ∈ {`nhieu_o`, `to_nhat`}** (`hop_le_hang_loat`, máy chủ quyết) – lô có câu mờ / vết / lưng chừng / vị trí → **422 cả lô**, không ghi gì; danh sách cũ /
+  lệch → 409; một giao dịch; một dòng nhật ký `xac_nhan_hang_loat` (`nhat_ky.HANH_DONG_DUYET`, đối tượng exam). **Không có hoàn tác**. `GET /exams/{id}/review-groups` (chỉ đọc).
+- Giao diện (`frontend/duyet_nhanh.js` + `app.js`): phím tắt A–D / Space / Enter / N / Esc; nút "Xác nhận N câu nhiều ô / tô nhạt như máy đọc…" (ẩn khi 0 câu hợp lệ) + dòng "Câu mờ / vết
+  cần quyết định bằng mắt"; hộp hỏi (liệt kê từng câu, phải tích, tiêu điểm ở Huỷ, AF2: bẫy Tab / Shift+Tab, Esc đóng, tiêu điểm về nút mở, role="dialog" + aria-modal); hàng đợi lọc theo lý do.
+- Test: `tests/test_duyet_nhanh.py` (10; AF2 đổi ảnh thử sang BV07), `tests/test_duyet_nhanh_af2.py` (12), `tests/test_ui_af.py`, `tests/test_ui_af2.py`, `tests/js/duyet_nhanh*.test.js` (8 + 4).
+  Trình duyệt (CHỈ ROLLBACK): `python tools/thu_lenh_af.py` (26 mục) · `python tools/thu_lenh_af2.py` (20 mục) → `data/_eval/ui_af*/`. Đo: BV07 (40 câu to_nhat) 42 → 5 thao tác; BV09 (2 câu mờ) 4 → 4 (không có nút).
+
+### 4j. Lệnh AG – chuẩn bị thử GIẤY THẬT (01/11/2026, nhánh `hoan-thien`; CHƯA có ảnh thật)
+- Tiêu chí chốt TRƯỚC (commit `18fd340`, trước công cụ): `docs/tieu_chi_thu_giay_that.md` – H3 chép nguyên văn (đợt 2) + H3a / H3b (cột "thiếu bubble" ở T03, T06, T10), C1 sai âm thầm = 0 (bắt buộc), C2 / C3 chỉ báo cáo.
+- `python tools/ag_tao_kich_ban.py` → `data/_eval/ag/kich_ban.json` (hạt giống 20261101, 10 tờ: 8 bi + 2 chì; nhat / hai_o / te / bo_trong / vet), `phieu_trang_in_10.pdf` (A4 100%,
+  kiểm render: 4 ô vuông lệch ≤ 0,71 px), `phieu_giao_viec_ag.pdf`. Hướng dẫn nhóm: `docs/huong_dan_thu_giay_that.md` (ảnh → `data/anh_that_ag/T01.jpg…`, `T0X_kho.jpg`).
+- `python tools/ag_cham_that.py cham` (pipeline OFFLINE, trường "nhận" = chắc + trong danh sách 1633) → `data/_eval/ag/ket_qua.md|json`; `tu-kiem` (ảnh giả lập + đối chứng âm, thư mục tạm tự xoá):
+  ảnh giả C1 / H3 ĐẠT, đối chứng âm bắt đúng 3/3 câu cài sai. Test: `tests/test_ag_giay_that.py` (17, không cần ảnh / CSDL). **Chỉ chạy `cham` MỘT lần trên bộ ảnh cuối.**
+
+### 4k. Lệnh AH – nhiều tài khoản + chấm đồng thời (04/11/2026, nhánh `hoan-thien`; CHỈ ĐỌC MÃ + THỬ, không sửa mã hệ thống; chi tiết `smart_exam_db/docs/lenh_ah.md`)
+- `python tools/ah_thu_dong_thoi.py chay | dem | don`: máy chủ thử riêng cổng 8010 (cùng CSDL, kho ảnh `data/_eval/ah/kho`), dữ liệu thử `ah_thu_*` / `AH-THU-*` / `[AH-THU]` / thí sinh `97xxxx`,
+  dọn trong `finally` (đã xác minh = 0, demo nguyên vẹn: 1632 = 6, 1633 = 0). Chạy 2 lần.
+- ĐẠT: A (đăng nhập đồng thời; khoá 5 lần sai theo **(tên, IP)** – người khác cùng IP không bị khoá, phiên cũ không mất), B (18/18 trùng khít chạy tuần tự), C (310/310 = 404), D (0/40 lần hai điểm chính thức – nhờ chỉ mục `uq_results_exam_student`), E (60/60).
+- KHÔNG ĐẠT / rủi ro: hai ảnh cùng SBD đồng thời → bên thua **409, phiếu không được lưu** (13–17/20 lần); cùng tệp gửi 2 lần cùng lúc → 3/10 lỗi 500 (`_ghi_file` tên tệp tạm theo PID);
+  `/sheets/batch` hai lô chéo → **deadlock 5/5** (giao diện không dùng endpoint này); đăng xuất không thu hồi token. Thông lượng bão hoà ~2,7 ảnh/s từ 4 yêu cầu đồng thời; ~150 MB / yêu cầu, không giới hạn đồng thời.
+  Đề xuất (CHƯA làm) + có đụng tệp đóng băng không: `docs/lenh_ah.md` mục 4.
+
+### 4l. Lệnh AI – CNN so với thuật toán khác trên chữ số (04/11/2026, nhánh `hoan-thien`; CHỈ ĐO, không đổi mô hình)
+- Tiêu chí đăng ký TRƯỚC `docs/tieu_chi_so_sanh_thuat_toan.md` (commit `253a4b5`); kiểm kê dữ liệu `docs/kiem_ke_du_lieu.md`. Công cụ `tools/ai_so_sanh_thuat_toan.py kiem-ke | chay | bang | don`
+  (`--thu <thư mục nháp>` = chạy thử mã trên dữ liệu tí hon) → `data/_eval/ai/ket_qua.md|json`. Test `tests/test_ai_so_sanh.py`.
+- E2b (MNIST + ô thật, leave-one-writer-out trang D, TB 5 người): **CNN 95,40%** · SVM RBF 91,43% · MLP 90,96% · RF 90,46% · k-NN 87,92% · LR 83,53% → **R1: CNN đúng nhất** (CNN E2b trùng bộ đệm `oof_g0_goc`, chênh 0).
+  E1 MNIST test: CNN 98,94%, SVM 97,70%. Mẫu con chốt trước: SVM E1 20 000; E2b scikit-learn MNIST 10 000.
+
+### 4m. Lệnh AJ – bộ công cụ cho 3 phiên demo (06/11/2026, nhánh `hoan-thien`; CHỈ thêm công cụ + tài liệu, không đổi mô hình / tệp đóng băng / logic hệ thống)
+- `tools/demo_xu_ly_anh.py --anh <ảnh> --ra <html>`: chạy pipeline THẬT offline (`preprocess_anh` → `omr.doc_phieu` → `ocr.doc_chu_so` → `doi_chieu_dinh_danh`, không CSDL) và dựng MỘT trang HTML tự chứa
+  (ảnh base64) 8 bước: ảnh gốc · độ mờ · 4 góc · nắn 2480×3508 · lưới ô định vị · OMR tô màu · 9 ô chữ số 28×28 + CNN · đối chiếu hai kênh. Ảnh bị từ chối: dựng tới bước bị chặn + mã + lời khuyên.
+  Danh sách thí sinh đối chiếu lấy từ `data/_eval/ag/kich_ban.json` (kỳ thi 1633) nếu có; `--khong-danh-sach` bỏ.
+- `tools/demo_may_hoc.py [--truc-tiep] --ra <html>`: trang tổng hợp CHỈ ĐỌC kết quả đã có (`docs/kiem_ke_du_lieu.md`, `data/_eval/ai|ad/ket_qua.json`, `models/*.json`): dữ liệu, 2 mô hình (M1: 40 tham số; CNN 105 866),
+  biểu đồ E2b ± SD, kích thước / tốc độ, kết quả âm tính lệnh AD, giới hạn. `--truc-tiep`: CNN thật trên 504 ô phiếu dev 0001–0028 (mô hình triển khai không huấn luyện trên chúng; không đọc val / test):
+  **467/504 = 92,66%**, 24 ô ngẫu nhiên (seed 2026) + 8 ô sai "CHỌN CÓ CHỦ Ý" ghi rõ trên trang kèm tỉ lệ chung.
+- `docs/kich_ban_3_phien.md`: kịch bản phiên 1 (≈ 3 phút), 2 (≈ 3), 3 (6–7), hỏi đáp, dự phòng; chuẩn bị chung + đặt lại (`PUBLIC_BASE_URL`, `chay_server_lan.py --khong-xoa-anh`, `kiem_truoc_demo`, `dat_lai_demo` sau MỖI phiên 3).
+  Không chạy hai phiên cùng lúc; không để hai điện thoại gửi cùng một phiếu (409, phiếu không lưu – lệnh AH).
+- Ảnh demo `data/_eval/demo_3_phien/` (ngoài git): `T05_thuong.JPG`, `T03_kho.JPG` = bản sao ảnh THẬT; `T05_mo_phong_nhe.jpg` (Gaussian σ 4 px, vẫn qua, cờ gần ngưỡng) và `T05_mo_phong_nang.jpg` (σ 12 px, `anh_mo`) = MÔ PHỎNG, không phải ảnh chụp mờ thật.
+- Đã diễn tập phiên 3 trên server thật (uvicorn, kỳ thi tập 1633 / gv_binh, token dựng như `thu_bo_demo.py`): BV06 → 8,5 tạm → duyệt đúng giấy → **9,0** chính thức; ảnh thật T05 (SBD 220006) bị giữ `duplicate_sbd` rồi bỏ; ảnh mờ mô phỏng `anh_mo`;
+  bảng điểm + Excel 2 sheet; gv_an 404 / gv_binh `/admin` 403. Sau đó `dat_lai_demo --xac-nhan DAT_LAI`: 1633 về 0 phiếu, 1632 giữ 6, 1380 / 1381 = 0. **Chưa diễn tập phần điện thoại thật** (không có thiết bị trong phiên).
+
+### 4n. Lệnh AK – so sánh mở rộng CNN ở mức ô và mức hệ thống (06/11/2026, nhánh `hoan-thien`; CHỈ ĐO, không đổi mô hình / tệp đóng băng / hệ thống; chi tiết `smart_exam_db/docs/so_sanh_mo_rong_ak.md`)
+- Tiêu chí đăng ký TRƯỚC `docs/tieu_chi_so_sanh_mo_rong.md` (commit `2e549da`). Công cụ `tools/ak_so_sanh_mo_rong.py chay | ag-cat | ag-doc | kiem-tat-dinh | bang | truc-tiep` (+ `tools/ak_hog.py`), kết quả `data/_eval/ak/` (ngoài git);
+  `tools/demo_may_hoc.py --so-sanh-truc-tiep [--da-tinh-san]` dựng mục chạy trực tiếp (~6 s). 11 thuật toán (6 cũ chạy lại + Decision Tree, Naive Bayes, HOG+SVM, LeNet-5, CNN sâu); **HistGradientBoosting chỉ E1** (E2b ≈ 44 phút > giới hạn 30 phút, không cắt giảm âm thầm).
+- **R3 (mức ô) ĐẠT**: CNN 95,40%, tốt nhất CNN sâu 96,03% (−0,63 điểm, ngưỡng 1,0). **R4(a) 504 ô phiếu dev KHÔNG ĐẠT**: đúng cả chuỗi CNN 67,56% so với CNN sâu 81,25% (−13,69). **R4(b) 13 ảnh giấy thật KHÔNG ĐẠT, sát ngưỡng thô**:
+  92,31% so với HOG+SVM 96,15% (đúng 1 trường). Mọi thuật toán 0 ca sai mà không cờ. **KHÔNG được nói “CNN hiện tại tối ưu”**; nói “mạng tích chập tốt nhất trong tập đã thử ở mức ô”. Mô hình triển khai không đổi (CNN sâu = hướng cải tiến, cần đăng ký + kiểm thử lại).
+- Lệch so với tiêu chí (ghi trong báo cáo): HOG cài bằng NumPy (OpenCV 5 không còn `HOGDescriptor`); MLP chạy lại lệch −0,17 điểm so với lệnh AI vì huấn luyện mạng KHÔNG tất định trên máy này (`kiem-tat-dinh`).
+
+### 4o. Lệnh AL – đăng ký tiêu chí chuyển sang CNN sâu (16/11/2026, nhánh `cnn-sau`; CHỈ đăng ký + đọc mã, chưa viết mã suy luận, chưa huấn luyện, chưa sửa `models/`)
+- Tiêu chí đăng ký TRƯỚC `docs/tieu_chi_cnn_sau.md` (commit `4f97e6f`): mục tiêu = giảm số trường phải xem; (a) trường đọc đúng cả chuỗi trên 504 ô dev (112 trường) tăng ≥ 5 điểm, TB 3 seed; (b) lỗi im lặng = 0 trên dev + 13 ảnh `data/anh_that_ag`;
+  (c) NumPy ≡ PyTorch ≥ 99,9% nhãn, logit lệch ≤ 1e-4; (d) ≤ 5 ms/ô, pytest không giảm; (e) không đạt → GIỮ CNN hiện tại, CNN sâu chỉ làm so sánh ở demo Máy học. Giới hạn: 13 ảnh AG đã bị nhìn (không dùng để chọn), 1 trường giấy thật = 3,8 điểm, dev lạc quan.
+- Khảo sát mã (chỉ đọc): `models/ocr_cnn.json` = {phien_ban, kien_truc (chuỗi mô tả), thanh_vien[ {seed, T, c1w,c1b,c2w,c2b,d1w,d1b,d2w,d2b} ], tau, delta, tau_khop, sieu_du_lieu}. Nạp: `ocr.nap_mo_hinh_ocr()` → `MoHinhOCR` (`cv_engine/ocr.py`), gọi từ `backend/service.py`
+  (`OCR_MODEL`, `ocr_cnn.doc_chu_so`, `doi_chieu_dinh_danh`) và các `tools/*`. Kiến trúc CỨNG trong mã suy luận: `logit_mot_thanh_vien` (đúng 2 conv + 2 dense, tên khoá cố định), `_conv3` / `_pool2` dùng lại được. Xuất JSON: `tools/xuat_ocr.py` (`tham_so`, ánh xạ `c1.weight`→`c1w`…), `tools/ad_huan_luyen.py`.
+  Thêm 2 khối × 2 conv (467 818 tham số = 320 + 9 248 + 18 496 + 36 928 + 401 536 + 1 290; Dropout không ảnh hưởng suy luận) cần: `nap_mo_hinh_ocr` (khoá mới a1…b2, d1, d2 hoặc trường kiến trúc), `logit_mot_thanh_vien` (rẽ nhánh theo kiến trúc, 4 conv), `du_doan_xac_suat` (không đổi nếu logit đúng), xuất JSON (`xuat_ocr.py`), test `tests/test_ocr_suy_luan.py` (dựng lại PyTorch từ JSON dùng `H.tao_cnn`). Dùng chung phiên bản → `service` tự lấy SHA; `doc_chu_so` / `doi_chieu_*` không đổi.
+
+### 4p. Lệnh AM – hiện thực + đo CNN sâu `sau_2x2` (16/11/2026, nhánh `cnn-sau`; KHÔNG ghi `models/ocr_cnn.json`, chưa push; chi tiết `docs/ket_qua_cnn_sau.md`)
+- Giai đoạn 1 (commit `a8da59b`): `cv_engine/ocr.py` nhận `kien_truc = "sau_2x2"` (`MoHinhOCR.kien_truc`, khoá a1/a2/b1/b2/d1/d2, kiểm đủ khoá; `logit_mot_thanh_vien` rẽ nhánh, dùng lại `_conv3` / `_pool2`); `tools/xuat_ocr.tham_so` xuất được mạng sâu; mô hình cũ bit-giống (SHA logit + xác suất trên 2 000 ô).
+- Giai đoạn 2: `python tools/am_cnn_sau.py huan-luyen | do` (tiến độ `data/_eval/am/tien_do.txt`, chạy tiếp được; ứng viên `data/_eval/am/ocr_cnn_sau_seed{2026,1,2}.json`, ngoài git).
+- **Kết quả (tiêu chí `docs/tieu_chi_cnn_sau.md`, 4f97e6f): (a) ĐẠT** 83,63% so với 67,56% (+16,07; seed 82,14 / 83,93 / 84,82); **(b) ĐẠT** lỗi im lặng 0 ở dev + 13 ảnh AG, cả 3 seed; **(c) ĐẠT** 100% cùng nhãn, logit lệch ≤ 1,1e-5; **(d) ĐẠT** 3,3–3,7 ms/ô trung vị (p95 tới 25 ms; CNN hiện tại 0,65 ms), pytest 570 đạt + 1 skip; (e) không kích hoạt "giữ".
+  Giới hạn: dev lạc quan, giấy thật không phân biệt được (cả hai 92,31%, 26 trường), huấn luyện không tất định. **CHƯA triển khai**: thay `models/ocr_cnn.json` cần đăng ký + kiểm thử riêng (người dùng quyết).
+
+### 4q. Lệnh AN – THAY mô hình triển khai bằng CNN sâu (16/11/2026, nhánh `cnn-sau`; chưa push; không đụng `main` / `hoan-thien`; chi tiết `docs/ket_qua_thay_mo_hinh_an.md`)
+- Tiêu chí đăng ký TRƯỚC `docs/tieu_chi_thay_mo_hinh_an.md` (`3c2942c`); đo val 0029–0034 + test 0035–0040 (48 trường; người viết 4 và 5, đều có trong huấn luyện; đã dùng cho CNN cũ) bằng `tools/an_do_thay_mo_hinh.py`: **(i) lỗi im lặng 0 · (ii) đúng cả chuỗi 41 ≥ 39 · (iii) cần xem 9 ≤ 13 · (iv) pytest 571 đạt + 1 skip · (v) đầu-cuối 56 ảnh dev: 0 lỗi im lặng, 56/56, ảnh cần xem SBD / mã đề 20/56 (cũ 26/56) → ĐÃ THAY.**
+- `models/ocr_cnn.json` = CNN `sau_2x2` seed 2026 (467 818 tham số, T = 1,8, τ 0,9995, δ 0,99, τ_khop 0,5; SHA `a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8`; trọng số = tệp đã đo `data/_eval/am/ocr_cnn_sau_seed2026.json`, SHA `9e84b909…`). **Mô hình CŨ**: SHA `6d87205c83a29fccc4eb450f0aec0c9d51ba56e1bb141664060041ab0f2fcad5`, sao lưu `data/_eval/an/ocr_cnn_hien_tai_sao_luu.json` (ngoài git; trong git ở mọi commit trước `949757e`). Khôi phục: `git show 949757e~1:smart_exam_db/models/ocr_cnn.json`.
+  Ghi bằng `python tools/xuat_ocr.py --tu-tep <tệp ứng viên> --sha-mong-doi <sha>` (KHÔNG huấn luyện lại: huấn luyện không tất định → mô hình huấn luyện lại là mô hình chưa đo); đường cũ `--cau-hinh` giữ nguyên.
+- **ĐIỀU KIỆN ĐÓNG BĂNG liên quan `models/` và phải đổi / lưu ý theo**:
+  1. `docs/dong_bang_ma_dot2.json`, `docs/dang_ky_test_dot2.json` (tag `dang-ky-dot2`, `ma-dot2-dong-bang-v3`) ghim SHA mô hình CŨ – KHÔNG sửa (bản ghi đăng ký lịch sử). Test đợt 2 vẫn chạy từ TAG (không từ nhánh này); trên nhánh này `test_eval_dot2` SKIP có chủ đích và **`tools/kiem_truoc_demo.py` báo "models/ocr_cnn.json KHÔNG ĐẠT (SHA KHÁC dong_bang_ma_dot2.json)" – đúng thiết kế**. Bản bảo vệ vẫn là tag `ban-bao-ve-12-11` / nhánh `cai-tien-b` (mô hình cũ).
+  2. `docs/dang_ky_test_he_thong.json` + `tools/eval_he_thong.py` (`FILE_SHA`, khoá một lần): kết quả test cuối 21/10 là của mô hình CŨ (và `omr.py` cũ); chạy lại cần đăng ký mới. Test pytest của đăng ký dùng SHA tính tại chỗ nên không vỡ.
+  3. Các mục 4d / 4e / 4l / 4n và `docs/ke_hoach_tuan6.md`, `docs/so_sanh_ocr_cnn.md`, `kich_ban_3_phien.md`, `tools/so_sanh_ocr.py`, `tools/ai_so_sanh_thuat_toan.py` (hằng 105 866), lời trên trang `demo_may_hoc.py` ("CNN 105 866 tham số", "467/504 = 92,66%") MÔ TẢ MÔ HÌNH CŨ – chưa viết lại (không đổi số liệu lịch sử); `tools/demo_may_hoc.py` chỉ sửa phép đếm tham số (trước đó `KeyError`). Số "26/56 ảnh SBD / mã đề cần xem" ở 4d là của mô hình cũ (mới 20/56).
+  4. Backend: `phien_ban_ocr` = `ocr_cnn-a151c078`; lúc khởi động backend tự ghi một dòng `ml_models` mới (hành vi cũ). `OCR_MODEL` mặc định không đổi.
+  5. Test đã đổi có chủ đích: chỉ `tests/test_ocr_suy_luan.py` (xem báo cáo). Nhánh `main` / `hoan-thien` / `cai-tien-b` KHÔNG có thay đổi này.
+
+### 4r. Lệnh AO – làm nhất quán sau khi thay mô hình (16/11/2026, nhánh `cnn-sau`; không đổi `models/`, không đổi tiêu chí AN)
+- `tools/kiem_truoc_demo.py`: thêm `SHA_KY_VONG_GHI_DE` (kỳ vọng SHA của `models/ocr_cnn.json` = mô hình MỚI `a151c078…`, ghi đè CÓ CHỦ ĐÍCH sổ đóng băng `docs/dong_bang_ma_dot2.json`, sổ này KHÔNG sửa); các mục khác vẫn theo sổ → 0 KHÔNG ĐẠT về mô hình trên nhánh này.
+- `tools/demo_may_hoc.py` + trang HTML: **CNN SÂU là mô hình triển khai** (kiến trúc 2 mạng cạnh nhau + mã suy luận NumPy thật trích bằng `inspect.getsource` từ `cv_engine/ocr.py`; bảng kết quả AM / AN đọc từ `data/_eval/am|an/ket_qua.json`; bảng 11 thuật toán AK; số liệu bộ dữ liệu; giới hạn: 48 trường chưa có ý nghĩa thống kê, dev lạc quan, chưa đo người viết lạ, lỗi im lặng 0 nhờ hai kênh). CNN cũ (bản sao lưu `data/_eval/an/ocr_cnn_hien_tai_sao_luu.json`) chỉ là bản so sánh. Trang tự chứa, không tải gì từ mạng.
+- Chuỗi người dùng nhìn thấy đã đổi: `tools/demo_may_hoc.py` (toàn bộ), `tools/demo_xu_ly_anh.py` (bước 7: tên mạng + nhiệt độ T lấy từ mô hình, không còn "Conv16–Conv32–Dense64" / "T = 1,75"), `docs/kich_ban_3_phien.md` (bảng phiên 2, câu hỏi đáp, dự phòng). Chú thích mã: `cv_engine/ocr.py`. Ghi chú "CNN = mô hình cũ" trong docstring `tools/so_sanh_ocr.py`, `ai_so_sanh_thuat_toan.py`, `ak_so_sanh_mo_rong.py`.
+  Bản ghi lịch sử GIỮ NGUYÊN: mục 4d / 4e / 4l / 4n ở trên và `docs/ke_hoach_tuan6.md`, `so_sanh_ocr_cnn.md`, `so_sanh_mo_rong_ak.md`, `tieu_chi_*`, `ket_qua_*`, `lenh_*` (mô tả mô hình lúc đó).
+
+### 4s. Lệnh AP – ba demo theo môn, một lệnh mỗi buổi (16/11/2026, nhánh `cnn-sau`; không đổi `models/`; chi tiết `docs/huong_dan_chay_3_demo.md`)
+- **Ba lệnh** (từ `smart_exam_db\`): `python tools/chay_demo.py xla | ml | dacn`. Mỗi lệnh: kiểm nhánh `cnn-sau` + SHA mô hình `a151c078…` → đặt lại RIÊNG kỳ thi của demo (`dat_lai_demo.py --ky-thi`) → mở máy chủ / dựng trang → mở trình duyệt → in 9 dòng "bấm gì, nói gì".
+  Cờ: `--chi-in`, `--khong-dat-lai`, `--khong-mo`, `--bo-qua-kiem-tra`, `--cong`, `--da-tinh-san` (ml). `xla` = công cụ ngoại tuyến (stdlib `http.server`, chỉ 127.0.0.1, không đăng nhập, không CSDL, ảnh tải lên ở thư mục tạm rồi xoá);
+  `ml` = `demo_may_hoc.py` (thêm mục "CNN và CNN sâu bằng lời", số mục tự đánh lại); `dacn` = `chay_server_lan.py` + `tools/demo_ly_thuyet_mon.py` ("Lý thuyết các môn": môn SUY RA từ hệ thống – là GIẢ ĐỊNH, ghi trên trang).
+- **Ba kỳ thi** (`python tools/nap_bo_demo.py --ba-mon [--ap-dung]`, chỉ INSERT, chạy lại không trùng; ĐÃ NẠP 16/11/2026): `[XLA] Xử lý ảnh` (exam_id 9694), `[ML] Máy học` (9695), `[ĐACN] Đồ án chuyên ngành` (9696): 40 câu, mã đề 101–104 (đáp án của bộ BV),
+  môn XLA / ML / DACN, lớp CNTT-K22A, `gv_an`, dự thi 220001–220009 (220010 ngoài danh sách = BV10). `dat_lai_demo.py --ky-thi xla|ml|dacn [--xac-nhan DAT_LAI]`: phạm vi = đúng MỘT exam_id (tiêu đề nguyên văn, phải có đúng một); hành vi cũ (không tham số) không đổi.
+- `demo_xu_ly_anh.py` bổ sung: bước 4b chuẩn hoá ánh sáng, bước 9 điểm TẠM (dùng `backend.grading.cham_diem`, đáp án từ `demo_bv_dap_an.csv`), bước 10 "CNN là gì?" (hình SVG + lời ngắn), tham số `ds` / `dau_trang` của `chay()`.
+- **Bước 0 đã làm**: `dat_lai_demo.py` thật 16/11/2026: xoá 1 phiếu demo của kỳ 1633 (#14798, BV06, kèm 1 điểm chính thức diễn tập); sao lưu `data/_eval/sao_luu_don_du_lieu/20261116_122521_dat_lai_demo/`. 1380, 1381 = 0 phiếu; 1632 giữ nguyên.
+- Test `tests/test_chay_demo.py` (29; không mở máy chủ / trình duyệt thật, CSDL trong ROLLBACK). Mật khẩu tài khoản demo KHÔNG nằm trong git (người dùng tự đặt).
+- Chưa kiểm được: tự mở trình duyệt thật (chỉ thử bằng giả lập), đăng nhập + thao tác trên giao diện `/app/` của `dacn` (cần mật khẩu), chạy `/m` trên điện thoại.
+
+### 4t. Lệnh AR – sửa 5 rủi ro đồng thời của lệnh AH (16/11/2026, nhánh `cnn-sau`; chi tiết `docs/tieu_chi_sua_ah.md`, `docs/ket_qua_sua_ah.md`)
+- Tiêu chí đăng ký TRƯỚC (`e1a4ef4`); sao lưu CSDL `data/_backup/smart_exam_db_20261116_133358_demo.dump`. **Tệp đóng băng (không chạm, băm kiểm lại)**: `models/*`, `cv_engine/*`, `backend/service.py`, `backend/schemas.py`, `layout.json` / mẫu PNG.
+  R1, R2, R3, R5 làm ở tầng điều phối mới `backend/dong_thoi.py` + `backend/main.py` (không đóng băng); R4 ở `auth.py`, `nguoi_dung.py`, `main.py` + migration 006.
+- **R1** (`185e071`): `dong_thoi.nhan_anh_an_toan` thử lại trong savepoint khi `UniqueViolation` (`uq_results_exam_student` / `uq_sheets_image_hash`) → hết 409 + mất phiếu; 60/60 (trước 17/60). **R2** (`c012bcb`): `pg_advisory_xact_lock` theo (kỳ thi, SHA-256 ảnh) cho đường tải một ảnh; 60/60 (trước 0/60, 13 lỗi 500).
+  **R3** (`5a150fc`): `/sheets/batch` lấy khoá mức kỳ thi đầu lô; 100/100, 0 deadlock (trước 100/100 deadlock). **R4** (`d305d23`): **migration 006 ĐÃ ÁP** (bảng `revoked_tokens`, băm SHA-256 token, chỉ thêm); token có nonce; `/auth/logout` thu hồi đúng một phiên (cookie, không có thì Bearer);
+  `xac_thuc` kiểm bảng + bộ nhớ tiến trình ở MỌI yêu cầu; backend KHÔNG khởi động khi `AUTH_MODE=on` mà thiếu bảng; 3/3 lượt. **R5** (`5befb21`): `CongCham` (BoundedSemaphore) `CHAM_DONG_THOI` (mặc định 4, ≥ 2) / `CHAM_CHO_GIAY` (30) trong `.env`; quá hạn → 503 + `Retry-After`; 20 yêu cầu: đỉnh bộ nhớ 620 MB (trước 3 158 MB).
+- Kiểm: pytest **626 đạt + 1 skip**; `tools/ah_thu_dong_thoi.py chay` (A–E + R1–R5, `--chi-ar [--chon R1,…]`) tất cả đạt; băm đầu ra 56 ảnh dev = mốc `54e54baa…` (`tools/ar_bam_dau_ra.py`); `kiem_truoc_demo` 0 KHÔNG ĐẠT. Không chậm đi ở ảnh đơn (830 → 747 ms) và thông lượng (2,93 → 2,95 ảnh/s).
+- **Còn lại**: R2 không phủ `/sheets/batch`; giới hạn chấm theo tiến trình (nhiều worker nhân lên); 503 chỉ kiểm bằng test (chưa gặp ở phép đo sống); `revoked_tokens` chưa có công cụ dọn; rủi ro #6 (khoá đăng nhập) và #7 (pool) của AH chưa làm. Các CSDL / nhánh khác dùng chung CSDL không bị ảnh hưởng (chỉ thêm một bảng).
 
 ## 5. Cài đặt và chạy
 
@@ -596,12 +730,15 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - Python 3.14 rất mới: cần kiểm tra TensorFlow có hỗ trợ không trước khi chạy suy luận local;
   nếu không, tạo venv riêng Python 3.12 cho phần ML.
 - Git: đã có `.gitignore` ở gốc (loại `.venv/`, `.idea/`, `data/`, `__pycache__/`, `.env`, ảnh
-  `*.png/*.jpg` trong `answer_sheet/output/`). Chưa có remote GitHub.
+  `*.png/*.jpg` trong `answer_sheet/output/`). **Có remote** `origin` = `https://github.com/congminhnguyendoan-ops/smart-exam-grading.git`
+  (kiểm 30/10/2026: `origin/main` = `63a1af2` (21/10); `main` cục bộ đi trước 71 commit; `cai-tien-b`, `chay-dot2` chưa đẩy lên; chế độ công khai / riêng tư chưa kiểm).
+  Không push khi người dùng chưa yêu cầu.
 - Có 2 venv: `smart_exam_db_1/.venv` và `smart_exam_db/answer_sheet/.venv`. **Chốt 03/10/2026: dùng
   `.venv` ở gốc** (terminal xác nhận `sys.executable` = `smart_exam_db_1\.venv\Scripts\python.exe`).
   `answer_sheet/.idea/misc.xml` còn trỏ tới đường dẫn cũ `~\Downloads\...` – không dùng.
-- Mật khẩu DB `smartexam123`: backend và `tools/db_check.py` đã đọc từ `.env` (không còn trong code Python); **vẫn ghi cứng** trong
-  `00_create_database.sql`, `run_all.bat/.sh`, `HUONG_DAN.md` (script tạo CSDL cần nó) – chấp nhận được khi làm local, cần lưu ý nếu công khai repo.
+- Mật khẩu DB: backend và `tools/db_check.py` đọc từ `.env` (`DATABASE_URL`). **Lệnh W (30/10/2026)**: `00_create_database.sql`, `run_all.bat/.sh` KHÔNG còn ghi cứng –
+  đọc `SMART_EXAM_DB_PASSWORD` (biến môi trường hoặc `.env`), thiếu thì dừng trước mọi lệnh psql (`tests/test_mat_khau_csdl.py`). Mật khẩu thật CHƯA đổi và
+  vẫn còn trong LỊCH SỬ git (commit cũ) – nếu công khai repo phải đổi mật khẩu role `smart_exam_app` (người dùng quyết).
 - Không gửi ảnh qua Zalo/Messenger (bị nén) – chỉ chép bằng cáp hoặc Google Drive.
 - (Lịch sử, ĐÃ XỬ LÝ Tuần 4 Bước 3–6) `find_markers()`/`align()` cũ trong `check_layout.py` chọn nhầm marker mà không báo
   lỗi (dev: 19/78 lỗi im lặng – `data/_eval/align_cu/truth_dev.csv`; 4 nguyên nhân + cách sửa: `docs/ke_hoach_tuan4.md`).

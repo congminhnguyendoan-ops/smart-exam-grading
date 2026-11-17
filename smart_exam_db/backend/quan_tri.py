@@ -34,8 +34,13 @@ def ds_ky_thi(conn) -> list[dict]:
     return conn.execute(f"{_DS_KY_THI} ORDER BY e.exam_id DESC").fetchall()
 
 
+def tim_ky_thi(conn, exam_id: int) -> dict | None:
+    """Như mot_ky_thi nhưng KHÔNG ném lỗi (nhật ký V4 đọc trạng thái trước mà không đổi thứ tự kiểm lỗi của thao tác)."""
+    return conn.execute(f"{_DS_KY_THI} WHERE e.exam_id = %s", (exam_id,)).fetchone()
+
+
 def mot_ky_thi(conn, exam_id: int) -> dict:
-    r = conn.execute(f"{_DS_KY_THI} WHERE e.exam_id = %s", (exam_id,)).fetchone()
+    r = tim_ky_thi(conn, exam_id)
     if not r:
         raise KhongTimThay(f"Không có kỳ thi {exam_id}.")
     return r
@@ -126,6 +131,12 @@ def _giao_vien(conn, user_id: int) -> dict:
     if not u or u["role"] != "teacher":
         raise KhongTimThay(f"Không có tài khoản giáo viên {user_id}.")
     return u
+
+
+def ten_dang_nhap(conn, user_id: int) -> str | None:
+    """Tên đăng nhập (cho nhật ký quản trị – lệnh V4); None nếu không có."""
+    r = conn.execute("SELECT username FROM users WHERE user_id = %s", (user_id,)).fetchone()
+    return r["username"] if r else None
 
 
 def _mat_khau_hop_le(mat_khau: str) -> None:

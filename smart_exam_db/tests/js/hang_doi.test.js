@@ -147,3 +147,24 @@ test("F4: tờ 'mat' chụp lại giữ số tờ, hết bị tính là mất; l
   const h2 = new HangDoi({ gui: m.gui });
   await assert.rejects(h2.khoiPhuc([{ stt: 1, soTo: 1, trangThai: "xong", sheetId: 9 }], async () => { throw loiMa(401, "hết phiên"); }), (e) => e.ma === 401);
 });
+
+test("V1: máy chủ từ chối rõ (409 kỳ thi đóng, 404) -> 'tuchoi', KHÔNG gửi lại được, bỏ ảnh; 5xx / mạng vẫn là 'loi' gửi lại được", async () => {
+  const m = mayChuGia();
+  const hd = new HangDoi({ gui: m.gui, toiDa: 4 });
+  const [a, b, c, d] = hd.them([tep("dong"), tep("ngoai"), tep("may_chu"), tep("mang")]);
+  m.cho[0].loi(loiMa(409, "Kỳ thi đã đóng – không nhận thêm ảnh.")); m.cho[1].loi(loiMa(404, "Không tìm thấy kỳ thi"));
+  m.cho[2].loi(loiMa(503, "Máy chủ lỗi")); m.cho[3].loi(loiMa(0, "Mất kết nối"));
+  await nghi();
+  assert.deepEqual([a, b, c, d].map((t) => t.trangThai), ["tuchoi", "tuchoi", "loi", "loi"]);
+  assert.equal(a.file, null); assert.equal(a.maLoi, 409); assert.match(a.loi, /đã đóng/);
+  assert.ok(c.file && d.file);                                       // lỗi mạng / máy chủ: giữ ảnh
+  assert.equal(hd.guiLai(a.stt), false); assert.equal(hd.guiLai(b.stt), false);
+  assert.deepEqual(hd.tong(), { daChup: 4, chamDuoc: 0, canXem: 0, tuChoi: 2, dangCho: 0, loi: 2, trung: 0 });
+  assert.equal(hd.dangBan(), false);
+  assert.equal(hd.guiLai(d.stt), true); assert.equal(d.trangThai, "gui");
+  const meta = hd.xuatSieuDuLieu();
+  assert.equal(meta[0].maLoi, 409); assert.equal(meta[2].loi, undefined);   // chỉ tờ bị từ chối mang lý do
+  const h2 = new HangDoi({ gui: m.gui });
+  const kq = await h2.khoiPhuc(meta.slice(0, 1), async () => { throw new Error("không gọi"); });
+  assert.equal(kq.phucHoi, 1); assert.equal(h2.ds[0].trangThai, "tuchoi"); assert.match(h2.ds[0].loi, /đã đóng/);
+});

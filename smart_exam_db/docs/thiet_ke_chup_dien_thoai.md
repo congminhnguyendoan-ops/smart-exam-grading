@@ -73,7 +73,7 @@ trong "Đã xoá gần đây" (iPhone) / "Thùng rác" (Android). (Trên vài m�
   KHÔNG xoá phiếu `needs_review` (giáo viên còn cần ảnh). Mặc định KHÔNG xoá ảnh của kỳ thi có "[DEMO" trong tên (`ANH_GIU_DEMO=1`) – demo / báo cáo cần ảnh.
 - Xoá ảnh gốc + ảnh nắn + 9 ảnh ô viết tay; chỉ tệp nằm TRONG `STORAGE_DIR` (kiểm sau `resolve()`); thiếu tệp không lỗi; xoá xong ghi `image_deleted_at = now()`.
 - API ảnh của phiếu đã xoá trả **410** "Ảnh đã được xoá sau khi chốt phiếu (chính sách giữ ảnh tạm)", không 500; giao diện hiện chữ thay ảnh.
-- Chạy: luồng nền nhẹ lúc khởi động + mỗi giờ, CHỈ khi `ANH_XOA_TU_DONG=1` – `chay_server_lan.py` bật sẵn (máy chủ thật); `uvicorn` gọi trực tiếp, pytest và công cụ
+- Chạy: luồng nền nhẹ lúc khởi động + mỗi giờ, CHỈ khi `ANH_XOA_TU_DONG=1` – `chay_server_lan.py --bat-don-anh` bật (từ lệnh Z 30/10/2026 mặc định TẮT; trước đó `chay_server_lan.py` bật sẵn); `uvicorn` gọi trực tiếp, pytest và công cụ
   `tools/*` (dùng TestClient trên CSDL thật) mặc định KHÔNG dọn → chạy test / đánh giá không bao giờ xoá ảnh thật. Thủ công: `python -m backend.don_anh` (xem trước) / `--ap-dung`.
   Chưa áp migration 003 → luồng dọn tự tắt, ghi cảnh báo; API ảnh vẫn chạy (đọc cột bằng `to_jsonb(...)`, không lỗi khi thiếu cột).
 - **Lượt dọn đầu tiên trên CSDL hiện tại** (xem trước 27/10, `python -m backend.don_anh`, chỉ đọc): 12 phiếu – 9 phiếu seed kỳ thi 1 (tệp không có trên đĩa → chỉ đánh dấu)

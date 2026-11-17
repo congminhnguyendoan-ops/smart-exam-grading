@@ -26,12 +26,37 @@ async function manQuanTri(tab) {
     main.innerHTML = `<div class="alert bad">Chỉ quản trị viên dùng được trang này.</div><p><a class="btn pri" id="ve-trang-chinh" href="${trangMacDinh()}">Về trang chính</a></p>`;
     return;
   }
-  const t = ["users", "classes"].includes(tab) ? tab : "exams";
+  const t = ["users", "classes", "audit"].includes(tab) ? tab : "exams";
   main.innerHTML = `<h2>Quản trị</h2><div class="row" style="margin:0 0 12px">
       <a class="btn ${t === "exams" ? "pri" : ""}" href="#/admin/exams">Quản lý kỳ thi</a>
       <a class="btn ${t === "classes" ? "pri" : ""}" href="#/admin/classes">Lớp học</a>
-      <a class="btn ${t === "users" ? "pri" : ""}" href="#/admin/users">Tài khoản giáo viên</a></div><div id="qt"></div>`;
-  if (t === "exams") await qtKyThi(); else if (t === "classes") await qtLop(); else await qtTaiKhoan();
+      <a class="btn ${t === "users" ? "pri" : ""}" href="#/admin/users">Tài khoản giáo viên</a>
+      <a class="btn ${t === "audit" ? "pri" : ""}" href="#/admin/audit">Nhật ký</a></div><div id="qt"></div>`;
+  if (t === "exams") await qtKyThi(); else if (t === "classes") await qtLop(); else if (t === "audit") await qtNhatKy(); else await qtTaiKhoan();
+}
+
+/* ------------------------------------------------------------------ nhật ký thao tác quản trị (lệnh V4) – 100 dòng gần nhất, chỉ đọc */
+const NHAN_HANH_DONG = { tao_ky_thi: "Tạo kỳ thi", sua_ky_thi: "Sửa kỳ thi", dong_ky_thi: "Đóng kỳ thi", mo_ky_thi: "Mở lại kỳ thi", xoa_ky_thi: "Xoá kỳ thi",
+  tao_tai_khoan: "Tạo tài khoản", dat_lai_mat_khau: "Đặt lại mật khẩu", vo_hieu_hoa_tai_khoan: "Vô hiệu hoá tài khoản", kich_hoat_tai_khoan: "Kích hoạt lại tài khoản",
+  gan_ky_thi: "Gán kỳ thi", bo_gan_ky_thi: "Bỏ gán kỳ thi", dat_lop_giao_vien: "Đặt lớp cho giáo viên", tao_lop: "Tạo lớp", sua_lop: "Sửa lớp",
+  vo_hieu_hoa_lop: "Vô hiệu hoá lớp", kich_hoat_lop: "Kích hoạt lại lớp", xoa_lop: "Xoá lớp", them_giao_vien_vao_lop: "Thêm giáo viên vào lớp",
+  bo_giao_vien_khoi_lop: "Bỏ giáo viên khỏi lớp", xac_nhan_hang_loat: "Xác nhận hàng loạt câu của một phiếu (duyệt)" };
+const NHAN_DOI_TUONG = { exam: "Kỳ thi", user: "Tài khoản", class: "Lớp" };
+const giaTriNk = (v) => (v === null || v === undefined || v === "" ? "–" : Array.isArray(v) ? (v.length ? v.join(", ") : "–") : typeof v === "object" ? JSON.stringify(v) : String(v));
+function chiTietNk(d) {
+  return Object.entries(d || {}).map(([k, v]) => k === "thay" && v && typeof v === "object"
+    ? Object.entries(v).map(([kk, x]) => `${kk}: ${giaTriNk(x.cu)} → ${giaTriNk(x.moi)}`).join("; ")
+    : k === "status" && v && typeof v === "object" ? `trạng thái: ${giaTriNk(v.cu)} → ${giaTriNk(v.moi)}` : `${k}: ${giaTriNk(v)}`).filter(Boolean).join(" · ");
+}
+async function qtNhatKy() {
+  const r = await api("/admin/audit?page=1&page_size=100");
+  $("#qt").innerHTML = `<div class="card"><h3>Nhật ký thao tác quản trị</h3>
+    <p class="muted small">${r.dong.length} / ${r.tong} dòng gần nhất (mới nhất trước). Chỉ ghi thao tác THÀNH CÔNG; không bao giờ ghi mật khẩu.</p>
+    <table><thead><tr><th>Thời điểm</th><th>Người thao tác</th><th>Hành động</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead><tbody>
+    ${r.dong.map((x) => `<tr><td class="small">${esc(new Date(x.created_at).toLocaleString("vi-VN"))}</td><td>${esc(x.actor_username || "(đã xoá)")}</td>
+      <td>${esc(NHAN_HANH_DONG[x.action] || x.action)}</td><td>${esc(NHAN_DOI_TUONG[x.object_type] || x.object_type)} #${esc(x.object_id ?? "–")}</td>
+      <td class="small">${esc(chiTietNk(x.details))}</td></tr>`).join("") || '<tr><td colspan="5" class="muted">Chưa có thao tác nào.</td></tr>'}
+    </tbody></table></div>`;
 }
 
 /* ------------------------------------------------------------------ lớp học (lệnh I) – chỉ lớp + giáo viên của lớp, KHÔNG quản lý sinh viên */

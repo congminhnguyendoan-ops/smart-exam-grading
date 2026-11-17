@@ -97,7 +97,8 @@ function nhanTrangThai(t) {
   if (t.trangThai === "cho") return ['<span class="tag gray">chờ gửi</span>', ""];
   if (t.trangThai === "gui") return [`<span class="tag blue">đang gửi ${Math.round(t.tienTrinh * 100)}%</span>`, ""];
   if (t.trangThai === "cham") return ['<span class="tag blue">đang chấm…</span>', ""];
-  if (t.trangThai === "loi") return ['<span class="tag bad">lỗi mạng</span>', ""];
+  if (t.trangThai === "loi") return [`<span class="tag bad">${t.maLoi >= 500 ? "lỗi máy chủ" : t.maLoi === 413 ? "ảnh quá lớn" : "lỗi mạng"}</span>`, ""];
+  if (t.trangThai === "tuchoi") return ['<span class="tag bad">bị từ chối</span>', ""];
   if (t.trangThai === "trung") return ['<span class="tag gray">đã tải trước đó</span>', ""];
   if (k.status === "rejected") return ['<span class="tag bad">bị từ chối</span>', ""];
   if (k.status === "graded") return [`<span class="tag ok">đã chấm ${fmt(k.official_score)}</span>`, ""];
@@ -106,10 +107,10 @@ function nhanTrangThai(t) {
 function canhBao(v) {
   if (!v) return [];
   const ly = (v.review && v.status === "needs_review" && v.review.reasons) || [], ra = [];
-  if (v.sbd && v.sbd.can_xem) ra.push(`SBD cần xem: ${(v.sbd.reasons || []).map((m) => LY_DO_SBD[m] || m).join(", ") || "máy chưa chắc"}`);
+  if (v.sbd && v.sbd.can_xem) ra.push(`SBD cần xem: ${esc(LyDoCot.moTa(v.sbd, LY_DO_SBD).join("; ")) || "máy chưa chắc"}`);   // V3: câu theo từng cột
   else if (ly.includes("sbd_not_found")) ra.push(`SBD ${esc(v.sbd && v.sbd.detected)} không có trong danh sách kỳ thi – chưa ghi điểm`);
   if (ly.includes("duplicate_sbd")) ra.push("SBD trùng với một phiếu khác");
-  if (v.exam_code && v.exam_code.can_xem) ra.push("Mã đề cần xem");
+  if (v.exam_code && v.exam_code.can_xem) ra.push(`Mã đề cần xem${LyDoCot.moTa(v.exam_code, LY_DO_SBD).length ? `: ${esc(LyDoCot.moTa(v.exam_code, LY_DO_SBD).join("; "))}` : ""}`);
   else if (!(v.exam_code && v.exam_code.matched_code)) ra.push(`Mã đề ${esc(v.exam_code && v.exam_code.detected)} không thuộc kỳ thi`);
   if (v.questions.some((q) => q.needs_review && (q.reasons || []).includes("to_nhat"))) ra.push("Tờ tô nhạt cả tờ – kiểm tra lại các câu");
   return ra;
@@ -132,6 +133,10 @@ function dongTo(t) {
     giua = `<div class="ten">${tenTepHtml(t.ten || "ảnh")} · ${esc(t.loi)}</div>`;
     duoi = t.thayBang ? `<div class="small muted">→ đã chụp lại</div>`
       : `<div class="cb">Ảnh chưa gửi xong nên không khôi phục được – phải chụp lại tờ này.</div><label class="nut-dong pri">📷 Chụp lại tờ ${t.soTo}<input type="file" accept="image/*" capture="environment" data-chup-lai="${t.stt}"></label>`;
+  } else if (t.trangThai === "tuchoi") {                               // V1: máy chủ trả lời rõ – gửi lại cũng hỏng, KHÔNG có nút Gửi lại
+    giua = `<div class="ten"><b>${esc(LoiTai.tieuDeTuChoi(t.maLoi))}:</b> ${esc(t.loi)}</div>`;
+    duoi = `<div class="cb">${t.maLoi === 409 ? "Ảnh chưa được lưu. Chọn kỳ thi khác (nút “Đổi kỳ thi”) hoặc nhờ quản trị viên mở lại kỳ thi rồi chụp lại."
+      : "Ảnh chưa được lưu. Kiểm tra lại kỳ thi đang chọn hoặc tài khoản."}</div>`;
   } else if (t.trangThai === "loi") {
     giua = `<div class="ten">${esc(t.loi)}</div>`;
     duoi = t.maLoi === 413 ? `<label class="nut-dong pri">📷 Chụp lại tờ ${t.soTo}<input type="file" accept="image/*" capture="environment" data-chup-lai="${t.stt}"></label>`
@@ -240,6 +245,7 @@ $("#logout").addEventListener("click", async () => {
   if (hd.dangBan() && !confirm("Còn tờ đang gửi / đang chấm. Đăng xuất sẽ dừng gửi. Vẫn đăng xuất?")) return;
   try { await api("/auth/logout", { method: "POST" }); } catch (_) { /* bỏ qua */ }
   try { sessionStorage.removeItem(KHOA_PHIEN); } catch (_) { /* bỏ qua */ }
+  KyThiDong.xoa();                                                       // V2: lựa chọn "Hiện cả kỳ thi đã đóng" không sang người sau
   st.me = null; manDangNhap("Đã đăng xuất.");
 });
 
@@ -247,14 +253,24 @@ $("#logout").addEventListener("click", async () => {
 async function manKyThi(thongBao) {
   st.exams = await api("/exams");
   const msg = $("#exam-msg"); msg.textContent = thongBao || ""; msg.classList.toggle("hidden", !thongBao);
-  const ds = $("#exam-list");
-  ds.innerHTML = st.exams.length ? st.exams.map((e) => `<button type="button" class="exam" data-id="${e.exam_id}">
-      <span class="sub">${esc(e.subject_name)} · ${esc(e.class_code || "không lớp")} · mã ${e.exam_id}</span><b>${esc(e.exam_title)}</b>
-      <span class="sub">${e.so_phieu} phiếu${e.status === "closed" ? " · ĐÃ ĐÓNG" : ""}</span></button>`).join("")
-    : '<p class="muted">Bạn chưa có kỳ thi nào. Tạo kỳ thi trên máy tính trước.</p>';
-  ds.querySelectorAll(".exam").forEach((b) => b.addEventListener("click", () => chonKyThi(Number(b.dataset.id))));
+  veDsKyThi();
   hien("v-exams");
 }
+/* V2: kỳ thi đã đóng (không nhận ảnh) ẩn mặc định – CHỈ lọc hiển thị (frontend/ky_thi_dong.js); QR trang bìa vẫn tra trong danh sách đầy đủ st.exams. */
+function veDsKyThi() {
+  const hienDong = KyThiDong.doc(), soDong = KyThiDong.soDong(st.exams), xem = KyThiDong.loc(st.exams, hienDong);
+  const ds = $("#exam-list");
+  ds.innerHTML = xem.length ? xem.map((e) => `<button type="button" class="exam" data-id="${e.exam_id}">
+      <span class="sub">${esc(e.subject_name)} · ${esc(e.class_code || "không lớp")} · mã ${e.exam_id}</span><b>${esc(e.exam_title)}</b>
+      <span class="sub">${e.so_phieu} phiếu${e.status === "closed" ? " · ĐÃ ĐÓNG" : ""}</span></button>`).join("")
+    : st.exams.length ? `<p class="muted">Không có kỳ thi đang mở (${soDong} kỳ thi đã đóng – bật "Hiện cả kỳ thi đã đóng" để xem).</p>`
+      : '<p class="muted">Bạn chưa có kỳ thi nào. Tạo kỳ thi trên máy tính trước.</p>';
+  ds.querySelectorAll(".exam").forEach((b) => b.addEventListener("click", () => chonKyThi(Number(b.dataset.id))));
+  $("#hien-dong").checked = hienDong;
+  $("#so-dong").textContent = soDong ? `(${soDong})` : "";
+  $("#hien-dong-wrap").classList.toggle("hidden", !soDong && !hienDong);
+}
+$("#hien-dong").addEventListener("change", (ev) => { KyThiDong.luu(ev.target.checked); veDsKyThi(); });
 function chonKyThi(id) {
   const e = st.exams.find((x) => x.exam_id === id);
   if (!e) return;

@@ -66,7 +66,8 @@ def so_voi_tham_chieu(moi: np.ndarray, ten_png: str, sha_ref: str, cung_phien_ba
 # Test API / dịch vụ chạy trên CSDL THẬT nhưng trong MỘT giao dịch luôn ROLLBACK (không để lại dòng nào) + thư mục ảnh tạm.
 # Không nối được CSDL / thiếu .env -> SKIP. Fixture kiểm cuối: số dòng các bảng chính sau rollback = trước khi test.
 BANG_KIEM = ("subjects", "exams", "exam_codes", "answer_keys", "students", "answer_sheets", "sheet_answers", "results",
-             "review_queue", "scan_batches", "ml_models", "score_audit_logs", "ocr_digits", "users", "classes", "teacher_classes")
+             "review_queue", "scan_batches", "ml_models", "score_audit_logs", "ocr_digits", "users", "classes", "teacher_classes",
+             "admin_audit_log")                                  # lệnh V4 (migration 005)
 
 
 def _dem_bang(conn) -> dict:
