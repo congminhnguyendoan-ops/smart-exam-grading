@@ -327,7 +327,7 @@ def test_t6_dockerfile_lenh_khoi_dong_va_an_toan():
 def test_t6_compose_chi_caddy_mo_cong_va_db_khong_publish():
     c = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "postgres:17" in c and "pgdata:" in c and "storage:" in c and "caddy:2" in c
-    assert len(_re.findall(r"^s+ports:", c, _re.M)) == 1 and '"443:443"' in c and "5432:5432" not in c and "8000:8000" not in c
+    assert len(_re.findall(r"^\s+ports:", c, _re.M)) == 1 and '"443:443"' in c and "5432:5432" not in c and "8000:8000" not in c
 
 
 def test_t6_caddyfile_co_tls_gioi_han_than_va_proxy():
