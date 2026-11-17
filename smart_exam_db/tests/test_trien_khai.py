@@ -383,3 +383,28 @@ def test_t2_dai_mang_cidr_nhu_trong_docker_compose():
     r2 = chay_py(MA_PROXY.replace('"10.0.0.1"', '"172.29.0.5"'), {"FORWARDED_ALLOW_IPS": "172.28.0.0/24"})
     kq2 = json.loads(r2.stdout.strip().splitlines()[-1])
     assert kq2["tin_cay_B_khong_bi_khoa_theo_A"] == [429]            # nguồn NGOÀI dải: bỏ qua header -> B dùng chung khoá theo IP kết nối
+
+
+# ------------------------------------------------------------------------------------------------ V7 (lệnh AV): liên kết Swagger ở giao diện
+import shutil
+
+
+def test_v7_lien_ket_swagger_an_san_va_chi_hien_khi_co_openapi():
+    html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert '<span id="lk-docs-wrap" class="hidden"><br><a href="/docs" target="_blank">API (Swagger)</a></span>' in html      # ẩn mặc định
+    assert '<script src="lien_ket_docs.js"></script>' in html
+    js = (ROOT / "frontend" / "lien_ket_docs.js").read_text(encoding="utf-8")
+    assert '"/openapi.json"' in js and 'classList.remove("hidden")' in js
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="không có node")
+def test_v7_js_logic_va_cu_phap():
+    r = subprocess.run(["node", "--check", str(ROOT / "frontend" / "lien_ket_docs.js")], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "lien_ket_docs.test.js")], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stdout[-800:] + r.stderr[-400:]
+
+
+def test_v7_may_chu_phuc_vu_script_va_docs_404_mac_dinh(client):
+    assert client.get("/app/lien_ket_docs.js").status_code == 200
+    assert client.get("/app/").status_code == 200
