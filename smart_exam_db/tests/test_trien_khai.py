@@ -374,3 +374,12 @@ def test_t7_mo_hinh_co_san_va_sha_dung():
 def test_t7_health_chi_tiet_bao_dung_sha_mo_hinh(client):
     j = client.get("/health").json()                  # conftest đặt HEALTH_CHI_TIET=1 (chế độ nội bộ)
     assert j["ocr_model"] == "ocr_cnn-a151c078" and j["omr_model"].startswith("omr_m1-")
+
+
+def test_t2_dai_mang_cidr_nhu_trong_docker_compose():
+    r = chay_py(MA_PROXY.replace('"10.0.0.1"', '"172.28.0.5"'), {"FORWARDED_ALLOW_IPS": "172.28.0.0/24"})
+    kq = json.loads(r.stdout.strip().splitlines()[-1])
+    assert kq["tin_cay_A_5_sai_roi_khoa"] == [401] * 5 + [429] and kq["tin_cay_B_khong_bi_khoa_theo_A"] == [401]    # proxy trong dải được tin
+    r2 = chay_py(MA_PROXY.replace('"10.0.0.1"', '"172.29.0.5"'), {"FORWARDED_ALLOW_IPS": "172.28.0.0/24"})
+    kq2 = json.loads(r2.stdout.strip().splitlines()[-1])
+    assert kq2["tin_cay_B_khong_bi_khoa_theo_A"] == [429]            # nguồn NGOÀI dải: bỏ qua header -> B dùng chung khoá theo IP kết nối
