@@ -29,10 +29,10 @@ from backend.db import ket_noi  # noqa: E402
 from backend.tai_khoan import dat_tai_khoan  # noqa: E402
 
 THU_MUC_SQL = ROOT / "database"
-FILE_NEN = ["01_schema.sql", "02_functions_triggers.sql", "03_views.sql"]       # CHỈ ba tệp này. 04_seed.sql / 05_demo_workflow.sql KHÔNG BAO GIỜ nằm ở đây.
+FILE_NEN = ["01_schema.sql", "02_functions_triggers.sql", "03_views.sql"]
 BANG_BAT_BUOC = ["users", "classes", "students", "exams", "answer_sheets", "results", "review_queue", "schema_migrations",
                  "revoked_tokens", "admin_audit_log", "teacher_classes"]
-BANG_PHAI_TRONG = ["users", "students", "classes", "exams", "answer_sheets", "results"]      # sau khởi tạo (chưa tạo admin) không được có dòng nào
+BANG_PHAI_TRONG = ["users", "students", "classes", "exams", "answer_sheets", "results"]
 
 
 def da_khoi_tao(conn) -> bool:
@@ -40,7 +40,6 @@ def da_khoi_tao(conn) -> bool:
 
 
 def ap_nen(conn) -> list[str]:
-    """01 -> 02 -> 03 trong giao dịch hiện tại (không commit ở đây)."""
     for ten in FILE_NEN:
         conn.execute((THU_MUC_SQL / ten).read_text(encoding="utf-8"))
     return list(FILE_NEN)
@@ -50,7 +49,6 @@ TEN_MAU_PHIEU = "Phiếu chuẩn 40 câu A4"
 
 
 def ap_mau_phieu(conn) -> bool:
-    """INSERT mẫu phiếu chuẩn (toạ độ lấy từ answer_sheet/output/layout.json – cùng nguồn với update_template.sql). Chạy lại an toàn (đã có thì không đổi). True = vừa thêm."""
     import json
     from psycopg.types.json import Jsonb
     layout = json.loads((ROOT / "answer_sheet" / "output" / "layout.json").read_text(encoding="utf-8"))
@@ -62,7 +60,6 @@ def ap_mau_phieu(conn) -> bool:
 
 
 def ap_migration_trong_giao_dich(conn) -> list[str]:
-    """Như backend.migrate.ap_dung nhưng KHÔNG commit (để thử trong schema tạm rồi ROLLBACK)."""
     xong = migrate.da_ap(conn)
     moi = []
     for f in migrate.ds_file():
@@ -75,14 +72,13 @@ def ap_migration_trong_giao_dich(conn) -> list[str]:
 
 
 def kiem_sau_khoi_tao(conn, so_dong_users_mong_doi: int) -> list[tuple[str, bool, str]]:
-    """Danh sách (mục kiểm, đạt?, chi tiết). Chỉ đọc."""
     kq = []
     thieu = [b for b in BANG_BAT_BUOC if conn.execute("SELECT to_regclass(%s) AS t", (b,)).fetchone()["t"] is None]
     kq.append(("đủ bảng bắt buộc", not thieu, "thiếu: " + ", ".join(thieu) if thieu else f"{len(BANG_BAT_BUOC)} bảng"))
     chua = migrate.chua_ap(conn, ca_tuy_chon=True)
     kq.append(("migration 001–006 đã áp hết", not chua, "chưa áp: " + ", ".join(chua) if chua else f"{len(migrate.ds_file())} tệp"))
     for b in BANG_PHAI_TRONG:
-        n = conn.execute(f"SELECT count(*) AS n FROM {b}").fetchone()["n"]          # tên bảng lấy từ hằng số nội bộ
+        n = conn.execute(f"SELECT count(*) AS n FROM {b}").fetchone()["n"]
         mong = so_dong_users_mong_doi if b == "users" else 0
         kq.append((f"bảng {b} đúng {mong} dòng (không có dữ liệu mẫu / tài khoản mặc định)", n == mong, f"{n} dòng"))
     n_mau = conn.execute("SELECT count(*) AS n FROM sheet_templates").fetchone()["n"]
@@ -94,7 +90,6 @@ def kiem_sau_khoi_tao(conn, so_dong_users_mong_doi: int) -> list[tuple[str, bool
 
 
 def tao_admin(conn, username: str, email: str | None, ho_ten: str | None) -> str:
-    """Tạo quản trị viên ĐẦU TIÊN (từ chối nếu tên đã có – không ghi đè mật khẩu của ai). Trả mật khẩu ngẫu nhiên (in một lần bởi người gọi)."""
     ten = username.strip()
     if not ten or any(c.isspace() for c in ten):
         raise SystemExit("DỪNG: tên quản trị viên không được rỗng hoặc có khoảng trắng.")
@@ -106,8 +101,6 @@ def tao_admin(conn, username: str, email: str | None, ho_ten: str | None) -> str
 
 
 def thu_schema_tam() -> dict:
-    """Chạy TOÀN BỘ trình tự (01–03 + migration + tạo admin) trong schema `tmp_khoi_tao_sx`, kiểm, rồi ROLLBACK. Không ghi gì lâu dài.
-    Trả {'trinh_tu': [...], 'kiem': [(muc, dat, chi_tiet)], 'schema_con_lai_sau_rollback': 0|1, 'dat': bool}."""
     ten_schema = "tmp_khoi_tao_sx"
     conn = ket_noi()
     trinh_tu: list[str] = []

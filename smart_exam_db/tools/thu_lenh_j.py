@@ -1,18 +1,3 @@
-"""
-thu_lenh_j.py - Thử bằng TRÌNH DUYỆT THẬT (Playwright Chromium) lệnh J (30/10/2026): trang đích sau đăng xuất / đăng nhập lại + xoá dữ liệu phiên trước.
-CHỈ ROLLBACK (tools/thu_dien_thoai.MayChuThu: máy chủ trong tiến trình, MỘT kết nối không commit) -> KHÔNG ghi dòng nào vào CSDL thật.
-Dùng đúng tài khoản thật `admin` và `gv_an`: mật khẩu của hai tài khoản chỉ được đặt tạm TRONG giao dịch sẽ ROLLBACK (mật khẩu thật không đổi).
-
-  python tools/thu_lenh_j.py
-
-(a) admin ở #/admin/exams -> Đăng xuất -> đăng nhập gv_an: rơi vào Tải ảnh (#/upload), không có thông báo đỏ.
-(b) sau đăng xuất: DOM không còn tên kỳ thi / tên người của phiên trước; khoá lưu trữ của ứng dụng đã xoá, hash = #/.
-(c) gv_an gõ trực tiếp #/admin (cả đổi hash lẫn mở trang mới): vẫn thấy thông báo từ chối + nút "Về trang chính" (bấm -> Tải ảnh).
-(d) đăng nhập lại đúng admin: vào được trang Quản trị.
-(e) phiên hết hạn, đăng nhập lại ĐÚNG người: quay lại đúng trang (#/admin/classes, #/sheet/<id>).
-(f) phiên hết hạn, người KHÁC đăng nhập ở #/sheet/<phiếu không thuộc quyền mình>: về trang mặc định, không thông báo lỗi.
-Ảnh + ket_qua.json: data/_eval/ui_j/.
-"""
 import json
 import os
 import sys
@@ -49,7 +34,6 @@ def _dang_xuat(pg):
 
 
 def _con_trong_dom(pg, chuoi):
-    """Các chuỗi còn nằm trong DOM (kể cả phần tử ẩn, thuộc tính title của option)."""
     html = pg.evaluate("() => document.body.innerHTML")
     return [s for s in chuoi if s and s in html]
 
@@ -70,8 +54,6 @@ def chay() -> dict:
         id_admin = c.execute("SELECT user_id FROM users WHERE username = 'admin'").fetchone()["user_id"]
         eid_rieng = service.tao_ky_thi(c, {"exam_title": TEN_KT_RIENG, "subject_code": "IT3080", "num_questions": 10, "max_score": 10, "pass_score": 5,
                                            "class_id": None, "codes": [{"code": "101", "answers": demo.khoa_demo("101", 10)}]}, id_admin)
-        # phiếu gv_an KHÔNG có quyền xem: kỳ thi không do gv_an phụ trách và không thuộc lớp gv_an dạy (cùng quy tắc backend/phan_quyen.py)
-        # (CSDL thật hiện chỉ có phiếu thuộc quyền gv_an -> nếu không có, tạo MỘT phiếu bị từ chối trong kỳ thi riêng của admin, cũng trong giao dịch ROLLBACK)
         r = c.execute("SELECT max(a.sheet_id) AS s FROM answer_sheets a JOIN exams e USING (exam_id), users u WHERE u.username = 'gv_an' "
                       "AND e.created_by <> u.user_id AND (e.class_id IS NULL OR e.class_id NOT IN (SELECT class_id FROM teacher_classes WHERE user_id = u.user_id))").fetchone()
         phieu_la = r["s"] or c.execute("INSERT INTO answer_sheets (exam_id, image_path, status, reject_code, original_filename, uploaded_by) "
@@ -83,13 +65,10 @@ def chay() -> dict:
             ctx = b.new_context(viewport={"width": 1400, "height": 1000}, locale="vi-VN")
             pg = ctx.new_page()
             pg.on("dialog", lambda d: d.accept())
-            # ---------------- (d0) admin mở /app/ lần đầu, đăng nhập: trang mặc định = Quản trị
             pg.goto(url + "/app/")
             _dang_nhap(pg, "admin")
             _cho_trang(pg, "#/admin", "Quản trị")
             k["d0_admin_dang_nhap_vao_quan_tri"] = pg.locator("#main .alert.bad").count() == 0
-            # admin chọn kỳ thi riêng (localStorage examId), lọc danh sách phiếu (sessionStorage loc) -> có dữ liệu phiên để xoá
-            # (mỗi thao tác vẽ lại trang: chờ phản hồi API của nó xong rồi mới đổi trang, tránh lượt vẽ cũ đè lên trang mới)
             pg.goto(url + "/app/#/sheets"); pg.wait_for_selector("#loc")
             with pg.expect_response(lambda r: f"/exams/{eid_rieng}/sheets" in r.url):
                 pg.select_option("#exam-select", str(eid_rieng))
@@ -102,7 +81,6 @@ def chay() -> dict:
             g["so_ky_thi_admin_thay"] = len(ten_kt_admin)
             pg.goto(url + "/app/#/admin/exams"); pg.wait_for_selector("#f-qt-tao")
             pg.screenshot(path=str(OUT / "01_admin_truoc_dang_xuat.png"), full_page=True)
-            # ---------------- (b) đăng xuất
             _dang_xuat(pg)
             con = _con_trong_dom(pg, [ten["admin"], TEN_KT_RIENG] + ten_kt_admin)
             luu = pg.evaluate("() => ({ examId: localStorage.getItem('examId'), loc: sessionStorage.getItem('loc'), hash: location.hash })")
@@ -111,7 +89,6 @@ def chay() -> dict:
             k["b_khoa_luu_tru_ung_dung_da_xoa"] = luu["examId"] is None and luu["loc"] is None
             k["b_hash_ve_goc"] = luu["hash"] in ("#/", "")
             pg.screenshot(path=str(OUT / "02_sau_dang_xuat.png"), full_page=True)
-            # ---------------- (a) đăng nhập gv_an
             _dang_nhap(pg, "gv_an")
             _cho_trang(pg, "#/upload", "Tải ảnh")
             k["a_gv_an_roi_vao_tai_anh"] = True
@@ -120,7 +97,6 @@ def chay() -> dict:
             g["gv_an_sau_dang_nhap_con_trong_dom"] = con
             k["a_khong_thay_ky_thi_rieng_admin"] = not con and pg.input_value("#exam-select") != str(eid_rieng)
             pg.screenshot(path=str(OUT / "03_gv_an_sau_dang_nhap.png"), full_page=True)
-            # ---------------- (c) gv_an gõ trực tiếp #/admin
             pg.evaluate("() => { location.hash = '#/admin'; }")
             pg.wait_for_selector("#ve-trang-chinh")
             k["c_doi_hash_thay_tu_choi"] = "Chỉ quản trị viên dùng được trang này" in pg.inner_text("#main .alert.bad")
@@ -129,13 +105,12 @@ def chay() -> dict:
             pg.click("#ve-trang-chinh")
             _cho_trang(pg, "#/upload", "Tải ảnh")
             k["c_bam_nut_ve_tai_anh"] = True
-            pg.goto(url + "/app/#/admin/users")                                 # mở hẳn trang mới với đường dẫn admin (đã có phiên)
+            pg.goto(url + "/app/#/admin/users")
             pg.wait_for_selector("#ve-trang-chinh")
             k["c_mo_trang_moi_thay_tu_choi"] = "Chỉ quản trị viên dùng được trang này" in pg.inner_text("#main .alert.bad") and "#/admin/users" in pg.url
             pg.screenshot(path=str(OUT / "05_gv_an_mo_trang_admin.png"), full_page=True)
-            if phieu_la:                                                        # tiền điều kiện của (f): máy chủ thật sự từ chối gv_an
+            if phieu_la:
                 k["f0_gv_an_get_phieu_la_404"] = pg.evaluate(f"() => fetch('/sheets/{phieu_la}').then((r) => r.status)") == 404
-            # ---------------- (d) gv_an đăng xuất -> admin đăng nhập lại: vào Quản trị
             pg.goto(url + "/app/#/sheets"); pg.wait_for_selector("#loc")
             _dang_xuat(pg)
             k["d_dom_khong_con_ten_gv_an"] = not _con_trong_dom(pg, [ten["gv_an"]])
@@ -144,9 +119,8 @@ def chay() -> dict:
             pg.wait_for_selector("#f-qt-tao")
             k["d_admin_vao_duoc_quan_tri"] = pg.locator("#main .alert.bad").count() == 0
             pg.screenshot(path=str(OUT / "06_admin_dang_nhap_lai.png"), full_page=True)
-            # ---------------- (e) phiên hết hạn, đăng nhập lại ĐÚNG người: quay lại đúng chỗ
             pg.goto(url + "/app/#/admin/classes"); pg.wait_for_selector("#f-qt-lop")
-            ctx.clear_cookies()                                                 # mô phỏng phiên hết hạn (máy chủ trả 401)
+            ctx.clear_cookies()
             pg.reload()
             pg.wait_for_selector("#f-login")
             k["e_het_phien_giu_hash"] = pg.evaluate("() => location.hash") == "#/admin/classes"
@@ -161,7 +135,6 @@ def chay() -> dict:
                 _dang_nhap(pg, "admin")
                 _cho_trang(pg, f"#/sheet/{phieu_la}", f"Phiếu #{phieu_la}")
                 k["e_dung_nguoi_quay_lai_dung_phieu"] = True
-                # ---------------- (f) phiên hết hạn ở phiếu của người khác -> gv_an đăng nhập: về Tải ảnh, không lỗi đỏ
                 ctx.clear_cookies(); pg.reload(); pg.wait_for_selector("#f-login")
                 _dang_nhap(pg, "gv_an")
                 _cho_trang(pg, "#/upload", "Tải ảnh")

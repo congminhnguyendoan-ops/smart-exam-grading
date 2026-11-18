@@ -1,34 +1,3 @@
-"""
-check_labels.py - Kiểm tra nhãn từng câu trên ảnh thật trước khi sửa ground_truth.csv.
-
-Với mỗi câu cần kiểm tra (vd 0032:33): đọc kịch bản trong ground_truth.csv, lấy mọi ảnh của phiếu
-trong data/raw/, nắn phẳng bằng cv_engine.preprocessing.preprocess() (Tuần 4 Bước 6 – thay align()/check_align() cũ;
-ảnh bị từ chối in rõ mã lý do), cắt hàng câu đó trên anh_nan, đo độ tối từng ô A-D bằng darkness() của check_layout.py,
-xuất trang HTML để so với tờ giấy thật. Phiếu test 0035–0040 cần --xac-nhan-test (cv_engine/tap_du_lieu.py).
-
-Gợi ý chỉ so độ tối trong cùng hàng (ô nào nổi bật) - CHỈ ĐỂ THAM KHẢO; rõ hay mờ phải xem bằng
-mắt (ngưỡng cố định từng sai toàn bộ ở ô tô mờ). Không sửa ground_truth.csv.
-
-Chạy (từ thư mục smart_exam_db/):
-  python tools/check_labels.py 0032:33 0008:18 0021:5,6,11,12,14
-
-Lệnh audit: quét các phiếu (40 câu + bubble SBD + mã đề), so với ground_truth.csv, xuất
-data/_prepare/label_audit_<split>/label_audit.html + label_audit.csv. Chỉ dùng ảnh preprocess() trả ok (đo trên anh_nan
-– cùng loại ảnh mà MARK_MIN / FILLED_MIN được chọn) và qua thêm STRICT_MARKER / MIN_SCALE; phiếu có 2 ảnh tốt thì đọc
-cả 2 để đối chiếu chéo. Mặc định CHỈ DEV 0001–0034; phiếu test chỉ quét SAU đánh giá cuối (Bước 7):
-  python tools/check_labels.py audit                                 # dev -> data/_prepare/label_audit_dev/
-  python tools/check_labels.py audit --split test --xac-nhan-test    # sau Bước 7 -> label_audit_test/
-  python tools/check_labels.py audit --split tat_ca --xac-nhan-test  # sau Bước 7 -> label_audit_tat_ca/
-Chốt chặn nằm TRƯỚC khi đọc bất kỳ ảnh nào: dòng nhãn của phiếu test bị lọc bỏ ngay khi đọc ground_truth.csv.
-
-  Đo tương đối, không dùng ngưỡng tuyệt đối của độ tối:
-  - Mỗi ô: v = độ tối - độ tối nhỏ nhất trong cùng hàng (ô trống của hàng đó; mỗi câu tô tối đa 2 ô).
-  - Chia cho S = trung vị v của các ô nhãn "tô rõ" trên CÙNG ảnh -> n ≈ 0 (trống) ... ≈ 1 (tô rõ).
-    S lấy trung vị trên ~40 ô nên vài nhãn sai không làm lệch.
-  - n < MARK_MIN: không tô; MARK_MIN..FILLED_MIN: mờ; >= FILLED_MIN: rõ.
-  Nhóm A: tập ô được tô khác nhãn (nhầm ô / thiếu ô / thừa ô) hoặc SBD/mã đề lệch.
-  Nhóm B: cùng tập ô, chỉ lệch rõ/mờ. Không sửa ground_truth.csv.
-"""
 import argparse
 import csv
 import html
@@ -39,7 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent.parent          # smart_exam_db/
+ROOT = Path(__file__).resolve().parent.parent
 ANSWER_SHEET = ROOT / "answer_sheet"
 sys.path.insert(0, str(ANSWER_SHEET))
 sys.path.insert(0, str(ROOT / "tools"))
@@ -48,13 +17,12 @@ from check_layout import darkness, render_pdf_page  # noqa: E402
 from prepare_photos import marker_fill, nan_anh  # noqa: E402
 from cv_engine.tap_du_lieu import PHIEU_DEV, PHIEU_TEST, ChamTapTest, chan_test  # noqa: E402
 
-GAP = 0.15                        # ô nổi bật phải tối hơn ô thứ hai ít nhất bấy nhiêu
-SCALE = 3                         # phóng to ảnh cắt
-LEFT_MM, RIGHT_MM, HALF_H_MM = 12.0, 5.0, 4.5   # khung cắt quanh hàng ô (để thấy cả số câu)
+GAP = 0.15
+SCALE = 3
+LEFT_MM, RIGHT_MM, HALF_H_MM = 12.0, 5.0, 4.5
 
 
 def describe(a: str) -> str:
-    """Diễn giải mã nhãn: chữ hoa = rõ, chữ thường = mờ, 2 chữ = tô nhiều ô, '-' = trống."""
     if a == "-":
         return "bỏ trống"
     if len(a) == 2:
@@ -63,8 +31,6 @@ def describe(a: str) -> str:
 
 
 def suggest(d: dict) -> str:
-    """So trong cùng hàng: ô trống in sẵn viền + chữ A-D nên tự nó đã tối ~0,27-0,38 trên ảnh thật,
-    ngưỡng tuyệt đối 0,25 của baseline sẽ báo nhầm mọi ô trống là 'mờ'."""
     ranked = sorted(d.items(), key=lambda kv: kv[1], reverse=True)
     (o1, v1), (o2, v2) = ranked[0], ranked[1]
     if v1 - v2 < GAP:
@@ -108,7 +74,7 @@ def main() -> None:
         row = gt[sid]
         scen = row[f"q{q}"]
         conds = [c.strip() for c in row["conditions"].split("+")]
-        conds.sort(key=lambda c: c != "C1")                    # ảnh C1 (rõ nhất) lên trước
+        conds.sort(key=lambda c: c != "C1")
         print(f"\nPhiếu {sid} câu {q}: kịch bản '{scen}' = {describe(scen)}")
         shots = []
         for c in conds:
@@ -162,21 +128,15 @@ table{{border-collapse:collapse;margin:4px 0}} td{{border:1px solid #ccc;padding
     print(f"\nTrang kiểm tra: {page}")
 
 
-# ============================================================================ audit cả 40 phiếu
-# Ngưỡng trên thang tương đối n (0 = ô trống, 1 = tô rõ điển hình). Đo 03/10/2026 trên 56 ảnh:
-# ô trống p99 = 0,06, ô mờ p1 = 0,26 -> MARK_MIN 0,25. Mờ/rõ chồng lấn (mờ p95 0,85, rõ p5 0,88);
-# 0,80 là điểm cân bằng: 34/367 ô mờ đo >= 0,80 và 34/1848 ô rõ đo < 0,80.
 MARK_MIN, FILLED_MIN = 0.25, 0.80
-# Kiểm tra cấp ảnh – chốt chặn PHỤ sau preprocess() (chọn 03/10/2026 trên 62 ảnh qua check_align() cũ; giữ ở Bước 6):
-STRICT_MARKER = 0.95   # ảnh nắn đúng: độ đen tâm marker đều = 1,00; 0013_C2/0018_C2 nắn sai: 0,68/0,83
-MIN_SCALE = 0.15       # S của ảnh đúng 0,30-0,62; ảnh sai tên/nắn sai 0,01-0,05 (ô "tô rõ" theo nhãn lại trống)
-SEARCH_MM = 4.0        # dò lại vị trí từng hàng trong ±4 mm (< nửa khoảng cách hàng 11 mm)
+STRICT_MARKER = 0.95
+MIN_SCALE = 0.15
+SEARCH_MM = 4.0
 FIELD_VI = {"sbd": "SBD", "exam_code": "Mã đề"}
 LEVEL_VI = {"blank": "trống", "faint": "mờ", "filled": "rõ"}
 
 
 def label_cells(code: str) -> dict:
-    """Mã nhãn -> {ô: 'filled'/'faint'}; ô không có trong dict là trống."""
     if code == "-":
         return {}
     if len(code) == 2:
@@ -189,7 +149,6 @@ def level(n: float) -> str:
 
 
 def read_code(lv: dict) -> str:
-    """Ngược với label_cells: {ô: mức} -> mã kiểu ground_truth (chữ thường = mờ)."""
     marked = [o for o, l in lv.items() if l != "blank"]
     if not marked:
         return "-"
@@ -197,8 +156,6 @@ def read_code(lv: dict) -> str:
 
 
 def local_darkness(aligned, cx, cy, r) -> float:
-    """Như darkness() nhưng so với nền giấy NGAY QUANH ô (vành 1,15r-1,45r, ngoài viền in sẵn):
-    bóng đổ / vệt sáng ngang qua hàng (vd 0032_C4) làm ô trống ở vùng tối trông như 'mờ'."""
     x0, y0 = int(cx - 1.5 * r), int(cy - 1.5 * r)
     patch = aligned[y0:int(cy + 1.5 * r), x0:int(cx + 1.5 * r)].astype(np.float32)
     yy, xx = np.ogrid[:patch.shape[0], :patch.shape[1]]
@@ -208,7 +165,6 @@ def local_darkness(aligned, cx, cy, r) -> float:
 
 
 def item_box(layout, item) -> tuple:
-    """Khung (x0, y0, x1, y1) trên phiếu chuẩn: 1 hàng câu (kèm số câu), hoặc cả khối SBD/mã đề."""
     px_mm = layout["dpi"] / 25.4
     kind, idx = item
     if kind == "q":
@@ -228,8 +184,6 @@ def item_box(layout, item) -> tuple:
 
 
 def register(aligned, blank, box, search: int) -> tuple[int, int]:
-    """Độ lệch (dx, dy) của vùng box trên ảnh so với phiếu trắng gốc (giấy cong -> align() lệch cục bộ
-    tới ~3 mm, vd 0014_C2). Tìm trong ±search px bằng so khớp mẫu."""
     x0, y0, x1, y1 = box
     region = aligned[max(0, y0 - search):y1 + search, max(0, x0 - search):x1 + search]
     res = cv2.matchTemplate(region, blank[y0:y1, x0:x1], cv2.TM_CCOEFF_NORMED)
@@ -238,7 +192,6 @@ def register(aligned, blank, box, search: int) -> tuple[int, int]:
 
 
 def measure_image(aligned, layout, row, blank) -> dict:
-    """Độ tối tương đối n của mọi ô trên 1 ảnh đã nắn (xem docstring đầu file)."""
     ans = layout["answers"]
     r = ans["bubble_radius"]
     search = round(SEARCH_MM * layout["dpi"] / 25.4)
@@ -258,16 +211,12 @@ def measure_image(aligned, layout, row, blank) -> dict:
         dx, dy = shift[(field, 0)]
         d = np.array([[local_darkness(aligned, cx + dx, cy + dy, f["bubble_radius"]) for cx, cy in col]
                       for col in f["bubbles"]])
-        # nền = trung vị 10 ô của cột (9 ô trống); thang = trung vị (ô tối nhất - nền) qua các cột
-        # của khối (ô bubble nhỏ hơn ô đáp án nên không dùng chung S); 1 cột sai không làm lệch thang.
-        # Sàn 0,5·S: khối không tô ô nào (vd mã đề 0035) thì thang không co về ~0 rồi khuếch đại nhiễu.
         v = d - np.median(d, axis=1, keepdims=True)
         out[field] = v / max(float(np.median(v.max(axis=1))), 0.5 * scale)
     return out
 
 
 def judge_question(n_row, code, options) -> tuple:
-    """(nhóm 'A'/'B'/None, mức chắc chắn, mô tả, mã đọc được) của 1 câu trên 1 ảnh."""
     lab = label_cells(code)
     lv = {o: level(v) for o, v in zip(options, n_row)}
     nv = dict(zip(options, n_row))
@@ -285,7 +234,6 @@ def judge_question(n_row, code, options) -> tuple:
 
 
 def judge_digit(n_col, label: str) -> tuple:
-    """label = 1 ký tự của cột sbd_bubble/exam_code_bubble: chữ số được tô, '-' = cột không tô ô nào."""
     marked = {k for k in range(10) if n_col[k] >= MARK_MIN}
     read = "".join(str(k) for k in sorted(marked)) or "-"
     want = set() if label == "-" else {int(label)}
@@ -302,7 +250,6 @@ def judge_digit(n_col, label: str) -> tuple:
 
 
 def color_crop(aligned, x0, y0, x1, y1, boxes, r, scale) -> np.ndarray:
-    """Cắt vùng, khoanh xanh dương quanh các ô theo NHÃN (không đè lên mực trong ô)."""
     img = cv2.cvtColor(aligned[y0:y1, x0:x1], cv2.COLOR_GRAY2BGR)
     img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     pad = r + 8
@@ -314,7 +261,6 @@ def color_crop(aligned, x0, y0, x1, y1, boxes, r, scale) -> np.ndarray:
 
 
 def crop_item(aligned, layout, row, item, shift) -> np.ndarray:
-    """Ảnh cắt đã bù độ lệch cục bộ: 1 hàng câu, hoặc 1 cột SBD/mã đề kèm ô viết tay."""
     px_mm = layout["dpi"] / 25.4
     kind, idx = item
     if kind == "q":
@@ -371,7 +317,6 @@ def cmd_audit(argv: list[str]) -> None:
     a = ap.parse_args(argv)
     out_dir = Path(a.out) if a.out else ROOT / "data" / "_prepare" / f"label_audit_{a.split}"
 
-    # Chốt chặn tập test – TRƯỚC khi đọc bất kỳ ảnh nào; dòng nhãn phiếu test bị bỏ ngay (dev) hoặc phải có cờ (tat_ca)
     with Path(a.ground_truth).open(encoding="utf-8-sig", newline="") as f:
         gt = {r["sheet_id"]: r for r in csv.DictReader(f)}
     if a.split == "dev":
@@ -385,11 +330,11 @@ def cmd_audit(argv: list[str]) -> None:
     blank = render_pdf_page(ANSWER_SHEET / "output" / "phieu_trang.pdf", layout["dpi"])
     img_dir = out_dir / "label_audit"
     img_dir.mkdir(parents=True, exist_ok=True)
-    for old in img_dir.glob("*.png"):       # chỉ xoá ảnh cắt của CHÍNH thư mục audit này (bản cũ ở chỗ khác giữ nguyên)
+    for old in img_dir.glob("*.png"):
         old.unlink()
 
     skipped, suspect, unscannable, coverage, scales = [], [], [], {}, []
-    findings = []                         # mỗi phần tử: 1 mục (câu / chữ số) bị nghi trên 1 phiếu
+    findings = []
     pooled = {"blank": [], "faint": [], "filled": []}
     for sid, row in gt.items():
         conds = sorted((c.strip() for c in row["conditions"].split("+")), key=lambda c: c != "C1")
@@ -443,13 +388,12 @@ def cmd_audit(argv: list[str]) -> None:
             hits = [p for p in per if p[4][0] == grp]
             findings.append({
                 "sid": sid, "item": item, "group": grp, "row": row,
-                "score": sum(p[4][1] for p in hits) / len(per),   # ảnh không thấy lỗi kéo điểm xuống
+                "score": sum(p[4][1] for p in hits) / len(per),
                 "agree": f"{len(hits)}/{len(per)}",
                 "kind": "; ".join(dict.fromkeys(p[4][2] for p in hits)),
                 "shots": per,
             })
 
-    # ---- phân bố n theo nhãn: để kiểm tra ngưỡng MARK_MIN / FILLED_MIN có hợp lý
     print(f"\nPhân bố độ tối tương đối n theo nhãn (ngưỡng: mờ >= {MARK_MIN}, rõ >= {FILLED_MIN}):")
     for k, vals in pooled.items():
         p = np.percentile(vals, [1, 5, 50, 95, 99])
@@ -459,7 +403,6 @@ def cmd_audit(argv: list[str]) -> None:
     print(f"  Thang S của {len(scales)} ảnh dùng được: {min(scales):.2f}–{max(scales):.2f} (loại ảnh nếu < {MIN_SCALE})")
 
     findings.sort(key=lambda f: (f["group"], -f["score"]))
-    # ---- ảnh cắt + CSV + HTML
     csv_path = out_dir / "label_audit.csv"
     with csv_path.open("w", encoding="utf-8-sig", newline="") as fcsv:
         w = csv.writer(fcsv)

@@ -1,29 +1,3 @@
-"""
-make_dataset_plan.py - Sinh "kịch bản tô" cho từng phiếu => NHÃN ĐÚNG (ground truth) có sẵn
-trước khi tô, không phải gán nhãn tay sau này.
-
-Chạy:  python make_dataset_plan.py              (mặc định 40 phiếu, khớp generate_sheets.py)
-       python make_dataset_plan.py --count 60 --seed 7
-
-Đầu ra (output/):
-  ground_truth.csv     1 dòng / phiếu: SBD, mã đề (viết tay), sbd_bubble, exam_code_bubble (ô tô),
-                       40 câu, bút, điều kiện chụp
-  cell_labels.csv      1 dòng / ô tròn + nhãn blank/filled/faint:
-                       - ô đáp án: question = 1..40, option = A..D  (40 x 4 ô / phiếu)
-                       - ô SBD/mã đề: question = sbd1..sbd6 / exam_code1..exam_code3, option = 0..9
-                         (10 ô / chữ số); question_state = filled, hoặc blank nếu chữ số đó không tô
-                       Lọc ô đáp án cho OMR: question là số.
-  phieu_giao_viec.pdf  in ra, đặt cạnh phiếu cùng mã khi tô (2 phiếu giao việc / trang A4)
-
-sbd_bubble / exam_code_bubble: chữ số được TÔ ở từng cột bubble; '-' = cột đó không tô ô nào (người tô
-quên, vd 0001 SBD chữ số 6, 0035 cả mã đề - 03/10/2026). Phiếu bình thường: giống số viết tay.
-
-Ký hiệu trong kịch bản:
-  B   = tô KÍN ô B                     (filled)
-  b   = tô MỜ ô B: tô nhẹ tay, ~50-70% (faint)
-  AC  = tô kín CẢ HAI ô A và C         (multiple)
-  -   = bỏ trống câu đó                (blank)
-"""
 import argparse
 import csv
 import os
@@ -42,8 +16,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 pdfmetrics.registerFont(TTFont("VN", os.path.join(HERE, "fonts", "DejaVuSans.ttf")))
 pdfmetrics.registerFont(TTFont("VNB", os.path.join(HERE, "fonts", "DejaVuSans-Bold.ttf")))
 
-# Tỉ lệ trạng thái mỗi câu. faint & multiple được "cố tình" nhiều hơn thực tế
-# để classifier có đủ mẫu của lớp hiếm (chống mất cân bằng dữ liệu).
 STATE_WEIGHTS = {"filled": 0.64, "faint": 0.18, "multiple": 0.08, "blank": 0.10}
 EXAM_CODES = ["101", "102", "103", "104"]
 PENS = ["Bút chì 2B", "Bút bi xanh", "Bút bi đen"]
@@ -56,7 +28,6 @@ CONDITIONS = {
 
 
 def balanced_digit_stream(rng):
-    """Sinh chữ số sao cho 0-9 xuất hiện đều nhau (mỗi 10 chữ số là 1 hoán vị)."""
     while True:
         block = list(range(10))
         rng.shuffle(block)
@@ -90,10 +61,10 @@ def make_plan(n, seed):
             "sheet_id": f"{i:04d}",
             "sbd": sbd,
             "exam_code": code,
-            "sbd_bubble": sbd,              # kịch bản: tô đúng số viết tay
+            "sbd_bubble": sbd,
             "exam_code_bubble": code,
             "pen": PENS[(i - 1) % len(PENS)],
-            "conditions": f"{cond_keys[(i - 1) % 4]}+{cond_keys[i % 4]}",   # mỗi phiếu chụp 2 lần
+            "conditions": f"{cond_keys[(i - 1) % 4]}+{cond_keys[i % 4]}",
             "answers": answers,
         })
     return plan
@@ -118,7 +89,6 @@ def cell_label(a, opt):
 
 
 def bubble_rows(p):
-    """Dòng cell_labels cho bubble SBD/mã đề: ô của chữ số được tô = filled, còn lại blank."""
     for field in ("sbd", "exam_code"):
         bubbles = p[f"{field}_bubble"]
         if len(bubbles) != len(p[field]) or any(ch not in "0123456789-" for ch in bubbles):
@@ -144,12 +114,11 @@ def write_csvs(plan, out):
             for q, a in enumerate(p["answers"], 1):
                 for opt in L.OPTIONS:
                     w.writerow([p["sheet_id"], q, opt, cell_label(a, opt), answer_state(a)])
-        for p in plan:                      # sau toàn bộ ô đáp án: các dòng cũ giữ nguyên thứ tự
+        for p in plan:
             w.writerows(bubble_rows(p))
 
 
 def draw_task(c, p, top_mm):
-    """Vẽ 1 phiếu giao việc, cao ~140mm, bắt đầu từ top_mm."""
     def T(x, y, s, size=9, font="VN", align="left", color=black):
         c.setFillColor(color)
         c.setFont(font, size)
@@ -204,7 +173,6 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     if a.from_csv:
         with open(os.path.join(a.out, "ground_truth.csv"), encoding="utf-8-sig") as f:
-            # ground_truth.csv cũ (trước 03/10/2026) chưa có cột *_bubble -> coi như tô đúng số viết tay
             plan = [{"sbd_bubble": r["sbd"], "exam_code_bubble": r["exam_code"], **r,
                      "answers": [r[f"q{q}"] for q in range(1, 41)]} for r in csv.DictReader(f)]
         write_csvs(plan, a.out)

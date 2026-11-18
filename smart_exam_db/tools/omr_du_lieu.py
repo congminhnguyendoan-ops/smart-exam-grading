@@ -1,13 +1,3 @@
-"""
-omr_du_lieu.py - Truy cập dữ liệu dùng chung cho công cụ HUẤN LUYỆN OMR (Tuần 5): danh sách ảnh theo split.csv,
-đệm ảnh đã nắn (data/_omr/anh/), nhãn ô từ cell_labels.csv.
-
-KHÔNG dùng trong tools/eval_omr.py (eval có bộ đọc nhãn riêng – docs/ke_hoach_tuan5.md mục 3).
-
-Chốt chặn:
-  - tập test 0035–0040: chan_test() (cv_engine/tap_du_lieu.py) TRƯỚC khi đọc file; dòng nhãn test bị bỏ ngay khi đọc;
-  - Phần A (07–13/10/2026): val 0029–0034 cũng bị chặn, trừ khi gọi với cho_phep_val=True (Phần B).
-"""
 import csv
 import hashlib
 import sys
@@ -28,11 +18,10 @@ VAN_TAY_V4 = DATA / "_eval" / "v4_verify" / "anh_nan_sha256.csv"
 
 
 class ChamTapVal(Exception):
-    """Phần A không được dùng val 0029–0034 (để kiểm tra cuối ở Phần B)."""
+    pass
 
 
 def ds_anh(tap: str = "train", cho_phep_val: bool = False) -> list[dict]:
-    """Các dòng split.csv của tập 'train' / 'val'. Không bao giờ trả ảnh test."""
     if tap not in ("train", "val"):
         raise ValueError("chỉ 'train' hoặc 'val' – tập test chỉ đọc qua eval_omr.py ở đánh giá cuối")
     if tap == "val" and not cho_phep_val:
@@ -66,8 +55,6 @@ def van_tay_v4() -> dict:
 
 
 def anh_da_nan(ten: str, layout: dict) -> tuple[np.ndarray, np.ndarray]:
-    """(anh_nan, anh_chuan_hoa) của ảnh dev 'NNNN_Ck', có đệm PNG (lossless) trong data/_omr/anh/.
-    anh_nan phải trùng vân tay v4 (Tuần 4) từng byte – không thì ném lỗi (đệm hỏng / preprocess đã đổi)."""
     chan_test([ten], False, "omr_du_lieu.anh_da_nan")
     p_nan, p_ch = DEM / f"{ten}_nan.png", DEM / f"{ten}_chuan.png"
     if p_nan.exists() and p_ch.exists():
@@ -88,7 +75,6 @@ def anh_da_nan(ten: str, layout: dict) -> tuple[np.ndarray, np.ndarray]:
 
 
 def nhan_o(cho_phep_val: bool = False) -> dict:
-    """{(phieu 'NNNN', question, option): cell_label} từ data/cell_labels.csv – chỉ phiếu train (+ val nếu cho phép)."""
     out = {}
     with (DATA / "cell_labels.csv").open(encoding="utf-8-sig", newline="") as f:
         for r in csv.DictReader(f):

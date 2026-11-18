@@ -1,5 +1,3 @@
-"""Lệnh G1: tools/don_du_lieu_test.py – xem trước không ghi, xoá đúng phạm vi, lệch số dòng thì hoàn tác, không đụng kỳ thi khác, tệp ảnh.
-Chạy trên CSDL thật trong giao dịch ROLLBACK (conn_thu) – KHÔNG BAO GIỜ chạy thật lên kỳ thi 1632 / 1633 trong test (phạm vi truyền vào là kỳ thi tạm của test)."""
 import sys
 import uuid
 
@@ -17,9 +15,6 @@ def _dem(conn):
 
 @pytest.fixture
 def the_gioi(conn_thu, tmp_path):
-    """Kỳ thi tạm E1 (phạm vi dọn, tên có [DEMO-BV-TẬP]) và E2 (kỳ thi khác, cũng [DEMO] – phải KHÔNG bị đụng; E3 không dấu – kỳ thi 'thật').
-    E1: A = phiếu chính thức (giữ); B = cần xem (có câu, hàng đợi, 2 ô viết tay); C = bị từ chối; V = phiếu có results 'void' + nhật ký điểm.
-    Ảnh thật nằm trong thư mục tạm `kho`."""
     c = conn_thu
     uid = c.execute("SELECT user_id FROM users ORDER BY user_id LIMIT 1").fetchone()["user_id"]
     mon = c.execute("INSERT INTO subjects (subject_code, subject_name) VALUES (%s, 'Môn dọn') RETURNING subject_id", ("D" + uuid.uuid4().hex[:8].upper(),)).fetchone()["subject_id"]
@@ -56,7 +51,7 @@ def the_gioi(conn_thu, tmp_path):
     for k in ("A", "B", "X2", "X3"):
         con(ids[k])
     c.execute("INSERT INTO results (exam_id, student_id, sheet_id, num_correct, score, status) VALUES (%s, %s, %s, 5, 5, 'confirmed')", (e1, sv, ids["A"]))
-    c.execute("INSERT INTO results (exam_id, student_id, sheet_id, num_correct, score, status) VALUES (%s, %s, %s, 3, 3, 'void')", (e1, sv, ids["V"]))     # trigger ghi score_audit_logs
+    c.execute("INSERT INTO results (exam_id, student_id, sheet_id, num_correct, score, status) VALUES (%s, %s, %s, 3, 3, 'void')", (e1, sv, ids["V"]))
     return {"conn": c, "e1": e1, "e2": e2, "e3": e3, "ids": ids, "kho": kho, "sv": sv}
 
 
@@ -65,13 +60,13 @@ def test_xem_truoc_khong_ghi_gi(the_gioi):
     truoc = _dem(c)
     kh = D.lap_ke_hoach(c, (g["e1"],))
     txt = D.in_xem_truoc(kh)
-    assert _dem(c) == truoc                                                  # không ghi gì
-    assert [p["sheet_id"] for p in kh["giu"]] == [g["ids"]["A"]]             # giữ: phiếu chính thức hợp lệ
+    assert _dem(c) == truoc
+    assert [p["sheet_id"] for p in kh["giu"]] == [g["ids"]["A"]]
     assert sorted(kh["ids"]) == sorted(g["ids"][k] for k in ("B", "C", "V", "KHONG_ANH"))
-    assert kh["dem"] == {"score_audit_logs": 1, "results": 1, "ocr_digits": 2, "sheet_answers": 2, "review_queue": 1, "answer_sheets": 4}   # đếm từ CSDL thật
+    assert kh["dem"] == {"score_audit_logs": 1, "results": 1, "ocr_digits": 2, "sheet_answers": 2, "review_queue": 1, "answer_sheets": 4}
     assert "GIỮ (1 phiếu)" in txt and "XOÁ (4 phiếu)" in txt and "att.pc5ziE….jpeg" in txt and "NGOÀI PHẠM VI" in txt
-    assert any(p["sheet_id"] == g["ids"]["X2"] for p in kh["ngoai_pham_vi"])    # kỳ thi [DEMO] khác: chỉ liệt kê
-    assert not any(p["sheet_id"] == g["ids"]["X3"] for p in kh["ngoai_pham_vi"])    # kỳ thi không có dấu: không nhắc
+    assert any(p["sheet_id"] == g["ids"]["X2"] for p in kh["ngoai_pham_vi"])
+    assert not any(p["sheet_id"] == g["ids"]["X3"] for p in kh["ngoai_pham_vi"])
 
 
 def test_thuc_hien_dung_pham_vi_va_dem_dung_so_dong(the_gioi):
@@ -83,13 +78,13 @@ def test_thuc_hien_dung_pham_vi_va_dem_dung_so_dong(the_gioi):
     sau = _dem(c)
     assert {b: truoc[b] - sau[b] for b in D.BANG_XOA} == kh["dem"]
     ton_tai = lambda k: c.execute("SELECT 1 FROM answer_sheets WHERE sheet_id = %s", (g["ids"][k],)).fetchone() is not None   # noqa: E731
-    assert ton_tai("A") and ton_tai("X2") and ton_tai("X3")                  # phiếu giữ + kỳ thi khác còn nguyên
+    assert ton_tai("A") and ton_tai("X2") and ton_tai("X3")
     assert not any(ton_tai(k) for k in ("B", "C", "V", "KHONG_ANH"))
-    assert c.execute("SELECT count(*) AS n FROM results WHERE sheet_id = %s", (g["ids"]["A"],)).fetchone()["n"] == 1      # điểm chính thức còn
-    for k in ("X2", "X3"):                                                    # bảng con của kỳ thi khác còn nguyên
+    assert c.execute("SELECT count(*) AS n FROM results WHERE sheet_id = %s", (g["ids"]["A"],)).fetchone()["n"] == 1
+    for k in ("X2", "X3"):
         assert c.execute("SELECT count(*) AS n FROM sheet_answers WHERE sheet_id = %s", (g["ids"][k],)).fetchone()["n"] == 2
         assert c.execute("SELECT count(*) AS n FROM review_queue WHERE sheet_id = %s", (g["ids"][k],)).fetchone()["n"] == 1
-    for k in ("exams", "students", "subjects", "exam_codes", "answer_keys", "users", "classes"):                        # không xoá bảng danh mục
+    for k in ("exams", "students", "subjects", "exam_codes", "answer_keys", "users", "classes"):
         assert c.execute(f"SELECT count(*) AS n FROM {k}").fetchone()["n"] >= 0
     assert c.execute("SELECT 1 FROM exams WHERE exam_id = ANY(%s)", ([g["e1"], g["e2"], g["e3"]],)).fetchall().__len__() == 3
     ks = D.kiem_sau(c, (g["e1"],))
@@ -100,10 +95,10 @@ def test_lech_so_dong_thi_hoan_tac(the_gioi):
     c, g = the_gioi["conn"], the_gioi
     truoc = _dem(c)
     kh = D.lap_ke_hoach(c, (g["e1"],))
-    kh["dem"] = {**kh["dem"], "sheet_answers": kh["dem"]["sheet_answers"] + 1}      # xem trước nói 3, thực tế 2 → lệch
+    kh["dem"] = {**kh["dem"], "sheet_answers": kh["dem"]["sheet_answers"] + 1}
     with pytest.raises(D.LoiDon, match="sheet_answers"):
         D.thuc_hien(c, kh)
-    assert _dem(c) == truoc                                                  # HOÀN TÁC toàn bộ phần đã xoá (kể cả bảng xoá trước đó)
+    assert _dem(c) == truoc
     kh2 = D.lap_ke_hoach(c, (g["e1"],))
     kh2["dem"] = {**kh2["dem"], "answer_sheets": 99}
     with pytest.raises(D.LoiDon):
@@ -116,17 +111,16 @@ def test_ids_va_giu(the_gioi):
     kh = D.lap_ke_hoach(c, (g["e1"],), ids_them=[g["ids"]["X2"]], giu_them=[g["ids"]["B"]])
     assert g["ids"]["X2"] in kh["ids"] and g["ids"]["B"] not in kh["ids"]
     assert {p["sheet_id"] for p in kh["giu"]} == {g["ids"]["A"], g["ids"]["B"]}
-    with pytest.raises(D.LoiDon, match="kỳ thi thật|không có dấu"):               # kỳ thi không có dấu [DEMO / [THU: từ chối
+    with pytest.raises(D.LoiDon, match="kỳ thi thật|không có dấu"):
         D.lap_ke_hoach(c, (g["e1"],), ids_them=[g["ids"]["X3"]])
     with pytest.raises(D.LoiDon, match="Không có|không có phiếu"):
         D.lap_ke_hoach(c, (g["e1"],), ids_them=[2_000_000_000])
     ks = D.lap_ke_hoach(c, (g["e1"],))
-    assert g["ids"]["X3"] not in ks["ids"] and g["ids"]["X2"] not in ks["ids"]       # mặc định không đụng kỳ thi nào ngoài phạm vi
+    assert g["ids"]["X3"] not in ks["ids"] and g["ids"]["X2"] not in ks["ids"]
 
 
 def test_ids_khong_xoa_phieu_co_diem_chinh_thuc_hop_le(the_gioi):
     c, g = the_gioi["conn"], the_gioi
-    # A đã nằm trong phạm vi nên được giữ; thử đưa một phiếu chính thức của kỳ thi [DEMO] khác vào --ids → từ chối
     sv = c.execute("INSERT INTO students (student_code, full_name) VALUES (%s, 'SV 2') RETURNING student_id", (str(uuid.uuid4().int)[:12],)).fetchone()["student_id"]
     sid = c.execute("INSERT INTO answer_sheets (exam_id, image_path, status, matched_student_id) VALUES (%s, 'x.jpg', 'graded', %s) RETURNING sheet_id", (g["e2"], sv)).fetchone()["sheet_id"]
     c.execute("INSERT INTO results (exam_id, student_id, sheet_id, num_correct, score, status) VALUES (%s, %s, %s, 1, 1, 'confirmed')", (g["e2"], sv, sid))
@@ -140,13 +134,13 @@ def test_sao_luu_va_xoa_tep(the_gioi, tmp_path):
     tep = D.sao_luu(c, kh, tmp_path / "sl", g["kho"])
     ten = {p.name for p in tep}
     assert {"answer_sheets.csv", "sheet_answers.csv", "review_queue.csv", "ocr_digits.csv", "results.csv", "score_audit_logs.csv", "ke_hoach.json"} <= ten
-    assert (tmp_path / "sl" / "answer_sheets.csv").read_text(encoding="utf-8").count("\n") >= 5          # tiêu đề + 4 phiếu
+    assert (tmp_path / "sl" / "answer_sheets.csv").read_text(encoding="utf-8").count("\n") >= 5
     kho_ngoai = tmp_path / "ngoai.txt"
-    kho_ngoai.write_text("không được xoá", encoding="utf-8")                # ghi rõ UTF-8: mã hoá mặc định cp1252 (Windows, không UTF-8 mode) không chứa được chữ Việt
+    kho_ngoai.write_text("không được xoá", encoding="utf-8")
     ket = D.xoa_tep(g["kho"], kh["tep"] + ["../ngoai.txt", "khong/co/tep.jpg"])
     assert ket["bo_qua_ngoai_kho"] == 1 and ket["khong_ton_tai"] >= 1 and ket["da_xoa"] >= 3
-    assert kho_ngoai.exists()                                                # tệp ngoài kho không bao giờ bị xoá
-    assert (g["kho"] / "ocr" / f"{g['ids']['A']}_0.png").exists()            # ảnh của phiếu GIỮ còn
+    assert kho_ngoai.exists()
+    assert (g["kho"] / "ocr" / f"{g['ids']['A']}_0.png").exists()
     assert not any((g["kho"] / rel).exists() for rel in kh["tep"])
 
 
@@ -159,5 +153,5 @@ def test_rut_gon_ten():
 def test_mac_dinh_pham_vi_chi_hai_ky_thi_demo():
     assert D.PHAM_VI == (1632, 1633)
     src = (ROOT / "tools" / "don_du_lieu_test.py").read_text(encoding="utf-8")
-    assert 'if not a.thuc_hien:\n            conn.read_only = True' in src      # mặc định giao dịch CHỈ ĐỌC
+    assert 'if not a.thuc_hien:\n            conn.read_only = True' in src
     assert '"XOA"' in src and "conn.commit()" in src and src.count("conn.commit()") == 1

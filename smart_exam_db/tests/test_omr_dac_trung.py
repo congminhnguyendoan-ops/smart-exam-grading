@@ -1,4 +1,3 @@
-"""Kiểm thử đặc trưng ô của cv_engine/omr.py (Tuần 5, Phần A mốc A2)."""
 import sys
 
 import numpy as np
@@ -17,7 +16,6 @@ def layout():
 
 
 def test_phieu_trang_dung_san_thang(layout):
-    """Phiếu trắng (mẫu PNG, không ô nào tô – giống phiếu bỏ trống): S_anh rơi về sàn S_SAN, ld_anh mọi ô nhỏ."""
     mau = omr.nap_mau()
     dv = omr.dinh_vi(mau, layout, mau)
     assert not any(dv.co.values())
@@ -29,7 +27,6 @@ def test_phieu_trang_dung_san_thang(layout):
 
 
 def test_o_to_ro_toi_nhat(layout):
-    """0001_C1 câu 2 nhãn 'A' (rõ): ô A tối nhất hàng, hạng 0; đặc trưng hữu hạn."""
     can_file(ROOT / "data" / "raw" / "0001_C1.jpg", ROOT / "data" / "split.csv")
     from omr_du_lieu import anh_da_nan
     nan, _ = anh_da_nan("0001_C1", layout)

@@ -1,5 +1,3 @@
-"""Ảnh giả lỗi cố ý (data/_eval/_gia_v4, tạo từ ảnh dev bằng tools/kiem_verify.py tao-gia): bị từ chối đúng mã.
-Mong đợi lấy từ danh_sach.csv – chốt TRƯỚC khi chạy verify() ở Bước 4 – không viết lại ở đây."""
 import csv
 
 import pytest
@@ -8,8 +6,6 @@ from conftest import GIA, can_file
 from cv_engine.preprocessing import MA_LY_DO, nap_layout, preprocess
 
 NHOM = {"khong_du_marker": {"thieu_marker", "marker_khong_dat"}}
-# Mỗi mã từ chối một ca (+ một ca xoay phải ok): che marker, marker chạm mép, hai tờ, tờ khác lọt khung, mờ,
-# nhầm loại trang, không có phiếu, quá nghiêng.
 CA = ["che_toi_tl_0001_C1", "cat_muc_2px_br_0001_C1", "hai_to_1_0001_C1+0008_C4", "lot_khung_19mm_0001_C1",
       "mo_gauss8_0001_C1", "nham_loai_D003", "khong_phieu_giay_0005_C2", "qua_nghieng_45_0008_C4", "xoay180_0006_C2"]
 

@@ -1,4 +1,3 @@
-"""Lệnh AA phần B: bảng màu chung (frontend/mau.css) – tương phản đạt WCAG, mọi màu chỉ ở một chỗ, trạng thái luôn kèm chữ. Không cần CSDL."""
 import re
 import sys
 
@@ -14,7 +13,7 @@ bo_cmt = lambda s: re.sub(r"/\*.*?\*/", "", s, flags=re.S)  # noqa: E731
 def test_cong_thuc_tuong_phan_dung_moc_wcag():
     assert round(K.ty_le("#000000", "#FFFFFF"), 2) == 21.0
     assert round(K.ty_le("#FFFFFF", "#FFFFFF"), 2) == 1.0
-    assert round(K.ty_le("#767676", "#FFFFFF"), 2) == 4.54                 # mốc quen thuộc: xám nhạt nhất đạt 4,5:1 trên trắng
+    assert round(K.ty_le("#767676", "#FFFFFF"), 2) == 4.54
 
 
 def test_moi_cap_mau_chinh_dat_nguong():
@@ -38,7 +37,6 @@ def test_mau_chi_dinh_nghia_o_mau_css_va_bien_nao_cung_co():
 
 
 def test_vien_o_nhap_dat_3_1_va_vien_the_van_nhe():
-    """Lệnh AB: input / select / textarea dùng --vien-o (≥ 3:1 với thẻ, nền trang, thanh bên); .card vẫn viền --line nhẹ."""
     ds = {(d["chu"], d["nen"]): d for d in K.bang()}
     for nen in ("--card", "--bg", "--side"):
         assert ds[("--vien-o", nen)]["dat"] and ds[("--vien-o", nen)]["ty_le"] >= 3.0, nen
@@ -63,7 +61,6 @@ def test_mau_css_nap_truoc_va_khong_che_do_toi():
 
 
 def test_trang_thai_luon_kem_chu():
-    """Chính thức / Cần xem / Bị từ chối: nhãn có chữ, không chỉ dựa vào màu (app.js NHAN_TRANG_THAI, NHAN_BD)."""
     js = (FRONTEND / "app.js").read_text(encoding="utf-8")
     for chu, lop in (("Chính thức", "ok"), ("Cần xem", "warn"), ("Bị từ chối", "bad")):
         assert f'["{chu}", "{lop}"]' in js, chu

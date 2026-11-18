@@ -37,10 +37,9 @@ from cv_engine.tap_du_lieu import PHIEU_TRAIN, chan_test, ma_phieu  # noqa: E402
 RA = ROOT / "data" / "_eval" / "so_sanh_ocr"
 NGUON = "anh_nan"
 OOF_CNN = H.OCR / "cap" / "oof_g0_goc_2026.npz"
-C_M0 = 10.0                    # chọn ở Tuần 6 Bước 4 trên val NỘI BỘ MNIST (data/_eval/ocr/m0_buoc4.json) – không dùng dữ liệu dev
+C_M0 = 10.0
 
 
-# ------------------------------------------------------------------------------------------------ tiện ích
 def wilson(k: int, n: int, z: float = 1.959964) -> list[float]:
     if n == 0:
         return [0.0, 1.0]
@@ -52,8 +51,6 @@ def wilson(k: int, n: int, z: float = 1.959964) -> list[float]:
 
 
 def bo_nho_tien_trinh_mb() -> float | None:
-    """Working set của tiến trình (Windows, K32GetProcessMemoryInfo) – MB; khác Windows / lỗi -> None.
-    (Bản 27/10 gọi psapi không khai báo kiểu handle 64-bit -> lời gọi thất bại, luôn trả 0: số RAM working set bản đó KHÔNG hợp lệ.)"""
     try:
         class PMC(ctypes.Structure):
             _fields_ = [("cb", ctypes.c_ulong), ("PageFaultCount", ctypes.c_ulong), ("PeakWorkingSetSize", ctypes.c_size_t),
@@ -87,7 +84,6 @@ def so_tham_so_cnn(mh) -> int:
     return int(sum(np.asarray(v).size for m in mh.thanh_vien for k, v in m.items() if k != "T"))
 
 
-# ------------------------------------------------------------------------------------------------ Bước 1
 def do_cnn() -> dict:
     RA.mkdir(parents=True, exist_ok=True)
     tep = ocr.DUONG_DAN_MO_HINH
@@ -110,7 +106,6 @@ def do_cnn() -> dict:
     for i in range(300):
         j = (9 * i) % (len(x) - 9)
         a = time.perf_counter(); ocr.du_doan_xac_suat(mh, x[j:j + 9]); t9.append((time.perf_counter() - a) * 1000)
-    # cả phiếu: doc_chu_so (dò khung + cắt 9 ô + CNN) trên ảnh dev 0001–0028 đã nắn (preprocess KHÔNG tính giờ)
     from cv_engine.preprocessing import nap_layout, preprocess
     layout = nap_layout("phieu")
     anh = sorted(p for p in (ROOT / "data" / "raw").glob("00[0-2][0-9]_C?.jpg") if (ma_phieu(p.stem) or 0) in PHIEU_TRAIN)
@@ -135,9 +130,7 @@ def do_cnn() -> dict:
     return kq
 
 
-# ------------------------------------------------------------------------------------------------ Bước 2–3
 def danh_gia(ten: str, y: np.ndarray, prob: np.ndarray, nguong: dict) -> dict:
-    """Độ đúng (Wilson 95%), cặp nhầm nhiều nhất, 'sai mà tự tin' theo từng ngưỡng {tên: hàm(prob)->mask chắc}."""
     p = prob.argmax(1)
     n, k = len(y), int((p == y).sum())
     cap = Counter((int(a), int(b)) for a, b in zip(y, p) if a != b)
@@ -157,7 +150,6 @@ def nguong_cnn(mh):
 
 
 def mcnemar(y, pa, pb) -> dict:
-    """Kiểm định McNemar CHÍNH XÁC (nhị thức trên các cặp bất đồng) – cùng chữ số, hai mô hình."""
     from scipy.stats import binomtest
     a_dung_b_sai, a_sai_b_dung = int(((pa == y) & (pb != y)).sum()), int(((pa != y) & (pb == y)).sum())
     n = a_dung_b_sai + a_sai_b_dung
@@ -165,8 +157,6 @@ def mcnemar(y, pa, pb) -> dict:
 
 
 def tac_dong_he_thong(prob_p: np.ndarray, meta_p: list[dict], tau_khop: float | None = None) -> dict:
-    """Áp LUẬT SẢN XUẤT (đối chiếu hai kênh Q3, τ_khop 0,5 – tools/ocr_cai_tien.doi_chieu_dev, bubble OMR dev data/_ocr/omr_dev.json)
-    với xác suất của mô hình chữ số: T4 = % ảnh (56) có SBD hoặc mã đề "cần xem"; IL = trường được NHẬN mà SAI (lỗi thầm lặng)."""
     import ocr_cai_tien as CT
     omr = json.loads((H.OCR / "omr_dev.json").read_text(encoding="utf-8"))
     dc = CT.doi_chieu_dev(prob_p, meta_p, omr) if tau_khop is None else CT.doi_chieu_dev(prob_p, meta_p, omr, tau_khop)
@@ -191,12 +181,11 @@ def so_sanh() -> dict:
     mh = ocr.nap_mo_hinh_ocr()
     ng = nguong_cnn(mh)
     xtr, ytr, _, _ = H.doc_mnist()
-    mn = np.random.default_rng(H.SEED).permutation(len(xtr))[5000:]          # như Tuần 6: bỏ 5 000 ảnh val nội bộ MNIST
+    mn = np.random.default_rng(H.SEED).permutation(len(xtr))[5000:]
     xm, ym = xtr[mn], ytr[mn].astype(np.int64)
     ket = {"tap": {"P": "504 chữ số phiếu dev 0001–0028 (không mô hình nào học)", "D": "3 872 chữ số trang D001–D010"}, "C_M0": C_M0}
     dong = []
 
-    # --- tập P: M0 (MNIST + toàn bộ D) vs CNN sản xuất (MNIST + toàn bộ D) – cả hai CHƯA thấy P
     t0 = time.perf_counter()
     m0 = hoc_m0(np.concatenate([xm, D["x"]]), np.concatenate([ym, D["y"]]))
     ket["m0_hoc_giay"] = round(time.perf_counter() - t0, 1)
@@ -205,12 +194,10 @@ def so_sanh() -> dict:
     ng_m0 = {"p≥0,5": lambda q: q.max(1) >= 0.5, "p≥0,9995 & lề≥0,99": lambda q: (q.max(1) >= 0.9995) & (np.sort(q, 1)[:, -1] - np.sort(q, 1)[:, -2] >= 0.99)}
     ket["P"] = {"M0": danh_gia("M0 HOG+logistic (MNIST + trang D)", P["y"], q_m0, ng_m0),
                 "CNN": danh_gia("CNN sản xuất (MNIST + trang D)", P["y"], q_cnn, ng)}
-    # CNN người lạ trên P (OOF): phiếu của người k đọc bằng mô hình bỏ người k – từ bộ đệm cùng cấu hình
     z = np.load(OOF_CNN)
     q_oof_p, q_oof_d = softmax(z["phieu"], mh.thanh_vien[0]["T"]), softmax(z["trang"], mh.thanh_vien[0]["T"])
     ket["P"]["CNN_OOF_nguoi_la"] = danh_gia("CNN cùng cấu hình, OOF theo người viết", P["y"], q_oof_p, ng)
 
-    # --- tập D: CNN sản xuất đã học D -> chỉ báo riêng; so công bằng bằng OOF 5-fold theo người viết
     ket["D_CNN_san_xuat_DA_HOC"] = danh_gia("CNN sản xuất trên D (ĐÃ HỌC – không so)", D["y"], ocr.du_doan_xac_suat(mh, D["x"]), ng)
     ng_d = np.array([int(r["nguoi"]) for r in D["meta"]])
     ng_p = np.array([int(r["nguoi"]) for r in P["meta"]])
@@ -225,14 +212,12 @@ def so_sanh() -> dict:
     ket["D_OOF"] = {"M0": danh_gia("M0 OOF theo người viết", D["y"], q_m0_d, ng_m0), "CNN": danh_gia("CNN OOF theo người viết", D["y"], q_oof_d, ng)}
     ket["P"]["M0_OOF_nguoi_la"] = danh_gia("M0 OOF theo người viết", P["y"], q_m0_poof, ng_m0)
 
-    # --- kiểm định cặp + tác động lên hệ thống (luật đối chiếu hai kênh của sản xuất)
     am = lambda q: q.argmax(1)   # noqa: E731
     ket["mcnemar"] = {"P: CNN vs M0": mcnemar(P["y"], am(q_cnn), am(q_m0)), "P OOF: CNN vs M0": mcnemar(P["y"], am(q_oof_p), am(q_m0_poof)),
                       "D OOF: CNN vs M0": mcnemar(D["y"], am(q_oof_d), am(q_m0_d))}
     ket["he_thong_P"] = {"M0": tac_dong_he_thong(q_m0, P["meta"]), "CNN": tac_dong_he_thong(q_cnn, P["meta"]),
                          "M0_OOF": tac_dong_he_thong(q_m0_poof, P["meta"]), "CNN_OOF": tac_dong_he_thong(q_oof_p, P["meta"])}
 
-    # --- thời gian + dung lượng M0 (suy luận được bằng NumPy: HOG NumPy + 324×10 hệ số)
     t1 = []
     for i in range(500):
         a = time.perf_counter(); m0.predict_proba(H.hog28(P["x"][i % 504][None])); t1.append((time.perf_counter() - a) * 1000)
@@ -246,8 +231,6 @@ def so_sanh() -> dict:
                          "ms_1_chu_so": {"p50": pct(t1, 50), "p95": pct(t1, 95)}, "ms_9_chu_so": {"p50": pct(t9, 50), "p95": pct(t9, 95)},
                          "phu_thuoc": "huấn luyện: scikit-learn; suy luận: NumPy được (HOG NumPy + tích ma trận) – đo ở đây qua sklearn"}
 
-    # --- OCR A' (đã chạy trong môi trường riêng bằng tools/so_sanh_ocr_rapid.py: du_doan_ocr_<bien>_<giai_ma>.csv)
-    #     Chọn biến thể chính theo tập D (3 872 chữ số, OCR không học gì của D) – KHÔNG chọn theo P để P vẫn là phép đo không lạc quan.
     bt = {}
     for f in sorted(RA.glob("du_doan_ocr_*_*.csv")):
         ten = f.stem.removeprefix("du_doan_ocr_")
@@ -259,8 +242,6 @@ def so_sanh() -> dict:
                       "mcnemar": {"P: CNN vs OCR": mcnemar(P["y"], am(q_cnn), o["P"]["_doc"]), "P: M0 vs OCR": mcnemar(P["y"], am(q_m0), o["P"]["_doc"]),
                                   "D: CNN OOF vs OCR": mcnemar(D["y"], am(q_oof_d), o["D"]["_doc"]), "D: M0 OOF vs OCR": mcnemar(D["y"], am(q_m0_d), o["D"]["_doc"])},
                       "he_thong_P": {k: tac_dong_he_thong(v["P"]["_q"], P["meta"]) for k, v in bt.items()},
-                      # chẩn đoán (KHÔNG chỉnh ngưỡng theo P): τ_khop 0,5 được hiệu chỉnh cho CNN (nhiệt độ T); điểm OCR không hiệu chỉnh.
-                      # Cùng một cổng τ_khop = 0 (nhận khi chữ viết tay TRÙNG bubble, bỏ cổng tin cậy) cho mọi ứng viên:
                       "he_thong_P_tau0": {"CNN": tac_dong_he_thong(q_cnn, P["meta"], 0.0), "M0": tac_dong_he_thong(q_m0, P["meta"], 0.0),
                                           "OCR_" + chinh: tac_dong_he_thong(o["P"]["_q"], P["meta"], 0.0)},
                       "dung_ma_p_duoi_0_5": {"P CNN": int(((am(q_cnn) == P["y"]) & (q_cnn.max(1) < 0.5)).sum()),
@@ -287,18 +268,15 @@ def so_sanh() -> dict:
 
 
 def xuat_o() -> dict:
-    """Bước OCR-1 (venv chính): xuất ô chữ số cho môi trường OCR riêng (chỉ numpy + onnxruntime, không cv2) -> o_chu_so.npz.
-    Hai biến thể đầu vào, CÙNG thứ tự với tap_do (P, D): x28 = ảnh MNIST 28×28 đã có; goc_* = ô cắt GỐC đã bỏ viền (mực 0–255 ở độ phân giải
-    ảnh nắn 300 DPI, trước khi co về 28×28). Cắt lại bằng đúng ocr.cat_anh + thứ tự của tools/ocr_du_lieu.py cat; kiểm x28 trùng bộ đệm từng byte."""
     import ocr_du_lieu as OD
     from cv_engine.preprocessing import nap_layout, preprocess
     t = H.tap_do(NGUON)
     lay_t, lay_p = nap_layout("chu_so"), nap_layout("phieu")
     nhan = OD._doc_nhan_phieu()
-    goc = {}                                                     # (anh, loai, vi_tri) -> (anh28, ink uint8)
+    goc = {}
     for path, ten, loai in OD._liet_ke():
         if loai != "trang" and (ma_phieu(ten) or 0) not in PHIEU_TRAIN:
-            continue                                             # val 0029–0034: không cắt
+            continue
         kq = preprocess(str(path), lay_t if loai == "trang" else lay_p)
         if not kq.ok:
             continue
@@ -324,8 +302,6 @@ def xuat_o() -> dict:
 
 
 def doc_ocr(f: Path, yP, yD) -> dict:
-    """Một biến thể OCR: độ đúng (∅ = không đọc được tính là SAI), cặp nhầm, sai mà tự tin (đọc ra chữ số SAI và tin cậy ≥ ngưỡng).
-    Kèm _doc (nhãn đọc, -1 = ∅) và _q (ma trận 10 cột: tin cậy ở chữ số đọc được, 0 nếu ∅) cho McNemar / luật đối chiếu – bỏ trước khi ghi."""
     rows = list(csv.DictReader(f.open(encoding="utf-8-sig")))
     out = {}
     for tap, y in (("P", yP), ("D", yD)):

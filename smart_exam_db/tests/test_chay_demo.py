@@ -1,6 +1,3 @@
-"""Lệnh AP: tools/chay_demo.py (3 chế độ xla / ml / dacn) + các phần đi kèm: nap_bo_demo --ba-mon, dat_lai_demo --ky-thi, demo_ly_thuyet_mon,
-phần bổ sung của demo_xu_ly_anh (chuẩn hoá, điểm tạm, CNN là gì). KHÔNG mở máy chủ thật, KHÔNG mở trình duyệt thật, KHÔNG ghi CSDL
-(test CSDL chạy trong giao dịch ROLLBACK)."""
 import re
 import sys
 import uuid
@@ -15,28 +12,26 @@ import dat_lai_demo as DL  # noqa: E402
 import demo_ly_thuyet_mon as T  # noqa: E402
 import nap_bo_demo as NB  # noqa: E402
 
-KIEM_GOC = C.kiem_truoc          # bản gốc: các test thay C.kiem_truoc bằng lambda gọi lại bản này
+KIEM_GOC = C.kiem_truoc
 ANH_BV01 = DATA / "_eval" / "demo_bv" / "anh_gia" / "BV01.jpg"
 
 
-# ------------------------------------------------------------------------------------------------ kiểm tra nhánh + mô hình
 def test_kiem_truoc_dat_khi_dung_nhanh_va_sha():
     assert all(m.dat for m in C.kiem_truoc("cnn-sau", C.SHA_MO_HINH_OCR))
-    assert all(m.dat for m in C.kiem_truoc("main", C.SHA_MO_HINH_OCR))      # sau gộp lệnh AS
-    assert all(m.dat for m in C.kiem_truoc("trien-khai", C.SHA_MO_HINH_OCR))   # nhánh lệnh AU
+    assert all(m.dat for m in C.kiem_truoc("main", C.SHA_MO_HINH_OCR))
+    assert all(m.dat for m in C.kiem_truoc("trien-khai", C.SHA_MO_HINH_OCR))
 
 
 def test_kiem_truoc_khong_dat_khi_sai_nhanh_hoac_sha():
     sai_nhanh = C.kiem_truoc("cai-tien-b", C.SHA_MO_HINH_OCR)
     assert [m.dat for m in sai_nhanh] == [False, True] and "cnn-sau" in sai_nhanh[0].chi_tiet
-    assert [m.dat for m in C.kiem_truoc("main", "0" * 64)] == [True, False]     # main nhưng SHA sai vẫn bị chặn
+    assert [m.dat for m in C.kiem_truoc("main", "0" * 64)] == [True, False]
     sai_sha = C.kiem_truoc("cnn-sau", "0" * 64)
     assert [m.dat for m in sai_sha] == [True, False]
     assert C.kiem_truoc("cnn-sau", "")[1].dat is False
 
 
 def test_sha_mo_hinh_thuc_te_khop_hang_so():
-    """Hằng SHA trong chay_demo phải đúng với tệp đang triển khai (nếu lệch: đã đổi mô hình mà quên đổi hằng)."""
     assert C.sha_mo_hinh() == C.SHA_MO_HINH_OCR
 
 
@@ -47,18 +42,16 @@ def test_main_dung_khi_kiem_tra_khong_dat(monkeypatch, capsys):
     assert "DỪNG" in capsys.readouterr().out
 
 
-# ------------------------------------------------------------------------------------------------ hướng dẫn 8–10 dòng
 @pytest.mark.parametrize("che_do", C.CHE_DO)
 def test_huong_dan_8_den_10_dong_co_url(che_do):
     d = C.huong_dan(che_do, "http://127.0.0.1:1234/")
-    assert (6 if che_do == "xla" else 8) <= len(d) <= 10          # lệnh AY: hướng dẫn xla chỉ 6–7 dòng (đăng nhập, chọn kỳ, tải, BV01, điểm tạm, câu cần xem)
+    assert (6 if che_do == "xla" else 8) <= len(d) <= 10
     assert any("http://127.0.0.1:1234/" in x for x in d)
     assert not any(re.search(r"mật khẩu *[:=] *\w{4,}", x, re.I) for x in d), "không được ghi mật khẩu thật"
 
 
 @pytest.mark.parametrize("che_do", C.CHE_DO)
 def test_chi_in_khong_lam_gi_ngoai_in(che_do, monkeypatch, capsys):
-    """--chi-in: không đặt lại dữ liệu, không mở trình duyệt, không mở máy chủ / tiến trình."""
     monkeypatch.setattr(C, "kiem_truoc", lambda: KIEM_GOC("cnn-sau", C.SHA_MO_HINH_OCR))
     monkeypatch.setattr(C, "dat_lai", lambda *a, **k: pytest.fail("đặt lại"))
     monkeypatch.setattr(C.webbrowser, "open", lambda *a, **k: pytest.fail("mở trình duyệt"))
@@ -69,7 +62,6 @@ def test_chi_in_khong_lam_gi_ngoai_in(che_do, monkeypatch, capsys):
     assert f"DEMO {che_do.upper()}" in out and len(re.findall(r"^\d\. ", out, re.M)) >= (6 if che_do == "xla" else 8)
 
 
-# ------------------------------------------------------------------------------------------------ đặt lại đúng kỳ thi
 @pytest.mark.parametrize("che_do", C.CHE_DO)
 def test_main_dat_lai_dung_ky_thi_cua_che_do(che_do, monkeypatch):
     goi = []
@@ -101,12 +93,11 @@ def test_ke_hoach_ba_mon_cau_truc():
     assert [k["exam_title"] for k in kh] == ["[XLA] Xử lý ảnh", "[ML] Máy học", "[ĐACN] Đồ án chuyên ngành"]
     for k in kh:
         assert [c["code"] for c in k["codes"]] == ["101", "102", "103", "104"] and all(len(c["answers"]) == 40 for c in k["codes"])
-        assert k["du_thi"] == [str(s) for s in range(220001, 220010)] and "220010" not in k["du_thi"]   # 220010 cố ý ngoài danh sách (BV10)
+        assert k["du_thi"] == [str(s) for s in range(220001, 220010)] and "220010" not in k["du_thi"]
         assert k["teacher"] == "gv_an" and k["tao_mon"] is True
 
 
 def test_lap_ke_hoach_ky_phamvi_dung_mot_ky(conn_thu):
-    """Đặt lại 'xla' chỉ có thể chạm kỳ [XLA]; kế hoạch không bao giờ chứa phiếu của kỳ khác."""
     kh = DL.lap_ke_hoach_ky(conn_thu, "xla")
     e = conn_thu.execute("SELECT exam_id FROM exams WHERE exam_title = %s", (DL.KY_THI_BA_MON["xla"],)).fetchone()["exam_id"]
     assert kh["pham_vi"] == [e] and {p["exam_id"] for p in kh["xoa"]} <= {e} and kh["co_tap"] is False
@@ -120,19 +111,17 @@ def test_lap_ke_hoach_ky_tu_choi_ma_la_va_tieu_de_trung(conn_thu):
     mon = conn_thu.execute("INSERT INTO subjects (subject_code, subject_name) VALUES (%s, 'Môn thử') RETURNING subject_id", ("T" + uuid.uuid4().hex[:8].upper(),)).fetchone()["subject_id"]
     mau = conn_thu.execute("SELECT template_id FROM sheet_templates ORDER BY template_id LIMIT 1").fetchone()["template_id"]
     conn_thu.execute("INSERT INTO exams (subject_id, template_id, exam_title, num_questions, max_score, created_by) VALUES (%s, %s, %s, 10, 10, %s)",
-                     (mon, mau, DL.KY_THI_BA_MON["ml"], uid))                                   # kỳ thi thứ hai trùng tiêu đề (trong giao dịch ROLLBACK)
+                     (mon, mau, DL.KY_THI_BA_MON["ml"], uid))
     with pytest.raises(DL.LoiDatLai, match="đúng 1"):
         DL.lap_ke_hoach_ky(conn_thu, "ml")
 
 
 def test_lap_ke_hoach_van_tu_choi_ky_khong_co_demo_khi_khong_truyen_ten_hop_le(conn_thu):
-    """Hành vi cũ không đổi: không có ten_hop_le thì kỳ thi không có '[DEMO' bị từ chối (kể cả kỳ [XLA])."""
     e = conn_thu.execute("SELECT exam_id FROM exams WHERE exam_title = %s", (DL.KY_THI_BA_MON["xla"],)).fetchone()["exam_id"]
     with pytest.raises(DL.LoiDatLai, match="DEMO"):
         DL.lap_ke_hoach(conn_thu, xoa_het=(e,), tap=None, nen={})
 
 
-# ------------------------------------------------------------------------------------------------ xla: máy chủ ngoại tuyến (hàm thuần, không mở cổng)
 def test_trang_chon_anh_co_du_nut_va_form_tai_len():
     h = C.trang_chon_anh([f"BV{i:02d}" for i in range(1, 11)], ["T05_thuong.JPG"])
     assert all(f'href="/bv/BV{i:02d}"' in h for i in range(1, 11)) and 'href="/them/T05_thuong.JPG"' in h
@@ -171,16 +160,14 @@ def test_xla_xu_ly_anh_bv01_co_du_cac_buoc_moi():
     assert "http://" not in h and "https://" not in h
 
 
-# ------------------------------------------------------------------------------------------------ xla: bổ sung trong demo_xu_ly_anh
 def test_diem_tam_dung_ham_cham_he_thong():
-    """buoc_diem_tam dùng grading.cham_diem; câu cần xem KHÔNG được tính vào điểm tạm."""
     import demo_xu_ly_anh as X
     from types import SimpleNamespace as NS
     keys = X.dap_an_theo_ma_de()
     assert set(keys) == {"101", "102", "103", "104"} and all(len(v) == 40 for v in keys.values())
-    cau = [NS(cau=i + 1, dap_an=keys["101"][i], trang_thai="ro", can_xem=(i < 4)) for i in range(40)]    # đúng cả 40 nhưng 4 câu đầu 'cần xem'
+    cau = [NS(cau=i + 1, dap_an=keys["101"][i], trang_thai="ro", can_xem=(i < 4)) for i in range(40)]
     h = X.buoc_diem_tam(NS(cau=cau), {"ma_de": ("101", True, ())})
-    assert "9.000" in h and "KHÔNG phải điểm chính thức" in h and "10.000" in h                        # 36 × 0,25 = 9; tối đa 40 × 0,25 = 10
+    assert "9.000" in h and "KHÔNG phải điểm chính thức" in h and "10.000" in h
     assert "chưa chấm được" in X.buoc_diem_tam(NS(cau=cau), {"ma_de": ("99?", False, ())}).lower()
 
 
@@ -190,7 +177,6 @@ def test_giai_thich_cnn_co_hinh_va_loi_khong_can_o_mau():
     assert "<svg" in h and "CNN là gì" in h and "10 con số" in h and "<img" not in h
 
 
-# ------------------------------------------------------------------------------------------------ ml + dacn (giả lập, không chạy thật)
 def test_chay_ml_dung_trang_va_mo_mot_tab(monkeypatch, tmp_path):
     import demo_may_hoc as M
     monkeypatch.setattr(C, "RA", tmp_path)
@@ -244,7 +230,6 @@ def test_chay_dacn_bao_loi_khi_may_chu_khong_len(monkeypatch, tmp_path, capsys):
     assert mo == [] and P.dung is True and "LỖI" in capsys.readouterr().out
 
 
-# ------------------------------------------------------------------------------------------------ trang lý thuyết các môn
 def test_ly_thuyet_cac_mon_co_giai_dinh_va_7_mon_va_khong_bia_so():
     h = T.dung_trang({"so_duong_dan_api": None, "so_bang": None, "so_view": None})
     assert "GIẢ ĐỊNH" in h and h.count("<h2>") == 7
@@ -256,7 +241,6 @@ def test_ly_thuyet_cac_mon_co_giai_dinh_va_7_mon_va_khong_bia_so():
     assert "60 cặp" in h2 and "23 bảng" in h2
 
 
-# ------------------------------------------------------------------------------------------------ lệnh AY: xla = hệ thống thật, xla-cong-cu = công cụ cũ
 def test_ay_xla_chay_he_thong_that_khong_phai_cong_cu_8765(monkeypatch):
     goi = {}
     monkeypatch.setattr(C, "kiem_truoc", lambda: KIEM_GOC("main", C.SHA_MO_HINH_OCR))
@@ -265,7 +249,7 @@ def test_ay_xla_chay_he_thong_that_khong_phai_cong_cu_8765(monkeypatch):
     monkeypatch.setattr(C, "chay_ml", lambda *a, **k: pytest.fail("không được chạy ml"))
     monkeypatch.setattr(C, "chay_dacn", lambda cong, mo, **k: goi.update(cong=cong, mo=mo, **k) or 0)
     assert C.main(["xla", "--khong-mo"]) == 0
-    assert goi == {"dat_lai": ["xla"], "cong": 8000, "mo": False, "che_do": "xla"}            # chỉ đặt lại kỳ [XLA]; không [ĐACN] / [ML]
+    assert goi == {"dat_lai": ["xla"], "cong": 8000, "mo": False, "che_do": "xla"}
     goi.clear()
     assert C.main(["xla", "--khong-mo", "--cong", "8010"]) == 0 and goi["cong"] == 8010
 

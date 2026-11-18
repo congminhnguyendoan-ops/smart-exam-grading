@@ -1,7 +1,3 @@
-"""ar_bam_dau_ra.py - Lệnh AR: băm đầu ra chấm lại 56 ảnh dev (data/_eval/backend/phieu_dau_cuoi.csv do tools/kiem_backend_dau_cuoi.py ghi),
-BỎ cột sheet_id (số tự tăng, khác mỗi lần chạy). Hai lần chạy cho điểm / SBD / mã đề / cờ giống hệt nhau thì băm giống nhau.
-  python tools/ar_bam_dau_ra.py            # in SHA-256 + số dòng
-"""
 import csv
 import hashlib
 import sys

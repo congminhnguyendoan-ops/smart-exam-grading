@@ -1,5 +1,3 @@
-"""Chốt chặn tập test trong các công cụ (Tuần 4, Bước 6): không cờ --xac-nhan-test thì dừng / bỏ qua TRƯỚC khi đọc ảnh.
-Mọi hàm đọc / nắn ảnh bị thay bằng hàm ném lỗi -> nếu công cụ chạm vào ảnh test, test fail."""
 import sys
 
 import pytest
@@ -27,7 +25,6 @@ def test_audit_tat_ca_khong_co_co_bi_chan(monkeypatch):
 
 
 def test_audit_dev_khong_dung_phieu_test(monkeypatch, tmp_path):
-    """Chế độ dev: danh sách phiếu đưa vào vòng quét chỉ có 0001–0034 (dừng ở ảnh đầu tiên để test chạy nhanh)."""
     can_file(ANSWER_SHEET_DIR / "output" / "ground_truth.csv")
     da_xem = []
 

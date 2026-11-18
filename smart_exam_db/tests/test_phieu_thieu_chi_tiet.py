@@ -1,10 +1,3 @@
-"""Lệnh W2 – GET /sheets/{id} không được trả 500 với phiếu KHÔNG có chi tiết đọc SBD / mã đề (answer_sheets.omr_detail NULL hoặc thiếu khoá).
-
-Nguyên nhân gốc: phiếu #1–#9 của kỳ thi 1 do database/04_seed.sql chèn thẳng (dữ liệu mẫu, có từ trước backend); cột omr_detail chỉ được thêm sau đó
-(migration 001) nên là NULL. service.xem_phieu đọc det["sbd"] / det["ma_de"] không kiểm -> KeyError -> 500.
-Cách xử lý (chỉ đọc, KHÔNG sửa dữ liệu): trường thiếu chi tiết vẫn trả detected (cột detected_sbd / detected_exam_code), can_xem = False, reasons = [],
-columns = [], và trường MỚI co_chi_tiet = False để giao diện biết là không có chi tiết từng cột. Phiếu có chi tiết: co_chi_tiet = True, không đổi gì khác.
-Test dựng phiếu riêng trong giao dịch ROLLBACK (không phụ thuộc dữ liệu mẫu); thêm một test trên đúng phiếu #1 nếu CSDL có."""
 import json
 import uuid
 
@@ -30,13 +23,13 @@ def test_phieu_khong_co_chi_tiet_khong_500(client, conn_thu, chi_tiet):
     r = client.get(f"/sheets/{sid}")
     assert r.status_code == 200, r.text
     p = r.json()
-    if chi_tiet and "sbd" in chi_tiet:                                       # khoá có -> dùng như cũ
+    if chi_tiet and "sbd" in chi_tiet:
         assert p["sbd"]["co_chi_tiet"] is True and p["sbd"]["can_xem"] is True and p["sbd"]["reasons"] == ["lech_bubble"]
     else:
         assert p["sbd"] == {"detected": "220001", "can_xem": False, "reasons": [], "columns": [], "co_chi_tiet": False}
     assert p["exam_code"]["co_chi_tiet"] is False and p["exam_code"]["columns"] == [] and p["exam_code"]["detected"] == "101"
     assert p["exam_code"]["matched_code"] == "101"
-    assert conn_thu.execute("SELECT omr_detail FROM answer_sheets WHERE sheet_id = %s", (sid,)).fetchone()["omr_detail"] == chi_tiet   # không sửa dữ liệu
+    assert conn_thu.execute("SELECT omr_detail FROM answer_sheets WHERE sheet_id = %s", (sid,)).fetchone()["omr_detail"] == chi_tiet
 
 
 def test_phieu_bi_tu_choi_van_khong_co_sbd(client, conn_thu):
@@ -48,7 +41,6 @@ def test_phieu_bi_tu_choi_van_khong_co_sbd(client, conn_thu):
 
 
 def test_phieu_mau_so_1_cua_ky_thi_1(client, conn_thu):
-    """Đúng ca người dùng báo: phiếu #1 (04_seed.sql, omr_detail NULL)."""
     r0 = conn_thu.execute("SELECT omr_detail, detected_sbd, status::text AS s FROM answer_sheets WHERE sheet_id = 1 AND exam_id = 1").fetchone()
     if r0 is None or r0["omr_detail"] is not None:
         pytest.skip("CSDL này không có phiếu mẫu #1 thiếu chi tiết")

@@ -74,3 +74,20 @@ Báo cáo phải nêu rõ những gì CHƯA thử (ví dụ: chưa nạp vào CS
 | Y4 | Cập nhật `docs/huong_dan_chay_3_demo.md` (mô tả lại `xla`; chỗ ghi "nhánh `cnn-sau`" thành `main`) và bảng ba lệnh trong `README.md`. |
 | Y5 | Test mới cho nhánh `xla` (chạy `--chi-in`, không chạm `[ĐACN]` / `[ML]`, `xla-cong-cu` còn tồn tại); pytest toàn bộ ≥ 729 đạt + test mới; `kiem_truoc_demo` 0 KHÔNG ĐẠT. |
 | Y6 | Chạy thật `chay_demo.py xla --khong-mo`; `/health` 200 và `/app/` 200 (lấy bằng lệnh); rồi tắt server. |
+
+
+---
+
+# Mục AZ – Lệnh AZ: xoá chú thích và docstring trong mã Python (18/11/2026, nhánh `xoa-chu-thich` từ `main`; tag quay lại `ban-truoc-xoa-chu-thich-18-11`)
+
+Đăng ký TRƯỚC khi làm; không đổi sau khi thấy kết quả.
+
+| Mã | Tiêu chí |
+|---|---|
+| Z1 | Phạm vi: mọi tệp `.py` trong repo, TRỪ `.venv`, `__pycache__`, `data/`, `models/`. Không đụng `.js` / `.html` / `.css` / `.sql` / `.md`. |
+| Z2 | Xoá chú thích `# …` (dòng riêng và đuôi dòng) và docstring (module, lớp, hàm). GIỮ: shebang, dòng mã hoá, `# noqa`, `# type:`, `# pragma`, `# fmt:`, `# pylint`, `# isort`; và docstring mà mã dùng lúc chạy (vd `description=__doc__`, `__doc__` được in / đọc, `inspect.getsource` / mô tả route có test kiểm). Dùng `tokenize` + `ast`, KHÔNG dùng regex. |
+| Z3 | Mỗi tệp sửa: `ast.dump` bản gốc và bản mới (đã bỏ docstring ở cả hai) phải GIỐNG HỆT; không thì hoàn nguyên tệp và liệt kê. Thân rỗng sau xoá → `pass` hoặc giữ docstring. `python -m compileall` đạt. |
+| Z4 | Khung đóng băng (`cv_engine/`, `backend/service.py`, `schemas.py` và mọi tệp bị test / công cụ so mã băm): tìm trước test / công cụ nào so mã băm hoặc nội dung; nếu xoá chú thích đổi mã băm thì KHÔNG sửa các tệp đó và báo danh sách. |
+| Z5 | pytest toàn bộ ≥ 739 đạt + 1 skip, không test mới đỏ; `kiem_truoc_demo` 0 KHÔNG ĐẠT; `chay_demo dacn --chi-in` và `xla --chi-in` đạt; chạy thật `chay_demo.py xla --khong-mo` kiểm `/health` 200 và `/app/` 200 rồi tắt (cổng khác nếu 8000 bận; không tắt server của người dùng). |
+| Z6 | Báo cáo: số tệp đã sửa, số tệp hoàn nguyên (lý do), số dòng chú thích + docstring đã xoá, tệp bỏ qua vì Z4, kết quả pytest. |
+| Z7 | Chỉ khi Z1–Z6 đạt: gộp `main` (`--no-ff`, `git diff xoa-chu-thich main --stat` rỗng, không force push). Có test đỏ do việc này → DỪNG, không push `main`. CLAUDE.md thêm mục 4z. |

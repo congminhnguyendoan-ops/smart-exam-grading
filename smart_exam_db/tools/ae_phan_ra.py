@@ -1,14 +1,3 @@
-"""
-ae_phan_ra.py - Lệnh AE: vì sao "cần xem"? CHỈ ĐO, KHÔNG SỬA MÃ HỆ THỐNG (không ghi CSDL, không bật server).
-
-  python tools/ae_phan_ra.py doc --tap dev        # chạy pipeline OFFLINE (cv_engine) trên 56 ảnh phiếu 0001–0028 -> data/_eval/ae/doc_dev.json
-  python tools/ae_phan_ra.py doc --tap dot2       # 20 ảnh đợt 2 (data/raw_dot2) + đối chiếu với data/_eval/dot2/that/ket_qua.json (lần chạy duy nhất qua API)
-  python tools/ae_phan_ra.py phan-ra --tap dev|dot2   # bảng a) câu trả lời, b) SBD / mã đề, c) "cần xem không cần thiết" -> data/_eval/ae/phan_ra_<tap>.md
-  python tools/ae_phan_ra.py de-xuat              # 3 đề xuất: CHỈNH trên dev, THỬ trên đợt 2 -> data/_eval/ae/de_xuat.md (KHÔNG áp dụng vào hệ thống)
-
-Đường đọc = backend: preprocess -> omr.doc_phieu -> ocr.doc_chu_so -> ocr.doi_chieu_dinh_danh (SBD / mã đề coi như CÓ trong danh sách kỳ thi,
-như lần chạy đợt 2 – mọi thí sinh đã được thêm vào). Phiếu val 0029–0034 / test 0035–0040 KHÔNG đọc (chan_test).
-"""
 import argparse
 import csv
 import json
@@ -31,9 +20,7 @@ AE = DATA / "_eval" / "ae"
 KQ_DOT2 = DATA / "_eval" / "dot2" / "that" / "ket_qua.json"
 
 
-# ------------------------------------------------------------------------------------------- nhãn (cùng quy ước tools/eval_dot2.py)
 def tap_chon(lab: str) -> str:
-    """Tập ô thật: '-' hoặc vết chấm ('*B') -> ''; 'bD' -> 'BD'."""
     return "" if lab == "-" or lab.startswith("*") else "".join(sorted(lab.upper()))
 
 
@@ -67,7 +54,7 @@ def doc_nhan(tap: str) -> dict:
     for r in rows:
         ms = int(r["sheet_id"])
         if tap == "dev" and ms not in PHIEU_TRAIN:
-            continue                                   # chỉ 0001–0028: KHÔNG giữ dòng nhãn val / test
+            continue
         out[r["sheet_id"]] = {"q": {q: r[f"q{q}"] for q in range(1, 41)}, "sbd": r["sbd"], "ma_de": r["exam_code"],
                               "sbd_bubble": r["sbd_bubble"], "ma_de_bubble": r["exam_code_bubble"], "nguoi": r.get("writer", "")}
     return out
@@ -78,10 +65,9 @@ def danh_sach_anh(tap: str) -> list[Path]:
         anh = sorted(p for p in (DATA / "raw").glob("*.jpg") if ma_phieu(p.stem) in PHIEU_TRAIN)
         chan_test(anh, xac_nhan=False, viec="ae_phan_ra doc dev")
         return anh
-    return sorted(p for p in (DATA / "raw_dot2").iterdir() if p.suffix.lower() == ".jpg")   # Windows: glob không phân biệt hoa thường
+    return sorted(p for p in (DATA / "raw_dot2").iterdir() if p.suffix.lower() == ".jpg")
 
 
-# ------------------------------------------------------------------------------------------- doc
 def cmd_doc(a):
     from cv_engine.tap_du_lieu import nguoi_viet
     lay, mh, mh_ocr = nap_layout("phieu"), nap_mo_hinh(), ocr.nap_mo_hinh_ocr()
@@ -126,7 +112,6 @@ def cmd_doc(a):
 
 
 def doi_chieu_dot2(out: list[dict]):
-    """Đường offline phải trùng lần chạy API đợt 2 (cùng mã đóng băng): cùng trạng thái, ô, cờ, lý do từng câu và từng cột."""
     kq = {r["anh"]: r for r in json.loads(KQ_DOT2.read_text(encoding="utf-8"))["anh"]}
     khac_cau, khac_cot, n_cau, n_cot = [], [], 0, 0
     for r in out:
@@ -149,13 +134,11 @@ def sang_db(tt: str) -> str:
     return {"trong": "blank", "ro": "filled", "mo": "faint", "nhieu": "multiple"}[tt]
 
 
-# ------------------------------------------------------------------------------------------- phân rã
 def nap(tap: str) -> list[dict]:
     return [r for r in json.loads((AE / f"doc_{tap}.json").read_text(encoding="utf-8")) if not r["tu_choi"]]
 
 
 def ly_do_chinh(ly: list[str]) -> str:
-    """Gộp lý do của 1 câu thành 1 nhóm (thứ tự ưu tiên: vị trí > nhiều ô > ô mờ > lưng chừng > vết nhỏ > tô nhạt cả tờ)."""
     for m in ("vi_tri", "nhieu_o", "o_mo", "tin_cay_thap", "vet_nho", "to_nhat"):
         if m in ly:
             return m
@@ -167,8 +150,6 @@ TEN_LY = {"vi_tri": "vị trí", "nhieu_o": "nhiều ô", "o_mo": "ô mờ", "ti
 
 
 def phan_loai_cau(c: dict) -> str:
-    """Câu CẦN XEM thuộc nhóm nào: 'sai' (máy đọc sai ô) / 'dung_chinh_sach' (đọc đúng nhưng câu thật mờ / nhiều ô / vết – người phải quyết
-    hoặc chính sách) / 'khong_can' (câu thật 1 đậm hoặc trống, máy đọc đúng ô VÀ đúng trạng thái)."""
     dung_o = c["doc_o"] == c["chon_that"]
     if not dung_o:
         return "sai"
@@ -228,12 +209,10 @@ def bang_cot(rs: list[dict]) -> list[str]:
 
 
 def mot_dap_an(s: str) -> str:
-    """Quy tắc điểm thật (tools/eval_he_thong.dung_that): câu đúng ⇔ có ĐÚNG một dấu (rõ hoặc mờ) trùng đáp án. Trả chữ đó, '' nếu 0 / ≥ 2 dấu."""
     return s if len(s) == 1 else ""
 
 
 def cung_ket_qua(c: dict) -> bool:
-    """Bỏ cờ và chấm theo ô máy đọc thì điểm trùng điểm thật với MỌI đáp án có thể (A/B/C/D)."""
     return mot_dap_an(c["doc_o"]) == mot_dap_an(c["chon_that"])
 
 
@@ -281,10 +260,9 @@ def cmd_phan_ra(a):
     print("\n".join(d))
 
 
-# ------------------------------------------------------------------------------------------- đề xuất: CHỈNH trên dev, THỬ trên đợt 2
 LUOI_THETA1 = (0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99)
 LUOI_TAU2 = (0.5, 0.4, 0.3, 0.2, 0.15, 0.1, 0.05)
-TRAN_MO_PHONG = 0.01          # ĐX2: tỉ lệ nhận nhầm khi MÔ PHỎNG tô sai bubble phải ≤ 1% trên tập chỉnh (chốt trước khi tính)
+TRAN_MO_PHONG = 0.01
 
 
 def ti_le_ro(P_o) -> float:
@@ -293,21 +271,17 @@ def ti_le_ro(P_o) -> float:
 
 
 def dx1_nhan(c: dict, theta: float) -> bool:
-    """ĐX1: câu 'nhiều ô' CHỈ có lý do nhieu_o, MỌI ô được chọn đều 'rõ' với p(rõ | có tô) ≥ θ -> chấm sai tự động (không cần xem)."""
     if c["doc_tt"] != "nhieu" or c["ly_do"] != ["nhieu_o"]:
         return False
     return all(ti_le_ro(c["P"]["ABCD".index(o)]) >= theta for o in c["doc_o"])
 
 
 def p_cnn(c: dict, d: str) -> float:
-    """Xác suất CNN của chữ số d. Chỉ lưu top-3: chữ số ngoài top-3 lấy CẬN TRÊN = phần xác suất còn lại (thận trọng: tăng rủi ro mô phỏng)."""
     top = {str(k): v for k, v in c["top"]}
     return top.get(d, max(0.0, 1.0 - sum(top.values())))
 
 
 def dx2_cot_chac(c: dict, tau: float) -> bool:
-    """ĐX2 (luật mềm): cột đang cần xem vì lech_bubble / tin_cay_thap; bubble đọc được, OMR không gắn cờ, ô viết tay đọc được; nhận nếu
-    p_CNN(chữ số bubble) ≥ τ (không đòi argmax trùng). Lý do khác giữ nguyên cần xem."""
     if c["chac"]:
         return True
     if set(c["ly_do"]) - {"lech_bubble", "tin_cay_thap"} or c["b"] == "?" or c["b_cx"] or c["o_trong"] or c["loi_o"]:
@@ -316,8 +290,6 @@ def dx2_cot_chac(c: dict, tau: float) -> bool:
 
 
 def dx2_mo_phong(rs: list[dict], tau: float, truong=("sbd",)) -> tuple[int, int]:
-    """Mô phỏng thí sinh TÔ SAI bubble 1 cột: thay chữ số bubble bằng mỗi chữ số sai w; luật mềm nhận nhầm khi p_CNN(w) ≥ τ
-    (luật hiện hành nhận nhầm khi argmax = w và p ≥ 0,5). Chỉ cột có ô viết tay đọc được."""
     nham = tong = 0
     for r in rs:
         for c in r["cot"]:
@@ -341,7 +313,6 @@ def dx2_danh_gia(rs: list[dict], tau: float, truong=("sbd",)) -> dict:
             chac_moi = [dx2_cot_chac(c, tau) if ten in truong else c["chac"] for c in cs]
             cot_cx += sum(not c["chac"] for c in cs)
             cot_go += sum((not c["chac"]) and m for c, m in zip(cs, chac_moi))
-            # trường MỚI được nhận (trước đó cần xem) mà SAI = sai âm thầm do đề xuất; giá trị nhận = chữ số bubble mọi cột (như doi_chieu_cot)
             if all(chac_moi) and not r["truong"][ten]["chac"] and "".join(c["b"] for c in cs) != r["truong"][ten]["that"]:
                 sai += 1
             cx_cu |= not r["truong"][ten]["chac"]
@@ -358,7 +329,6 @@ def cmd_de_xuat(a):
     out = {"tap_chinh": "dev 0001–0028 (56 ảnh)", "tap_thu": "đợt 2 0101–0110 (20 ảnh)"}
     L = ["## Đề xuất (CHƯA áp dụng) – chỉnh ngưỡng trên DEV 0001–0028, kết luận trên ĐỢT 2", ""]
 
-    # ---- ĐX1
     r_mo = [ti_le_ro(c["P"]["ABCD".index(o)]) for r in dev for c in r["cau"] for o in c["chon_that"]
             if any(ch.islower() for ch in c["lab"]) and o.lower() in c["lab"] and o in c["doc_o"]]
     theta = next(t for t in LUOI_THETA1 if t > max(r_mo))
@@ -375,7 +345,6 @@ def cmd_de_xuat(a):
         L.append(f"| {ten} | {len(cx)} | {len(go)} ({100 * len(go) / len(cx):.1f}%) | {dung} | {len(go) - dung} | {sai_diem} |")
         out["dx1"][ten] = {"cx": len(cx), "go": len(go), "dung": dung, "rui_ro_mo": len(go) - dung, "sai_diem": sai_diem}
 
-    # ---- ĐX2
     L += ["", "### ĐX2 – Luật mềm SBD: bubble sạch + p_CNN(chữ số bubble) ≥ τ2 -> nhận (vẫn đòi SBD có trong danh sách kỳ thi)",
           f"Chỉnh trên dev: τ2 = giá trị NHỎ NHẤT trong {LUOI_TAU2} mà tỉ lệ nhận nhầm khi MÔ PHỎNG tô sai bubble 1 cột ≤ {TRAN_MO_PHONG:.0%} "
           "(chữ số ngoài top-3 lấy cận trên). Luật hiện hành tương ứng argmax = bubble và p ≥ 0,5.", "",
@@ -401,7 +370,6 @@ def cmd_de_xuat(a):
     tb = [(r["anh"], c["i"], c["viet"], c["b"], round(p_cnn(c, c["b"]), 3)) for r in d2 for c in r["cot"] if c["b"] != c["viet"] and c["b"] != "?"]
     L += ["", f"Ca tô sai bubble THẬT ở đợt 2 (viết ≠ bubble): {tb} – p_CNN(chữ số bubble) phải < τ2 thì luật mềm mới không nhận nhầm."]
 
-    # ---- ĐX3
     L += ["", "### ĐX3 – Chính sách \"một dấu mờ = có chọn\": tự chấm câu chỉ có lý do `o_mo` (KHÔNG có ngưỡng chỉnh được – xem dưới)", "",
           "| Tập | Câu cần xem | Gỡ được | Gỡ mà điểm SAI (vết / tẩy đọc thành mờ) | p(có tô) của ca gỡ sai |", "|---|---|---|---|---|"]
     out["dx3"] = {}

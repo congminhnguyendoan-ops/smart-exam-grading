@@ -1,4 +1,3 @@
-"""Lệnh Z – mặc định dọn ảnh tạm của tools/chay_server_lan.py. KHÔNG chạy máy chủ thật: uvicorn.run bị thay bằng hàm ghi lại tham số."""
 import os
 import sys
 
@@ -12,7 +11,6 @@ import chay_server_lan as CS  # noqa: E402
 
 @pytest.fixture
 def chay(monkeypatch, capsys):
-    """Gọi CS.main() với argv cho trước; trả (giá trị ANH_XOA_TU_DONG lúc uvicorn được gọi, stdout)."""
     import uvicorn
     goi = {}
 
@@ -23,15 +21,12 @@ def chay(monkeypatch, capsys):
     monkeypatch.chdir(ROOT)
 
     def _chay(*argv):
-        monkeypatch.setenv("ANH_XOA_TU_DONG", "khong_dat")                   # giá trị lạ: phải bị ghi đè rõ ràng
+        monkeypatch.setenv("ANH_XOA_TU_DONG", "khong_dat")
         monkeypatch.setattr(sys, "argv", ["chay_server_lan.py", *argv])
         assert CS.main() == 0
         return goi.get("anh"), capsys.readouterr().out
     return _chay
 
-
-# Trước lệnh Z: không cờ -> ANH_XOA_TU_DONG=1. Một test ghi lại hành vi đó (assert == "1") đã chạy ĐẠT trên mã cũ ngay trước khi sửa
-# (30/10/2026, chưa commit – ghi trong data/_eval/bao_cao_gan_nhat.md của lệnh Z). Từ lệnh Z: mặc định TẮT.
 
 def test_khong_co_co_thi_TAT_don_anh_va_in_trang_thai(chay):
     anh, out = chay()
@@ -65,8 +60,6 @@ def test_chi_in_khong_chay_may_chu_van_in_trang_thai(monkeypatch, capsys):
 
 
 def test_tai_lieu_chay_server_khong_bat_don_anh():
-    """Kịch bản demo (nơi có lệnh để chạy): mọi dòng nhắc tới --bat-don-anh phải CẢNH BÁO (chủ ý / cảnh báo) hoặc CẤM dùng.
-    CLAUDE.md (mô tả dài): phải có câu cảnh báo "chỉ thêm --bat-don-anh khi chủ ý"."""
     for p in (ROOT / "docs" / "kich_ban_demo_bao_ve.md", ROOT / "docs" / "kich_ban_demo.md"):
         for dong in p.read_text(encoding="utf-8").splitlines():
             if "--bat-don-anh" in dong:

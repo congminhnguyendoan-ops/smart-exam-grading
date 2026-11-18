@@ -1,13 +1,3 @@
-"""
-huan_luyen_ocr.py - Huấn luyện + đo CNN chữ số (Tuần 6, docs/ke_hoach_tuan6.md Bước 4–6). CHỈ để huấn luyện (cần scikit-learn / torch).
-
-  m0     : M0 = HOG + hồi quy logistic, huấn luyện trên MNIST; đo 3 nơi: MNIST test · trang chữ số D001–D010 · phiếu dev 0001–0028
-  m1     : (Bước 5) CNN nhỏ huấn luyện trên MNIST + augmentation; đo như m0
-Quy tắc: phiếu 0035–0040 KHÔNG đọc; phiếu 0029–0034 (val) KHÔNG đọc ở bước này (chỉ bước 9); chữ số phiếu 0001–0028 chỉ để ĐO.
-Trang D: bỏ ô không dò được khung (ok_vien = 0, ~3%) khỏi phép đo (báo số ô bị bỏ); phiếu: đo MỌI ô.
-Số liệu: data/_eval/ocr/*.json + *.md; mô hình trung gian: data/_ocr/ (ngoài git).
-Chạy (từ smart_exam_db/):  python tools/huan_luyen_ocr.py m0
-"""
 import argparse
 import csv
 import gzip
@@ -29,9 +19,7 @@ NGUON = ("anh_nan", "anh_chuan_hoa")
 SEED = 2026
 
 
-# ------------------------------------------------------------------------------------------- dữ liệu
 def doc_mnist():
-    """MNIST từ data/_ocr/nguon (4 file .gz, SHA ghi ở SHA.txt). Trả (xtr, ytr, xte, yte) uint8."""
     def idx(ten, anh):
         with gzip.open(OCR / "nguon" / ten, "rb") as f:
             b = f.read()
@@ -44,7 +32,6 @@ def doc_mnist():
 
 
 def doc_cat(nguon: str):
-    """Ô đã cắt (tools/ocr_du_lieu.py cat): (x [N,28,28] uint8, meta list[dict]). KHÔNG chứa phiếu test."""
     x = np.load(OCR / "cat" / f"{nguon}.npz")["x"]
     with (OCR / "cat" / f"{nguon}.csv").open(encoding="utf-8", newline="") as f:
         m = list(csv.DictReader(f))
@@ -53,7 +40,6 @@ def doc_cat(nguon: str):
 
 
 def tap_do(nguon: str):
-    """Hai tập ĐO: trang chữ số (bỏ ô không dò được khung) và phiếu dev 0001–0028 (mọi ô). Mỗi tập: dict(x, y, meta, ...)."""
     x, m = doc_cat(nguon)
     out = {}
     tr = [i for i, r in enumerate(m) if r["loai"] == "trang"]
@@ -65,9 +51,7 @@ def tap_do(nguon: str):
     return out
 
 
-# ------------------------------------------------------------------------------------------- thước đo
 def cp_ci(k: int, n: int, a: float = 0.05) -> tuple[float, float]:
-    """Khoảng tin cậy Clopper–Pearson 95% của tỉ lệ k/n."""
     from scipy.stats import beta
     lo = 0.0 if k == 0 else float(beta.ppf(a / 2, k, n - k + 1))
     hi = 1.0 if k == n else float(beta.ppf(1 - a / 2, k + 1, n - k))
@@ -93,7 +77,6 @@ def tom_tat(y, p) -> dict:
 
 
 def theo_nguoi(y, p, meta) -> dict:
-    """Accuracy theo người viết 1–5 (trang D và phiếu dev dùng chung người viết)."""
     out = {}
     ng = np.array([int(r["nguoi"]) for r in meta])
     for n in range(1, 6):
@@ -106,7 +89,6 @@ def theo_nguoi(y, p, meta) -> dict:
 
 
 def theo_dieu_kien(y, p, meta) -> dict:
-    """Accuracy phiếu theo điều kiện chụp C1–C4 (hậu tố tên ảnh NNNN_Ck)."""
     out = {}
     dk = np.array([r["anh"].split("_")[-1] for r in meta])
     for c in ("C1", "C2", "C3", "C4"):
@@ -119,7 +101,6 @@ def theo_dieu_kien(y, p, meta) -> dict:
 
 
 def muc_truong(y, p, meta) -> dict:
-    """Mức TRƯỜNG trên phiếu (CNN thuần argmax, chưa đối chiếu bubble): ảnh × (sbd | ma_de) đọc đúng MỌI chữ số."""
     t = {}
     for yi, pi, r in zip(y, p, meta):
         k = (r["anh"], r["loai"])
@@ -134,7 +115,6 @@ def muc_truong(y, p, meta) -> dict:
 
 
 def do_mo_hinh(du_doan, ten: str, ghi: dict):
-    """du_doan(x [N,28,28] uint8) -> nhãn dự đoán. Đo MNIST test + trang D + phiếu dev cho cả 2 nguồn ảnh; ghi vào `ghi`."""
     _, _, xte, yte = doc_mnist()
     p = du_doan(xte)
     ghi["mnist_test"] = tom_tat(yte, p)
@@ -157,7 +137,6 @@ def do_mo_hinh(du_doan, ten: str, ghi: dict):
                   + (f" | trường SBD {r['muc_truong']['sbd']['acc']:.3f} mã đề {r['muc_truong']['ma_de']['acc']:.3f}" if ten_tap == "phieu" else ""))
 
 
-# ------------------------------------------------------------------------------------------- M0
 def hog28(x: np.ndarray) -> np.ndarray:
     if len(x) > 2000:
         return np.concatenate([hog28(x[i:i + 2000]) for i in range(0, len(x), 2000)])
@@ -165,15 +144,13 @@ def hog28(x: np.ndarray) -> np.ndarray:
 
 
 def _hog28(x: np.ndarray) -> np.ndarray:
-    """HOG bằng NumPy (OpenCV 5 không còn HOGDescriptor): gradient [-1,0,1], 9 hướng không dấu, ô 7×7 (4×4 ô),
-    khối 2×2 ô bước 1 ô (3×3 khối), chuẩn hoá L2 -> 3·3·4·9 = 324 chiều. Vector hoá theo N ảnh."""
     g = x.astype(np.float32) / 255.0
     gx = np.zeros_like(g)
     gy = np.zeros_like(g)
     gx[:, :, 1:-1] = g[:, :, 2:] - g[:, :, :-2]
     gy[:, 1:-1, :] = g[:, 2:, :] - g[:, :-2, :]
     mag = np.hypot(gx, gy)
-    ang = (np.arctan2(gy, gx) % np.pi) / np.pi * 9.0           # [0, 9)
+    ang = (np.arctan2(gy, gx) % np.pi) / np.pi * 9.0
     b0 = np.floor(ang).astype(int) % 9
     w1 = ang - np.floor(ang)
     n = len(x)
@@ -193,7 +170,7 @@ def cmd_m0(a):
     xtr, ytr, xte, yte = doc_mnist()
     rng = np.random.default_rng(SEED)
     pm = rng.permutation(len(xtr))
-    va, tr = pm[:5000], pm[5000:]                      # val nội bộ MNIST (chọn C); KHÔNG dùng trang D / phiếu để chọn
+    va, tr = pm[:5000], pm[5000:]
     t0 = time.time()
     ftr, fva = hog28(xtr[tr]), hog28(xtr[va])
     print(f"HOG {len(tr)}+{len(va)} ảnh: {time.time() - t0:.0f} s")
@@ -211,7 +188,6 @@ def cmd_m0(a):
     print(f"Ghi {EVAL / 'm0_buoc4.json'}")
 
 
-# ------------------------------------------------------------------------------------------- M1 (CNN, PyTorch)
 def _torch():
     import torch
     import torch.nn as nn
@@ -220,7 +196,6 @@ def _torch():
 
 
 def tao_cnn():
-    """CNN nhỏ: Conv16 → pool → Conv32 → pool → Dense64 → 10 (~106 k tham số). Vào: [N,1,28,28] float 0–1."""
     torch, nn, F = _torch()
 
     class CNN(nn.Module):
@@ -239,8 +214,6 @@ def tao_cnn():
 
 
 def tang_cuong(x, g):
-    """Augmentation theo lô (x [N,1,28,28] float 0–1; g = torch.Generator): xoay ±10°, dịch ±2 px, co giãn 0,9–1,1,
-    nét mảnh đi (xói mòn, p 0,3) hoặc dày lên (p 0,2), nét nhạt (nhân 0,5–1), nhiễu hạt. Mô phỏng khác biệt MNIST → phiếu."""
     torch, _, F = _torch()
     n = x.shape[0]
     u = lambda lo, hi: lo + (hi - lo) * torch.rand(n, generator=g)
@@ -259,15 +232,13 @@ def tang_cuong(x, g):
 
 
 def huan_luyen_cnn(x, y, epochs, lr, seed, mo_hinh=None, aug=True, batch=128, tran="", dong_bang=(), aug_fn=None):
-    """Huấn luyện CNN (Adam + cosine). x uint8 [N,28,28]. Trả mô hình (eval). Không chọn epoch theo tập nào: dùng epoch cuối.
-    aug_fn(x, g) thay tang_cuong (Phần C: tăng cường mạnh hơn) khi aug=True."""
     torch, nn, F = _torch()
     torch.manual_seed(seed)
     g = torch.Generator().manual_seed(seed)
     m = mo_hinh or tao_cnn()
     X = torch.from_numpy(np.array(x)).float().div(255.0).unsqueeze(1)
     Y = torch.from_numpy(y).long()
-    for ten, pa in m.named_parameters():                 # dong_bang = tiền tố tên lớp bị đóng băng (tinh chỉnh chỉ Dense)
+    for ten, pa in m.named_parameters():
         pa.requires_grad = not any(ten.startswith(f) for f in dong_bang)
     opt = torch.optim.Adam([pa for pa in m.parameters() if pa.requires_grad], lr=lr)
     sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, epochs * ((len(X) + batch - 1) // batch))
@@ -290,7 +261,6 @@ def huan_luyen_cnn(x, y, epochs, lr, seed, mo_hinh=None, aug=True, batch=128, tr
 
 
 def xac_suat(m, x, lo=1024):
-    """Softmax [N,10] float32 của mô hình trên x uint8 [N,28,28]."""
     torch, _, F = _torch()
     out = []
     with torch.no_grad():
@@ -301,7 +271,6 @@ def xac_suat(m, x, lo=1024):
 
 
 def logits(m, x, lo=1024):
-    """Logit [N,10] float32 (trước softmax) của mô hình trên x uint8 [N,28,28]."""
     torch, _, _ = _torch()
     out = []
     with torch.no_grad():
@@ -317,13 +286,10 @@ def nap_m1():
     return m.eval()
 
 
-# ------------------------------------------------------------------------------------------- M2 sơ bộ: tinh chỉnh, CV theo NGƯỜI VIẾT
 CAU_HINH_M2 = {"dense": dict(dong_bang=("c1", "c2"), lr=1e-3, epochs=6), "toan_bo": dict(dong_bang=(), lr=3e-4, epochs=6)}
 
 
 def cmd_m2(a):
-    """Tinh chỉnh M1 trên trang D của 4 người viết, đo trên NGƯỜI THỨ 5 chưa gặp (5 fold = 5 người). Ghi logit OOF trang D và phiếu dev
-    (phiếu người k đọc bằng mô hình bỏ người k) cho từng (nguồn ảnh × kiểu tinh chỉnh) -> data/_ocr/oof_m2_<kieu>_<nguon>.npz"""
     import copy
     torch, _, _ = _torch()
     m1 = nap_m1()
@@ -366,7 +332,7 @@ def cmd_m1(a):
             mh = m
             torch.save(m.state_dict(), OCR / "m1_mnist.pt")
             do_mo_hinh(lambda x: xac_suat(m, x).argmax(1), f"M1 seed {sd}", ghi)
-        else:                                    # seed phụ: chỉ để đo độ ổn định (MNIST test + trang D + phiếu, anh_nan)
+        else:
             ghi.setdefault("seed_phu", {})[str(sd)] = {}
             _, _, xte2, yte2 = doc_mnist()
             ghi["seed_phu"][str(sd)]["mnist_test"] = tom_tat(yte2, xac_suat(m, xte2).argmax(1))["acc"]

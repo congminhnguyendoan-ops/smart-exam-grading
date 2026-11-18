@@ -1,19 +1,3 @@
-"""
-omr_c2.py - Tuần 5 PHẦN B2 (và B3 dùng lại): sửa "cần xem thừa" C2 (3,79% > 3%), mọi số đo bằng NESTED CV (omr_long.py).
-
-Ứng viên (CHỐT TRƯỚC khi chạy, cùng 9 đặc trưng trừ khi ghi khác; mọi siêu tham số cố định, không dò bằng dữ liệu):
-  m1            logistic C=1, class_weight balanced (mốc Phần A)
-  m1_khong_cb   như m1 nhưng KHÔNG class_weight (giảm áp lực đẩy câu mơ hồ sang "mờ")
-  m1_logS       m1 + đặc trưng log(S_anh) (thang bút / độ sáng ảnh, để mô hình biết chì nhạt vs bi)
-  m1_bac2       logistic trên đặc trưng bậc 2 (tương tác, 54 cột) C=1, balanced
-  hgb           HistGradientBoosting depth 3, 150 vòng, lr 0,1, balanced, seed 2026
-Tiêu chí chọn (chốt trước): (1) lỗi nặng = 0 (câu + cột; nested); (2) cần xem thừa ≤ 3% Ở MỌI điều kiện C1–C4 (nested);
-(3) F1 faint không THẤP HƠN m1 ngoài CI ghép cặp ở điều kiện nào (CI bootstrap theo phiếu của hiệu F1, cận trên hiệu < 0 = thấp hơn thật)
-VÀ maximin F1 không giảm điểm; hoà giữa các ứng viên đạt -> m1 (đơn giản nhất). Không ứng viên nào đạt -> báo trung thực, không nới tiêu chí.
-Chỉ 56 ảnh train. Không đọc val / test.
-
-  python tools/omr_c2.py chay  -> data/_eval/omr/c2_ung_vien.json + .md
-"""
 import json
 import sys
 import warnings
@@ -68,8 +52,6 @@ def f1_faint_dk(sel, y, d, dk_list=DK):
 
 
 def chon_ro_min_dk(rows, P, luat):
-    """Luật chọn ro_min THEO TỪNG ĐIỀU KIỆN (khớp tiêu chí "cần xem thừa ≤ 3% mọi điều kiện"): lớn nhất trong lưới có 0 lỗi nặng và
-    cần xem thừa ≤ 2,5% Ở MỌI điều kiện; không có thì lấy ro_min có thừa-xấu-nhất nhỏ nhất (dự phòng, ghi rõ)."""
     ok, xau = [], {}
     for ro in H.RO_LUOI:
         d = N.dem_cau(rows, P, {**luat, "ro_min": ro})
@@ -136,7 +118,6 @@ def chay(luat_chon="gop"):
         t = ket[ten]["nested_tong"]
         print(f"{ten}: nặng {t['nang']} nhẹ {t['nhe']} thừa {t['thua']}/{t['ro_that']} ({100 * t['thua'] / t['ro_that']:.2f}%) "
               f"thừa/dk {[round(100 * ngoai[c]['thua'] / ngoai[c]['ro_that'], 2) for c in DK]} F1 {[round(f1[c], 3) for c in DK]} ro_min {list(chon.values())}")
-    # so với m1 (ghép cặp)
     dat, L = [], ["# B2 – ứng viên giảm cần xem thừa C2 (nested CV, 56 ảnh train)", "",
                   "| Ứng viên | lỗi nặng | lỗi nhẹ | thừa gộp | thừa C1 / C2 / C3 / C4 | F1 faint C1 / C2 / C3 / C4 | F1 thấp hơn m1 ngoài CI | đạt? |", "|---|---|---|---|---|---|---|---|"]
     for ten in UNG_VIEN:
@@ -159,7 +140,6 @@ def chay(luat_chon="gop"):
                  + f" | {', '.join(thap) or '–'} | {'ĐẠT' if ok else 'không'} |")
     chon_ten = "m1" if "m1" in dat or not dat else None
     if dat and "m1" not in dat:
-        # chọn theo quy tắc: trong các ứng viên đạt, maximin F1 cao nhất, hoà (trong 0,005) -> đơn giản hơn (thứ tự UNG_VIEN)
         best = max(dat, key=lambda t_: (round(ket[t_]["maximin"], 2), -UNG_VIEN.index(t_)))
         chon_ten = best
     L += ["", f"**Ứng viên đạt cả 3 tiêu chí: {dat or 'KHÔNG CÓ'}** → chọn: **{chon_ten}** (hoà → m1; không ứng viên nào đạt → báo trung thực)."]

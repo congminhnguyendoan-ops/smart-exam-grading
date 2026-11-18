@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 KB = ROOT / "answer_sheet" / "demo_bv" / "demo_bv_kich_ban.csv"
 DAP_AN = ROOT / "answer_sheet" / "demo_bv" / "demo_bv_dap_an.csv"
 ANH = ROOT / "data" / "_eval" / "demo_bv" / "anh_gia"
-HEIC = ROOT / "data" / "raw_heic" / "IMG_4223.HEIC"          # = phiếu 0005_C1 (data/_prepare/mapping.csv)
+HEIC = ROOT / "data" / "raw_heic" / "IMG_4223.HEIC"
 LOP = "CNTT-K22A"
 
 
@@ -39,7 +39,7 @@ def doc_csv(p: Path) -> list[dict]:
 def dang_nhap(goc: str, ten: str, mk: str) -> dict:
     r = httpx.post(f"{goc}/auth/login", json={"username": ten, "password": mk}, timeout=30)
     r.raise_for_status()
-    m = re.search(r"se_session=([^;]+)", r.headers.get("set-cookie", ""))       # COOKIE_SECURE=1 + HTTP: cookie không lưu được -> dùng Bearer
+    m = re.search(r"se_session=([^;]+)", r.headers.get("set-cookie", ""))
     return {"Authorization": "Bearer " + m.group(1)}
 
 
@@ -51,7 +51,6 @@ def api(cl: httpx.Client, ptt: str, url: str, **kw):
 
 
 def chuan_bi(goc: str, admin: str) -> tuple[httpx.Client, dict, dict, int]:
-    """Tạo (nếu chưa có) lớp + giáo viên thử; trả (client, header admin, header giáo viên, user_id giáo viên)."""
     cl = httpx.Client(base_url=goc, timeout=120)
     ha = dang_nhap(goc, admin, os.environ["AV_ADMIN_PW"])
     lop = next((x for x in api(cl, "GET", "/admin/classes", headers=ha) if x["class_code"] == LOP), None) \
@@ -72,7 +71,6 @@ def tao_ky_thi(cl, ha, gv_id: int, tieu_de: str, ma_de: dict[str, str]) -> int:
 
 
 def duyet_dung_giay(cl, h, sid: int, nhan: list[str], sbd: str, ma_de: str) -> dict:
-    """Giáo viên duyệt ĐÚNG NHƯ GIẤY (cùng quy tắc tools/thu_bo_demo.py): câu cần xem -> đặt tập ô đã tô; SBD / mã đề -> nhập đúng. Trả phiếu sau duyệt."""
     for q in api(cl, "GET", f"/sheets/{sid}/review-questions", headers=h):
         lab = nhan[q["question_no"] - 1]
         api(cl, "POST", f"/sheets/{sid}/questions/{q['question_no']}/review", headers=h,
@@ -90,7 +88,6 @@ def tai(cl, h, eid: int, duong_dan: Path, mime: str) -> dict:
     return {"http": r.status_code, **(r.json() if r.headers.get("content-type", "").startswith("application/json") else {})}
 
 
-# ------------------------------------------------------------------------------------------------ V4
 def chay_bv(a) -> int:
     from backend import demo
     cl, ha, hg, gv = chuan_bi(a.goc, a.admin)
@@ -102,7 +99,6 @@ def chay_bv(a) -> int:
         ket_qua.append(dat)
         print(f"  [{'ĐẠT' if dat else 'KHÔNG ĐẠT'}] {ten} – {ct}")
 
-    # (1) một ảnh JPG BV01
     eid = tao_ky_thi(cl, ha, gv, "[AV] E1 BV01", e1)
     p = kb["BV01"]
     r = tai(cl, hg, eid, ANH / "BV01.jpg", "image/jpeg")
@@ -112,7 +108,6 @@ def chay_bv(a) -> int:
     kiem("JPG BV01: tải 201, SBD đọc đúng, điểm chính thức = điểm mong đợi", r["http"] == 201 and v["sbd"]["detected"] == p["sbd"]
          and off is not None and Decimal(str(off)) == Decimal(p["diem_mong_doi"]), f"tải {r['http']}, trạng thái lúc tải {r.get('status')}, tạm {r.get('provisional_score')}, cuối {off}, mong đợi {p['diem_mong_doi']}")
 
-    # (2) HEIC thật (iPhone) = phiếu 0005_C1
     bl = demo.doc_bai_lam()
     khoa, _ = demo.khoa_tu_bai_lam(bl["nhan"])
     ma = {m: (khoa if m == bl["exam_code"] else demo.khoa_demo(m)) for m in demo.MA_DE}
@@ -124,7 +119,6 @@ def chay_bv(a) -> int:
     kiem(f"HEIC thật ({HEIC.name}, {HEIC.stat().st_size // 1024} KB): tải 201, điểm chính thức = {dung}/40 = {diem}", r["http"] == 201 and off is not None
          and Decimal(str(off)) == Decimal(str(diem)), f"tải {r['http']}, trạng thái {r.get('status')}, SBD đọc {v['sbd']['detected']}, cuối {off}, mong đợi {diem}")
 
-    # (3) lô 5 ảnh (BV01–BV05) trong kỳ thi mới
     eid3 = tao_ky_thi(cl, ha, gv, "[AV] E3 lô 5", e1)
     hd = hg
     files = [("files", (f"BV0{i}.jpg", (ANH / f"BV0{i}.jpg").read_bytes(), "image/jpeg")) for i in range(1, 6)]
@@ -146,16 +140,13 @@ def chay_bv(a) -> int:
     return 0 if all(ket_qua) else 1
 
 
-# ------------------------------------------------------------------------------------------------ V5
 def cgroup(ten: str) -> tuple[float, float, float]:
-    """(hiện tại, ĐỈNH từ lúc container bắt đầu, anon) MiB của container, đọc từ cgroup v2 trong container (chính xác hơn docker stats lấy mẫu thưa)."""
     out = subprocess.run(["docker", "exec", ten, "sh", "-c", "cat /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.peak; grep '^anon ' /sys/fs/cgroup/memory.stat"],
                          capture_output=True, text=True).stdout.split()
     return int(out[0]) / 2**20, int(out[1]) / 2**20, int(out[3]) / 2**20
 
 
 def chay_ram(a) -> int:
-    """MỘT pha mỗi lần chạy, trên container VỪA tạo lại (đỉnh cgroup = đỉnh của khởi động + pha đó). Gọi từ vòng lặp bên ngoài: tạo lại app -> chạy pha."""
     cl, ha, hg, gv = chuan_bi(a.goc, a.admin)
     hd = hg
     e1 = {r["exam_code"]: r["answers"] for r in doc_csv(DAP_AN) if r["exam"] == "E1"}

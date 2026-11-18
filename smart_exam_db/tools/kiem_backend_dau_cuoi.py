@@ -1,24 +1,3 @@
-"""
-kiem_backend_dau_cuoi.py - Kiểm chứng ĐẦU-CUỐI backend trên ảnh dev 0001–0028 (B4, docs/ke_hoach_demo.md).
-
-Chạy trên CSDL thật nhưng trong MỘT giao dịch luôn ROLLBACK (không để lại dòng nào) + thư mục ảnh tạm. Gọi API qua TestClient.
-
-ĐỘC LẬP với code chấm của backend: điểm "đúng" tính lại từ data/ground_truth.csv (nhãn người tô) + đáp án đọc từ API
-GET /exams/{id} (chuỗi đáp án trong CSDL), bằng luật riêng ở đây (KHÔNG import backend.grading / service):
-    câu đúng ⇔ người tô ĐÚNG MỘT ô và ô đó = đáp án chuẩn (ô mờ cũng tính – chính sách faint_counts_as_answer = true);
-    mỗi câu 10 / 40 = 0,25 điểm.
-
-Mỗi ảnh đi 2 pha:
-  1. TẢI ẢNH (không can thiệp): với các câu KHÔNG gắn "cần xem" so is_correct của hệ thống với đúng/sai thật
-     -> "câu chấm sai mà không gắn cần xem" (PHẢI = 0); so cách đọc, SBD, mã đề tương tự; điểm tạm ≤ điểm thật ≤ điểm tối đa;
-     phiếu tự chốt (không cần xem) phải có điểm chính thức = điểm thật.
-  2. GIÁO VIÊN ĐẦU TIÊN (oracle): chốt từng câu cần xem đúng như tờ giấy (nhãn), chốt SBD / mã đề nếu cần
-     -> điểm chính thức cuối cùng phải = điểm thật, đúng sinh viên.
-Ảnh giả (data/_eval/_gia_v4, layout phiếu): ca mong đợi từ chối phải bị từ chối (không điểm); ca mong đợi 'ok' không bị từ chối.
-
-  python tools/kiem_backend_dau_cuoi.py                 # 56 ảnh train + ảnh giả -> data/_eval/backend/
-  python tools/kiem_backend_dau_cuoi.py --phieu 0002_C2 0014_C2 --khong-gia
-"""
 import argparse
 import csv
 import json
@@ -32,25 +11,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-os.environ.setdefault("AUTH_MODE", "demo")      # công cụ chạy trong tiến trình: bỏ đăng nhập (backend: AUTH_MODE=on là mặc định)
+os.environ.setdefault("AUTH_MODE", "demo")
 from cv_engine.tap_du_lieu import PHIEU_TRAIN, ma_phieu  # noqa: E402
 
 DATA = ROOT / "data"
 OUT = DATA / "_eval" / "backend"
 GIA = DATA / "_eval" / "_gia_v4"
-DIEM_CAU = Decimal("0.25")                 # 10 điểm / 40 câu
+DIEM_CAU = Decimal("0.25")
 NHOM_MA = {"khong_du_marker": {"thieu_marker", "marker_khong_dat"}}
-SAI_MA_DA_BIET = {"mo_cheo30_0001_C1", "mo_cheo15_0015_C3", "mo_toi_nhieu_0001_C1", "mo_toi_nhieu_0008_C4"}   # như eval Tuần 4
+SAI_MA_DA_BIET = {"mo_cheo30_0001_C1", "mo_cheo15_0015_C3", "mo_toi_nhieu_0001_C1", "mo_toi_nhieu_0008_C4"}
 MA_DE = ("101", "102", "103", "104")
 
 
-# ------------------------------------------------------------------------------------------------ nhãn (độc lập)
 def doc_nhan() -> dict:
-    """{'0001': {'q': {1: 'd', ...}, 'sbd': '062384', 'sbd_bubble': '06238-', 'ma_de': '101', 'ma_de_bubble': '101'}} – CHỈ phiếu train."""
     out = {}
     with (DATA / "ground_truth.csv").open(encoding="utf-8-sig", newline="") as f:
         for r in csv.DictReader(f):
-            if int(r["sheet_id"]) in PHIEU_TRAIN:          # dòng phiếu val / test bỏ ngay khi đọc
+            if int(r["sheet_id"]) in PHIEU_TRAIN:
                 out[r["sheet_id"]] = {"q": {q: r[f"q{q}"] for q in range(1, 41)}, "sbd": r["sbd"], "sbd_bubble": r["sbd_bubble"],
                                       "ma_de": r["exam_code"], "ma_de_bubble": r["exam_code_bubble"]}
     return out
@@ -64,10 +41,8 @@ def chon_that(nhan_cau: str) -> str:
     return "" if nhan_cau == "-" else nhan_cau.upper()
 
 
-# ------------------------------------------------------------------------------------------------ phiên làm việc (rollback)
 @contextmanager
 def phien():
-    """(client, conn): API thật trên CSDL thật, một giao dịch ROLLBACK, thư mục ảnh tạm."""
     from fastapi.testclient import TestClient
 
     from backend import migrate
@@ -76,7 +51,7 @@ def phien():
     from backend.main import app, get_cau_hinh, get_conn
     cfg = replace(lay_cau_hinh(), storage_dir=Path(tempfile.mkdtemp(prefix="kho_dau_cuoi_")))
     conn = ket_noi()
-    chua = migrate.chua_ap(conn)                       # CHỈ KIỂM – công cụ không áp migration lên CSDL thật (sự cố 002)
+    chua = migrate.chua_ap(conn)
     if chua:
         conn.close()
         raise SystemExit(f"DỪNG: migration chưa áp {chua} – chạy python -m backend.migrate (người dùng quyết).")
@@ -96,15 +71,14 @@ def phien():
 
 
 def tao_ky_thi(client, tieu_de: str) -> tuple[int, dict]:
-    from backend import demo                                  # chỉ để sinh đáp án mẫu (dữ liệu), không phải code chấm
+    from backend import demo
     r = client.post("/exams", json={"exam_title": tieu_de, "subject_code": "KTDC" + tieu_de[-1], "num_questions": 40,
                                     "codes": [{"code": m, "answers": demo.khoa_demo(m)} for m in MA_DE]})
     assert r.status_code == 201, r.text
     eid = r.json()["exam_id"]
-    return eid, {c["code"]: c["answers"] for c in client.get(f"/exams/{eid}").json()["codes"]}     # đáp án ĐỌC TỪ CSDL qua API
+    return eid, {c["code"]: c["answers"] for c in client.get(f"/exams/{eid}").json()["codes"]}
 
 
-# ------------------------------------------------------------------------------------------------ một ảnh phiếu
 def chay_phieu(client, conn, exam_id: int, dap_an: dict, ten: str, nhan: dict) -> dict:
     ma_so = f"{ma_phieu(ten):04d}"
     t = nhan[ma_so]
@@ -137,7 +111,6 @@ def chay_phieu(client, conn, exam_id: int, dap_an: dict, ten: str, nhan: dict) -
         row["doc_sai_khong_gan_can_xem"] += not doc_dung
         if code_ok and q["is_correct"] is not None and q["is_correct"] != that[q["question_no"]]:
             row["cham_sai_khong_gan_can_xem"] += 1
-    # Tuần 6 Phần C: SBD / mã đề được nhận (hai kênh bubble + chữ viết tay khớp) phải = chữ VIẾT TAY thật (nhãn người viết), không chỉ = bubble
     if not v["sbd"]["can_xem"] and v["sbd"]["detected"] != t["sbd"]:
         row["sai_im_lang_sbd"] = 1
     if not v["exam_code"]["can_xem"] and v["exam_code"]["detected"] != t["ma_de"]:
@@ -154,7 +127,6 @@ def chay_phieu(client, conn, exam_id: int, dap_an: dict, ten: str, nhan: dict) -
         row["status_cuoi"], row["diem_cuoi"] = "graded", sc["official"]
         return row
 
-    # --- pha 2: giáo viên đầu tiên (oracle) chốt đúng như tờ giấy
     for c in client.get(f"/sheets/{sid}/review-questions").json():
         lab = t["q"][c["question_no"]]
         rr = client.post(f"/sheets/{sid}/questions/{c['question_no']}/review",
@@ -172,7 +144,6 @@ def chay_phieu(client, conn, exam_id: int, dap_an: dict, ten: str, nhan: dict) -
     return row
 
 
-# ------------------------------------------------------------------------------------------------ ảnh giả
 def ds_gia() -> list[dict]:
     p = GIA / "danh_sach.csv"
     if not p.exists():
@@ -193,7 +164,7 @@ def chay_gia(client, conn, exam_id: int, r: dict) -> dict:
     out.update(status=j["status"], reject_code=j["reject_code"], official=j["official_score"])
     if r["mong_doi"] == "tu_choi":
         if j["status"] != "rejected" or co_diem or j["official_score"] is not None:
-            out["ket_qua"] = "LOI_IM_LANG"                        # lẽ ra phải từ chối mà vẫn nhận
+            out["ket_qua"] = "LOI_IM_LANG"
         else:
             mong = set().union(*[NHOM_MA.get(m, {m}) for m in r["ly_do_mong_doi"].split("|")]) if r["ly_do_mong_doi"] else set()
             out["ket_qua"] = ("tu_choi_dung" if j["reject_code"] in mong or not mong else
@@ -203,11 +174,9 @@ def chay_gia(client, conn, exam_id: int, r: dict) -> dict:
     return out
 
 
-# ------------------------------------------------------------------------------------------------ báo cáo
 def chay(ds_anh: list[str], voi_gia: bool, tien_do=print, gia_toi_da: int | None = None) -> dict:
     nhan = doc_nhan()
     with phien() as (client, conn):
-        # hai kỳ thi cùng đáp án: ảnh thứ nhất của phiếu vào A, ảnh thứ hai vào B (tránh trùng SBD làm lệch phép kiểm điểm)
         a, dap_an = tao_ky_thi(client, "Kiểm đầu-cuối A")
         b, _ = tao_ky_thi(client, "Kiểm đầu-cuối B")
         da = set()

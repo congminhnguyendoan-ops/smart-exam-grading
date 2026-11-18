@@ -1,17 +1,3 @@
-"""
-check_photos.py - Kiểm tra nhanh ảnh vừa chụp: đặt tên đúng chưa, đủ độ phân giải không, nắn phẳng được không.
-Chạy NGAY sau mỗi buổi chụp để chụp lại ảnh hỏng khi phiếu còn trong tay.
-
-Nắn bằng cv_engine.preprocessing.preprocess() (Tuần 4, Bước 6 – thay align() cũ, vốn chọn nhầm marker mà vẫn báo OK).
-Ảnh bị từ chối được báo rõ: tên + mã lý do + thông báo (MA_LY_DO) – không âm thầm bỏ qua.
-
-Quy ước đặt tên:  data/raw/0001_C1.jpg   (mã phiếu 4 số + điều kiện chụp C1..C4)
-                  data/raw_digits/D001.jpg (trang thu chữ số)
-Chạy:             python check_photos.py --dir ../data/raw
-Kết quả:          bảng OK / LỖI + data/_aligned/photo_report_<tên thư mục>.csv; ảnh đã nắn (anh_nan, JPEG q95, CHỈ ĐỂ XEM)
-                  vào data/_aligned/<tên thư mục>/. KHÔNG ghi vào thư mục ảnh gốc (data/raw*).
-Tập test 0035–0040 bị bỏ qua (không đọc) trừ khi có --xac-nhan-test (cv_engine/tap_du_lieu.py).
-"""
 import argparse
 import csv
 import hashlib
@@ -24,14 +10,14 @@ import numpy as np
 from PIL import Image
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent                                      # smart_exam_db/
+ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 from cv_engine.preprocessing import MA_LY_DO, nap_layout, preprocess  # noqa: E402
 from cv_engine.tap_du_lieu import la_test  # noqa: E402
 
 NAME_RE = re.compile(r"^(\d{4})_(C[1-4])\.(jpg|jpeg|png|heic)$", re.I)
 DIGIT_RE = re.compile(r"^(D\d{3})\.(jpg|jpeg|png|heic)$", re.I)
-MIN_CANH = 1500         # cạnh ngắn tối thiểu (px)
+MIN_CANH = 1500
 
 
 def main():
@@ -59,10 +45,10 @@ def main():
             bad += 1
             continue
         if la_test(fn) and not a.xac_nhan_test:
-            bo_qua.append(fn)                       # không đọc ảnh test
+            bo_qua.append(fn)
             continue
         try:
-            with Image.open(p) as im:               # chỉ đọc header
+            with Image.open(p) as im:
                 size = im.size
         except Exception:  # noqa: BLE001 – file hỏng: preprocess sẽ báo khong_doc_duoc
             size = None

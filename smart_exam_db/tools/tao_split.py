@@ -1,16 +1,3 @@
-"""
-tao_split.py - Sinh data/split.csv cho OMR (Tuần 5, kế hoạch docs/ke_hoach_tuan5.md mục 1).
-
-Ranh giới lấy từ cv_engine/tap_du_lieu.py (PHIEU_TRAIN / PHIEU_VAL / PHIEU_TEST) – KHÔNG định nghĩa lại.
-Trong train 0001–0028: 7 fold nhóm theo phiếu, phân tầng theo cặp điều kiện (C1+C2 / C2+C3 / C3+C4 / C4+C1): mỗi fold
-có đúng 1 phiếu mỗi cặp (4 phiếu, 8 ảnh, mỗi điều kiện C1–C4 2 ảnh); 2 ảnh cùng phiếu luôn cùng fold. Seed 2026.
-
-Tập test: chỉ ghi TÊN file (liệt kê data/raw), điều kiện suy từ tên; KHÔNG đọc ảnh, KHÔNG đọc dòng nhãn của phiếu test
-(cột but để trống). Nhãn dev chỉ đọc 2 cột conditions, pen.
-
-Chạy (từ smart_exam_db/):  python tools/tao_split.py            # ghi data/split.csv
-                           python tools/tao_split.py --kiem     # chỉ kiểm file hiện có = file sinh lại (từng byte)
-"""
 import argparse
 import csv
 import io
@@ -28,7 +15,6 @@ COT = ["anh", "phieu", "dieu_kien", "but", "tap", "fold"]
 
 
 def doc_nhan_dev(gt_path: Path) -> dict:
-    """{phieu: (conditions, pen)} – chỉ phiếu train/val; dòng phiếu test bỏ ngay khi đọc."""
     out = {}
     with gt_path.open(encoding="utf-8-sig", newline="") as f:
         for r in csv.DictReader(f):
@@ -39,7 +25,6 @@ def doc_nhan_dev(gt_path: Path) -> dict:
 
 
 def chia_fold(nhan: dict) -> dict:
-    """{phieu train: fold 1..7}: mỗi cặp điều kiện (7 phiếu) xáo bằng seed rồi rải 1 phiếu / fold."""
     rng = random.Random(SEED)
     theo_cap = {}
     for p in PHIEU_TRAIN:
@@ -59,7 +44,7 @@ def tao_noi_dung(raw: Path, gt: Path) -> str:
     nhan = doc_nhan_dev(gt)
     fold = chia_fold(nhan)
     dong = []
-    for f in sorted(raw.glob("*.jpg")):                       # chỉ tên file
+    for f in sorted(raw.glob("*.jpg")):
         p = ma_phieu(f.stem)
         if p is None:
             continue
@@ -78,7 +63,6 @@ def tao_noi_dung(raw: Path, gt: Path) -> str:
 
 
 def kiem_rang_buoc(noi_dung: str) -> list[str]:
-    """Ràng buộc của split (dùng cả trong pytest). Trả danh sách lỗi (rỗng = đạt)."""
     rows = list(csv.DictReader(io.StringIO(noi_dung)))
     loi = []
     tap_cua_phieu, fold_cua_phieu = {}, {}

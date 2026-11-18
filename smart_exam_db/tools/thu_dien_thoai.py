@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 os.environ["AUTH_MODE"] = "on"
-os.environ["ANH_XOA_TU_DONG"] = "0"                     # thử nghiệm không bao giờ dọn ảnh thật
+os.environ["ANH_XOA_TU_DONG"] = "0"
 
 import kiem_bo_demo as K  # noqa: E402
 
@@ -33,13 +33,11 @@ GIA = ROOT / "data" / "_eval" / "demo_bv" / "gia"
 GIA_12 = ROOT / "data" / "_eval" / "demo_bv" / "gia_12mp"
 UI = ROOT / "data" / "_eval" / "ui_m" / "lien_tuc"
 MK_TAM = "MatKhau-Thu-Dien-Thoai-1"
-SO_BAN = 5                                              # v1, v2: chụp camera · v3, v4: chọn nhiều ảnh · v5: chụp lại tờ bị từ chối
-NHIP_GIAY = 2.0                                         # chụp camera: một tờ mỗi 2 s (nhanh hơn thực tế: lật tờ + căn khung thường 3–5 s)
+SO_BAN = 5
+NHIP_GIAY = 2.0
 
 
-# ------------------------------------------------------------------------------------------------ ảnh ~12 MP
 def tao_anh(vong: int = SO_BAN) -> None:
-    """Mỗi phiếu BVxx: `vong` ảnh 3024×4032 khác nhau (góc nghiêng / ánh sáng / nhiễu khác -> SHA khác, không bị coi là ảnh trùng)."""
     import cv2
     import numpy as np
     if not all((GIA / f"{p['sheet_id']}.jpg").exists() for p in K.doc(K.KICH_BAN)):
@@ -50,7 +48,7 @@ def tao_anh(vong: int = SO_BAN) -> None:
         phang = cv2.imdecode(np.fromfile(GIA / f"{p['sheet_id']}.jpg", np.uint8), cv2.IMREAD_GRAYSCALE)
         h0, w0 = phang.shape
         for v in range(vong):
-            rng = np.random.default_rng(2026 * 100 + int(p["sheet_id"][2:]) * 10 + v)      # xác định: chạy lại ra cùng ảnh
+            rng = np.random.default_rng(2026 * 100 + int(p["sheet_id"][2:]) * 10 + v)
             nen = (rng.normal(118, 9, (H, W)).astype(np.float32))
             nen = cv2.GaussianBlur(nen, (0, 0), 6)
             le = 230 + rng.integers(-40, 40)
@@ -61,15 +59,14 @@ def tao_anh(vong: int = SO_BAN) -> None:
             mat = cv2.warpPerspective(np.ones_like(phang, np.float32), M, (W, H), flags=cv2.INTER_NEAREST)
             anh = np.where(mat > 0, giay, nen)
             gx = np.linspace(rng.uniform(0.82, 0.92), rng.uniform(0.98, 1.05), W, dtype=np.float32)
-            anh = anh * gx[None, :]                                          # ánh sáng không đều
-            anh = cv2.GaussianBlur(anh, (0, 0), rng.uniform(0.8, 1.4))       # hơi mờ (ống kính / rung tay nhẹ)
+            anh = anh * gx[None, :]
+            anh = cv2.GaussianBlur(anh, (0, 0), rng.uniform(0.8, 1.4))
             anh = np.clip(anh + rng.normal(0, 3.0, anh.shape), 0, 255).astype(np.uint8)
             bgr = cv2.cvtColor(anh, cv2.COLOR_GRAY2BGR)
             cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])[1].tofile(GIA_12 / f"{p['sheet_id']}_v{v + 1}.jpg")
     print(f"Đã ghi {vong * 10} ảnh 3024×4032 ở {GIA_12}")
 
 
-# ------------------------------------------------------------------------------------------------ máy chủ trong tiến trình (ROLLBACK)
 def cong_trong() -> int:
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
@@ -79,7 +76,6 @@ def cong_trong() -> int:
 
 
 class MayChuThu:
-    """uvicorn ở 127.0.0.1 trong luồng nền; mọi yêu cầu dùng chung MỘT kết nối không commit -> ROLLBACK khi tắt; ảnh vào thư mục tạm."""
 
     def __init__(self):
         import uvicorn
@@ -111,13 +107,11 @@ class MayChuThu:
         self.sv.should_exit = True
         self.t.join(10)
         self.app.dependency_overrides.clear()
-        self.conn.rollback()                                                 # KHÔNG ghi thật
+        self.conn.rollback()
         self.conn.close()
 
 
 def dung_du_lieu_tam(conn) -> dict:
-    """Trong giao dịch sẽ ROLLBACK: giáo viên tạm (mật khẩu biết trước) phụ trách K22A, MỘT kỳ thi gộp 4 mã đề 101–104 (đáp án E1 + E2),
-    dự thi 220001–220009 (220010 cố ý ngoài danh sách như BV10) – để 20 tờ chụp liền một phiên như một lớp thật."""
     from backend import auth, service
     from nap_bo_demo import DU_THI
     uid = conn.execute("INSERT INTO users (username, email, password_hash, full_name, role, is_active) VALUES (%s, %s, %s, %s, 'teacher', TRUE) "
@@ -131,7 +125,6 @@ def dung_du_lieu_tam(conn) -> dict:
     return {"username": "gv_thu_dt", "mat_khau": MK_TAM, "exam_id": eid}
 
 
-# ------------------------------------------------------------------------------------------------ kịch bản trình duyệt
 JS_TO = """() => window.__hangDoi.ds.map(t => ({stt: t.stt, soTo: t.soTo, ten: t.ten, trangThai: t.trangThai, lanGui: t.lanGui, an: t.an,
   tChup: t.tChup, tBatDau: t.tBatDau, tXong: t.tXong, status: t.ketQua && t.ketQua.status, sheet: t.ketQua && t.ketQua.sheet_id,
   daTonTai: t.ketQua && t.ketQua.da_ton_tai, thayCho: t.thayCho, thayBang: t.thayBang}))"""
@@ -188,14 +181,13 @@ def chay() -> dict:
             pg.fill("#tong-to", "40"); pg.dispatch_event("#tong-to", "change")
             chup("01_bat_dau.png")
 
-            # B) chụp bằng camera: 20 tờ, mỗi NHIP_GIAY giây một tờ, KHÔNG chờ kết quả tờ trước
             tu = stt_cuoi()
             anh_b = [GIA_12 / f"BV{i:02d}_v{v}.jpg" for v in (1, 2) for i in range(1, 11)]
             t0 = time.perf_counter()
             for k, a in enumerate(anh_b):
                 pg.set_input_files("#cam", str(a))
                 if k == 5:
-                    chup("02_dang_chup_lien_tuc.png")                         # đang chụp: tờ đã chấm / đang chấm / đang gửi / chờ
+                    chup("02_dang_chup_lien_tuc.png")
                 time.sleep(NHIP_GIAY)
             ket["thoi_gian_chup_20_to_giay"] = round(time.perf_counter() - t0, 1)
             cho_het()
@@ -203,14 +195,12 @@ def chay() -> dict:
             chup("03_xong_20_to_dau.png", dau=True)
             pg.evaluate("() => window.scrollTo(0, document.body.scrollHeight)"); chup("04_xong_20_to_cuoi.png")
 
-            # A) chọn nhiều ảnh: 20 tờ một lần (dồn tải nặng nhất)
             tu = stt_cuoi()
             pg.set_input_files("#nhieu", [str(GIA_12 / f"BV{i:02d}_v{v}.jpg") for v in (3, 4) for i in range(1, 11)])
             pg.wait_for_timeout(1500); chup("05_chon_nhieu_dang_gui.png", dau=True)
             cho_het()
             ket["A_chon_nhieu_20"] = thong_ke(ds_moi(tu), "A: chọn nhiều ảnh, 20 tờ một lần")
 
-            # lỗi mạng -> Gửi lại (ảnh giữ trên máy, không chụp lại)
             tu = stt_cuoi()
             dt.set_offline(True)
             pg.set_input_files("#cam", str(GIA_12 / "BV01_v5.jpg"))
@@ -225,7 +215,6 @@ def chay() -> dict:
             ket["loi_mang_gui_lai"] = {"to": len(lai), "sau_gui_lai": [t["status"] for t in lai], "lan_gui": [t["lanGui"] for t in lai]}
             pg.evaluate("() => window.scrollTo(0, document.body.scrollHeight)"); chup("07_sau_gui_lai.png")
 
-            # ảnh bị từ chối -> Chụp lại (đúng ô chọn tệp trong dòng đó)
             import cv2
             import numpy as np
             trang = UI / "_anh_trang.jpg"
@@ -239,7 +228,6 @@ def chay() -> dict:
             ket["tu_choi_chup_lai"] = [{k: t[k] for k in ("soTo", "status", "thayCho", "thayBang")} for t in ds_moi(tu)]
             trang.unlink(missing_ok=True)
 
-            # ảnh trùng (gửi lại đúng tệp tờ 1): không lặp dòng, không tính chấm được
             truoc = pg.evaluate("() => window.__hangDoi.tong()")
             tu = stt_cuoi()
             pg.set_input_files("#cam", str(anh_b[0])); cho_het()

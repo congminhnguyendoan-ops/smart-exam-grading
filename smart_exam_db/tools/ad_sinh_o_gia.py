@@ -1,16 +1,3 @@
-"""
-ad_sinh_o_gia.py - Lệnh AD, Bước 2: biến chữ số EMNIST / MNIST thành "ô phiếu giả" giống ô viết tay cắt từ ảnh chụp thật.
-
-Vẽ ở thang 300 DPI của ảnh đã nắn (ô 70,9 × 106,3 px, viền in sẵn, nền giấy, bóng, nhoè, nhiễu, JPEG…) rồi cho qua ĐÚNG đường chạy thật:
-cv_engine.ocr.cat_o (cắt vào NUT_VIEN, bản đồ mực, bỏ hạt bẩn / mảnh viền, ve_mnist 20×20 + trọng tâm) và ocr._hop_ly_o (ô trống / ít mực /
-không phải chữ số bị loại – lúc chạy thật những ô đó cũng KHÔNG qua CNN). Kết quả là ảnh 28×28 cùng phân phối đầu vào với CNN lúc chạy.
-
-Chỉnh tham số CHỈ theo trang chữ số D001–D010 (dữ liệu huấn luyện); KHÔNG nhìn ô trên phiếu 0001–0034 (phiếu 0001–0028 dùng để đo).
-
-  python tools/ad_sinh_o_gia.py that                 # cắt ô thật trang D -> data/_eval/ad/o_that_mau.npz + thống kê
-  python tools/ad_sinh_o_gia.py so-sanh              # 8 ô thật | 8 ô giả -> data/_eval/ad/so_sanh_that_gia.png + bảng thống kê
-  python tools/ad_sinh_o_gia.py sinh --n 60000       # sinh bộ ô giả -> data/_eval/ad/o_gia.npz (x 28×28, y, nguồn)
-"""
 import argparse
 import csv
 import json
@@ -28,47 +15,43 @@ from cv_engine import ocr  # noqa: E402
 
 EVAL = ROOT / "data" / "_eval" / "ad"
 EMNIST = ROOT / "data" / "nguon_ngoai" / "emnist_digits.npz"
-W_O, H_O = 70.9, 106.3          # ô danh nghĩa @300 DPI (sheet_layout.py)
-LE = 22                         # lề quanh ô trên ảnh vẽ (đủ chứa viền ô bên cạnh)
+W_O, H_O = 70.9, 106.3
+LE = 22
 
-# Tham số CUỐI (sau khi so với trang D – xem docs/lenh_ad.md mục Bước 2). Khoảng [lo, hi] = phân phối đều.
 TS = {
-    "nen": (195, 230),           # mức xám giấy TRƯỚC bóng / gamma (anh_nan) – trang D: p5–p95 183–217 sau cùng
-    "nhieu_nen": (3.0, 6.0),     # độ lệch chuẩn nhiễu Gauss mịn (mức xám)
-    "van_giay": (2.0, 5.0),      # vân giấy: nhiễu Gauss làm mờ σ 1,5 px, biên độ (mức xám)
-    "vien_day": (3, 4),          # bề dày nét viền (px; cv2 vẽ nét chẵn rộng hơn) – 5–6 px lọt vào vùng cắt NUT_VIEN, khác ảnh thật
-    "vien_dam": (0.78, 0.95),    # độ đậm viền: xám = nền × (1 − đậm) – trang D p5–p95 0,80–0,96
-    "o_ben": 0.7,                # xác suất vẽ viền ô bên cạnh
-    "khoang_o_ben": (12, 24),    # khe giữa 2 ô (phiếu 11,8 px, trang D 23,6 px)
-    "cao_chu": (40, 86),         # chiều cao chữ TRƯỚC làm mảnh nét (px) – sau cùng trang D: p5–p95 37–74
-    "gian_ngang": (0.7, 1.1),    # co giãn ngang riêng (EMNIST rộng hơn chữ trên phiếu)
-    "nguong_mong": (0.5, 0.82),  # ngưỡng làm mảnh nét sau khi phóng to (cao = mảnh hơn)
-    "net_dam": (0.45, 0.9),      # độ đậm mực: xám = nền × (1 − đậm × mực)
-    "xoay": 8.0,                 # độ
-    "nghieng": 0.2,              # shear
-    "lech": 0.5,                 # dịch tâm chữ, tỉ lệ khoảng trống còn lại
-    "p_lan_vien": 0.12,          # chữ lấn sát / chạm viền
-    "p_net_dut": 0.15,           # nét đứt / nhạt từng đoạn
-    "p_bong": 0.5, "bong": (0.03, 0.2),          # bóng đổ (dốc tuyến tính)
-    "sang": (0.92, 1.05), "gamma": (0.9, 1.12),  # độ sáng / tương phản
-    "p_nhoe": 0.35, "nhoe": (0.3, 1.0),          # Gauss σ (px) – ảnh trang D hầu như sắc nét
+    "nen": (195, 230),
+    "nhieu_nen": (3.0, 6.0),
+    "van_giay": (2.0, 5.0),
+    "vien_day": (3, 4),
+    "vien_dam": (0.78, 0.95),
+    "o_ben": 0.7,
+    "khoang_o_ben": (12, 24),
+    "cao_chu": (40, 86),
+    "gian_ngang": (0.7, 1.1),
+    "nguong_mong": (0.5, 0.82),
+    "net_dam": (0.45, 0.9),
+    "xoay": 8.0,
+    "nghieng": 0.2,
+    "lech": 0.5,
+    "p_lan_vien": 0.12,
+    "p_net_dut": 0.15,
+    "p_bong": 0.5, "bong": (0.03, 0.2),
+    "sang": (0.92, 1.05), "gamma": (0.9, 1.12),
+    "p_nhoe": 0.35, "nhoe": (0.3, 1.0),
     "p_chuyen_dong": 0.08, "chuyen_dong": (3, 5),
-    "cao_min": 28,               # chữ sau cùng thấp hơn -> bỏ mẫu (trang D: p1 của cao = 33)
+    "cao_min": 28,
     "p_jpeg": 0.6, "jpeg": (55, 95),
-    "lech_khung": 1,             # khung đưa vào cat_o lệch ±1 px (mô phỏng tim_khung)
+    "lech_khung": 1,
 }
 
 
-# ------------------------------------------------------------------------------------------- vẽ ô giả
 def _u(rng, ab):
     return float(rng.uniform(*ab))
 
 
 def ve_o(src: np.ndarray, rng: np.random.Generator, ts: dict = TS):
-    """src: chữ số 28×28 uint8 (nền 0, nét 255, đúng chiều). Trả (ảnh xám uint8 vẽ ô, khung (x0,y0,x1,y1,True), rect danh nghĩa)."""
     Wc, Hc = int(round(W_O)) + 2 * LE, int(round(H_O)) + 2 * LE
     rect = (float(LE), float(LE), W_O, H_O)
-    # --- mực của chữ số (0–1) trên toàn ảnh
     ys, xs = np.nonzero(src > 25)
     c = src[ys.min():ys.max() + 1, xs.min():xs.max() + 1].astype(np.float32) / 255.0
     h0, w0 = c.shape
@@ -77,8 +60,7 @@ def ve_o(src: np.ndarray, rng: np.random.Generator, ts: dict = TS):
     rong = min(rong, W_O - 6)
     c = cv2.resize(np.pad(c, 2), (int(round(rong)) + 4, int(round(cao)) + 4), interpolation=cv2.INTER_CUBIC)
     t = _u(rng, ts["nguong_mong"])
-    c = np.clip((c - t) / 0.2, 0, 1)                                   # làm mảnh nét (MNIST phóng to quá dày so với bút bi)
-    # xoay + nghiêng quanh tâm
+    c = np.clip((c - t) / 0.2, 0, 1)
     hh, ww = c.shape
     P = 12
     c = np.pad(c, P)
@@ -87,7 +69,7 @@ def ve_o(src: np.ndarray, rng: np.random.Generator, ts: dict = TS):
     ctr = np.array([c.shape[1] / 2, c.shape[0] / 2])
     M = np.hstack([A, (ctr - A @ ctr)[:, None]])
     c = cv2.warpAffine(c, M, (c.shape[1], c.shape[0]), flags=cv2.INTER_LINEAR)
-    if rng.random() < ts["p_net_dut"]:                                 # nét đứt / nhạt: nhân mặt nạ tần số thấp
+    if rng.random() < ts["p_net_dut"]:
         m = cv2.resize(rng.random((4, 4)).astype(np.float32), (c.shape[1], c.shape[0]), interpolation=cv2.INTER_CUBIC)
         c = c * np.clip((m - rng.uniform(0.1, 0.4)) * 3, 0.15, 1)
     yy, xx = np.nonzero(c > 0.3)
@@ -97,7 +79,6 @@ def ve_o(src: np.ndarray, rng: np.random.Generator, ts: dict = TS):
     hh, ww = c.shape
     if hh < ts["cao_min"]:
         return None
-    # đặt vào ô: vùng trong viền = rect co vào ~3 px
     ix0, iy0, ix1, iy1 = LE + 3, LE + 3, LE + W_O - 3, LE + H_O - 3
     du_x, du_y = max(ix1 - ix0 - ww, 0), max(iy1 - iy0 - hh, 0)
     if rng.random() < ts["p_lan_vien"]:
@@ -112,21 +93,19 @@ def ve_o(src: np.ndarray, rng: np.random.Generator, ts: dict = TS):
     y0, x0 = max(oy, 0), max(ox, 0)
     y1, x1 = min(oy + hh, Hc), min(ox + ww, Wc)
     muc[y0:y1, x0:x1] = c[y0 - oy:y1 - oy, x0 - ox:x1 - ox]
-    # --- viền ô (+ viền ô bên cạnh)
     vien = np.zeros((Hc, Wc), np.float32)
     d = int(rng.integers(ts["vien_day"][0], ts["vien_day"][1] + 1))
     a, b = (LE, LE), (int(round(LE + W_O)), int(round(LE + H_O)))
     cv2.rectangle(vien, a, b, 1.0, d)
     if rng.random() < ts["o_ben"]:
-        kh = _u(rng, ts["khoang_o_ben"])                               # ô bên trái / phải cùng hàng (hình chữ nhật riêng, có khe)
+        kh = _u(rng, ts["khoang_o_ben"])
         for xb in (LE - kh - W_O, LE + W_O + kh):
             cv2.rectangle(vien, (int(round(xb)), a[1]), (int(round(xb + W_O)), b[1]), 1.0, d)
-    # --- ghép: giấy × (1 − mực) × (1 − viền)
     nen = _u(rng, ts["nen"])
     g = np.full((Hc, Wc), nen, np.float32)
     g *= 1 - _u(rng, ts["vien_dam"]) * vien
     g *= 1 - _u(rng, ts["net_dam"]) * muc
-    if rng.random() < ts["p_bong"]:                                    # bóng: dốc tuyến tính hướng ngẫu nhiên
+    if rng.random() < ts["p_bong"]:
         phi = rng.uniform(0, 2 * np.pi)
         Y, X = np.mgrid[0:Hc, 0:Wc].astype(np.float32)
         r = (X * np.cos(phi) + Y * np.sin(phi))
@@ -146,7 +125,6 @@ def ve_o(src: np.ndarray, rng: np.random.Generator, ts: dict = TS):
     g = np.clip(g + 0.5, 0, 255).astype(np.uint8)
     if rng.random() < ts["p_jpeg"]:
         g = cv2.imdecode(cv2.imencode(".jpg", g, [cv2.IMWRITE_JPEG_QUALITY, int(rng.integers(*ts["jpeg"]))])[1], cv2.IMREAD_GRAYSCALE)
-    # khung NGOÀI (như tim_khung trả) = mép ngoài nét viền, lệch ±1 px
     j = ts["lech_khung"]
     lk = lambda: int(rng.integers(-j, j + 1))
     khung = (a[0] - d // 2 + lk(), a[1] - d // 2 + lk(), b[0] + d // 2 + 1 + lk(), b[1] + d // 2 + 1 + lk(), True)
@@ -154,14 +132,11 @@ def ve_o(src: np.ndarray, rng: np.random.Generator, ts: dict = TS):
 
 
 def qua_duong_that(g, khung, rect):
-    """Cho ô vẽ qua đúng đường chạy thật. Trả (OChuSo, hợp lệ: bool)."""
     o = ocr.cat_o(g, khung, rect)
     return o, (ocr._hop_ly_o(o) == "" and o.anh28 is not None)
 
 
-# ------------------------------------------------------------------------------------------- thống kê dùng chung thật / giả
 def thong_ke(g: np.ndarray, khung) -> dict:
-    """Số đo của 1 ô (ảnh xám + khung ngoài), giống nhau cho ô thật và ô giả."""
     x0, y0, x1, y1, _ = khung
     n = ocr.NUT_VIEN
     o = g[y0 + n:y1 - n, x0 + n:x1 - n].astype(np.float32)
@@ -182,9 +157,7 @@ def thong_ke(g: np.ndarray, khung) -> dict:
     return r
 
 
-# ------------------------------------------------------------------------------------------- ô thật (trang D)
 def khung_cua_anh(xam, nhom_rects):
-    """Như ocr.cat_anh nhưng trả KHUNG (x0,y0,x1,y1,ok) của từng ô (để cắt ảnh xám hiển thị / đo)."""
     toi = ocr.ban_do_toi(xam)
     kh = [ocr.tim_khung(toi, rs) for rs in nhom_rects]
     tim = [(k[0] - round(r[0]), k[1] - round(r[1])) for ks, rs in zip(kh, nhom_rects) for k, r in zip(ks, rs) if k is not None]
@@ -214,7 +187,7 @@ def cmd_that(a):
         xam = kq.anh_nan
         kh = khung_cua_anh(xam, [[r for _, r in h] for h in nhom])
         lab = [l for h in nhom for l, _ in h]
-        chon = rng.choice(len(kh), 40, replace=False)              # 40 ô / trang để đo thống kê
+        chon = rng.choice(len(kh), 40, replace=False)
         for i in chon:
             (x0, y0, x1, y1, ok), r = kh[i]
             if not ok:
@@ -254,10 +227,7 @@ def in_bang(d: dict):
         print(f"  {k:34s} " + " | ".join(" / ".join(f"{x:g}" for x in v[k]) for v in d.values()))
 
 
-# ------------------------------------------------------------------------------------------- nguồn chữ số
 def nguon_chu_so():
-    """(x, y, nguồn) chữ số gốc ĐÚNG CHIỀU (chưa chuẩn hoá) để vẽ: MNIST train (cùng 55 000 ảnh của huấn luyện trước, bỏ 5 000 val nội bộ)
-    + EMNIST Digits train. nguồn 0 = MNIST, 1 = EMNIST."""
     import huan_luyen_ocr as H
     xtr, ytr, _, _ = H.doc_mnist()
     tr = np.random.default_rng(H.SEED).permutation(len(xtr))[5000:]
@@ -271,7 +241,6 @@ def cmd_so_sanh(a):
     z = np.load(EVAL / "o_that_mau.npz")
     rng = np.random.default_rng(a.seed)
     x, y, ng = nguon_chu_so()
-    # thống kê ô giả (n = 400) để so với thật
     tk, gia = [], []
     while len(tk) < 400:
         i = int(rng.integers(len(x)))
@@ -288,7 +257,6 @@ def cmd_so_sanh(a):
     tom = tom_tat(tk)
     in_bang({"thật (trang D)": that_tk, "giả": tom})
     (EVAL / "thong_ke_o_gia.json").write_text(json.dumps(tom, ensure_ascii=False, indent=1), encoding="utf-8")
-    # lưới: hàng 1 = 8 ô thật (ảnh xám), hàng 2 = 28×28 của chúng; hàng 3 = 8 ô giả, hàng 4 = 28×28
     it = rng.choice(len(z["anh"]), 8, replace=False)
     H_, W_ = z["anh"].shape[1:]
 
@@ -296,7 +264,7 @@ def cmd_so_sanh(a):
         return cv2.copyMakeBorder(cv2.resize(g, (W_, H_)), 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=255)
 
     def o28(a28):
-        nen = np.full((H_, W_), 255, np.uint8)                       # 28×28 phóng ×3, đặt giữa ô trắng cùng cỡ
+        nen = np.full((H_, W_), 255, np.uint8)
         v = cv2.resize(255 - a28, (84, 84), interpolation=cv2.INTER_NEAREST)
         y0, x0 = (H_ - 84) // 2, (W_ - 84) // 2
         nen[y0:y0 + 84, x0:x0 + 84] = v
@@ -323,7 +291,6 @@ def cmd_sinh(a):
     rng = np.random.default_rng(a.seed)
     X, Y, N, bo = [], [], [], 0
     t0 = time.time()
-    # lấy cân bằng theo nguồn: n/2 từ MNIST, n/2 từ EMNIST
     for nguon in (0, 1):
         idx = rng.permutation(np.nonzero(ng == nguon)[0])
         k = 0

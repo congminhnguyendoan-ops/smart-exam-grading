@@ -33,14 +33,11 @@ from check_layout import find_markers  # noqa: E402  (eval_preprocessing đã th
 from cv_engine.preprocessing import load_image, tim_ung_vien_marker  # noqa: E402
 
 OUT = EVAL_DIR / "marker_that"
-# Bộ lọc ứng viên CHO VIỆC GÁN NHÃN – cố ý rất lỏng (để marker méo/xa vẫn lọt), không phải bộ lọc của v3.
-# Căn cứ (khảo sát 03/10/2026, 236 marker thật của 59 ảnh align_cu đúng): độ vuông 0,83–1,01, độ đặc 0,96–1,01,
-# diện tích 4,8e-4–1,3e-3 ảnh; nhưng ở C3 marker phía xa chỉ ~2,9e-4 ảnh và cạnh ngắn/dài ~0,6.
-NGUONG_MUC = 0.5          # điểm ảnh tối hơn 50% nền giấy cục bộ = mực
-VUONG_MIN = 0.70          # diện tích / diện tích minAreaRect (ô vuông ~0,9–1,0; ô tròn ~π/4 = 0,785)
-DAC_MIN = 0.85            # diện tích / diện tích bao lồi
-DT_MIN, DT_MAX = 1e-4, 5e-3   # diện tích / diện tích ảnh
-TOP_DOAN = 12             # máy đoán 4 marker trong 12 ứng viên vuông nhất
+NGUONG_MUC = 0.5
+VUONG_MIN = 0.70
+DAC_MIN = 0.85
+DT_MIN, DT_MAX = 1e-4, 5e-3
+TOP_DOAN = 12
 GHI_CHU_ANH = {
     "0013_C2": "Có tờ khác lọt khung – chọn marker của tờ CHÍNH (tờ 0013).",
     "0018_C2": "Có tờ khác lọt khung – chọn marker của tờ CHÍNH (tờ 0018).",
@@ -51,17 +48,14 @@ GHI_CHU_ANH = {
 
 
 def mat_na_3a(gray: np.ndarray) -> np.ndarray:
-    """Mặt nạ mực của bộ lọc lỏng 3a: max cục bộ cửa sổ max(H, W)/80 (~51 px) rồi làm mượt max(H, W)/20."""
     H, W = gray.shape
     k = max(H, W) // 20 | 1
-    nen = cv2.dilate(gray, cv2.getStructuringElement(cv2.MORPH_RECT, (k // 4 | 1, k // 4 | 1)))   # max cục bộ
+    nen = cv2.dilate(gray, cv2.getStructuringElement(cv2.MORPH_RECT, (k // 4 | 1, k // 4 | 1)))
     nen = cv2.GaussianBlur(nen, (k, k), 0)
     return (gray.astype(np.float32) < NGUONG_MUC * np.maximum(nen, 1)).astype(np.uint8)
 
 
 def ung_vien(gray: np.ndarray) -> list[dict]:
-    """Mọi vết mực đặc, gần vuông (lỏng). Chuẩn hoá theo nền giấy cục bộ để ảnh tối (C2) / bóng không ảnh hưởng.
-    Trả về danh sách xếp theo độ vuông giảm dần; 'so' = số thứ tự (1, 2, ...) dùng trong HTML/CSV."""
     H, W = gray.shape
     muc = mat_na_3a(gray)
     n, lab, st, ct = cv2.connectedComponentsWithStats(muc, 8)
@@ -88,14 +82,11 @@ def ung_vien(gray: np.ndarray) -> list[dict]:
 
 
 def theo_vong(pts: np.ndarray) -> np.ndarray:
-    """Sắp 4 điểm theo góc quanh trọng tâm (để kiểm tra lồi / tính diện tích)."""
     c = pts.mean(axis=0)
     return pts[np.argsort(np.arctan2(pts[:, 1] - c[1], pts[:, 0] - c[0]))]
 
 
 def doan(uv: list[dict], shape) -> list[int]:
-    """Máy ĐOÁN 4 marker (chỉ để điền sẵn cho người xem, không phải kết luận): trong TOP_DOAN ứng viên vuông
-    nhất, bộ 4 tạo tứ giác lồi có tổng độ vuông lớn nhất (diện tích tứ giác chỉ để phân xử khi gần bằng)."""
     top = uv[:TOP_DOAN]
     best, best_s = [], -1.0
     for bo in itertools.combinations(top, 4):
@@ -128,7 +119,6 @@ def cat_zoom(gray, u, cao=140) -> np.ndarray:
     return cv2.resize(p, (round(p.shape[1] * cao / p.shape[0]), cao), interpolation=cv2.INTER_AREA)
 
 
-# ============================================================================ lệnh de-xuat
 def cmd_de_xuat(a) -> None:
     truth = {r["anh"]: r["phan_loai"] for r in
              csv.DictReader((EVAL_DIR / "align_cu" / "truth_dev.csv").open(encoding="utf-8-sig"))}
@@ -141,7 +131,6 @@ def cmd_de_xuat(a) -> None:
             rows_uv.append({"anh": anh.ten, **u})
         de_xuat = doan(uv, g.shape)
         if truth[anh.ten] == "dung":
-            # kiểm tra cách đoán trên ảnh đã biết đáp án: 4 điểm align_cu -> số ứng viên gần nhất (≤ 5 px)
             that = []
             for mx, my in find_markers(g):
                 d = [np.hypot(u["x"] - mx, u["y"] - my) for u in uv]
@@ -211,9 +200,7 @@ Cách đoán được kiểm tra trước trên các ảnh đã biết đáp án
     print(f"\nĐã ghi {OUT}: ung_vien_dev.csv, xac_nhan.html, xac_nhan.csv, anh/  ({len(can_xem)} ảnh cần xác nhận)")
 
 
-# ============================================================================ lệnh chot
 def cmd_chot(a) -> None:
-    """xac_nhan.csv (người dùng) + 4 điểm align_cu trên ảnh đúng -> marker_that_dev.csv. Dừng nếu còn ảnh chưa chọn."""
     truth = {r["anh"]: r["phan_loai"] for r in
              csv.DictReader((EVAL_DIR / "align_cu" / "truth_dev.csv").open(encoding="utf-8-sig"))}
     uv = {}
@@ -251,13 +238,10 @@ def cmd_chot(a) -> None:
     print(f"Đã ghi {OUT / 'marker_that_dev.csv'}: {len(rows)} ảnh; nguồn {dict(Counter(r['nguon'] for r in rows))}")
 
 
-# ============================================================================ lệnh ung-vien (đo khâu TÌM)
-KHOP_PX = 10.0            # ứng viên cách tâm marker thật ≤ 10 px = tìm thấy (marker nhỏ nhất ~60 px cạnh, ảnh C3)
+KHOP_PX = 10.0
 
 
 def ung_vien_cu(gray: np.ndarray) -> list[tuple[float, float]]:
-    """Bản sao NGUYÊN VĂN bộ lọc của find_markers() trong answer_sheet/check_layout.py (dòng 99–118), chỉ bỏ bước
-    chọn 'gần góc ảnh nhất' để lấy cả danh sách ứng viên. Tính đúng bản sao được kiểm tra trong cmd_ung_vien()."""
     th = cv2.adaptiveThreshold(cv2.GaussianBlur(gray, (5, 5), 0), 255,
                                cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 51, 15)
     cnts, _ = cv2.findContours(th, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -282,7 +266,6 @@ def ung_vien_cu(gray: np.ndarray) -> list[tuple[float, float]]:
 
 
 def ung_vien_moi(gray: np.ndarray) -> list[tuple[float, float]]:
-    """Bộ lọc của Bước 3b (cv_engine.preprocessing.tim_ung_vien_marker), đã xếp theo điểm giảm dần."""
     return [(u.x, u.y) for u in tim_ung_vien_marker(gray)]
 
 
@@ -296,7 +279,6 @@ def doc_marker_that() -> dict[str, np.ndarray]:
 
 
 def ghep(c: np.ndarray, pts: np.ndarray) -> list[int | None]:
-    """Với mỗi marker thật: chỉ số ứng viên gần nhất nếu cách ≤ KHOP_PX, không thì None."""
     out = []
     for p in pts:
         d = np.hypot(*(c - p).T) if len(c) else np.array([np.inf])
@@ -306,9 +288,6 @@ def ghep(c: np.ndarray, pts: np.ndarray) -> list[int | None]:
 
 
 def cmd_ung_vien(a) -> None:
-    """Khâu TÌM: ảnh có đủ 4 marker thật trong danh sách ứng viên không, mỗi ảnh bao nhiêu ứng viên.
-    Tách lỗi 'không tìm thấy' (marker thật không có trong danh sách) với 'chọn sai' (có đủ mà vẫn nắn sai).
-    Bộ lọc trả danh sách đã xếp hạng ('moi') -> thêm hạng lớn nhất của marker thật (1 = đầu danh sách)."""
     from collections import defaultdict
     from time import perf_counter
     that = doc_marker_that()
@@ -324,7 +303,7 @@ def cmd_ung_vien(a) -> None:
         ms = 1000 * (perf_counter() - t0)
         hang = [None if j is None else j + 1 for j in ghep(c, that[anh.ten])]
         chi_tiet[anh.ten] = hang
-        if a.bo_loc == "cu" and len(c) >= 4:     # kiểm tra bản sao: 4 điểm find_markers() phải nằm trong danh sách
+        if a.bo_loc == "cu" and len(c) >= 4:
             fm = find_markers(g)
             if max(np.min(np.hypot(*(c - p).T)) for p in fm) > 1e-3:
                 sys.exit(f"LỖI: ung_vien_cu() không khớp find_markers() trên {anh.ten} – bản sao sai")
@@ -371,9 +350,7 @@ def cmd_ung_vien(a) -> None:
     print(f"Đã ghi {out}")
 
 
-# ============================================================================ lệnh khao-sat (căn cứ ngưỡng 3b)
 def cat_hai_anh(gray, muc, u, cao=300) -> np.ndarray:
-    """Ảnh gốc | mặt nạ mực quanh vết u (vùng = hộp bao nới 1 cạnh mỗi phía), ghép ngang."""
     x, y, w, h = u.hop
     s = max(w, h)
     x0, y0 = max(0, x - s), max(0, y - s)
@@ -385,9 +362,7 @@ def cat_hai_anh(gray, muc, u, cao=300) -> np.ndarray:
 
 
 def uoc_luong_bi_cat(r: dict, T: list[dict]) -> None:
-    """Marker r chạm mép: ước lượng % bị cắt từ tỉ lệ (diện tích, bề rộng) góc này / góc cùng hàng ở các ảnh
-    cùng điều kiện không chạm mép (bỏ 0006 nằm ngang). Giả sử phần mất là một dải dọc theo mép ảnh (theo x)."""
-    cung_hang = {0: 1, 1: 0, 2: 3, 3: 2}[r["goc"]]          # TL<->TR, BR<->BL (thứ tự theo_vong)
+    cung_hang = {0: 1, 1: 0, 2: 3, 3: 2}[r["goc"]]
     theo_anh = {}
     for x in T:
         theo_anh.setdefault(x["anh"], {})[x["goc"]] = x
@@ -403,21 +378,18 @@ def uoc_luong_bi_cat(r: dict, T: list[dict]) -> None:
         dt_mong = ban["dien_tich"] * np.percentile(ti_dt, q)
         mat = 1 - r["dien_tich"] / dt_mong
         w_mong = ban["w"] * np.percentile(ti_w, q)
-        # tâm thật lệch về phía mép: phần mất (tỉ lệ mat) có tâm cách tâm phần còn ~ (w_con + w_mat) / 2
         lech = max(mat, 0) * (r["w"] + max(w_mong - r["w"], 0)) / 2
         print(f"     ước lượng ({ten} của {len(ti_dt)} ảnh {r['dieu_kien']}): diện tích mong đợi {dt_mong:.0f} px² -> "
               f"bị cắt {100 * mat:.0f}%; bề rộng mong đợi {w_mong:.0f} px (còn {r['w']}) -> tâm centroid lệch ~{lech:.0f} px")
 
 
 def cmd_khao_sat(a) -> None:
-    """Phân bố đặc trưng của marker thật vs ứng viên khác (mọi vết mực qua lọc diện tích), ngưỡng + biên,
-    số ứng viên khác bị loại nhờ RIÊNG từng ngưỡng, hạng theo các cách xếp. Chỉ dev. Ghi dac_trung_moi_dev.csv."""
     import cv_engine.preprocessing as pp
     from collections import defaultdict
     that = doc_marker_that()
     (OUT / "khao_sat").mkdir(parents=True, exist_ok=True)
     rows, thieu, canh_max = [], [], (0, "")
-    luu = {}                                   # ảnh -> (đường dẫn, cỡ, vết mực) – đọc lại ảnh khi cần cắt
+    luu = {}
     for anh in list_images("dev"):
         g = load_image(anh.duong_dan)
         vets = pp.do_vet_muc(g)
@@ -446,14 +418,12 @@ def cmd_khao_sat(a) -> None:
     O = [r for r in rows if not r["marker"]]
     print(f"\n=== Ghép marker thật (≤ {KHOP_PX:.0f} px) với vết mực: {len(T)}/{4 * len(that)}; thiếu: {', '.join(thieu) or 'không'}")
 
-    # --- 1. cửa sổ nền
     Hmax = max(max(v[1]) for v in luu.values())
     k_eff = (Hmax // pp.NEN_CUA_SO // pp.NEN_THU_NHO | 1) * pp.NEN_THU_NHO
     print(f"\n=== Cửa sổ nền: cạnh hộp bao marker thật lớn nhất {canh_max[0]} px ({canh_max[1]}). "
           f"Cửa sổ max mới {k_eff} px -> cửa sổ/marker = {k_eff / canh_max[0]:.2f}. "
           f"(Bộ lọc lỏng 3a: max 51 px -> {51 / canh_max[0]:.2f}; làm mượt 201 px)")
 
-    # --- 2. phân bố
     print("\n=== Phân bố đặc trưng (marker thật n = %d | ứng viên khác n = %d)" % (len(T), len(O)))
     for k in ("dt_ti_le", "dac", "canh", "tu_giac", "vuong", "muc_vien", "den_trong"):
         t = np.array([r[k] for r in T]); o = np.array([r[k] for r in O])
@@ -462,7 +432,6 @@ def cmd_khao_sat(a) -> None:
               f"{np.percentile(t, 99):.4g} max {t.max():.4g} (xấu nhất {xau}) | khác: p5 {np.percentile(o, 5):.4g} "
               f"p50 {np.median(o):.4g} p95 {np.percentile(o, 95):.4g} max {o.max():.4g}")
 
-    # --- 3. ngưỡng: biên + loại riêng
     nguong = [("dac", pp.DAC_MIN), ("canh", pp.CANH_MIN), ("tu_giac", pp.TU_GIAC_MIN)]
     print("\n=== Ngưỡng lọc (≥): xấu nhất marker thật, biên, số marker thật trong 0,05 trên ngưỡng, "
           "ứng viên khác bị loại nhờ RIÊNG ngưỡng này (đã áp các ngưỡng còn lại)")
@@ -484,7 +453,6 @@ def cmd_khao_sat(a) -> None:
     print(f"ngưỡng mực {pp.MUC_TI_LE}: den_trong marker thật xấu nhất {max(r['den_trong'] for r in T):.3f} -> biên "
           f"{pp.MUC_TI_LE - max(r['den_trong'] for r in T):+.3f}")
 
-    # --- 4. xếp hạng: hạng lớn nhất của marker thật theo từng cách xếp, trong các vết qua lọc
     cach = {"vuong (cũ)": lambda r: r["vuong"], "tu_giac": lambda r: r["tu_giac"],
             "diem = tu_giac×(1−muc_vien)": lambda r: r["diem"],
             "diem×(1−den_trong)": lambda r: r["diem"] * (1 - r["den_trong"])}
@@ -503,7 +471,6 @@ def cmd_khao_sat(a) -> None:
             te = max(te, (h, anh))
         print(f"{ten:30s} " + "  ".join(f"{d} {hm[d]}" for d in sorted(hm)) + f"  | tổng {te[0]} ({te[1]})")
 
-    # --- 5. ca riêng: marker thật + vết khác điểm cao nhất
     print("\n=== Ca nêu riêng: (hạng theo diem) marker thật | 3 vết KHÁC điểm cao nhất")
     for ten in CA_RIENG:
         xs = sorted(theo_anh[ten], key=lambda r: -r["diem"])
@@ -513,7 +480,6 @@ def cmd_khao_sat(a) -> None:
               f"den {r['den_trong']:.2f} {r['dien_tich']}px²" for i, r in enumerate(xs) if not r["marker"]][:3]
         print(f"{ten}: {len(xs)} ứng viên\n   thật: " + " | ".join(mk) + "\n   khác: " + " | ".join(kh))
 
-    # --- 6. ảnh cắt: vuông kém nhất, vành nhiều mực nhất, marker chạm mép
     def cat(r, ten_file, ghi):
         duong_dan, _, vets = luu[r["anh"]]
         g = load_image(duong_dan)
@@ -532,7 +498,6 @@ def cmd_khao_sat(a) -> None:
                                                     f"tâm ({x['x']:.0f},{x['y']:.0f})" for x in cung))
         uoc_luong_bi_cat(r, T)
 
-    # --- 7. 0034_C3: marker gần máy (lớn nhất) – mặt nạ cửa sổ cũ (3a) vs mới
     r = max((x for x in T if x["anh"] == "0034_C3"), key=lambda x: x["dien_tich"])
     duong_dan, _, vets = luu["0034_C3"]
     g = load_image(duong_dan)
@@ -549,7 +514,6 @@ def cmd_khao_sat(a) -> None:
     print(f"\nĐã ghi {OUT / 'dac_trung_moi_dev.csv'} ({len(rows)} vết mực)")
 
 
-# ============================================================================ Bước 3c: bộ 4 theo hình học
 def nap_layout() -> dict:
     import json
     from eval_preprocessing import ANSWER_SHEET
@@ -557,9 +521,6 @@ def nap_layout() -> dict:
 
 
 def cmd_khao_sat_bo_4(a) -> None:
-    """Căn cứ ngưỡng K2–K4: mọi bộ 4 trong top-K ứng viên của 78 ảnh dev; bộ 'thật' = đúng 4 marker của
-    marker_that_dev.csv. Báo xấu nhất / biên / loại riêng, cách gán (xoay) được chọn, K4 cách gán tốt nhất vs cặp
-    vuông góc. Ghi data/_eval/marker_that/bo_4_dev.csv."""
     import cv_engine.preprocessing as pp
     from collections import Counter, defaultdict
     layout, that = nap_layout(), doc_marker_that()
@@ -615,7 +576,6 @@ def cmd_khao_sat_bo_4(a) -> None:
     print(f"\nBộ KHÁC đạt mọi tiêu chí: {len(dat)}" + "".join(
         f"\n  {r['anh']} bộ [{r['bo']}] pc {r['phoi_canh']:.3f} cỡ {r['co_min']:.3f}–{r['co_max']:.3f} "
         f"K4 {r['dinh_mm']:.2f} mm (vuông góc {r['dinh_mm_vuong_goc']:.2f})" for r in dat))
-    # bộ khác gần đạt nhất theo K4 (để thấy biên phía bộ khác)
     gan = sorted([r for r in O if r["loi"] and all(qua(r, k, h, v) for k, h, v in tieu_chi[:3])], key=lambda r: r["dinh_mm"])[:5]
     print("Bộ khác qua K1–K3, K4 nhỏ nhất: " + "; ".join(f"{r['anh']} [{r['bo']}] {r['dinh_mm']:.2f} mm" for r in gan))
     theo_anh = defaultdict(int)
@@ -639,8 +599,6 @@ def ghi_csv_moi(path: Path, rows: list[dict]) -> None:
 
 
 def anh_gia(trang: np.ndarray, khung: tuple, cac_to: list, seed: int) -> tuple[np.ndarray, list]:
-    """Ảnh giả: dán từng trang mẫu (300 DPI) vào khung (W, H) theo 4 đỉnh đích (TL, TR, BR, BL của trang),
-    nền xám bàn 95, làm mờ + nhiễu như check_layout.py. Trả (ảnh, [H thật của từng tờ])."""
     W, H = khung
     rng = np.random.default_rng(seed)
     anh = np.full((H, W), 95, np.float32)
@@ -657,8 +615,6 @@ def anh_gia(trang: np.ndarray, khung: tuple, cac_to: list, seed: int) -> tuple[n
 
 
 def dinh_dich(trang_shape, khung, s, goc_do, tam=None, thu_tren=1.0) -> list:
-    """4 đỉnh đích (TL, TR, BR, BL của trang) khi thu nhỏ s, xoay goc_do (chiều kim đồng hồ trên ảnh), đặt tại tam;
-    thu_tren < 1: cạnh TRÊN của trang ngắn lại (phối cảnh kiểu C3)."""
     h, w = trang_shape
     p = np.array([[-w / 2 * thu_tren, -h / 2], [w / 2 * thu_tren, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]) * s
     t = np.deg2rad(goc_do)
@@ -668,9 +624,6 @@ def dinh_dich(trang_shape, khung, s, goc_do, tam=None, thu_tren=1.0) -> list:
 
 
 def cmd_tu_kiem_tam(a) -> None:
-    """Kiểm chứng 3c trên ảnh giả có H biết trước (trang mẫu phieu_danh_so.pdf, ghi data/_eval/_gia/):
-    (1) tâm dưới pixel: giao đường chéo vs centroid, so với H · tâm layout; (2) cách gán góc được chọn: 0° / 180° /
-    sai dọc-ngang; (3) ảnh hai tờ -> phải 'nhieu_phieu'."""
     import cv_engine.preprocessing as pp
     from eval_preprocessing import ANSWER_SHEET, EVAL_DIR as ED, render_pdf_page
     layout = nap_layout()
@@ -690,8 +643,6 @@ def cmd_tu_kiem_tam(a) -> None:
           ("hai_to", ngang, [dinh_dich(sh, ngang, 0.75, 3, (1000, 1512)), dinh_dich(sh, ngang, 0.75, -2, (3030, 1512))],
            "nhieu_phieu")]
     tam_L = np.array([layout["markers"]["centers"][g] for g in pp.GOC], np.float32)
-    # tâm đúng = trọng tâm ô đen trên chính trang render (ô vuông thẳng -> trọng tâm chính xác), tránh lệch quy ước
-    # tâm pixel giữa layout.json và ảnh render (Bước 1: đối chứng tam-marker −0,04 mm)
     tam_R = []
     for cx, cy in tam_L:
         x0, y0 = int(cx) - 70, int(cy) - 70
@@ -736,8 +687,6 @@ def cmd_tu_kiem_tam(a) -> None:
 
 
 def cmd_chon_bo_4(a) -> None:
-    """Khâu CHỌN: find_markers() trên 78 ảnh dev so với marker_that_dev.csv (trúng ≤ KHOP_PX). Bảng theo điều kiện,
-    thời gian, ảnh ghép tứ giác của cả 78 ảnh (khao_sat/bo_4_ghep_*.jpg), ảnh nắn thử 0006_C2/C3."""
     import cv_engine.preprocessing as pp
     from collections import defaultdict
     from time import perf_counter
@@ -758,7 +707,6 @@ def cmd_chon_bo_4(a) -> None:
                      "so_bo_dat": len(ct["bo_dat"]), "kc_max_px": max(d) if d else "",
                      "xoay": gan["gan"]["xoay"] if gan else "", "dinh_mm": gan["gan"]["dinh_mm"] if gan else "",
                      "dinh_mm_vuong_goc": gan["dinh_mm_vuong_goc"] if gan else "", "thoi_gian_ms": ms})
-        # ảnh nhỏ: ứng viên (xanh), tứ giác chọn (xanh lá), TL (đỏ)
         f = 380 / max(g.shape)
         v = cv2.cvtColor(cv2.resize(g, None, fx=f, fy=f, interpolation=cv2.INTER_AREA), cv2.COLOR_GRAY2BGR)
         for u in ct["ung_vien"]:

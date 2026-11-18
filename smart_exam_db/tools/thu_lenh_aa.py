@@ -20,7 +20,6 @@ import os
 import sys
 from pathlib import Path
 
-# AA_ROOT: chạy BẢN SAO của công cụ này khi đang ở nhánh cai-tien-b (nhánh đó không có tệp này) để chụp ảnh "trước"
 ROOT = Path(os.environ.get("AA_ROOT") or Path(__file__).resolve().parent.parent)
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
@@ -31,12 +30,11 @@ import thu_dien_thoai as T  # noqa: E402  (MayChuThu)
 
 ANH = ROOT / "data" / "_eval" / "demo_bv" / "anh_gia"
 MK = "Thu-Lenh-AA-2026"
-KT = 1633                                    # kỳ thi TẬP của gv_binh (K22B, mã đề 103 / 104)
+KT = 1633
 KY_THI_KIEM = (1380, 1381, 1632, 1633)
 
 
 def dem_phieu() -> dict[int, int]:
-    """Đếm phiếu bằng kết nối RIÊNG (thấy đúng dữ liệu đã commit, không thấy giao dịch thử)."""
     from backend.db import ket_noi
     c = ket_noi()
     try:
@@ -57,7 +55,6 @@ def _cho_h2(pg, chu, timeout=30000):
 
 
 def _cho_anh(pg):
-    """Chờ ảnh (đầu phiếu, ô viết tay, câu) tải xong trước khi chụp màn hình; ảnh lazy ngoài khung có thể không tải -> tối đa 8 s."""
     try:
         pg.wait_for_function("() => [...document.images].filter((i) => i.loading !== 'lazy').every((i) => i.complete)", timeout=8000)
     except Exception:  # noqa: BLE001 – chỉ ảnh hưởng ảnh chụp, không ảnh hưởng kết luận
@@ -65,7 +62,6 @@ def _cho_anh(pg):
 
 
 def _tai(pg, url, ten) -> dict:
-    """Tải một ảnh qua API bằng phiên của trang (cookie) – như giao diện tải ảnh làm."""
     r = pg.request.post(f"{url}/exams/{KT}/sheets", multipart={"file": {"name": ten, "mimeType": "image/jpeg", "buffer": (ANH / ten).read_bytes()}})
     assert r.status == 201, (r.status, r.text())
     return r.json()
@@ -92,7 +88,7 @@ def may_tinh(b, url, out, sau, k, g):
         k["muc_dang_chon_mau_chu_dao"] = pg.evaluate("() => getComputedStyle(document.querySelector('#nav a.on')).backgroundColor") == "rgb(31, 122, 140)"
     pg.goto(url + "/app/#/upload"); _cho_h2(pg, "Tải ảnh")
     pg.screenshot(path=str(out / "02_tai_anh.png"), full_page=True)
-    if sau:                                                                    # lệnh AB: ô chọn tệp tiếng Việt (KHÔNG bấm "Bắt đầu chấm")
+    if sau:
         k["ab_chon_tep_chua_chon"] = pg.inner_text("#sel") == "Chưa chọn ảnh." and pg.is_visible("label.chon-tep")
         hop = pg.locator("#files").bounding_box()
         k["ab_o_goc_tieng_anh_an"] = hop is None or (hop["width"] <= 2 and hop["height"] <= 2)
@@ -109,7 +105,6 @@ def may_tinh(b, url, out, sau, k, g):
     pg.screenshot(path=str(out / "03_danh_sach.png"), full_page=True)
     pg.goto(url + "/app/#/review"); _cho_h2(pg, "Hàng đợi duyệt")
     pg.screenshot(path=str(out / "04_hang_doi.png"), full_page=True)
-    # ---------------- duyệt BV10: SBD 220010 không có trong danh sách
     s10 = ids["BV10.jpg"]
     pg.goto(url + f"/app/#/review/{s10}"); _cho_h2(pg, f"Duyệt phiếu #{s10}"); pg.wait_for_selector("#in-sbd"); _cho_anh(pg)
     pg.screenshot(path=str(out / "05_duyet_mo_phieu.png"), full_page=True)
@@ -127,7 +122,7 @@ def may_tinh(b, url, out, sau, k, g):
         k["goi_y_sbd_hop_le"] = pg.locator("#bao-sbd button.goi-y").count() >= 1
         g["goi_y_sbd"] = pg.evaluate("() => [...document.querySelectorAll('#bao-sbd button.goi-y')].map((b) => b.dataset.val)")
         k["goi_y_khong_tu_dien"] = pg.input_value("#in-sbd") == "220010"
-    pg.locator(".card", has=pg.locator("#in-sbd")).screenshot(path=str(out / "06_duyet_khung_sbd.png"))   # bản cũ không có #khung-dd
+    pg.locator(".card", has=pg.locator("#in-sbd")).screenshot(path=str(out / "06_duyet_khung_sbd.png"))
     if sau:
         pg.focus("#in-sbd"); pg.keyboard.press("Tab")
         k["tab_sang_o_ma_de"] = pg.evaluate("() => document.activeElement.id") == "in-ma"
@@ -137,7 +132,6 @@ def may_tinh(b, url, out, sau, k, g):
         k["loi_tai_o_ma_de_ngoai_ky_thi"] = "105 không thuộc kỳ thi" in bm and "103" in bm and "104" in bm
         pg.locator("#khung-dd").screenshot(path=str(out / "07_duyet_ma_de_sai.png"))
         pg.fill("#in-ma", ma_cu or "103")
-        # Enter -> hỏi xác nhận; HUỶ thì không gửi PUT
         put = []
         pg.on("request", lambda r: put.append(r.url) if r.method == "PUT" and "/identity" in r.url else None)
         g["_huy_lan_toi"] = True
@@ -145,7 +139,6 @@ def may_tinh(b, url, out, sau, k, g):
         pg.wait_for_timeout(800)
         k["enter_hoi_xac_nhan"] = bool(hop_thoai) and "không có trong danh sách" in hop_thoai[-1]
         k["huy_xac_nhan_khong_gui"] = not put
-        # Enter lần nữa, đồng ý -> lưu -> nút phiếu kế tiếp ngay tại chỗ
         with pg.expect_response(lambda r: r.request.method == "PUT" and "/identity" in r.url) as rr:
             pg.focus("#in-sbd"); pg.keyboard.press("Enter")
         k["dong_y_thi_luu_200"] = rr.value.status == 200
@@ -166,7 +159,6 @@ def may_tinh(b, url, out, sau, k, g):
     pg.goto(url + "/app/#/profile"); _cho_h2(pg, "Hồ sơ")
     pg.screenshot(path=str(out / "12_ho_so.png"), full_page=True)
     pg.click("#logout"); pg.wait_for_selector("#f-login")
-    # ---------------- admin: Quản trị
     _dang_nhap(pg, "admin"); _cho_h2(pg, "Quản trị")
     for i, (tab, cho) in enumerate((("exams", "#qt table"), ("users", "#qt table"), ("classes", "#qt table"), ("audit", "#qt")), 13):
         pg.goto(url + f"/app/#/admin/{tab}"); pg.wait_for_selector(cho); pg.wait_for_timeout(300)

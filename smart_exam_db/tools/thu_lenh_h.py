@@ -1,16 +1,3 @@
-"""
-thu_lenh_h.py - Thử bằng TRÌNH DUYỆT THẬT (Playwright Chromium) lệnh H (29/10/2026). CHỈ ROLLBACK: máy chủ trong tiến trình (tools/thu_dien_thoai.MayChuThu),
-MỘT kết nối không commit; tài khoản + kỳ thi tạo trong giao dịch -> KHÔNG ghi dòng nào vào CSDL thật.
-
-  python tools/thu_lenh_h.py
-
-Kịch bản:
-  1. /app/ (máy tính) – admin: mục "Quản trị" chỉ hiện cho admin; tạo tài khoản giáo viên bằng form; tạo kỳ thi + gán giáo viên; đóng kỳ thi; tải trang bìa.
-  2. /m?kythi=<id> (Pixel 7) – giáo viên phụ trách: đăng nhập xong kỳ thi được chọn sẵn, tên ở đầu trang, ?kythi bị bỏ khỏi URL.
-  3. /m?kythi=<id> – giáo viên KHÔNG có quyền: thông báo như 404, trang không chứa tên kỳ thi.
-  4. Admin vô hiệu hoá giáo viên đang mở /m -> lần gọi kế tiếp bị đưa về màn đăng nhập; đăng nhập lại bị từ chối.
-Ảnh màn hình + ket_qua.json: data/_eval/ui_h/.
-"""
 import json
 import os
 import sys
@@ -47,7 +34,6 @@ def chay() -> dict:
         dap_an = demo.khoa_demo("101", 10)
         with sync_playwright() as pw:
             b = pw.chromium.launch()
-            # ---------------- 1. admin trên máy tính
             may = b.new_context(viewport={"width": 1400, "height": 1000}, locale="vi-VN")
             pg = may.new_page()
             pg.on("dialog", lambda d: d.accept())
@@ -79,7 +65,6 @@ def chay() -> dict:
             (OUT / "trang_bia.pdf").write_bytes(r.body())
             pg.screenshot(path=str(OUT / "02_ky_thi.png"), full_page=True)
 
-            # ---------------- 2. giáo viên phụ trách mở /m?kythi
             dt = b.new_context(**pw.devices["Pixel 7"], locale="vi-VN")
             m = dt.new_page()
             m.goto(f"{url}/m?kythi={eid}")
@@ -92,7 +77,6 @@ def chay() -> dict:
             k["bo_kythi_khoi_url"] = "kythi" not in m.url
             m.screenshot(path=str(OUT / "04_m_chon_san.png"), full_page=True)
 
-            # ---------------- 3. giáo viên KHÔNG có quyền
             dt2 = b.new_context(**pw.devices["Pixel 7"], locale="vi-VN")
             m2 = dt2.new_page()
             m2.goto(f"{url}/m?kythi={eid}")
@@ -103,7 +87,6 @@ def chay() -> dict:
             k["ngoai_quyen_khong_lo_ten"] = "Giữa kỳ thử lệnh H" not in m2.content() and m2.is_visible("#v-exams")
             m2.screenshot(path=str(OUT / "05_m_ngoai_quyen.png"), full_page=True)
 
-            # ---------------- 1b. đóng kỳ thi -> /m báo đã đóng sau khi chọn lại
             pg.click(f"[data-dong='{eid}']")
             pg.wait_for_selector(f"[data-dong='{eid}'][data-closed='0']")
             k["dong_ky_thi"] = mc.conn.execute("SELECT status::text AS s FROM exams WHERE exam_id = %s", (eid,)).fetchone()["s"] == "closed"
@@ -112,14 +95,13 @@ def chay() -> dict:
             k["m_bao_ky_thi_da_dong"] = m.is_visible("#cap-dong")
             m.screenshot(path=str(OUT / "06_m_da_dong.png"), full_page=True)
 
-            # ---------------- 4. vô hiệu hoá giáo viên đang mở /m
             pg.goto(url + "/app/#/admin/users")
             pg.wait_for_selector(f"[data-hd='{id_gv}']")
             pg.click(f"[data-hd='{id_gv}']")
             pg.wait_for_selector(f"[data-hd='{id_gv}'][data-bat='1']")
-            m.click("#doi-ky-thi")                                             # lần gọi API kế tiếp của giáo viên
+            m.click("#doi-ky-thi")
             m.wait_for_selector("#v-login:not(.hidden)", timeout=30000)
-            k["vo_hieu_hoa_dua_ve_dang_nhap"] = "hết" in m.inner_text("#lg-err")              # "Phiên đăng nhập đã hết – hãy đăng nhập lại."
+            k["vo_hieu_hoa_dua_ve_dang_nhap"] = "hết" in m.inner_text("#lg-err")
             ket["thong_bao_khi_bi_vo_hieu_hoa"] = m.inner_text("#lg-err")
             m.fill("#lg-user", "gv_moi_h"); m.fill("#lg-pass", MK); m.tap("#f-login button")
             m.wait_for_function("() => document.querySelector('#lg-err').textContent.includes('Sai tên đăng nhập')", timeout=30000)

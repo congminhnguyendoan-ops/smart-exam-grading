@@ -1,4 +1,3 @@
-"""Kiểm thử công cụ đánh giá độc lập tools/eval_omr.py (Tuần 5, Phần A mốc A4)."""
 import ast
 import sys
 
@@ -14,7 +13,6 @@ CAM = {"dinh_vi", "dinh_vi_khoi", "dac_trung_o", "du_doan", "ap_luat_cau", "ap_l
 
 
 def test_eval_chi_dung_api_cong_khai_cua_omr():
-    """Độc lập: eval_omr.py chỉ được dùng omr.doc_phieu / omr.nap_mo_hinh; không import công cụ huấn luyện."""
     cay = ast.parse((ROOT / "tools" / "eval_omr.py").read_text(encoding="utf-8"))
     thuoc_tinh = {n.attr for n in ast.walk(cay) if isinstance(n, ast.Attribute)
                   and isinstance(n.value, ast.Name) and n.value.id == "omr"}
@@ -36,9 +34,9 @@ def _c(that, that_o, doc, doc_o, can_xem):
 
 @pytest.mark.parametrize("r,mong", [
     (_c("ro", "A", "ro", "A", 0), "dung_chac_chan"),
-    (_c("ro", "A", "ro", "B", 0), "loi_nang"),                     # sai đáp án, không cần xem
-    (_c("mo", "C", "trong", "", 0), "loi_nang"),                   # vết mờ đọc thành trống (★Q1)
-    (_c("trong", "", "ro", "D", 0), "loi_nang"),                   # trống đọc thành có tô
+    (_c("ro", "A", "ro", "B", 0), "loi_nang"),
+    (_c("mo", "C", "trong", "", 0), "loi_nang"),
+    (_c("trong", "", "ro", "D", 0), "loi_nang"),
     (_c("mo", "C", "ro", "C", 0), "loi_nhe"),
     (_c("ro", "A", "mo", "A", 1), "can_xem_thua"),
     (_c("trong", "", "trong", "", 1), "can_xem_thua"),
@@ -71,7 +69,6 @@ def test_chan_val_test():
 
 
 def test_nhan_doi_chieu_cell_labels():
-    """Bộ đọc nhãn riêng của eval khớp cell_labels.csv trên toàn train (lệch thì doc_nhan dừng)."""
     can_file(ROOT / "data" / "ground_truth.csv", ROOT / "data" / "cell_labels.csv")
     n = E.doc_nhan(set(range(1, 29)))
     assert len(n) == 28 and n["0001"]["sbd"] == "06238-"

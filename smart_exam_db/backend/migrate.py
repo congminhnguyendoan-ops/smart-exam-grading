@@ -1,10 +1,3 @@
-"""
-migrate.py - Chạy các file backend/migrations/*.sql theo thứ tự tên; ghi vào bảng schema_migrations. Chạy lại an toàn:
-mọi file đều idempotent (IF NOT EXISTS), nên áp lại cũng không hỏng gì. KHÔNG xoá / reset CSDL.
-
-  python -m backend.migrate            # áp các migration chưa áp
-  python -m backend.migrate --kiem     # chỉ liệt kê đã áp / chưa áp
-"""
 import argparse
 import sys
 from pathlib import Path
@@ -12,7 +5,6 @@ from pathlib import Path
 from .db import ket_noi
 
 THU_MUC = Path(__file__).resolve().parent / "migrations"
-# Migration mà backend vẫn chạy đúng khi CHƯA áp (mã đọc cột mới qua to_jsonb / tự tắt tính năng): test & công cụ không đòi.
 TUY_CHON = {"003_xoa_anh_tam.sql"}
 
 
@@ -21,7 +13,6 @@ def ds_file() -> list[Path]:
 
 
 def chua_ap(conn, ca_tuy_chon: bool = False) -> list[str]:
-    """Tên các migration CHƯA áp – CHỈ ĐỌC (không tạo bảng, chạy được trong giao dịch READ ONLY). Mặc định bỏ qua TUY_CHON."""
     co = conn.execute("SELECT to_regclass('schema_migrations') AS t").fetchone()["t"]
     xong = {r["filename"] for r in conn.execute("SELECT filename FROM schema_migrations").fetchall()} if co else set()
     return [f.name for f in ds_file() if f.name not in xong and (ca_tuy_chon or f.name not in TUY_CHON)]
@@ -34,7 +25,6 @@ def da_ap(conn) -> set[str]:
 
 
 def ap_dung(conn=None) -> list[str]:
-    """Áp các migration chưa áp, mỗi file một giao dịch. Trả danh sách file vừa áp."""
     own = conn is None
     conn = conn or ket_noi()
     try:

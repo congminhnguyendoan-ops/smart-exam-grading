@@ -1,18 +1,3 @@
-"""
-tao_tham_chieu.py - Ảnh tham chiếu cho bộ kiểm thử tests/ (Tuần 4, Bước 6 – docs/ke_hoach_tuan4.md).
-
-Ghi TRƯỚC khi sửa cv_engine/preprocessing.py ở Bước 6 (lệnh tự chặn nếu file đã bị sửa so với HEAD):
-  - data/_eval/tham_chieu_kiem_thu/<ảnh>_anh_nan.png, <ảnh>_anh_chuan_hoa.png (PNG, không mất dữ liệu) cho các ảnh
-    dev đại diện; mỗi ảnh phải có SHA-256 trùng vân tay v4 (anh_nan) và v5 (anh_chuan_hoa) thì mới ghi.
-  - tham_chieu.json: SHA, ok, huong_xoay + phiên bản python / cv2 / numpy / nền tảng.
-  - data/_eval/v4_verify/anh_nan_sha256_moi_truong.json: phiên bản môi trường của vân tay v4 (ghi bổ sung: vân tay
-    ghi 07/10/2026 cùng venv; bằng chứng cùng môi trường = SHA chạy lại hôm nay trùng vân tay).
-Vì sao cần ảnh, không chỉ SHA: SHA phụ thuộc phiên bản OpenCV / nền tảng. Khác phiên bản thì tests/ so CÓ DUNG SAI
-(|Δ| ≤ 2 mức xám, ≥ 99,9% điểm ảnh khớp) – phải có ảnh mới đo được Δ.
-
-Chạy (từ thư mục smart_exam_db/):  python tools/tao_tham_chieu.py
-Chỉ ảnh dev; chỉ ghi data/_eval/.
-"""
 import csv
 import hashlib
 import json
@@ -31,7 +16,6 @@ import cv_engine.preprocessing as pp  # noqa: E402
 OUT = EVAL_DIR / "tham_chieu_kiem_thu"
 VAN_TAY = EVAL_DIR / "v4_verify" / "anh_nan_sha256.csv"
 V5 = EVAL_DIR / "v5_chuan_hoa" / "so_pixel_dev.csv"
-# Đại diện: C1 · C2 tối · C3 nghiêng nhất · C4 vệt bóng · ảnh nằm ngang (huong_xoay 90) · giấy cong · trang chữ số
 ANH = ("0001_C1", "0005_C2", "0015_C3", "0032_C4", "0006_C2", "0014_C2", "D003")
 
 

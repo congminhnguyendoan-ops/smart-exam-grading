@@ -1,12 +1,3 @@
-"""
-main.py - API FastAPI của Smart Exam (demo 13/10/2026). Chạy (từ smart_exam_db/):
-
-    uvicorn backend.main:app --port 8000        # tài liệu tự sinh: http://127.0.0.1:8000/docs  (Swagger)  ·  /redoc
-
-Nguyên tắc: endpoint mỏng – chỉ đổi HTTP <-> backend.service. Mỗi yêu cầu một kết nối + một giao dịch (commit khi thành công,
-rollback khi lỗi). ĐĂNG NHẬP (nhánh cai-tien-b): AUTH_MODE=on (mặc định) -> cookie phiên HttpOnly hoặc Authorization: Bearer; mọi endpoint theo id
-kiểm quyền theo lớp (backend/phan_quyen.py). AUTH_MODE=demo giữ hành vi cũ (DEMO_USER / header X-User, không kiểm quyền) – chỉ dev + test cũ.
-"""
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -36,15 +27,14 @@ VERSION = "0.1.0"
 async def lifespan(app: FastAPI):
     cfg = lay_cau_hinh()
     app.state.cfg = cfg
-    if cfg.auth_mode == "on":                              # lệnh AR – R4: thiếu bảng thu hồi token thì KHÔNG khởi động (không "mở" im lặng việc đăng xuất)
+    if cfg.auth_mode == "on":
         with ket_noi() as c0:
             c0.execute("SET TRANSACTION READ ONLY")
             if c0.execute("SELECT to_regclass('revoked_tokens') AS t").fetchone()["t"] is None:
                 raise LoiCauHinh("Chưa áp migration 006 (bảng revoked_tokens – thu hồi token khi đăng xuất). Chạy: python -m backend.migrate")
-    kiem_anh.ap_dung_gioi_han_diem_anh(cfg.max_diem_anh)   # T3: Image.MAX_IMAGE_PIXELS
-    app.state.mo_hinh = service.nap_mo_hinh(cfg)          # nạp OMR + CNN chữ số một lần
+    kiem_anh.ap_dung_gioi_han_diem_anh(cfg.max_diem_anh)
+    app.state.mo_hinh = service.nap_mo_hinh(cfg)
     log.info("Đã nạp mô hình OMR %s, CNN chữ số %s", app.state.mo_hinh.phien_ban, app.state.mo_hinh.phien_ban_ocr)
-    # Dọn ảnh tạm CHỈ khi ANH_XOA_TU_DONG=1 (tools/chay_server_lan.py --bat-don-anh – lệnh Z). pytest / tools/* (TestClient trên CSDL thật) để tắt.
     luong = don_anh.LuongDon(cfg).bat() if cfg.anh_xoa_tu_dong else None
     yield
     if luong:
@@ -52,7 +42,6 @@ async def lifespan(app: FastAPI):
 
 
 def tham_so_tai_lieu() -> dict:
-    """Lệnh AU – T1: DOCS_ENABLED=0 (mặc định) -> tắt trang tài liệu tự sinh (404); =1 -> như cũ."""
     return {} if docs_bat() else {"docs_url": None, "redoc_url": None, "openapi_url": None}
 
 
@@ -64,29 +53,23 @@ app = FastAPI(
 
 
 def ip_proxy_tin_cay() -> list[str]:
-    """FORWARDED_ALLOW_IPS (danh sách phân tách bằng dấu phẩy; '*' = tin mọi nguồn – chỉ khi cổng ứng dụng KHÔNG ra Internet). Trống = không gắn middleware."""
     return [x.strip() for x in os.environ.get("FORWARDED_ALLOW_IPS", "").split(",") if x.strip()]
 
 
-# Lệnh AU – T2: sau proxy (Caddy / nginx) request.client.host là IP của proxy -> khoá đăng nhập theo (tên, IP) sẽ dồn mọi người một khoá.
-# Khi đặt FORWARDED_ALLOW_IPS: chỉ nơi kết nối từ IP trong danh sách này mới được đổi client / scheme bằng X-Forwarded-For / -Proto; nơi khác bị BỎ QUA header.
-# (uvicorn --proxy-headers làm việc tương tự và cũng đọc FORWARDED_ALLOW_IPS; gắn ở đây để hành vi giống nhau mọi cách chạy và kiểm thử được.)
 if ip_proxy_tin_cay():
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=ip_proxy_tin_cay())
 
 
 def _gioi_han_tai_len() -> tuple[int, int]:
-    """(MAX_UPLOAD_MB, MAX_ANH_MOI_LO) đang hiệu lực cho middleware giới hạn thân (cấu hình đã nạp; chưa nạp thì đọc biến môi trường)."""
     cfg = getattr(app.state, "cfg", None)
     if cfg is not None:
         return cfg.gioi_han_anh_mb, cfg.max_anh_moi_lo
     return int(os.environ.get("MAX_UPLOAD_MB", "25")), int(os.environ.get("MAX_ANH_MOI_LO", "30"))
 
 
-app.add_middleware(kiem_anh.GioiHanThanMiddleware, lay_gioi_han=_gioi_han_tai_len)   # T3: 413 sớm theo Content-Length / đếm byte, TRƯỚC khi đọc thân
+app.add_middleware(kiem_anh.GioiHanThanMiddleware, lay_gioi_han=_gioi_han_tai_len)
 
 
-# ------------------------------------------------------------------------------------------------ phụ thuộc
 def get_cau_hinh(request: Request) -> CauHinh:
     return request.app.state.cfg
 
@@ -96,12 +79,10 @@ def get_mo_hinh(request: Request) -> service.MoHinhDichVu:
 
 
 def get_cong_cham(request: Request, cfg: CauHinh = Depends(get_cau_hinh)) -> dong_thoi.CongCham:
-    """Cổng giới hạn số ảnh chấm đồng thời của tiến trình (lệnh AR – R5; CHAM_DONG_THOI / CHAM_CHO_GIAY)."""
     return dong_thoi.cong_cham_cua(request.app.state, cfg)
 
 
 def get_conn():
-    """Một kết nối + một giao dịch cho mỗi yêu cầu (pytest ghi đè hàm này bằng giao dịch rollback)."""
     conn = ket_noi()
     try:
         yield conn
@@ -120,20 +101,17 @@ def _bearer(authorization: str | None) -> str | None:
 def get_nguoi_dung(request: Request, conn=Depends(get_conn), cfg: CauHinh = Depends(get_cau_hinh),
                    authorization: str | None = Header(default=None, description="Bearer <token> (công cụ / test; trình duyệt dùng cookie)"),
                    x_user: str | None = Header(default=None, description="CHỈ khi AUTH_MODE=demo: username giáo viên")) -> auth.NguoiDung:
-    """Người dùng hiện tại: 401 nếu chưa đăng nhập / phiên hết hạn / đã đăng xuất (token bị thu hồi). Trong AUTH_MODE=on header X-User bị BỎ QUA."""
     token = request.cookies.get(auth.COOKIE) or _bearer(authorization)
     return nguoi_dung.xac_thuc(conn, cfg, token, x_user)
 
 
 def giao_vien(nd: auth.NguoiDung = Depends(get_nguoi_dung)) -> auth.NguoiDung:
-    """API chấm / kỳ thi / lớp: chỉ admin và teacher; student -> 403."""
     if nd.role not in ("admin", "teacher"):
         raise nguoi_dung.KhongCoQuyen("Tài khoản sinh viên không dùng được chức năng này.")
     return nd
 
 
 def chi_admin(nd: auth.NguoiDung = Depends(get_nguoi_dung)) -> auth.NguoiDung:
-    """API quản trị (/admin/...): CHỈ vai trò admin – giáo viên / sinh viên -> 403 (kể cả AUTH_MODE=demo: X-User phải là admin)."""
     if nd.role != "admin":
         raise nguoi_dung.KhongCoQuyen("Chỉ quản trị viên dùng được chức năng này.")
     return nd
@@ -149,9 +127,8 @@ _CO_MAT_KHAU = ("/auth/", "/me", "/admin/users")
 
 @app.exception_handler(RequestValidationError)
 async def _loi_dau_vao(request: Request, e: RequestValidationError):
-    """Như mặc định của FastAPI, NHƯNG với đường dẫn có trường mật khẩu thì bỏ "input" / "ctx" (pydantic chép lại giá trị gửi lên -> lộ mật khẩu)."""
     if not request.url.path.startswith(_CO_MAT_KHAU):
-        return await request_validation_exception_handler(request, e)          # hành vi mặc định, không đổi
+        return await request_validation_exception_handler(request, e)
     loi = [{k: v for k, v in x.items() if k not in ("input", "ctx")} for x in e.errors()]
     return JSONResponse({"detail": jsonable_encoder(loi)}, status_code=422)
 
@@ -163,7 +140,6 @@ def _loi_rang_buoc(_: Request, e: psycopg.errors.IntegrityError):
 
 @app.exception_handler(dong_thoi.QuaTai)
 def _qua_tai(_: Request, e: dong_thoi.QuaTai):
-    """Hết thời hạn chờ trong hàng đợi chấm: 503 kèm Retry-After (giây). Giao diện (frontend/loi_tai.js) coi 5xx là lỗi tạm -> nút Gửi lại."""
     return JSONResponse({"detail": str(e)}, status_code=503, headers={"Retry-After": str(e.retry_after)})
 
 
@@ -172,14 +148,12 @@ def _loi_cau_hinh(_: Request, e: LoiCauHinh):
     return JSONResponse({"detail": str(e)}, status_code=500)
 
 
-# ------------------------------------------------------------------------------------------------ hệ thống
 @app.get("/health", tags=["Hệ thống"], summary="Kiểm tra sống")
 def health(request: Request):
-    """Trả 200 khi API chạy và nối được CSDL; 503 nếu không nối được CSDL."""
     mh = getattr(request.app.state, "mo_hinh", None)
     cfg = getattr(request.app.state, "cfg", None)
     thong_tin = {"status": "ok"}
-    if cfg is not None and cfg.health_chi_tiet:          # T1: chỉ chế độ nội bộ mới lộ phiên bản + mô hình
+    if cfg is not None and cfg.health_chi_tiet:
         thong_tin.update({"version": VERSION, "omr_model": mh.phien_ban if mh else None,
                           "ocr_model": mh.phien_ban_ocr if mh else None})
     try:
@@ -194,22 +168,16 @@ def health(request: Request):
 @app.get("/meta/reject-reasons", response_model=dict[str, schemas.LyDoTuChoi], tags=["Hệ thống"],
          summary="Mã từ chối ảnh + thông báo + lời khuyên chụp lại")
 def ly_do_tu_choi():
-    """Cho giao diện: mỗi mã `reject_code` (MA_LY_DO của preprocess) kèm thông báo tiếng Việt và lời khuyên chụp lại."""
     return loi_khuyen.danh_sach()
 
 
 @app.get("/meta/ket-noi", response_model=schemas.KetNoi, tags=["Hệ thống"], summary="Địa chỉ cho điện thoại (IP LAN, QR) – cần đăng nhập")
 def ket_noi_dien_thoai(request: Request, cfg: CauHinh = Depends(get_cau_hinh), nd: auth.NguoiDung = Depends(giao_vien)):
-    """Cho nút "Kết nối điện thoại": IP mạng nội bộ ứng viên, URL trang /m + mã QR. Chỉ người đã đăng nhập (không lộ thông tin mạng cho người lạ).
-    `lan_bat = false` nghĩa là server chỉ nghe 127.0.0.1 – điện thoại không vào được (khởi động bằng tools/chay_server_lan.py)."""
     return {**mang.thong_tin_ket_noi(request.url.port or mang.CONG_MAC_DINH), "gioi_han_anh_mb": cfg.gioi_han_anh_mb}
 
 
-# ------------------------------------------------------------------------------------------------ đề thi
 @app.post("/exams", status_code=201, response_model=schemas.KyThiTao, tags=["Đề thi"], summary="Tạo kỳ thi + mã đề + đáp án")
 def tao_ky_thi(body: schemas.KyThiMoi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
-    """CHỈ quản trị viên (lệnh H, 29/10/2026): giáo viên không tự tạo kỳ thi -> 403; admin tạo + gán giáo viên phụ trách ở POST /admin/exams.
-    (AUTH_MODE=demo giữ hành vi cũ cho công cụ / test cũ.) `class_id` / `class_code` tuỳ chọn: phải là lớp ĐÃ CÓ; không tự tạo lớp."""
     if not nd.demo and not nd.la_admin:
         raise nguoi_dung.KhongCoQuyen("Giáo viên không tự tạo kỳ thi – nhờ quản trị viên tạo (trang Quản trị) và gán bạn phụ trách.")
     d = body.model_dump()
@@ -219,7 +187,6 @@ def tao_ky_thi(body: schemas.KyThiMoi, conn=Depends(get_conn), nd: auth.NguoiDun
 
 @app.get("/exams", response_model=list[schemas.KyThiTomTat], tags=["Đề thi"], summary="Danh sách kỳ thi")
 def ds_ky_thi(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
-    """Admin: tất cả. Giáo viên: kỳ thi mình tạo + kỳ thi thuộc lớp mình dạy. Kèm môn và lớp."""
     return service.ds_ky_thi(conn, *phan_quyen.dieu_kien_ky_thi(nd))
 
 
@@ -232,14 +199,12 @@ def xem_ky_thi(exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depend
 @app.get("/exams/{exam_id}/cover.pdf", tags=["Đề thi"], summary="Trang bìa kỳ thi (PDF) – mã QR mở /m?kythi=<id>")
 def trang_bia_ky_thi(exam_id: int, request: Request, conn=Depends(get_conn), cfg: CauHinh = Depends(get_cau_hinh),
                      nd: auth.NguoiDung = Depends(giao_vien)):
-    """Giáo viên phụ trách / admin in trang này kẹp trên xấp phiếu. Địa chỉ gốc của QR: PUBLIC_BASE_URL, rỗng thì lấy từ yêu cầu. Không có đáp án."""
     phan_quyen.kiem_ky_thi(conn, nd, exam_id)
     tt = trang_bia.thong_tin(conn, exam_id)
     pdf = trang_bia.tao_pdf(tt, trang_bia.url_ky_thi(trang_bia.dia_chi_goc(cfg.public_base_url, request.base_url), exam_id))
     return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="trang_bia_ky_thi_{exam_id}.pdf"'})
 
 
-# ------------------------------------------------------------------------------------------------ tải ảnh
 def _tom_tat_tai(conn, sheet_id: int, da_ton_tai: bool) -> dict:
     v = service.xem_phieu(conn, sheet_id)
     sc = v["score"] or {}
@@ -253,12 +218,10 @@ def _tom_tat_tai(conn, sheet_id: int, da_ton_tai: bool) -> dict:
 def tai_mot_anh(exam_id: int, file: UploadFile = File(description="Ảnh phiếu (JPG / PNG / HEIC)"), conn=Depends(get_conn),
                 cfg: CauHinh = Depends(get_cau_hinh), mh=Depends(get_mo_hinh), nd: auth.NguoiDung = Depends(giao_vien),
                 cong: dong_thoi.CongCham = Depends(get_cong_cham)):
-    """Ảnh không dùng được (mờ, thiếu marker, ...) vẫn trả 201 với `status = rejected` + `reject_code` + thông báo – không có điểm.
-    Kỳ thi đã đóng (quản trị viên đóng) -> 409, không nhận ảnh."""
     phan_quyen.kiem_ky_thi(conn, nd, exam_id)
     quan_tri.kiem_dang_mo(conn, exam_id)
-    du_lieu = kiem_anh.nhan_tep_an_toan(file.file, cfg.gioi_han_anh_mb, cfg.max_diem_anh)   # T3: dừng đọc khi vượt giới hạn; kiểm chữ ký + số điểm ảnh
-    with cong.vao():                                         # R5: chờ trong hàng đợi (có thời hạn, quá hạn 503) TRƯỚC mọi khoá CSDL
+    du_lieu = kiem_anh.nhan_tep_an_toan(file.file, cfg.gioi_han_anh_mb, cfg.max_diem_anh)
+    with cong.vao():
         sheet_id, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, du_lieu, file.filename, nd.user_id)
     return _tom_tat_tai(conn, sheet_id, da_co)
 
@@ -268,23 +231,22 @@ def tai_mot_anh(exam_id: int, file: UploadFile = File(description="Ảnh phiếu
 def tai_nhieu_anh(exam_id: int, files: list[UploadFile] = File(description="Nhiều ảnh phiếu"), conn=Depends(get_conn),
                   cfg: CauHinh = Depends(get_cau_hinh), mh=Depends(get_mo_hinh), nd: auth.NguoiDung = Depends(giao_vien),
                   cong: dong_thoi.CongCham = Depends(get_cong_cham)):
-    """Mỗi ảnh xử lý độc lập (điểm lưu riêng): ảnh lỗi không làm hỏng các ảnh còn lại; lỗi của ảnh nào ghi ở `error` của ảnh đó."""
     user_id = nd.user_id
     phan_quyen.kiem_ky_thi(conn, nd, exam_id)
     if not conn.execute("SELECT 1 FROM exams WHERE exam_id = %s", (exam_id,)).fetchone():
         raise service.KhongTimThay(f"Không có kỳ thi {exam_id}.")
     quan_tri.kiem_dang_mo(conn, exam_id)
-    if len(files) > cfg.max_anh_moi_lo:                       # T3: giới hạn số ảnh mỗi lô
+    if len(files) > cfg.max_anh_moi_lo:
         raise kiem_anh.QuaNhieuAnh(f"Một lô tối đa {cfg.max_anh_moi_lo} ảnh (đang gửi {len(files)}). Hãy chia nhỏ lô.")
-    with cong.vao():                                         # R5: một lô chiếm MỘT chỗ trong hàng đợi chấm; lấy TRƯỚC khoá 'lo' của CSDL
-        dong_thoi.khoa_ky_thi(conn, exam_id, "lo")           # R3: hai lô cùng kỳ chạy LẦN LƯỢT (khoá tới hết giao dịch) -> không chéo khoá chỉ mục duy nhất results
+    with cong.vao():
+        dong_thoi.khoa_ky_thi(conn, exam_id, "lo")
         batch_id = conn.execute("INSERT INTO scan_batches (exam_id, uploaded_by, total_sheets) VALUES (%s, %s, %s) RETURNING batch_id",
                                 (exam_id, user_id, len(files))).fetchone()["batch_id"]
         ket_qua = []
         for f in files:
             try:
-                with conn.transaction():                       # savepoint: lỗi một ảnh không kéo cả lô
-                    sid, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, kiem_anh.nhan_tep_an_toan(f.file, cfg.gioi_han_anh_mb, cfg.max_diem_anh), f.filename, user_id, batch_id, khoa_theo_anh=False)   # lô: không khoá theo ảnh (xem dong_thoi.py)
+                with conn.transaction():
+                    sid, da_co = dong_thoi.nhan_anh_an_toan(conn, cfg, mh, exam_id, kiem_anh.nhan_tep_an_toan(f.file, cfg.gioi_han_anh_mb, cfg.max_diem_anh), f.filename, user_id, batch_id, khoa_theo_anh=False)
                     t = _tom_tat_tai(conn, sid, da_co)
                 ket_qua.append({"filename": f.filename, "sheet_id": sid, "da_ton_tai": da_co, "status": t["status"],
                                 "reject_code": t["reject_code"], "reject_message": t["reject_message"],
@@ -304,10 +266,8 @@ def ds_phieu(exam_id: int, status: str | None = Query(default=None, description=
     return service.ds_phieu_ky_thi(conn, exam_id, status)
 
 
-# ------------------------------------------------------------------------------------------------ kết quả
 @app.get("/sheets/{sheet_id}", response_model=schemas.PhieuOut, tags=["Phiếu"], summary="Xem kết quả một phiếu")
 def xem_phieu(sheet_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
-    """Điểm chính thức (`score.official`) chỉ có khi `status = graded`. Khi `needs_review` chỉ có điểm tạm + điểm tối đa có thể đạt."""
     phan_quyen.kiem_phieu(conn, nd, sheet_id)
     return service.xem_phieu(conn, sheet_id)
 
@@ -334,7 +294,6 @@ def anh_chu_so(sheet_id: int, field: str = Path(pattern="^(sbd|exam_code)$"), po
     return FileResponse(service.anh_chu_so(conn, cfg, sheet_id, field, position), media_type="image/png")
 
 
-# ------------------------------------------------------------------------------------------------ review (giáo viên)
 @app.get("/sheets/{sheet_id}/review-questions", response_model=list[schemas.CauCanXem], tags=["Review"],
          summary="Các câu cần xem của một phiếu")
 def cau_can_xem_phieu(sheet_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
@@ -356,8 +315,6 @@ def cau_can_xem_ky_thi(exam_id: int, limit: int = Query(default=500, ge=1, le=50
           summary="Giáo viên xác nhận / sửa MỘT câu cần xem")
 def xu_ly_cau(sheet_id: int, question_no: int, body: schemas.XuLyCau, conn=Depends(get_conn),
               nd: auth.NguoiDung = Depends(giao_vien)):
-    """Sau mỗi lần xử lý, hệ thống tính lại. Hết mục cần xem (và SBD / mã đề ổn) thì phiếu được chốt: `status = graded`,
-    `score.official` có giá trị, `score.result_status = confirmed`."""
     phan_quyen.kiem_phieu(conn, nd, sheet_id)
     service.xu_ly_cau(conn, sheet_id, question_no, body.action, body.selected_options, nd.user_id, body.note)
     return service.xem_phieu(conn, sheet_id)
@@ -366,8 +323,6 @@ def xu_ly_cau(sheet_id: int, question_no: int, body: schemas.XuLyCau, conn=Depen
 @app.post("/sheets/{sheet_id}/questions/confirm-remaining", response_model=duyet_nhanh.KetQuaHangLoat, tags=["Review"],
           summary="Lệnh AF: xác nhận TẤT CẢ câu trả lời còn cần xem của MỘT phiếu như máy đọc (KHÔNG gồm SBD / mã đề)")
 def xac_nhan_hang_loat(sheet_id: int, body: duyet_nhanh.XacNhanHangLoat, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
-    """Mỗi câu đi qua đúng đường `POST /sheets/{id}/questions/{n}/review` action=confirm (service.xu_ly_cau). Câu `vi_tri` bị loại (chọn tay).
-    `question_nos` phải trùng đúng danh sách máy chủ đang có (lệch -> 409, không ghi gì). Một giao dịch; ghi một dòng nhật ký. Không hoàn tác được."""
     phan_quyen.kiem_phieu(conn, nd, sheet_id)
     return duyet_nhanh.xac_nhan_hang_loat(conn, sheet_id, body.question_nos, nd)
 
@@ -392,7 +347,6 @@ def sua_dinh_danh(sheet_id: int, body: schemas.DinhDanh, conn=Depends(get_conn),
 @app.post("/sheets/{sheet_id}/duplicate/discard", response_model=schemas.KetQuaTrung, tags=["Review"],
           summary="Phiếu bị giữ vì trùng SBD: BỎ phiếu chụp lại này, giữ phiếu cũ")
 def bo_phieu_trung(sheet_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
-    """Phiếu này (`duplicate_sbd`) bị loại (`rejected`, mã `chup_lai_bi_bo`); phiếu cũ và điểm chính thức không đổi. 409 nếu phiếu không còn bị giữ vì trùng."""
     phan_quyen.kiem_phieu(conn, nd, sheet_id)
     r = phieu_trung.bo_phieu_chup_lai(conn, sheet_id, nd.user_id, nd.username)
     return {"hanh_dong": r["hanh_dong"], "phieu": service.xem_phieu(conn, sheet_id), "phieu_cu": r["giu_phieu"]}
@@ -401,19 +355,15 @@ def bo_phieu_trung(sheet_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = D
 @app.post("/sheets/{sheet_id}/duplicate/replace", response_model=schemas.KetQuaTrung, tags=["Review"],
           summary="Phiếu bị giữ vì trùng SBD: DÙNG phiếu này thay phiếu cũ (rút điểm cũ, ghi nhật ký)")
 def thay_phieu_trung(sheet_id: int, body: schemas.ThayPhieuCu, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
-    """MỘT giao dịch: điểm chính thức của phiếu cũ bị rút (`results.status = void`, `score_audit_logs` ghi ai / lúc nào / phiếu nào thay phiếu nào), phiếu cũ không
-    còn tính, phiếu này được đánh giá lại để duyệt tiếp hoặc chốt. `old_sheet_id` phải là phiếu cũ giáo viên đã xác nhận, đổi trong lúc chờ -> 409. Không bao giờ có hai điểm chính thức."""
     phan_quyen.kiem_phieu(conn, nd, sheet_id)
     phan_quyen.kiem_phieu(conn, nd, body.old_sheet_id)
     r = phieu_trung.thay_phieu_cu(conn, sheet_id, body.old_sheet_id, nd.user_id, nd.username)
     return {"hanh_dong": r["hanh_dong"], "phieu": service.xem_phieu(conn, sheet_id), "phieu_cu": r["phieu_cu"], "diem_cu_da_rut": r["diem_cu"]}
 
 
-# ------------------------------------------------------------------------------------------------ bảng điểm
 @app.get("/exams/{exam_id}/results", response_model=schemas.BangDiemOut, tags=["Bảng điểm"],
          summary="Bảng điểm: mỗi thí sinh trong danh sách dự thi một dòng")
 def bang_diem_ky_thi(exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
-    """`score` là điểm CHÍNH THỨC (chỉ phiếu `official`). Phiếu chưa duyệt xong (`pending`) chỉ có `provisional_score`."""
     phan_quyen.kiem_ky_thi(conn, nd, exam_id)
     return bang_diem.bang_diem(conn, exam_id)
 
@@ -427,11 +377,8 @@ def xuat_excel(exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depend
                     headers={"Content-Disposition": f"attachment; filename=\"{ascii_ten}\"; filename*=UTF-8''{quote(ten)}"})
 
 
-# ------------------------------------------------------------------------------------------------ đăng nhập / hồ sơ / lớp
 @app.post("/auth/login", response_model=schemas.HoSo, tags=["Tài khoản"], summary="Đăng nhập (đặt cookie phiên HttpOnly)")
 def dang_nhap(body: schemas.DangNhap, request: Request, response: Response, conn=Depends(get_conn), cfg: CauHinh = Depends(get_cau_hinh)):
-    """Mọi lỗi (sai tên, sai mật khẩu, tài khoản bị khoá) trả CÙNG một thông báo, 401. Sai quá 5 lần / 15 phút (mỗi tên + IP): 429.
-    Phiên hết hạn sau `SESSION_HOURS` giờ. Công cụ có thể dùng `Authorization: Bearer <token>` (token trong cookie)."""
     if cfg.auth_mode == "demo":
         raise service.DuLieuSai("Đang ở AUTH_MODE=demo (chỉ dev): không có đăng nhập.")
     token, nd = nguoi_dung.dang_nhap(conn, cfg, body.username, body.password, request.client.host if request.client else "?")
@@ -442,10 +389,8 @@ def dang_nhap(body: schemas.DangNhap, request: Request, response: Response, conn
 @app.post("/auth/logout", status_code=204, tags=["Tài khoản"], summary="Đăng xuất (thu hồi token + xoá cookie phiên)")
 def dang_xuat(request: Request, conn=Depends(get_conn), cfg: CauHinh = Depends(get_cau_hinh),
               authorization: str | None = Header(default=None, description="Bearer <token> (công cụ / test)")):
-    """Thu hồi token đang dùng (cookie, không có / không hợp lệ thì Bearer) – từ đây token đó trả 401 trên MỌI đường dẫn có xác thực; phiên khác của cùng tài khoản không bị ảnh hưởng.
-    Không cần đăng nhập, không lỗi nếu token giả / đã thu hồi / không có (luôn 204); token giả KHÔNG ghi gì."""
     if cfg.auth_mode == "on":
-        for token in (request.cookies.get(auth.COOKIE), _bearer(authorization)):       # cùng thứ tự ưu tiên như get_nguoi_dung: chỉ MỘT phiên bị thu hồi
+        for token in (request.cookies.get(auth.COOKIE), _bearer(authorization)):
             if token and nguoi_dung.thu_hoi_token(conn, cfg, token):
                 break
     r = Response(status_code=204)
@@ -465,14 +410,12 @@ def sua_toi(body: schemas.SuaHoSo, conn=Depends(get_conn), nd: auth.NguoiDung = 
 
 @app.post("/me/password", status_code=204, tags=["Tài khoản"], summary="Đổi mật khẩu (cần mật khẩu cũ)")
 def doi_mat_khau(body: schemas.DoiMatKhau, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(get_nguoi_dung)):
-    """Mật khẩu mới ≥ 8 ký tự và khác mật khẩu cũ. Đổi mật khẩu làm mọi phiên cũ (cả phiên này) hết hiệu lực: đăng nhập lại."""
     nguoi_dung.doi_mat_khau(conn, nd, body.old_password, body.new_password)
     return Response(status_code=204)
 
 
 @app.get("/me/classes", response_model=list[schemas.LopCuaToi], tags=["Lớp"], summary="Lớp tôi phụ trách (kèm môn, số sinh viên)")
 def lop_cua_toi(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
-    """Giáo viên: các lớp trong `teacher_classes`. Admin: mọi lớp."""
     return nguoi_dung.lop_cua_toi(conn, nd)
 
 
@@ -485,16 +428,12 @@ def sinh_vien_lop(class_id: int, q: str | None = Query(default=None, max_length=
     return {"lop": r["class"], "tong": r["tong"], "trang": r["trang"], "co_trang": r["co_trang"], "sinh_vien": r["sinh_vien"]}
 
 
-# ------------------------------------------------------------------------------------------------ quản trị (chỉ admin)
-# Lệnh V4: mọi thao tác GHI thành công để lại MỘT dòng admin_audit_log (nhat_ky.ghi) – ghi SAU hàm quan_tri.*, cùng giao dịch:
-# hàm ném lỗi (409 / 404 / 422) thì không tới dòng ghi; giao dịch rollback thì nhật ký mất theo. Không ghi mật khẩu.
 _COT_KY_THI = ("exam_title", "exam_date", "class_id", "status", "teacher_user_id")
 
 
 @app.get("/admin/audit", response_model=schemas.NhatKyTrang, tags=["Quản trị"], summary="Nhật ký thao tác quản trị (mới nhất trước)")
 def qt_nhat_ky(page: int = Query(default=1, ge=1), page_size: int = Query(default=100, ge=1, le=200), conn=Depends(get_conn),
                nd: auth.NguoiDung = Depends(chi_admin)):
-    """Chỉ admin (giáo viên 403). Chỉ thao tác thành công; `details` không chứa mật khẩu / token."""
     return nhat_ky.ds(conn, page, page_size)
 
 
@@ -506,7 +445,6 @@ def qt_ds_ky_thi(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)
 @app.post("/admin/exams", status_code=201, response_model=schemas.KyThiQuanTri, tags=["Quản trị"],
           summary="Tạo kỳ thi + mã đề + đáp án, gán giáo viên phụ trách")
 def qt_tao_ky_thi(body: schemas.KyThiQuanTriMoi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    """Cùng quy tắc kiểm đáp án với POST /exams. `teacher_user_id`: giáo viên phụ trách (thấy và chụp phiếu cho kỳ thi này)."""
     d = body.model_dump(exclude={"teacher_user_id"})
     d["class_id"] = phan_quyen.giai_lop_cho_ky_thi(conn, nd, body.class_id, body.class_code)
     e = quan_tri.mot_ky_thi(conn, quan_tri.tao_ky_thi_qt(conn, nd, d, body.teacher_user_id))
@@ -517,7 +455,6 @@ def qt_tao_ky_thi(body: schemas.KyThiQuanTriMoi, conn=Depends(get_conn), nd: aut
 
 @app.patch("/admin/exams/{exam_id}", response_model=schemas.KyThiQuanTri, tags=["Quản trị"], summary="Sửa tên / ngày thi")
 def qt_sua_ky_thi(exam_id: int, body: schemas.SuaKyThi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    """Chỉ sửa trường có gửi; `exam_date: null` xoá ngày. Không đổi đáp án (đáp án sửa sau khi đã có phiếu là nợ kỹ thuật – cần chấm lại)."""
     cu = quan_tri.mot_ky_thi(conn, exam_id)
     e = quan_tri.sua_ky_thi(conn, exam_id, {k: getattr(body, k) for k in body.model_fields_set})
     nhat_ky.ghi(conn, nd, "sua_ky_thi", exam_id, {"exam_title": e["exam_title"], "thay": nhat_ky.thay_doi(cu, e, _COT_KY_THI)})
@@ -526,7 +463,6 @@ def qt_sua_ky_thi(exam_id: int, body: schemas.SuaKyThi, conn=Depends(get_conn), 
 
 @app.post("/admin/exams/{exam_id}/status", response_model=schemas.KyThiQuanTri, tags=["Quản trị"], summary="Đóng / mở lại kỳ thi")
 def qt_dong_mo(exam_id: int, body: schemas.DongMoKyThi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    """Đóng: không nhận ảnh mới (409 khi tải). Duyệt phiếu, bảng điểm, Excel vẫn dùng được."""
     cu = quan_tri.mot_ky_thi(conn, exam_id)
     e = quan_tri.dat_dong_mo(conn, exam_id, body.closed)
     nhat_ky.ghi(conn, nd, "dong_ky_thi" if body.closed else "mo_ky_thi", exam_id,
@@ -536,7 +472,6 @@ def qt_dong_mo(exam_id: int, body: schemas.DongMoKyThi, conn=Depends(get_conn), 
 
 @app.delete("/admin/exams/{exam_id}", status_code=204, tags=["Quản trị"], summary="Xoá kỳ thi CHƯA có phiếu")
 def qt_xoa_ky_thi(exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    """Đã có phiếu / lô tải / kết quả -> 409 (chỉ đóng được)."""
     cu = quan_tri.mot_ky_thi(conn, exam_id)
     quan_tri.xoa_ky_thi(conn, exam_id)
     nhat_ky.ghi(conn, nd, "xoa_ky_thi", exam_id, {"exam_title": cu["exam_title"], "class_code": cu["class_code"], "subject_code": cu["subject_code"]})
@@ -551,7 +486,6 @@ def qt_ds_tai_khoan(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_adm
 
 @app.post("/admin/users", status_code=201, response_model=schemas.TaiKhoan, tags=["Quản trị"], summary="Tạo tài khoản giáo viên")
 def qt_tao_tai_khoan(body: schemas.TaiKhoanMoi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    """Vai trò luôn là teacher. Mật khẩu băm scrypt; phản hồi / nhật ký không bao giờ chứa mật khẩu. Trùng tên / email -> 409."""
     u = quan_tri.tao_giao_vien(conn, nd, body.username, body.full_name, body.email, body.password, body.class_ids)
     nhat_ky.ghi(conn, nd, "tao_tai_khoan", u["user_id"], {"username": u["username"], "full_name": u["full_name"], "email": u["email"], "lop": u["lop"]})
     return u
@@ -559,9 +493,8 @@ def qt_tao_tai_khoan(body: schemas.TaiKhoanMoi, conn=Depends(get_conn), nd: auth
 
 @app.post("/admin/users/{user_id}/password", status_code=204, tags=["Quản trị"], summary="Đặt lại mật khẩu giáo viên")
 def qt_dat_lai_mat_khau(user_id: int, body: schemas.DatMatKhau, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    """Mọi phiên cũ của giáo viên đó hết hiệu lực. Chỉ tài khoản giáo viên (admin khác: dùng `python -m backend.tai_khoan`)."""
     quan_tri.dat_lai_mat_khau(conn, nd, user_id, body.new_password)
-    nhat_ky.ghi(conn, nd, "dat_lai_mat_khau", user_id, {"username": quan_tri.ten_dang_nhap(conn, user_id)})     # KHÔNG ghi mật khẩu
+    nhat_ky.ghi(conn, nd, "dat_lai_mat_khau", user_id, {"username": quan_tri.ten_dang_nhap(conn, user_id)})
     return Response(status_code=204)
 
 
@@ -580,7 +513,7 @@ def qt_ky_thi_cua_gv(user_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = 
 @app.put("/admin/users/{user_id}/exams/{exam_id}", response_model=list[schemas.KyThiCuaGiaoVien], tags=["Quản trị"],
          summary="Gán kỳ thi cho giáo viên (thành người phụ trách)")
 def qt_gan_ky_thi(user_id: int, exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    cu = quan_tri.tim_ky_thi(conn, exam_id)                                       # không ném: gan_ky_thi tự kiểm (giữ thứ tự lỗi cũ)
+    cu = quan_tri.tim_ky_thi(conn, exam_id)
     ds = quan_tri.gan_ky_thi(conn, nd, user_id, exam_id)
     nhat_ky.ghi(conn, nd, "gan_ky_thi", user_id, {"username": quan_tri.ten_dang_nhap(conn, user_id), "exam_id": exam_id, "exam_title": cu["exam_title"],
                                                   "phu_trach_truoc": cu["teacher_username"]})
@@ -604,7 +537,6 @@ def qt_ds_lop(conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
 
 @app.post("/admin/classes", status_code=201, response_model=schemas.LopQuanTri, tags=["Quản trị"], summary="Tạo lớp")
 def qt_tao_lop(body: schemas.LopMoi, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    """Mã lớp trùng (không phân biệt hoa thường) -> 409."""
     l = quan_tri.tao_lop(conn, nd, body.class_code, body.class_name, body.academic_year)
     nhat_ky.ghi(conn, nd, "tao_lop", l["class_id"], {"class_code": l["class_code"], "class_name": l["class_name"], "academic_year": l["academic_year"]})
     return l
@@ -641,7 +573,6 @@ def qt_gv_cua_lop(class_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = De
 @app.put("/admin/classes/{class_id}/teachers/{user_id}", response_model=list[schemas.GiaoVienCuaLop], tags=["Quản trị"],
          summary="Thêm giáo viên (đang hoạt động) vào lớp (đang hoạt động)")
 def qt_them_gv_vao_lop(class_id: int, user_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    """Một giáo viên nhiều lớp, một lớp nhiều giáo viên. Có hiệu lực ở lần gọi kế tiếp của giáo viên."""
     ds = quan_tri.them_giao_vien_vao_lop(conn, nd, class_id, user_id)
     nhat_ky.ghi(conn, nd, "them_giao_vien_vao_lop", class_id, {"class_code": quan_tri.mot_lop(conn, class_id)["class_code"], "user_id": user_id,
                                                                 "username": quan_tri.ten_dang_nhap(conn, user_id)})
@@ -665,17 +596,15 @@ def qt_lop_cua_gv(user_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Dep
 @app.put("/admin/users/{user_id}/classes", response_model=list[schemas.LopCuaGiaoVienQT], tags=["Quản trị"],
          summary="Đặt danh sách lớp của giáo viên (tick nhiều lớp)")
 def qt_dat_lop_cho_gv(user_id: int, body: schemas.DatLop, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(chi_admin)):
-    """Lớp thêm mới phải đang hoạt động; lớp giữ lại giữ nguyên môn dạy; id lớp không có -> 422 (không đổi gì)."""
     truoc = {r["class_code"] for r in quan_tri.lop_cua_giao_vien(conn, user_id)}
     ds = quan_tri.dat_lop_cho_giao_vien(conn, nd, user_id, body.class_ids)
     sau = {r["class_code"] for r in ds}
-    if truoc != sau:                                                              # lưu mà không đổi gì: không ghi nhật ký
+    if truoc != sau:
         nhat_ky.ghi(conn, nd, "dat_lop_giao_vien", user_id, {"username": quan_tri.ten_dang_nhap(conn, user_id),
                                                              "them": sorted(sau - truoc), "bo": sorted(truoc - sau)})
     return ds
 
 
-# ------------------------------------------------------------------------------------------------ giao diện (HTML + JS thuần)
 FRONTEND_DIR = DuongDan(__file__).resolve().parent.parent / "frontend"
 
 
@@ -686,8 +615,7 @@ def trang_chu():
 
 @app.get("/m", include_in_schema=False)
 def trang_dien_thoai():
-    """Trang chụp phiếu cho điện thoại – HTML TĨNH (không dữ liệu); mọi API nó gọi vẫn cần đăng nhập."""
     return FileResponse(FRONTEND_DIR / "m.html", media_type="text/html", headers={"Cache-Control": "no-cache"})
 
 
-app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")   # đặt SAU các route API
+app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

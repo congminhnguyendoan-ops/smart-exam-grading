@@ -1,6 +1,3 @@
-"""Lệnh U: tools/dat_lai_demo.py – xem trước không ghi; xoá ĐÚNG phiếu mục tiêu (kể cả phiếu chính thức ở kỳ thi demo chính, phiếu tải sau mốc
-ở kỳ thi tập); giữ nền + phiếu lạ trước mốc + kỳ thi khác + danh sách dự thi; giữ tệp ảnh dùng chung; từ chối kỳ thi không có dấu [DEMO.
-Chạy trên CSDL thật trong giao dịch ROLLBACK (conn_thu), trên kỳ thi TẠM của test – không bao giờ trên 1380 / 1381 / 1632 / 1633."""
 import sys
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -45,7 +42,7 @@ def the_gioi(conn_thu, tmp_path):
     ids = {"C_CT": phieu(chinh, "graded"), "C_CX": phieu(chinh, "needs_review"), "C_TC": phieu(chinh, "rejected", rel="chung/anh.jpg"),
            "NEN_CT": phieu(tap, "graded", MOC - timedelta(days=1)), "NEN_CX": phieu(tap, "needs_review", MOC),
            "TAP_MOI": phieu(tap, "needs_review", MOC + timedelta(hours=2)), "TAP_LA_CU": phieu(tap, "rejected", MOC - timedelta(hours=1)),
-           "KHAC": phieu(khac, "needs_review"), "KHAC_CHUNG": phieu(khac, "rejected", rel="chung/anh.jpg")}       # dùng chung tệp với C_TC
+           "KHAC": phieu(khac, "needs_review"), "KHAC_CHUNG": phieu(khac, "rejected", rel="chung/anh.jpg")}
     for k in ("C_CT", "NEN_CT"):
         c.execute("INSERT INTO results (exam_id, student_id, sheet_id, num_correct, score, status) VALUES (%s, %s, %s, 8, 8, 'confirmed')",
                   (chinh if k == "C_CT" else tap, sv, ids[k]))
@@ -79,10 +76,10 @@ def test_thuc_hien_chi_xoa_phieu_muc_tieu(the_gioi):
     con = {r["sheet_id"] for r in c.execute("SELECT sheet_id FROM answer_sheets WHERE sheet_id = ANY(%s)", (list(i.values()),)).fetchall()}
     assert con == {i["NEN_CT"], i["NEN_CX"], i["TAP_LA_CU"], i["KHAC"], i["KHAC_CHUNG"]}
     assert DL.dem_ky_thi(c, [g["chinh"]])[g["chinh"]]["tong"] == 0
-    assert c.execute("SELECT count(*) AS n FROM results WHERE sheet_id = %s AND status = 'confirmed'", (i["NEN_CT"],)).fetchone()["n"] == 1   # điểm nền còn
+    assert c.execute("SELECT count(*) AS n FROM results WHERE sheet_id = %s AND status = 'confirmed'", (i["NEN_CT"],)).fetchone()["n"] == 1
     assert c.execute("SELECT count(*) AS n FROM exam_students WHERE exam_id = ANY(%s)", ([g["chinh"], g["tap"]],)).fetchone()["n"] == du_thi
     kq = DL.D.xoa_tep(g["kho"], kh["tep"])
-    assert kq["da_xoa"] == 3 and (g["kho"] / "chung" / "anh.jpg").exists()          # tệp dùng chung với phiếu kỳ thi khác: GIỮ
+    assert kq["da_xoa"] == 3 and (g["kho"] / "chung" / "anh.jpg").exists()
 
 
 def test_nen_bi_doi_thi_canh_bao(the_gioi):
@@ -104,12 +101,10 @@ def test_mac_dinh_dung_ky_thi_demo_va_nen_da_chot():
     assert DL.KY_THI_DUOC_PHEP == {1380, 1381, 1632, 1633}
 
 
-NGOAI_PHAM_VI = (6, 115, 178, 509)          # [DEMO] thu dữ liệu, [THU] F1-F4, [DEMO-2], [THU] Phần C – có "[DEMO" / "[THU" trong tên nhưng KHÔNG được đụng
+NGOAI_PHAM_VI = (6, 115, 178, 509)
 
 
 def test_id_that_khong_dung_ky_thi_khac_du_co_dau_demo(conn_thu):
-    """Lệnh V: trên CSDL THẬT (ROLLBACK), kế hoạch MẶC ĐỊNH chỉ chọn theo id cố định – kỳ thi 6 / 178 (có "[DEMO" trong tên) và 115 / 509
-    không mất phiếu nào, kể cả khi được thêm phiếu mới; phiếu thêm vào 1633 thì bị xoá."""
     c = conn_thu
     ten = {r["exam_id"]: r["exam_title"] for r in c.execute("SELECT exam_id, exam_title FROM exams WHERE exam_id = ANY(%s)",
                                                             (list(NGOAI_PHAM_VI) + sorted(DL.KY_THI_DUOC_PHEP),)).fetchall()}
@@ -133,13 +128,12 @@ def test_id_that_khong_dung_ky_thi_khac_du_co_dau_demo(conn_thu):
 
 
 def test_hau_kiem_tu_choi_phieu_ngoai_pham_vi(the_gioi, monkeypatch):
-    """Nếu (do lỗi lập trình) truy vấn trả phiếu của kỳ thi ngoài phạm vi, lap_ke_hoach phải từ chối thay vì xoá."""
     g = the_gioi
     goc = g["c"].execute
 
     def execute(sql, *a, **k):
         if isinstance(sql, str) and sql.lstrip().startswith("SELECT a.sheet_id") and "a.exam_id = ANY(%s) ORDER BY" in sql:
-            return goc(sql, ([*a[0][0], g["khac"]],), **k)          # cài lỗi: gộp thêm kỳ thi "[DEMO] kỳ thi khác"
+            return goc(sql, ([*a[0][0], g["khac"]],), **k)
         return goc(sql, *a, **k)
     monkeypatch.setattr(g["c"], "execute", execute)
     with pytest.raises(DL.LoiDatLai, match="ngoài phạm vi"):

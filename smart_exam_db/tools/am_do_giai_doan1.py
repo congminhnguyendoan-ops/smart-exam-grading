@@ -1,5 +1,3 @@
-"""am_do_giai_doan1.py - Lệnh AM giai đoạn 1: đo tiêu chí (c) và (d) của CNN sâu với trọng số ngẫu nhiên cố định seed (CHƯA huấn luyện).
-Chạy từ smart_exam_db/:  python tools/am_do_giai_doan1.py  -> in JSON. Không ghi vào models/."""
 import json
 import statistics
 import sys
@@ -18,7 +16,6 @@ from cv_engine import ocr  # noqa: E402
 
 
 def ms_mot_o(mh, x, n=500):
-    """Trung vị ms/ô: (i) lô 500 ô, (ii) từng ô một (đã làm nóng)."""
     ocr.du_doan_xac_suat(mh, x[:50])
     lo = []
     for _ in range(5):

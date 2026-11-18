@@ -1,9 +1,3 @@
-"""
-an_do_thay_mo_hinh.py - Lệnh AN: đo CNN hiện tại và CNN sâu (ứng viên seed 2026) trên phiếu val 0029–0034 + test 0035–0040 theo
-docs/tieu_chi_thay_mo_hinh_an.md (đăng ký TRƯỚC, commit 3c2942c). Cùng ảnh nắn + OMR, chỉ đổi mô hình OCR. Không ghi models/.
-
-  python tools/an_do_thay_mo_hinh.py --xac-nhan-val --xac-nhan-test     # -> data/_eval/an/ket_qua.json (chạy MỘT lần)
-"""
 import argparse
 import csv
 import json
@@ -19,7 +13,7 @@ from cv_engine.tap_du_lieu import PHIEU_TEST, PHIEU_VAL, chan_test, ma_phieu, ng
 DATA = ROOT / "data"
 OUT = DATA / "_eval" / "an"
 UNG_VIEN = DATA / "_eval" / "am" / "ocr_cnn_sau_seed2026.json"
-SHA_UNG_VIEN = "9e84b9093e12b45f6483419f569e46eba041bbac846f01898304aaddd14eb048"      # đúng như đã đăng ký
+SHA_UNG_VIEN = "9e84b9093e12b45f6483419f569e46eba041bbac846f01898304aaddd14eb048"
 SHA_HIEN_TAI = "6d87205c83a29fccc4eb450f0aec0c9d51ba56e1bb141664060041ab0f2fcad5"
 
 

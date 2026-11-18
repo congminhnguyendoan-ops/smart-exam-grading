@@ -1,23 +1,3 @@
-"""
-check_layout.py - Kiểm chứng layout.json KHỚP với phiếu PDF, trước khi in hàng loạt.
-
-Cách làm:
- 1. Render trang 1 của phieu_danh_so.pdf ra ảnh 300 DPI.
- 2. Vẽ vòng tròn đỏ tại mọi toạ độ trong layout.json -> overlay_check.png
-    (mở ảnh, phóng to: vòng đỏ phải trùng khít vòng in trên phiếu).
- 3. "Tô giả" phiếu theo ground_truth.csv (phiếu 0001), làm nghiêng + mờ + nhiễu
-    như ảnh chụp điện thoại -> synthetic_photo.jpg
- 4. Đọc lại bằng OpenCV: tìm 4 marker -> nắn phối cảnh -> đo độ đậm từng ô
-    -> so với ground truth. Làm 2 lượt: align() bản đầu (giữ để tái tạo số liệu "trước" của Tuần 4) và
-    cv_engine.preprocessing.preprocess_anh() (bản dùng thật từ Tuần 4 Bước 6). Cả hai phải KHỚP.
-
-find_markers() / align() ở đây LỖI THỜI (chọn nhầm marker mà không báo lỗi – docs/ke_hoach_tuan4.md): chỉ giữ cho
-tools/eval_preprocessing.py (align_cu, v2_load) và tools/marker_that.py tái tạo số liệu. Công cụ mới dùng preprocess().
-
-Cài đặt:  pip install opencv-python numpy pdf2image   (Windows cần thêm Poppler, xem hướng dẫn)
-          hoặc chỉ cần: pip install pymupdf opencv-python numpy
-Chạy:     python check_layout.py
-"""
 import csv
 import json
 import os
@@ -30,10 +10,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "output")
 
 
-# ----------------------------------------------------------------------------- render
 def render_pdf_page(pdf_path, dpi=300):
     try:
-        import fitz  # pymupdf - dễ cài nhất trên Windows
+        import fitz
         page = fitz.open(pdf_path)[0]
         pix = page.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY)
         return np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width).copy()
@@ -43,9 +22,7 @@ def render_pdf_page(pdf_path, dpi=300):
         return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
 
 
-# ----------------------------------------------------------------------------- tô giả
 def fake_fill(img, layout, gt, rng):
-    """Mô phỏng người tô: filled = đậm ~90% ô, faint = nhạt, lệch tâm; viết SBD bằng font Hershey."""
     out = img.copy()
     r = layout["answers"]["bubble_radius"]
 
@@ -77,7 +54,6 @@ def fake_fill(img, layout, gt, rng):
 
 
 def fake_photo(img, rng):
-    """Đặt phiếu lên nền bàn, xoay/nghiêng phối cảnh, đổ bóng, mờ, nhiễu."""
     h, w = img.shape
     canvas = np.full((int(h * 1.25), int(w * 1.3)), 95, np.uint8)
     src = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
@@ -89,20 +65,18 @@ def fake_photo(img, rng):
     warped = cv2.warpPerspective(img, M, (canvas.shape[1], canvas.shape[0]), borderValue=95)
     mask = cv2.warpPerspective(np.full_like(img, 255), M, (canvas.shape[1], canvas.shape[0]))
     photo = np.where(mask > 0, warped, canvas).astype(np.float32)
-    gx = np.linspace(0.65, 1.05, photo.shape[1])[None, :]           # ánh sáng không đều
+    gx = np.linspace(0.65, 1.05, photo.shape[1])[None, :]
     photo = photo * gx
     photo = cv2.GaussianBlur(photo, (7, 7), 1.6)
     photo += rng.normal(0, 6, photo.shape)
     photo = np.clip(photo, 0, 255).astype(np.uint8)
-    return cv2.resize(photo, None, fx=0.6, fy=0.6, interpolation=cv2.INTER_AREA)   # ~ ảnh điện thoại 12MP
+    return cv2.resize(photo, None, fx=0.6, fy=0.6, interpolation=cv2.INTER_AREA)
 
 
-# ----------------------------------------------------------------------------- đọc lại (baseline Tuần 4)
 def find_markers(gray):
-    """Trả về 4 tâm marker theo thứ tự TL, TR, BR, BL."""
     th = cv2.adaptiveThreshold(cv2.GaussianBlur(gray, (5, 5), 0), 255,
                                cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 51, 15)
-    cnts, _ = cv2.findContours(th, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)   # LIST: marker nằm BÊN TRONG viền tờ giấy
+    cnts, _ = cv2.findContours(th, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     area_img = gray.shape[0] * gray.shape[1]
     cands = []
     for c in cnts:
@@ -136,7 +110,6 @@ def align(gray, layout):
 
 
 def darkness(aligned, cx, cy, r):
-    """Tỉ lệ pixel tối bên trong 75% bán kính ô (0 = trắng, 1 = đen hết)."""
     x0, y0, x1, y1 = int(cx - r), int(cy - r), int(cx + r), int(cy + r)
     patch = aligned[y0:y1, x0:x1]
     yy, xx = np.ogrid[:patch.shape[0], :patch.shape[1]]
@@ -170,15 +143,13 @@ def read_sheet(aligned, layout):
     return res, digits
 
 
-# ----------------------------------------------------------------------------- main
 def main():
     layout = json.load(open(os.path.join(OUT, "layout.json"), encoding="utf-8"))
     gt = next(csv.DictReader(open(os.path.join(OUT, "ground_truth.csv"), encoding="utf-8-sig")))
     blank = render_pdf_page(os.path.join(OUT, "phieu_danh_so.pdf"))
-    if blank.shape[::-1] != tuple(layout["page_px"]):      # renderer có thể lệch 1px do làm tròn
+    if blank.shape[::-1] != tuple(layout["page_px"]):
         blank = cv2.resize(blank, tuple(layout["page_px"]), interpolation=cv2.INTER_AREA)
 
-    # (2) overlay
     ov = cv2.cvtColor(blank, cv2.COLOR_GRAY2BGR)
     r = layout["answers"]["bubble_radius"]
     for q, opts in layout["answers"]["centers"].items():
@@ -196,25 +167,21 @@ def main():
         cv2.rectangle(ov, (int(cx - s), int(cy - s)), (int(cx + s), int(cy + s)), (0, 200, 0), 3)
     cv2.imwrite(os.path.join(OUT, "overlay_check.png"), ov)
 
-    # (3) tô giả + chụp giả
     rng = np.random.default_rng(1)
     filled = fake_fill(blank, layout, gt, rng)
     photo = fake_photo(filled, rng)
     cv2.imwrite(os.path.join(OUT, "synthetic_photo.jpg"), photo, [cv2.IMWRITE_JPEG_QUALITY, 85])
 
-    # (4) đọc lại – lượt 1: align() bản đầu (giữ nguyên để so)
     aligned = align(photo, layout)
     cv2.imwrite(os.path.join(OUT, "synthetic_aligned.jpg"), aligned, [cv2.IMWRITE_JPEG_QUALITY, 85])
     passed = kiem_layout(aligned, layout, gt, "align() bản đầu")
     ans, _ = read_sheet(aligned, layout)
 
-    # (b) Tham khảo: phân loại 4 trạng thái bằng NGƯỠNG CỐ ĐỊNH (rule-based)
     ok = sum(ans[q] == gt[f"q{q}"] for q in range(1, 41))
     wrong = [(q, gt[f"q{q}"], ans[q]) for q in range(1, 41) if ans[q] != gt[f"q{q}"]]
     print(f"[Tham khảo] rule-based đúng trạng thái {ok}/40; sai (câu, đúng, đoán): {wrong}")
     print("            -> lỗi tập trung ở ô tô mờ khi ánh sáng không đều: lý do cần OMR classifier (Tuần 5)")
 
-    # (4) lượt 2: preprocess_anh() – bản dùng thật (Tuần 4 Bước 6) trên CÙNG ảnh chụp giả
     sys.path.insert(0, os.path.dirname(HERE))
     from cv_engine.preprocessing import MA_LY_DO, preprocess_anh
     kq = preprocess_anh(photo, layout)
@@ -230,8 +197,6 @@ def main():
 
 
 def kiem_layout(aligned, layout, gt, ten) -> bool:
-    """(a) Kiểm tra LAYOUT trên ảnh đã nắn: ô được tô đậm nhất có đúng là ô trong ground truth không?
-    (không phân biệt tô rõ / tô mờ -> chỉ kiểm vị trí toạ độ)."""
     _, digits = read_sheet(aligned, layout)
     r = layout["answers"]["bubble_radius"]
     pos_ok = 0
@@ -239,7 +204,7 @@ def kiem_layout(aligned, layout, gt, ten) -> bool:
         a = gt[f"q{q}"]
         d = {o: darkness(aligned, *layout["answers"]["centers"][str(q)][o], r) for o in "ABCD"}
         if a == "-":
-            pos_ok += (max(d.values()) - min(d.values())) < 0.12   # so tương đối: ánh sáng làm cả hàng tối đi
+            pos_ok += (max(d.values()) - min(d.values())) < 0.12
         else:
             k = len(a)
             top = "".join(sorted(sorted(d, key=d.get, reverse=True)[:k]))

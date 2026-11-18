@@ -1,10 +1,3 @@
-"""
-quan_tri.py - Dịch vụ QUẢN TRỊ (chỉ admin; quyền kiểm ở main.chi_admin): kỳ thi (tạo / sửa tên + ngày / đóng – mở / xoá khi chưa có phiếu)
-và tài khoản giáo viên. KHÔNG đổi cấu trúc CSDL (không migration mới):
-  - "giáo viên phụ trách" kỳ thi = exams.created_by (cột có sẵn, phan_quyen.py đã cho người tạo thấy kỳ thi) -> gán / bỏ gán = đổi created_by;
-  - đóng / mở = exams.status ('closed' / 'draft' – ENUM exam_status có sẵn). Kỳ thi đóng KHÔNG nhận ảnh mới; duyệt, bảng điểm, Excel vẫn dùng được.
-Tạo kỳ thi dùng lại service.tao_ky_thi (cùng quy tắc kiểm đáp án). Mọi SQL có tham số. Không tự commit. Không log mật khẩu.
-"""
 import logging
 import re
 
@@ -20,7 +13,6 @@ TRANG_THAI_DONG, TRANG_THAI_MO = "closed", "draft"
 THONG_BAO_DA_DONG = "Kỳ thi đã đóng – không nhận thêm ảnh. Nhờ quản trị viên mở lại nếu cần."
 
 
-# ------------------------------------------------------------------------------------------------ kỳ thi
 _DS_KY_THI = ("SELECT e.exam_id, e.exam_title, e.exam_date, e.status::text AS status, e.num_questions, e.created_at, "
               "sj.subject_code, sj.subject_name, e.class_id, c.class_code, c.class_name, "
               "u.user_id AS teacher_user_id, u.username AS teacher_username, u.full_name AS teacher_name, u.role::text AS teacher_role, "
@@ -35,7 +27,6 @@ def ds_ky_thi(conn) -> list[dict]:
 
 
 def tim_ky_thi(conn, exam_id: int) -> dict | None:
-    """Như mot_ky_thi nhưng KHÔNG ném lỗi (nhật ký V4 đọc trạng thái trước mà không đổi thứ tự kiểm lỗi của thao tác)."""
     return conn.execute(f"{_DS_KY_THI} WHERE e.exam_id = %s", (exam_id,)).fetchone()
 
 
@@ -47,7 +38,6 @@ def mot_ky_thi(conn, exam_id: int) -> dict:
 
 
 def giao_vien_hop_le(conn, user_id: int) -> dict:
-    """Giáo viên phụ trách phải là tài khoản teacher đang hoạt động (không gán cho admin / sinh viên / tài khoản bị vô hiệu hoá)."""
     u = conn.execute("SELECT user_id, username, full_name, role::text AS role, is_active FROM users WHERE user_id = %s", (user_id,)).fetchone()
     if not u or u["role"] != "teacher" or not u["is_active"]:
         raise DuLieuSai("Giáo viên phụ trách không tồn tại, không phải tài khoản giáo viên hoặc đã bị vô hiệu hoá.")
@@ -55,18 +45,15 @@ def giao_vien_hop_le(conn, user_id: int) -> dict:
 
 
 def tao_ky_thi_qt(conn, nd: NguoiDung, d: dict, teacher_user_id: int | None) -> int:
-    """d đã qua phan_quyen.giai_lop_cho_ky_thi (class_id). Người phụ trách = giáo viên được chọn, không chọn thì chính admin."""
     chu = giao_vien_hop_le(conn, teacher_user_id)["user_id"] if teacher_user_id is not None else nd.user_id
     if d.get("class_id") is not None:
-        lop_dang_hoat_dong(conn, d["class_id"])               # lệnh I: kỳ thi mới chỉ gắn lớp đang hoạt động
+        lop_dang_hoat_dong(conn, d["class_id"])
     exam_id = tao_ky_thi(conn, d, chu)
     log.info("Quản trị %s tạo kỳ thi %s (phụ trách user_id %s)", nd.username, exam_id, chu)
     return exam_id
 
 
 def sua_ky_thi(conn, exam_id: int, thay: dict) -> dict:
-    """thay: chỉ các khoá người dùng gửi – exam_title (3–200 ký tự), exam_date (None = xoá ngày), class_id (None = bỏ lớp; lớp MỚI phải
-    đang hoạt động). Đổi lớp đổi luôn giáo viên thấy kỳ thi QUA LỚP (người phụ trách giữ nguyên) – hiệu lực ở lần gọi kế tiếp."""
     e = mot_ky_thi(conn, exam_id)
     if not thay:
         raise DuLieuSai("Cần exam_title, exam_date và / hoặc class_id.")
@@ -86,7 +73,6 @@ def sua_ky_thi(conn, exam_id: int, thay: dict) -> dict:
 
 
 def dat_dong_mo(conn, exam_id: int, dong: bool) -> dict:
-    """Đóng: status = 'closed'. Mở lại: 'draft' (giá trị mặc định khi tạo; hệ thống chưa dùng 'published' / 'grading')."""
     mot_ky_thi(conn, exam_id)
     conn.execute("UPDATE exams SET status = %s::exam_status, updated_at = now() WHERE exam_id = %s",
                  (TRANG_THAI_DONG if dong else TRANG_THAI_MO, exam_id))
@@ -94,8 +80,6 @@ def dat_dong_mo(conn, exam_id: int, dong: bool) -> dict:
 
 
 def xoa_ky_thi(conn, exam_id: int) -> None:
-    """Chỉ xoá kỳ thi CHƯA có phiếu / lô tải / kết quả (CSDL xoá dây chuyền phiếu theo kỳ thi – nên phải chặn ở đây). Đã có phiếu: chỉ đóng.
-    An toàn thêm: không xoá kỳ thi đã có danh sách dự thi (exam_students cũng bị xoá dây chuyền) hoặc kỳ thi [DEMO…] (bộ demo bảo vệ)."""
     e = mot_ky_thi(conn, exam_id)
     if "[DEMO" in e["exam_title"].upper():
         raise XungDot("Kỳ thi [DEMO…] dùng cho demo / bảo vệ – không xoá qua web (chỉ đóng).")
@@ -108,7 +92,6 @@ def xoa_ky_thi(conn, exam_id: int) -> None:
     conn.execute("DELETE FROM exams WHERE exam_id = %s", (exam_id,))
 
 
-# ------------------------------------------------------------------------------------------------ tài khoản
 _DS_TAI_KHOAN = ("SELECT u.user_id, u.username, u.full_name, u.email, u.role::text AS role, u.is_active, u.last_login_at, u.created_at, "
                  "(SELECT count(*) FROM exams e WHERE e.created_by = u.user_id) AS so_ky_thi, "
                  "(SELECT string_agg(c.class_code, ', ' ORDER BY c.class_code) FROM teacher_classes tc JOIN classes c ON c.class_id = tc.class_id "
@@ -116,7 +99,6 @@ _DS_TAI_KHOAN = ("SELECT u.user_id, u.username, u.full_name, u.email, u.role::te
 
 
 def ds_tai_khoan(conn) -> list[dict]:
-    """Tài khoản admin + giáo viên (sinh viên không quản lý ở đây). KHÔNG có password_hash."""
     return conn.execute(f"{_DS_TAI_KHOAN} WHERE u.role IN ('admin', 'teacher') ORDER BY u.role, lower(u.username)").fetchall()
 
 
@@ -125,8 +107,6 @@ def _mot_tai_khoan(conn, user_id: int) -> dict:
 
 
 def _giao_vien(conn, user_id: int) -> dict:
-    """Trang web CHỈ quản lý tài khoản GIÁO VIÊN: admin khác / sinh viên / id không có -> 404 cùng một thông báo
-    (tài khoản admin quản lý bằng `python -m backend.tai_khoan`; không tự khoá chính mình)."""
     u = conn.execute("SELECT user_id, username, role::text AS role, is_active FROM users WHERE user_id = %s", (user_id,)).fetchone()
     if not u or u["role"] != "teacher":
         raise KhongTimThay(f"Không có tài khoản giáo viên {user_id}.")
@@ -134,7 +114,6 @@ def _giao_vien(conn, user_id: int) -> dict:
 
 
 def ten_dang_nhap(conn, user_id: int) -> str | None:
-    """Tên đăng nhập (cho nhật ký quản trị – lệnh V4); None nếu không có."""
     r = conn.execute("SELECT username FROM users WHERE user_id = %s", (user_id,)).fetchone()
     return r["username"] if r else None
 
@@ -142,13 +121,11 @@ def ten_dang_nhap(conn, user_id: int) -> str | None:
 def _mat_khau_hop_le(mat_khau: str) -> None:
     loi = auth.mat_khau_hop_le(mat_khau)
     if loi:
-        raise DuLieuSai(loi)                                  # thông báo KHÔNG chứa mật khẩu
+        raise DuLieuSai(loi)
 
 
 def tao_giao_vien(conn, nd: NguoiDung, username: str, full_name: str, email: str | None, mat_khau: str,
                   class_ids: list[int] | None = None) -> dict:
-    """Tài khoản vai trò teacher (không tạo admin / sinh viên qua web). Mật khẩu băm scrypt (auth.bam_mat_khau); không trả / không log mật khẩu.
-    class_ids (lệnh I): gán luôn các lớp (đang hoạt động) lúc tạo – lỗi lớp thì cả yêu cầu ROLLBACK (không còn tài khoản dở dang)."""
     username, full_name = username.strip(), full_name.strip()
     if not TEN_DANG_NHAP_RE.match(username):
         raise DuLieuSai("Tên đăng nhập 3–50 ký tự, chỉ gồm chữ không dấu, số, dấu chấm, gạch dưới, gạch ngang.")
@@ -162,7 +139,7 @@ def tao_giao_vien(conn, nd: NguoiDung, username: str, full_name: str, email: str
         raise XungDot("Tên đăng nhập đã được dùng.")
     if conn.execute("SELECT 1 FROM users WHERE lower(email) = lower(%s)", (email,)).fetchone():
         raise XungDot("Email đã được dùng cho tài khoản khác.")
-    if class_ids:                                           # kiểm lớp TRƯỚC khi ghi tài khoản (không để tài khoản dở dang)
+    if class_ids:
         hop_le = {r["class_id"] for r in conn.execute("SELECT class_id FROM classes WHERE class_id = ANY(%s) AND is_active",
                                                       (list(set(class_ids)),)).fetchall()}
         if set(class_ids) - hop_le:
@@ -176,7 +153,6 @@ def tao_giao_vien(conn, nd: NguoiDung, username: str, full_name: str, email: str
 
 
 def dat_lai_mat_khau(conn, nd: NguoiDung, user_id: int, mat_khau: str) -> None:
-    """Đổi hash -> mọi phiên cũ của giáo viên đó hết hiệu lực (token mang dấu vân tay hash). Không log mật khẩu."""
     u = _giao_vien(conn, user_id)
     _mat_khau_hop_le(mat_khau)
     conn.execute("UPDATE users SET password_hash = %s, updated_at = now() WHERE user_id = %s", (auth.bam_mat_khau(mat_khau), user_id))
@@ -184,7 +160,6 @@ def dat_lai_mat_khau(conn, nd: NguoiDung, user_id: int, mat_khau: str) -> None:
 
 
 def dat_hoat_dong(conn, nd: NguoiDung, user_id: int, hoat_dong: bool) -> dict:
-    """Vô hiệu hoá: is_active = FALSE -> không đăng nhập được, phiên đang có bị từ chối ở lần gọi kế tiếp (nguoi_dung.xac_thuc tra users mỗi yêu cầu)."""
     u = _giao_vien(conn, user_id)
     conn.execute("UPDATE users SET is_active = %s, updated_at = now() WHERE user_id = %s", (hoat_dong, user_id))
     log.info("Quản trị %s %s tài khoản %s", nd.username, "kích hoạt lại" if hoat_dong else "vô hiệu hoá", u["username"])
@@ -192,7 +167,6 @@ def dat_hoat_dong(conn, nd: NguoiDung, user_id: int, hoat_dong: bool) -> dict:
 
 
 def ky_thi_cua_giao_vien(conn, user_id: int) -> list[dict]:
-    """Kỳ thi giáo viên thấy: `phu_trach` (exams.created_by – gán / bỏ gán được ở đây) và `lop` (qua teacher_classes – đổi bằng gán lớp)."""
     _giao_vien(conn, user_id)
     return conn.execute(
         "SELECT e.exam_id, e.exam_title, e.status::text AS status, c.class_code, "
@@ -203,7 +177,6 @@ def ky_thi_cua_giao_vien(conn, user_id: int) -> list[dict]:
 
 
 def gan_ky_thi(conn, nd: NguoiDung, user_id: int, exam_id: int) -> list[dict]:
-    """Giáo viên (đang hoạt động) thành người phụ trách kỳ thi. Mỗi kỳ thi MỘT người phụ trách: gán người mới thay người cũ."""
     u = _giao_vien(conn, user_id)
     if not u["is_active"]:
         raise DuLieuSai("Tài khoản đang bị vô hiệu hoá – kích hoạt lại trước khi gán kỳ thi.")
@@ -214,7 +187,6 @@ def gan_ky_thi(conn, nd: NguoiDung, user_id: int, exam_id: int) -> list[dict]:
 
 
 def bo_gan_ky_thi(conn, nd: NguoiDung, user_id: int, exam_id: int) -> list[dict]:
-    """Bỏ gán: người phụ trách chuyển về chính admin đang thao tác (created_by NOT NULL). Giáo viên vẫn thấy kỳ thi nếu nó thuộc lớp mình dạy."""
     u = _giao_vien(conn, user_id)
     e = mot_ky_thi(conn, exam_id)
     if e["teacher_user_id"] != user_id:
@@ -224,9 +196,6 @@ def bo_gan_ky_thi(conn, nd: NguoiDung, user_id: int, exam_id: int) -> list[dict]
     return ky_thi_cua_giao_vien(conn, user_id)
 
 
-# ------------------------------------------------------------------------------------------------ lớp học (lệnh I)
-# Chỉ lớp + giáo viên của lớp. KHÔNG quản lý sinh viên (số sinh viên chỉ để xem). Trạng thái lớp: classes.is_active (migration 004).
-# Lớp vô hiệu hoá: không chọn được cho kỳ thi mới / gán giáo viên mới; giáo viên ĐÃ gán vẫn xem kỳ thi cũ của lớp (giữ điểm, lịch sử).
 MA_LOP_RE = re.compile(r"^[A-Za-z0-9._-]{2,30}$")
 _DS_LOP = ("SELECT c.class_id, c.class_code, c.class_name, c.academic_year, c.is_active, c.created_at, "
            "(SELECT count(*) FROM teacher_classes tc WHERE tc.class_id = c.class_id) AS so_giao_vien, "
@@ -271,7 +240,6 @@ def tao_lop(conn, nd: NguoiDung, class_code: str, class_name: str, academic_year
 
 
 def sua_lop(conn, class_id: int, thay: dict) -> dict:
-    """Sửa tên và / hoặc năm học (mã lớp không đổi: kỳ thi, giao diện, trang bìa đã dùng nó)."""
     mot_lop(conn, class_id)
     if not thay:
         raise DuLieuSai("Cần class_name và / hoặc academic_year.")
@@ -292,7 +260,6 @@ def dat_hoat_dong_lop(conn, nd: NguoiDung, class_id: int, hoat_dong: bool) -> di
 
 
 def xoa_lop(conn, nd: NguoiDung, class_id: int) -> None:
-    """Chỉ xoá lớp CHƯA gắn kỳ thi và CHƯA có sinh viên (giáo viên của lớp bị bỏ gán theo). Còn lại: vô hiệu hoá."""
     l = mot_lop(conn, class_id)
     if l["so_ky_thi"] or l["so_sinh_vien"]:
         raise XungDot(f"Lớp đã gắn {l['so_ky_thi']} kỳ thi và có {l['so_sinh_vien']} sinh viên – không xoá được. Hãy VÔ HIỆU HOÁ lớp thay vì xoá.")
@@ -301,16 +268,12 @@ def xoa_lop(conn, nd: NguoiDung, class_id: int) -> None:
 
 
 def lop_dang_hoat_dong(conn, class_id: int) -> dict:
-    """Lớp chọn cho kỳ thi mới / gán giáo viên mới phải tồn tại và đang hoạt động."""
     l = mot_lop(conn, class_id)
     if not l["is_active"]:
         raise DuLieuSai(f"Lớp {l['class_code']} đã bị vô hiệu hoá – kích hoạt lại trước khi dùng.")
     return l
 
 
-# ------------------------------------------------------------------------------------------------ giáo viên – lớp (nhiều – nhiều, teacher_classes)
-# Quyền theo lớp tính lại MỖI yêu cầu từ teacher_classes (phan_quyen.py) -> thêm / bỏ gán có hiệu lực ở lần gọi kế tiếp.
-# subject_id ("Môn tôi dạy") KHÔNG nhập được từ web: dòng giữ nguyên khi đặt lại danh sách lớp; dòng mới để NULL.
 def giao_vien_cua_lop(conn, class_id: int) -> list[dict]:
     mot_lop(conn, class_id)
     return conn.execute("SELECT u.user_id, u.username, u.full_name, u.is_active, sj.subject_code, tc.assigned_at "
@@ -343,8 +306,6 @@ def lop_cua_giao_vien(conn, user_id: int) -> list[dict]:
 
 
 def dat_lop_cho_giao_vien(conn, nd: NguoiDung, user_id: int, class_ids: list[int]) -> list[dict]:
-    """Đặt ĐÚNG danh sách lớp của giáo viên (tick nhiều lớp). Lớp THÊM mới phải đang hoạt động và giáo viên phải đang hoạt động;
-    lớp giữ lại không đổi (giữ môn); lớp bỏ đi bị xoá khỏi teacher_classes. Id lớp không tồn tại -> 422, không đổi gì."""
     u = _giao_vien(conn, user_id)
     muon = set(class_ids)
     co = {r["class_id"]: r for r in conn.execute("SELECT class_id, class_code, is_active FROM classes WHERE class_id = ANY(%s)", (list(muon),)).fetchall()}
@@ -368,7 +329,6 @@ def dat_lop_cho_giao_vien(conn, nd: NguoiDung, user_id: int, class_ids: list[int
 
 
 def kiem_dang_mo(conn, exam_id: int) -> None:
-    """Tải ảnh: kỳ thi đã đóng -> 409. Gọi SAU phan_quyen.kiem_ky_thi (ngoài quyền vẫn là 404, không lộ trạng thái)."""
     r = conn.execute("SELECT status::text AS s FROM exams WHERE exam_id = %s", (exam_id,)).fetchone()
     if r and r["s"] == TRANG_THAI_DONG:
         raise XungDot(THONG_BAO_DA_DONG)

@@ -22,24 +22,21 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 XAC_NHAN = "NAP_DEMO_CONG_KHAI"
-TEN_CAM = {"admin", "gv_an", "gv_binh", "sv220001"}             # tài khoản mẫu của 04_seed.sql – bản công khai không được dùng
-MK_DO_DAI = 20                                                  # ≥ 16 (W3)
+TEN_CAM = {"admin", "gv_an", "gv_binh", "sv220001"}
+MK_DO_DAI = 20
 SO_CAU, THANG, DAT = 40, 10, 5
 
-# Môn / tiêu đề: PHẢI trùng nap_bo_demo.BA_MON và dat_lai_demo.KY_THI_BA_MON (test tests/test_nap_demo_cong_khai.py kiểm) để dat_lai_demo tìm đúng kỳ thi.
 BA_MON = (("xla", "[XLA] Xử lý ảnh", "XLA", "Xử lý ảnh"), ("ml", "[ML] Máy học", "ML", "Máy học"),
           ("dacn", "[ĐACN] Đồ án chuyên ngành", "DACN", "Đồ án chuyên ngành"))
-# Đáp án 4 mã đề = answer_sheet/demo_bv/demo_bv_dap_an.csv (ảnh demo BV01–BV10 chấm theo đúng các đáp án này). Nhúng sẵn vì tools/ và answer_sheet/demo_bv/ không nằm trong image.
 DAP_AN = {"101": "ADDBABDCADBACDDCBBCDBBACCACCBDBAACAADBDC", "102": "CBBCCADADCADBBCCBDCBACDBDABABAABDDDDAACC",
           "103": "BACAACCACBBCDCDABDBBDBDADCCADABCADBDDCAB", "104": "DBDADDACACADDABCADCCBABBCABDABBCACCBDCDB"}
 LOP = {"CNTT-K22A": "Công nghệ thông tin K22A (dữ liệu demo)", "CNTT-K22B": "Công nghệ thông tin K22B (dữ liệu demo)"}
-LOP_GV = ("CNTT-K22A", "CNTT-K22B")                             # GV1 -> K22A, GV2 -> K22B
-# SINH VIÊN GIẢ: MSSV = SBD in trên phiếu demo BV01–BV10 (tuần tự, không phải mã thật); họ tên bịa, lấy từ database/04_seed.sql (dữ liệu mẫu của dự án).
+LOP_GV = ("CNTT-K22A", "CNTT-K22B")
 SINH_VIEN = (("220001", "Lê Minh Khoa", "CNTT-K22A"), ("220002", "Phạm Thu Hà", "CNTT-K22A"), ("220003", "Đỗ Quang Huy", "CNTT-K22A"),
              ("220004", "Vũ Ngọc Lan", "CNTT-K22A"), ("220005", "Hoàng Đức Minh", "CNTT-K22A"), ("220006", "Ngô Thanh Tâm", "CNTT-K22B"),
              ("220007", "Bùi Gia Bảo", "CNTT-K22B"), ("220008", "Trịnh Mai Anh", "CNTT-K22B"), ("220009", "Lý Hoài Nam", "CNTT-K22B"),
              ("220010", "Đặng Khánh Linh", "CNTT-K22B"))
-DU_THI = tuple(s[0] for s in SINH_VIEN[:9])                     # 220010 cố ý KHÔNG dự thi (phiếu BV10 minh hoạ "SBD ngoài danh sách")
+DU_THI = tuple(s[0] for s in SINH_VIEN[:9])
 
 
 class LoiNap(SystemExit):
@@ -51,12 +48,11 @@ def dung(msg: str):
 
 
 def muc_tieu(url: str) -> str:
-    """Chỉ host + tên CSDL (+ schema nếu có); KHÔNG BAO GIỜ trả người dùng / mật khẩu / cổng."""
     if "://" in url:
         u = urlsplit(url)
         host, db = u.hostname or "?", u.path.lstrip("/") or "?"
         opt = " ".join(parse_qs(u.query).get("options", []))
-    else:                                                       # dạng "host=… dbname=…" của libpq
+    else:
         kv = dict(p.split("=", 1) for p in url.split() if "=" in p)
         host, db, opt = kv.get("host", "?"), kv.get("dbname", "?"), kv.get("options", "")
     m = re.search(r"search_path[=\s]*([\w,]+)", opt)
@@ -93,8 +89,6 @@ def kiem_nen(conn) -> None:
 
 
 def nap(conn, admin: str, gv: list[str], ap_dung: bool) -> dict:
-    """Trả {'dong': {bảng: số dòng mới (sẽ / đã) INSERT}, 'mat_khau': {tên: mật khẩu} (chỉ tài khoản MỚI, chỉ khi ap_dung), 'tai_khoan': [(tên, vai trò, mới?)]}.
-    KHÔNG commit (người gọi quyết định). Tài khoản / sinh viên / kỳ thi có sẵn mà khác dữ liệu demo → DỪNG (không ghi đè, không đoán)."""
     kiem_nen(conn)
     from backend import auth
     dong = dict.fromkeys(("users", "classes", "teacher_classes", "students", "subjects", "exams", "exam_codes", "answer_keys", "exam_students"), 0)

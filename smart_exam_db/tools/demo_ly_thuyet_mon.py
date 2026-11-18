@@ -1,13 +1,3 @@
-"""
-demo_ly_thuyet_mon.py - Lệnh AP: trang "LÝ THUYẾT CÁC MÔN" cho buổi demo đồ án chuyên ngành: ánh xạ TÍNH NĂNG THẬT của hệ thống sang kiến thức từng môn học.
-
-  python tools/demo_ly_thuyet_mon.py --ra data/_eval/demo_3_phien/ly_thuyet_cac_mon.html
-
-GIẢ ĐỊNH (ghi cả trên trang): chưa biết nhóm đã học những môn nào, nên danh sách môn được SUY RA từ chính hệ thống (cơ sở dữ liệu, lập trình web / API,
-an toàn thông tin, kiểm thử phần mềm, phân tích thiết kế, xử lý ảnh, học máy). Môn nào nhóm chưa học thì bỏ mục đó khi trình bày.
-Mọi khẳng định về hệ thống đều có nguồn trong mã / tài liệu của repo; số đếm (số bảng, số đường dẫn API) được đếm lúc dựng trang nếu có thể
-(không có CSDL / không import được backend thì ghi "chưa đếm được", KHÔNG điền số bịa). Trang tự chứa, không tải gì từ mạng.
-"""
 import argparse
 import html
 import sys
@@ -24,7 +14,6 @@ def e(s) -> str:
 
 
 def dem_thong_so() -> dict:
-    """Số liệu đếm lúc dựng trang; mỗi số tự None nếu không đếm được (không bịa)."""
     kq = {"so_duong_dan_api": None, "so_bang": None, "so_view": None}
     try:
         import os

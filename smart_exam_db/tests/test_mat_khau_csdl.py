@@ -1,9 +1,3 @@
-"""Lệnh W1 – mật khẩu CSDL KHÔNG còn viết cứng trong script tạo CSDL (00_create_database.sql, run_all.bat, run_all.sh).
-Script đọc SMART_EXAM_DB_PASSWORD (biến môi trường, hoặc dòng SMART_EXAM_DB_PASSWORD= trong smart_exam_db/.env); thiếu thì DỪNG trước mọi lệnh psql.
-
-AN TOÀN: KHÔNG BAO GIỜ chạy run_all thật (nó DROP DATABASE). run_all.bat / .sh được CHÉP NGUYÊN BYTE sang thư mục tạm và `psql` được thay bằng
-một stub chỉ ghi tham số. Chốt trong 00_create_database.sql chạy bằng psql thật với --single-transaction trên chính CSDL smart_exam: PostgreSQL từ chối
-DROP DATABASE trong khối giao dịch (và không xoá được CSDL đang nối), nên kể cả khi chốt hỏng cũng không xoá được gì; test chỉ kiểm rằng chốt dừng TRƯỚC đó."""
 import os
 import shutil
 import subprocess
@@ -16,11 +10,10 @@ import pytest
 from conftest import ROOT
 
 DB = ROOT / "database"
-MAT_KHAU_CU = "smartexam" + "123"                       # tách chuỗi để chính tệp test không chứa mật khẩu cũ
+MAT_KHAU_CU = "smartexam" + "123"
 
 
 def test_khong_con_mat_khau_cu_trong_ma():
-    """Không tệp mã nào (database/, backend/, tools/, answer_sheet/, tests/, frontend/) còn mật khẩu cũ."""
     thay = []
     for thu_muc in ("database", "backend", "tools", "answer_sheet", "tests", "frontend"):
         for p in (ROOT / thu_muc).rglob("*"):
@@ -32,11 +25,8 @@ def test_khong_con_mat_khau_cu_trong_ma():
 
 
 def _stub(thu_muc: Path, ghi: Path) -> dict:
-    """Thư mục tạm: database/ (bản chép run_all.*) + stub psql ghi tham số vào `ghi`."""
     (thu_muc / "database").mkdir(parents=True)
-    shutil.copyfile(DB / "run_all.sh", thu_muc / "database" / "run_all.sh")                  # chép nguyên byte
-    # run_all.bat: chép nguyên, CHỈ đổi "psql " đầu dòng -> "call psql ": stub là psql.bat, mà cmd gọi một .bat khác KHÔNG có `call` thì không
-    # quay lại (psql thật là psql.exe nên tệp gốc không cần `call`). Kết thúc dòng giữ như trong repo.
+    shutil.copyfile(DB / "run_all.sh", thu_muc / "database" / "run_all.sh")
     goc = (DB / "run_all.bat").read_bytes()
     (thu_muc / "database" / "run_all.bat").write_bytes(goc.replace(b"\npsql ", b"\ncall psql "))
     bin_ = thu_muc / "bin"
@@ -74,7 +64,6 @@ def test_run_all_bat(tmp_path, ca):
 
 
 def _bash():
-    """Git Bash trên Windows (bash.exe của WindowsApps là WSL, có thể không có bản phân phối); Linux / macOS: bash trên PATH."""
     if sys.platform == "win32":
         for p in (Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "bin" / "bash.exe", Path(r"C:\Program Files\Git\bin\bash.exe")):
             if p.exists():
@@ -89,7 +78,7 @@ def test_run_all_sh(tmp_path, ca):
     ghi = tmp_path / "goi_psql.txt"
     env = _stub(tmp_path, ghi)
     if ca == "env_file":
-        (tmp_path / ".env").write_bytes(b"DATABASE_URL=x\r\nSMART_EXAM_DB_PASSWORD=Sh-Env-3\r\n")       # .env kiểu Windows (CRLF)
+        (tmp_path / ".env").write_bytes(b"DATABASE_URL=x\r\nSMART_EXAM_DB_PASSWORD=Sh-Env-3\r\n")
     sh = (tmp_path / "database" / "run_all.sh").as_posix()
     bin_ = (tmp_path / "bin").as_posix()
     r = subprocess.run([_bash(), "-c", f'export PATH="{bin_}:$PATH"; unset SMART_EXAM_DB_PASSWORD; bash "{sh}"'], env=env,
@@ -111,7 +100,6 @@ def _psql():
 @pytest.mark.skipif(_psql() is None, reason="không có psql")
 @pytest.mark.parametrize("bien, mau", [([], "thiếu mật khẩu"), (["-v", "app_password="], "division by zero")])
 def test_chot_sql_dung_truoc_drop(bien, mau):
-    """Chốt trong 00_create_database.sql: thiếu / rỗng mật khẩu -> lỗi NGAY, không tới DROP DATABASE (an toàn: --single-transaction, xem docstring)."""
     try:
         from backend.config import lay_database_url
         u = urlsplit(lay_database_url())

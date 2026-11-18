@@ -1,10 +1,3 @@
-"""
-trang_bia.py - "Trang bìa kỳ thi" (PDF A4) để kẹp trên xấp phiếu: tên kỳ thi, mã kỳ thi, môn, lớp, ngày, giáo viên phụ trách,
-mã QR trỏ tới trang điện thoại /m?kythi=<id> (chọn sẵn kỳ thi sau khi đăng nhập). Phiếu giấy KHÔNG đổi; không tự đoán kỳ thi từ nội dung phiếu.
-
-Địa chỉ gốc của QR: PUBLIC_BASE_URL (cấu hình, dùng khi deploy) – rỗng thì lấy từ yêu cầu (request.base_url).
-KHÔNG in đáp án lên trang bìa (trang bìa đi cùng xấp phiếu, ai cũng thấy). Vẽ bằng ReportLab (QR có sẵn trong reportlab.graphics.barcode).
-"""
 import io
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -34,7 +27,6 @@ def url_ky_thi(goc: str, exam_id: int) -> str:
 
 
 def la_may_cuc_bo(url: str) -> bool:
-    """URL trỏ về chính máy chủ (điện thoại quét sẽ không mở được) -> in cảnh báo trên trang bìa."""
     return (urlsplit(url).hostname or "").lower() in MAY_CUC_BO
 
 
@@ -63,7 +55,6 @@ def _font() -> tuple[str, str]:
 
 
 def _dong(c: canvas.Canvas, chu: str, font: str, co: float, x: float, y: float, rong: float) -> float:
-    """Vẽ chữ xuống dòng theo bề rộng; trả y của dòng kế tiếp."""
     tu, dong = chu.split(), ""
     for t in tu:
         thu = f"{dong} {t}".strip()
@@ -111,7 +102,6 @@ def tao_pdf(tt: dict, url: str) -> bytes:
         c.setFont(thuong, 12)
         c.drawString(le, y, f"{nhan}:")
         y = _dong(c, gia_tri, dam, 12, le + 45 * mm, y, rong - 45 * mm) - 1.5 * mm
-    # QR
     canh = 75 * mm
     qr = QrCodeWidget(url, barLevel="M")
     x0, y0, x1, y1 = qr.getBounds()

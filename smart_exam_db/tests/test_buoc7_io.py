@@ -1,6 +1,3 @@
-"""Đường ống I/O cho Bước 7 (đánh giá cuối trên tập test, đăng ký trước) – KHÔNG đọc ảnh test nào.
-finalize --split test cấm --ke-thua; run test chỉ một lần; tên file dev giữ nguyên; HTML xem MÙ không lộ kết luận máy /
-số đo; cận trên Clopper–Pearson; audit --split test cần cờ."""
 import argparse
 import sys
 

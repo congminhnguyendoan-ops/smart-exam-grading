@@ -24,7 +24,6 @@ THU_MUC = ROOT / "data" / "_backup"
 
 
 def tim_cong_cu(ten: str) -> str | None:
-    """pg_dump / pg_restore: trong PATH, không thì bản PostgreSQL mới nhất ở C:\\Program Files\\PostgreSQL\\<bản>\\bin."""
     p = shutil.which(ten)
     if p:
         return p
@@ -33,7 +32,6 @@ def tim_cong_cu(ten: str) -> str | None:
 
 
 def tach_url(url: str) -> dict:
-    """postgresql://user:mk@host:port/db -> {host, port, user, db, mat_khau}."""
     u = urlsplit(url)
     if u.scheme not in ("postgresql", "postgres") or not u.path.strip("/"):
         raise SystemExit("DỪNG: DATABASE_URL không đúng dạng postgresql://user:mật-khẩu@host:cổng/tên-csdl (không in giá trị).")

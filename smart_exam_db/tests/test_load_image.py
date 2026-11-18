@@ -1,19 +1,16 @@
-"""load_image(): EXIF Orientation, đường dẫn Unicode, file lỗi. Không cần data/ (ảnh thử tự tạo trong tmp_path)."""
 import numpy as np
 import pytest
 from PIL import Image
 
 from cv_engine.preprocessing import LoiDocAnh, load_image, nap_layout, preprocess
 
-# Ảnh "hiển thị đúng" D (cao 60 × rộng 40, không đối xứng); ảnh lưu = D biến đổi ngược, kèm thẻ EXIF.
-# EXIF 3: xoay 180° khi hiển thị; 6: xoay 90° theo chiều kim đồng hồ; 8: xoay 90° ngược chiều kim đồng hồ.
 LUU = {1: lambda d: d, 3: lambda d: np.rot90(d, 2), 6: lambda d: np.rot90(d, 1), 8: lambda d: np.rot90(d, -1)}
 
 
 def anh_mau() -> np.ndarray:
     d = np.full((60, 40), 220, np.uint8)
-    d[:20, :15] = 20                    # khối đen góc trên trái
-    d[45:, 30:] = 120                   # khối xám góc dưới phải
+    d[:20, :15] = 20
+    d[45:, 30:] = 120
     return d
 
 
@@ -31,7 +28,7 @@ def test_exif_ra_dung_chieu(tmp_path, orientation):
     g = load_image(p)
     assert g.dtype == np.uint8 and g.shape == d.shape
     mad = float(np.mean(np.abs(g.astype(int) - d.astype(int))))
-    sai = [float(np.mean(np.abs(g.astype(int) - np.rot90(d, 2).astype(int))))]     # chiều sai cùng cỡ: xoay 180°
+    sai = [float(np.mean(np.abs(g.astype(int) - np.rot90(d, 2).astype(int))))]
     assert mad < 5, f"EXIF {orientation}: lệch {mad:.2f} mức xám so với chiều đúng"
     assert min(sai) > 30
 

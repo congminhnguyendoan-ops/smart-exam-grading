@@ -32,7 +32,6 @@ VET = (170, 190, 210)
 
 
 def o_ro_chac(res_cau, cau_dt):
-    """[(q, ô, ld)] của các câu 'rõ chắc' (1 ô, không cờ)."""
     out = []
     for q, k in enumerate(res_cau):
         if k.trang_thai == "ro" and not k.can_xem and len(k.dap_an) == 1:
@@ -84,7 +83,6 @@ def md_that(rows):
 
 
 def ve(cases, L, mau, nen=None):
-    """cases: danh sách {ô: xám} cho các câu đầu; các câu còn lại tô ô C ở xám `nen` (None = không tô)."""
     ans = L["answers"]
     R = ans["bubble_radius"]
     anh = mau.copy()

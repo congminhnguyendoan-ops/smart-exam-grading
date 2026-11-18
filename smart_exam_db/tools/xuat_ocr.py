@@ -1,14 +1,3 @@
-"""
-xuat_ocr.py - Xuất CNN chữ số viết tay ra models/ocr_cnn.json (NumPy + JSON, không cần PyTorch lúc chạy) – Tuần 6 Phần C, Bước 3.
-CẦN torch (chỉ để huấn luyện / xuất). Chạy TỪ COMMIT SẠCH: file tracked không được có thay đổi chưa commit (ghi SHA commit vào siêu dữ liệu).
-
-  1. tiền huấn luyện (cache data/_ocr/cap/) -> tinh chỉnh trên TOÀN BỘ trang chữ số D001–D010 (ô dò được khung) cho từng seed
-  2. nhiệt độ T mỗi thành viên + (τ, δ) lấy từ OOF 5-fold theo người viết của CÙNG cấu hình (python tools/ocr_cai_tien.py chay trước)
-  3. ghi JSON (trọng số làm tròn 8 chữ số có nghĩa) + siêu dữ liệu (ngày, commit, seed, cấu hình, SHA dữ liệu, số đo OOF)
-  4. kiểm: NumPy (cv_engine.ocr, đọc lại từ JSON) khớp PyTorch (trọng số gốc) trên MỌI chữ số dev: cùng nhãn 100%, chênh xác suất < 1e-4
-
-Chạy (từ smart_exam_db/):  python tools/xuat_ocr.py --cau-hinh g0_goc --seeds 2026
-"""
 import argparse
 import copy
 import datetime
@@ -41,9 +30,8 @@ def sha_file(p: Path) -> str:
 
 
 def tham_so(m) -> dict:
-    """Trọng số torch -> dict mảng (float32) đúng tên mà cv_engine.ocr dùng."""
     sd = {k: v.detach().cpu().numpy().astype(np.float32) for k, v in m.state_dict().items()}
-    if "a1.weight" in sd:                                      # CNN sâu "sau_2x2" (lệnh AM): 4 conv a1 a2 b1 b2 + d1 d2, ghi kien_truc = ocr.KIEN_TRUC_SAU
+    if "a1.weight" in sd:
         return {f"{t}{u}": sd[f"{t}.{'weight' if u == 'w' else 'bias'}"] for t in ("a1", "a2", "b1", "b2", "d1", "d2") for u in ("w", "b")}
     return {"c1w": sd["c1.weight"], "c1b": sd["c1.bias"], "c2w": sd["c2.weight"], "c2b": sd["c2.bias"],
             "d1w": sd["d1.weight"], "d1b": sd["d1.bias"], "d2w": sd["d2.weight"], "d2b": sd["d2.bias"]}
@@ -54,8 +42,6 @@ def lam_tron(a: np.ndarray) -> list:
 
 
 def xuat_tu_tep(a):
-    """Lệnh AN: ghi models/ocr_cnn.json từ MỘT TỆP ỨNG VIÊN ĐÃ ĐO (không huấn luyện lại – huấn luyện không tất định, mô hình huấn luyện lại là mô hình chưa đo).
-    Trọng số giữ giống từng giá trị; chỉ thêm siêu dữ liệu + kiểm NumPy ↔ PyTorch (trọng số gốc .pt) trên mọi chữ số dev. Từ commit sạch."""
     ban = git("status", "--porcelain", "--untracked-files=no")
     if ban and not a.cho_phep_ban:
         sys.exit("DỪNG: có thay đổi chưa commit ở file tracked (xuất mô hình phải từ commit sạch):\n" + ban)
@@ -139,7 +125,6 @@ def main():
         thanh_vien.append({"seed": sd, "T": round(T, 4), **{k: lam_tron(v) for k, v in tham_so(m).items()}})
         print(f"seed {sd}: tinh chỉnh trên {len(x)} ô trang D, T = {T:.3f}")
 
-    # số đo OOF của đúng cấu hình này (ensemble các seed đã chọn) + τ, δ
     omr = json.loads((H.OCR / "omr_dev.json").read_text(encoding="utf-8"))
     pt, pp, _ = C.xac_suat_hieu_chinh(a.cau_hinh, tuple(a.seeds), t)
     do_luong = C.danh_gia(pt, pp, t, omr)
@@ -165,7 +150,6 @@ def main():
     dich.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"Ghi {dich} ({dich.stat().st_size / 1024:.0f} KB), commit {head[:8]}, sạch = {not ban}")
 
-    # kiểm tương đương: NumPy từ JSON ↔ PyTorch (trọng số gốc) trên MỌI chữ số dev (anh_nan, cả 2 tập đo + trang D bỏ ô không dò được khung)
     mh = ocr.nap_mo_hinh_ocr(dich)
     xs = np.concatenate([t["trang"]["x"], t["phieu"]["x"]])
     p_np = ocr.du_doan_xac_suat(mh, xs)

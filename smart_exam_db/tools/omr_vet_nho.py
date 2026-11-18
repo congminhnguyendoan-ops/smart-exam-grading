@@ -28,14 +28,13 @@ from cv_engine.preprocessing import nap_layout  # noqa: E402
 import omr_du_lieu as dl  # noqa: E402
 
 RA = ROOT / "data" / "_eval" / "omr" / "vet_nho"
-HE_SO_TOI = 0.6        # điểm "tối" = tối hơn 0,6 × giấy vành (cùng ngưỡng phu_dam của omr.py)
-HE_SO_DAM = 0.5        # (a)
-MO_K = 7               # px, cạnh elip của phép mở (nét chữ dày ~3–4 px; chấm 0,2r có đường kính ≈ 12 px)
+HE_SO_TOI = 0.6
+HE_SO_DAM = 0.5
+MO_K = 7
 PHAN_VI = (50, 90, 99, 99.9, 100)
 
 
 def do_vet(anh, cx, cy, r):
-    """(phan_dam_05, vet_px, mask_vet, patch_anh) của 1 ô tâm (cx, cy) bán kính r px trên ảnh nắn."""
     n = int(round(3 * r)) + 1
     x0, y0 = int(round(cx - 1.5 * r)), int(round(cy - 1.5 * r))
     pa = omr._cat(anh, x0, y0, x0 + n, y0 + n).astype(np.float32)
@@ -95,7 +94,6 @@ def md_phan_phoi(rows):
 
 
 def anh_gia(layout, mau):
-    """Chấm giả bán kính (0,2–0,5)r × xám (30, 90, 150) trên phiếu trắng: (a), (b) – ô B của 40 câu, lấy trung vị."""
     ans = layout["answers"]
     r = ans["bubble_radius"]
     ket = []

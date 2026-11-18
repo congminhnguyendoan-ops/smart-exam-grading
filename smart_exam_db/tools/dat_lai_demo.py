@@ -33,8 +33,8 @@ import don_du_lieu_test as D  # noqa: E402
 KY_THI_XOA_HET = (1380, 1381, 1633)
 KY_THI_TAP = 1632
 NEN_TAP = {3878: "graded", 3880: "graded", 4270: "graded", 4271: "graded", 4272: "graded", 6028: "needs_review"}
-MOC_TAP = datetime(2026, 10, 28, 9, 18, 32, 572328, tzinfo=timezone(timedelta(hours=7)))      # uploaded_at của #6028
-KY_THI_DUOC_PHEP = frozenset({*KY_THI_XOA_HET, KY_THI_TAP})                                     # CLI chỉ chạy đúng bộ này
+MOC_TAP = datetime(2026, 10, 28, 9, 18, 32, 572328, tzinfo=timezone(timedelta(hours=7)))
+KY_THI_DUOC_PHEP = frozenset({*KY_THI_XOA_HET, KY_THI_TAP})
 XAC_NHAN = "DAT_LAI"
 THU_MUC_SAO_LUU = D.THU_MUC_SAO_LUU
 
@@ -53,8 +53,7 @@ def dem_ky_thi(conn, ky_thi) -> dict:
 
 
 def lap_ke_hoach(conn, xoa_het=KY_THI_XOA_HET, tap=KY_THI_TAP, nen=NEN_TAP, moc=MOC_TAP, ten_hop_le=None) -> dict:
-    """CHỈ ĐỌC. Trả kế hoạch cùng dạng với don_du_lieu_test (ids, dem, tep, pham_vi) + xoa (chi tiết phiếu), bat_thuong, nen_doi, tep_dung_chung, truoc."""
-    pham_vi = [*xoa_het, tap] if tap is not None else list(xoa_het)          # tap = None: chỉ các kỳ thi xoá hết (lệnh AP, đặt lại từng kỳ)
+    pham_vi = [*xoa_het, tap] if tap is not None else list(xoa_het)
     ten = {r["exam_id"]: r["exam_title"] for r in conn.execute("SELECT exam_id, exam_title FROM exams WHERE exam_id = ANY(%s)", (pham_vi,)).fetchall()}
     thieu = [e for e in pham_vi if e not in ten]
     if thieu:
@@ -69,7 +68,7 @@ def lap_ke_hoach(conn, xoa_het=KY_THI_XOA_HET, tap=KY_THI_TAP, nen=NEN_TAP, moc=
               if tap is not None else [])
     xoa += [p for p in la_tap if p["uploaded_at"] > moc]
     bat_thuong = [p for p in la_tap if p["uploaded_at"] <= moc]
-    lot = sorted({p["exam_id"] for p in xoa} - set(pham_vi))                  # hậu kiểm (lệnh V): phiếu xoá chỉ được thuộc ĐÚNG các id trong phạm vi
+    lot = sorted({p["exam_id"] for p in xoa} - set(pham_vi))
     if lot:
         raise LoiDatLai(f"kế hoạch có phiếu của kỳ thi ngoài phạm vi {lot} – từ chối")
     nen_doi = []
@@ -118,15 +117,13 @@ def in_xem_truoc(kh: dict) -> str:
 
 
 def thuc_hien(conn, kh: dict) -> dict:
-    """Xoá (savepoint, không commit) bằng don_du_lieu_test.thuc_hien; lệch số dòng -> D.LoiDon + hoàn tác phần đã xoá."""
     return D.thuc_hien(conn, kh)
 
 
-KY_THI_BA_MON = {"xla": "[XLA] Xử lý ảnh", "ml": "[ML] Máy học", "dacn": "[ĐACN] Đồ án chuyên ngành"}      # lệnh AP; trùng nap_bo_demo.TIEU_DE_BA_MON
+KY_THI_BA_MON = {"xla": "[XLA] Xử lý ảnh", "ml": "[ML] Máy học", "dacn": "[ĐACN] Đồ án chuyên ngành"}
 
 
 def lap_ke_hoach_ky(conn, ma: str) -> dict:
-    """CHỈ ĐỌC. Kế hoạch đặt lại RIÊNG một kỳ thi theo môn: phạm vi = đúng MỘT exam_id (tìm theo tiêu đề nguyên văn, phải có đúng một)."""
     if ma not in KY_THI_BA_MON:
         raise LoiDatLai(f"kỳ thi '{ma}' không thuộc {sorted(KY_THI_BA_MON)}")
     tieu_de = KY_THI_BA_MON[ma]
@@ -140,7 +137,6 @@ def lap_ke_hoach_ky(conn, ma: str) -> dict:
 
 
 def dat_lai_ky(ma: str, xac_nhan: str | None = None, in_ra=print) -> int:
-    """Đặt lại một kỳ thi theo môn. xac_nhan != XAC_NHAN -> chỉ xem trước. Trả 0 = ổn (kể cả 'không có gì để xoá'), 2 = lỗi phạm vi, 3 = hoàn tác."""
     from backend.config import lay_cau_hinh
     from backend.db import ket_noi
     kho = lay_cau_hinh().storage_dir

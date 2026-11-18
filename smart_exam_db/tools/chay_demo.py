@@ -33,13 +33,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
-NHANH_DUNG = ("main", "cnn-sau", "trien-khai")       # CNN sâu có trên cả ba (gộp lệnh AS, nhánh lệnh AU); điều quyết định là SHA mô hình
-SHA_MO_HINH_OCR = "a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8"       # CNN sâu (lệnh AN)
+NHANH_DUNG = ("main", "cnn-sau", "trien-khai")
+SHA_MO_HINH_OCR = "a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8"
 XAC_NHAN = "DAT_LAI"
 CHE_DO = ("xla", "xla-cong-cu", "ml", "dacn")
-KY_THI_CUA = {"xla": "xla", "xla-cong-cu": "xla", "ml": "ml", "dacn": "dacn"}       # chế độ -> khoá kỳ thi trong dat_lai_demo.KY_THI_BA_MON (xla-cong-cu cũng chỉ đụng kỳ [XLA])
-CHE_DO_HE_THONG = ("xla", "dacn")                                                  # chạy server FastAPI thật, bắt buộc có CSDL
-CONG_XLA, CONG_DACN = 8765, 8000                    # CONG_XLA = cổng công cụ ngoại tuyến (xla-cong-cu); xla (hệ thống thật) dùng CONG_DACN
+KY_THI_CUA = {"xla": "xla", "xla-cong-cu": "xla", "ml": "ml", "dacn": "dacn"}
+CHE_DO_HE_THONG = ("xla", "dacn")
+CONG_XLA, CONG_DACN = 8765, 8000
 RA = ROOT / "data" / "_eval" / "demo_3_phien"
 ANH_BV = ROOT / "data" / "_eval" / "demo_bv" / "anh_gia"
 ANH_THEM = [("T05_thuong.JPG", "ảnh chụp THẬT, chữ viết tay thật"), ("T03_kho.JPG", "ảnh chụp THẬT, điều kiện khó"),
@@ -52,7 +52,6 @@ def e(s) -> str:
     return html.escape(str(s))
 
 
-# ----------------------------------------------------------------------------------------------- (1) kiểm tra nhánh + mô hình
 @dataclass
 class Muc:
     ten: str
@@ -77,9 +76,7 @@ def kiem_truoc(nhanh: str | None = None, sha: str | None = None) -> list[Muc]:
                 f"SHA {sha[:12] or 'THIẾU TỆP'}… " + ("khớp CNN sâu (lệnh AN)" if sha == SHA_MO_HINH_OCR else f"KHÁC {SHA_MO_HINH_OCR[:12]}… (không phải CNN sâu đã đo)"))]
 
 
-# ----------------------------------------------------------------------------------------------- (2) đặt lại dữ liệu kỳ thi của chế độ
 def dat_lai(che_do: str, in_ra=print) -> bool:
-    """Đặt lại RIÊNG kỳ thi của chế độ về 0 phiếu (dat_lai_demo.dat_lai_ky: sao lưu CSV + ảnh trước khi xoá). True = ổn."""
     import dat_lai_demo as DL
     try:
         ma = DL.dat_lai_ky(che_do, DL.XAC_NHAN, in_ra=lambda s: in_ra("   " + str(s).replace("\n", "\n   ")))
@@ -89,9 +86,7 @@ def dat_lai(che_do: str, in_ra=print) -> bool:
     return ma == 0
 
 
-# ----------------------------------------------------------------------------------------------- (5) hướng dẫn
 def huong_dan(che_do: str, url: str, url_phu: str = "") -> list[str]:
-    """8–10 dòng 'bấm gì, nói gì'."""
     if che_do == "xla":
         return [f"1. Trang {url} đã mở. ĐĂNG NHẬP gv_an (mật khẩu do bạn đặt, docs/chay_server_va_tai_khoan.md mục 3).",
                 "2. Chọn kỳ thi '[XLA] Xử lý ảnh' (0 phiếu).",
@@ -131,7 +126,6 @@ def huong_dan(che_do: str, url: str, url_phu: str = "") -> list[str]:
             "9. Dừng: Ctrl+C ở cửa sổ này. Muốn làm lại từ đầu: chạy lại lệnh (tự đặt lại kỳ [ĐACN] về 0 phiếu)."]
 
 
-# ----------------------------------------------------------------------------------------------- (3) xla: công cụ ngoại tuyến đơn giản
 def ghi_chu_bv() -> dict[str, str]:
     import csv
     if not KICH_BAN_BV.exists():
@@ -165,7 +159,6 @@ button{{background:var(--pri);color:var(--tren-pri);border:0;border-radius:var(-
 
 
 def doc_tep_tai_len(content_type: str, body: bytes) -> tuple[str, bytes] | None:
-    """Lấy (tên tệp, nội dung) của trường 'anh' trong multipart/form-data. Không dùng cgi (đã bỏ khỏi Python 3.13)."""
     msg = email.parser.BytesParser(policy=email.policy.default).parsebytes(b"Content-Type: " + content_type.encode("latin-1") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body)
     if not msg.is_multipart():
         return None
@@ -189,7 +182,6 @@ def xu_ly_anh(duong_dan: Path, ra_html: Path) -> str:
 
 
 def xu_ly_yeu_cau(phuong_thuc: str, duong: str, content_type: str = "", body: bytes = b"") -> tuple[int, str, bytes]:
-    """Hàm THUẦN cho máy chủ xla (test gọi trực tiếp, không cần mở cổng). Trả (mã, content-type, nội dung)."""
     def trang(nd: str, ma: int = 200):
         return ma, "text/html; charset=utf-8", nd.encode("utf-8")
     try:
@@ -249,7 +241,7 @@ class XlaHandler(BaseHTTPRequestHandler):
 
 
 def chay_xla(cong: int, mo: bool, mo_trinh_duyet=webbrowser.open, may_chu=ThreadingHTTPServer) -> int:
-    srv = may_chu(("127.0.0.1", cong), XlaHandler)          # CHỈ 127.0.0.1: công cụ này không mở ra mạng
+    srv = may_chu(("127.0.0.1", cong), XlaHandler)
     url = f"http://127.0.0.1:{cong}/"
     for d in huong_dan("xla", url):
         print(d)
@@ -264,7 +256,6 @@ def chay_xla(cong: int, mo: bool, mo_trinh_duyet=webbrowser.open, may_chu=Thread
     return 0
 
 
-# ----------------------------------------------------------------------------------------------- (3) ml
 def chay_ml(mo: bool, da_tinh_san: bool = False, mo_trinh_duyet=webbrowser.open) -> int:
     import demo_may_hoc as M
     print("Dựng trang máy học (chạy CNN sâu thật trên 504 ô + so sánh trực tiếp các thuật toán, vài giây)…", flush=True)
@@ -286,7 +277,6 @@ def chay_ml(mo: bool, da_tinh_san: bool = False, mo_trinh_duyet=webbrowser.open)
     return 0
 
 
-# ----------------------------------------------------------------------------------------------- (3) dacn
 def dung_ly_thuyet() -> Path:
     import demo_ly_thuyet_mon as T
     ra = RA / "ly_thuyet_cac_mon.html"
@@ -310,7 +300,6 @@ def may_chu_dang_chay(cong: int, cho_s: float = 0.0, hoi=urllib.request.urlopen)
 
 
 def chay_dacn(cong: int, mo: bool, mo_trinh_duyet=webbrowser.open, mo_tien_trinh=subprocess.Popen, hoi=urllib.request.urlopen, cho_s: float = 60.0, che_do: str = "dacn") -> int:
-    """che_do = 'xla' (lệnh AY): cùng máy chủ thật nhưng mở /app/ và KHÔNG dựng trang 'Lý thuyết các môn'."""
     lt = dung_ly_thuyet() if che_do == "dacn" else None
     url = f"http://127.0.0.1:{cong}/" if che_do == "dacn" else f"http://127.0.0.1:{cong}/app/"
     proc = None
@@ -340,7 +329,6 @@ def chay_dacn(cong: int, mo: bool, mo_trinh_duyet=webbrowser.open, mo_tien_trinh
     return 0
 
 
-# ----------------------------------------------------------------------------------------------- main
 def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")

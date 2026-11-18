@@ -1,6 +1,3 @@
-"""Lệnh H – Việc 1: admin quản lý kỳ thi (/admin/exams). CSDL thật trong giao dịch ROLLBACK (conftest.conn_thu), AUTH_MODE=on (test_dang_nhap.client_on).
-Kiểm: chỉ admin (giáo viên / sinh viên 403, chưa đăng nhập 401), giáo viên không tự tạo kỳ thi, tạo + gán giáo viên phụ trách (giáo viên khác 404),
-dùng lại quy tắc kiểm đáp án, sửa tên / ngày, đóng (không nhận ảnh, duyệt + bảng điểm vẫn được) / mở, không xoá kỳ thi đã có phiếu."""
 import uuid
 from datetime import date
 
@@ -41,14 +38,14 @@ def test_chi_admin_403_401(qt):
             assert r.status_code == 403, (vai, m, url, r.text)
     for m, url, body in goi:
         assert getattr(c, m)(url, **({"json": body} if body is not None else {})).status_code == 401
-    assert c.get(f"/exams/{eid}", headers=h["ad"]).json()["exam_title"] == "Kỳ thi quản trị (pytest)"      # không gì bị đổi
+    assert c.get(f"/exams/{eid}", headers=h["ad"]).json()["exam_title"] == "Kỳ thi quản trị (pytest)"
 
 
 def test_giao_vien_khong_tu_tao_ky_thi(qt):
     c, conn, h, _, _, _ = qt
     n = conn.execute("SELECT count(*) AS n FROM exams").fetchone()["n"]
     assert c.post("/exams", headers=h["A"], json=than()).status_code == 403
-    assert c.post("/exams", headers=h["ad"], json=than()).status_code == 201                    # admin vẫn dùng được POST /exams cũ
+    assert c.post("/exams", headers=h["ad"], json=than()).status_code == 201
     assert conn.execute("SELECT count(*) AS n FROM exams").fetchone()["n"] == n + 1
 
 
@@ -56,11 +53,11 @@ def test_tao_gan_giao_vien_va_pham_vi(qt):
     c, _, h, idA, _, e = qt
     assert e["teacher_user_id"] == idA and e["status"] == "draft" and e["ma_de"] == "101, 102" and e["exam_date"] == "2026-11-05" and e["so_phieu"] == 0
     eid = e["exam_id"]
-    assert eid in {x["exam_id"] for x in c.get("/exams", headers=h["A"]).json()}               # giáo viên phụ trách thấy
+    assert eid in {x["exam_id"] for x in c.get("/exams", headers=h["A"]).json()}
     d = c.get(f"/exams/{eid}", headers=h["A"]).json()
-    assert d["codes"] == MA_DE and d["status"] == "draft"                                       # đáp án lưu đúng như POST /exams
+    assert d["codes"] == MA_DE and d["status"] == "draft"
     rB = c.get(f"/exams/{eid}", headers=h["B"])
-    assert rB.status_code == 404 and rB.json()["detail"] == f"Không có kỳ thi {eid}."            # ngoài phạm vi: 404 như cũ
+    assert rB.status_code == 404 and rB.json()["detail"] == f"Không có kỳ thi {eid}."
     assert eid not in {x["exam_id"] for x in c.get("/exams", headers=h["B"]).json()}
     assert eid in {x["exam_id"] for x in c.get("/admin/exams", headers=h["ad"]).json()}
 
@@ -82,7 +79,7 @@ def test_dung_lai_quy_tac_dap_an(qt):
         r_qt = c.post("/admin/exams", headers=h["ad"], json=than(teacher_user_id=idA, **them))
         r_cu = c.post("/exams", headers=h["ad"], json=than(**them))
         assert r_qt.status_code == r_cu.status_code == 422 and mau in r_qt.json()["detail"], (them, r_qt.text)
-        assert r_qt.json()["detail"] == r_cu.json()["detail"]                                   # CÙNG logic kiểm (service.tao_ky_thi)
+        assert r_qt.json()["detail"] == r_cu.json()["detail"]
 
 
 def test_giao_vien_phu_trach_phai_hop_le(qt):
@@ -99,7 +96,7 @@ def test_sua_ten_ngay(qt):
     c, _, h, _, _, e = qt
     eid = e["exam_id"]
     r = c.patch(f"/admin/exams/{eid}", headers=h["ad"], json={"exam_title": "  Giữa kỳ đổi tên  "})
-    assert r.status_code == 200 and r.json()["exam_title"] == "Giữa kỳ đổi tên" and r.json()["exam_date"] == "2026-11-05"   # ngày không gửi: giữ
+    assert r.status_code == 200 and r.json()["exam_title"] == "Giữa kỳ đổi tên" and r.json()["exam_date"] == "2026-11-05"
     r = c.patch(f"/admin/exams/{eid}", headers=h["ad"], json={"exam_date": "2026-12-01"})
     assert r.json()["exam_date"] == "2026-12-01" and r.json()["exam_title"] == "Giữa kỳ đổi tên"
     assert c.patch(f"/admin/exams/{eid}", headers=h["ad"], json={"exam_date": None}).json()["exam_date"] is None
@@ -107,7 +104,7 @@ def test_sua_ten_ngay(qt):
     assert c.patch(f"/admin/exams/{eid}", headers=h["ad"], json={"exam_title": "   x   "}).status_code == 422
     assert c.patch(f"/admin/exams/{eid}", headers=h["ad"], json={}).status_code == 422
     assert c.patch("/admin/exams/999999999999", headers=h["ad"], json={"exam_title": "Không có"}).status_code == 404
-    assert c.get(f"/exams/{eid}", headers=h["A"]).json()["codes"] == MA_DE                       # đáp án không đổi
+    assert c.get(f"/exams/{eid}", headers=h["A"]).json()["codes"] == MA_DE
 
 
 def test_dong_khong_nhan_anh_mo_lai_nhan(qt):
@@ -123,8 +120,8 @@ def test_dong_khong_nhan_anh_mo_lai_nhan(qt):
     rb = c.post(f"/exams/{eid}/sheets/batch", headers=h["A"], files=[("files", ("a.jpg", b"x", "image/jpeg"))])
     assert rb.status_code == 409
     for url in (f"/exams/{eid}/sheets", f"/exams/{eid}/results", f"/exams/{eid}/review-questions", f"/exams/{eid}/export.xlsx"):
-        assert c.get(url, headers=h["A"]).status_code == 200, url                                 # duyệt / bảng điểm / Excel vẫn dùng được
-    assert tai_trang(c, h["B"], eid).status_code == 404                                           # ngoài phạm vi: vẫn 404 (không lộ "đã đóng")
+        assert c.get(url, headers=h["A"]).status_code == 200, url
+    assert tai_trang(c, h["B"], eid).status_code == 404
     assert c.post(f"/admin/exams/{eid}/status", headers=h["ad"], json={"closed": False}).json()["status"] == "draft"
     assert tai_trang(c, h["A"], eid).status_code == 201
 
@@ -135,7 +132,7 @@ def test_xoa_chi_khi_chua_co_phieu(qt):
     assert tai_trang(c, h["A"], eid).status_code == 201
     r = c.delete(f"/admin/exams/{eid}", headers=h["ad"])
     assert r.status_code == 409 and "ĐÓNG" in r.json()["detail"]
-    assert conn.execute("SELECT count(*) AS n FROM answer_sheets WHERE exam_id = %s", (eid,)).fetchone()["n"] == 1   # phiếu còn nguyên
+    assert conn.execute("SELECT count(*) AS n FROM answer_sheets WHERE exam_id = %s", (eid,)).fetchone()["n"] == 1
     rong = c.post("/admin/exams", headers=h["ad"], json=than(teacher_user_id=idA)).json()["exam_id"]
     assert c.delete(f"/admin/exams/{rong}", headers=h["ad"]).status_code == 204
     assert c.get(f"/exams/{rong}", headers=h["ad"]).status_code == 404
@@ -163,7 +160,7 @@ def test_lop_khong_ton_tai_va_lop_co_san(qt):
     assert r.status_code == 201 and r.json()["class_id"] == lop["id"]
     n = conn.execute("SELECT count(*) AS n FROM classes").fetchone()["n"]
     assert c.post("/admin/exams", headers=h["ad"], json=than(class_code="KHONG-CO-LOP-NAY")).status_code == 422
-    assert conn.execute("SELECT count(*) AS n FROM classes").fetchone()["n"] == n                # không tự tạo lớp
+    assert conn.execute("SELECT count(*) AS n FROM classes").fetchone()["n"] == n
 
 
 def test_ds_quan_tri_khong_lo_mat_khau(qt):
@@ -174,19 +171,17 @@ def test_ds_quan_tri_khong_lo_mat_khau(qt):
 
 
 def test_demo_x_user_khong_phai_admin_bi_403(client):
-    """AUTH_MODE=demo (test cũ / công cụ): X-User mặc định là giáo viên -> /admin vẫn 403; X-User admin -> được."""
     assert client.get("/admin/exams").status_code == 403
     assert client.get("/admin/exams", headers={"X-User": "admin"}).status_code == 200
 
 
 def test_quan_tri_js_goi_dung_endpoint_va_cu_phap(client):
-    """frontend/quan_tri.js: mọi đường dẫn API nó gọi phải có trong OpenAPI; cú pháp hợp lệ (node --check nếu có node)."""
     import re
     import shutil
     import subprocess
     from conftest import ROOT
     js = (ROOT / "frontend" / "quan_tri.js").read_text(encoding="utf-8")
-    paths = __import__("backend.main", fromlist=["app"]).app.openapi()["paths"]     # lệnh AU T1: /openapi.json mặc định 404; schema vẫn sinh được
+    paths = __import__("backend.main", fromlist=["app"]).app.openapi()["paths"]
     goi = set(re.findall(r"`(/(?:admin|exams|sheets|meta)[^`?]*)", js)) | set(re.findall(r'"(/(?:admin|exams|sheets|meta)[^"?]*)"', js))
     assert goi
     for m in goi:

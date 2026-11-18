@@ -1,16 +1,4 @@
-﻿"""
-demo_xu_ly_anh.py - Lệnh AJ (phiên demo "Xử lý ảnh"): chạy pipeline THẬT trên MỘT ảnh phiếu và dựng MỘT trang HTML tự chứa (ảnh nhúng base64)
-cho từng bước. OFFLINE: không CSDL, không server, không ghi gì ngoài tệp HTML --ra. Không viết lại thuật toán: chỉ gọi
-cv_engine.preprocessing.preprocess_anh -> omr.doc_phieu -> ocr.doc_chu_so -> ocr.doi_chieu_dinh_danh rồi VẼ kết quả.
-
-  python tools/demo_xu_ly_anh.py --anh data/anh_that_ag/T05.JPG --ra data/_eval/demo_3_phien/xu_ly_anh_T05.html
-  python tools/demo_xu_ly_anh.py --anh data/anh_that_ag/T03_kho.JPG --ra data/_eval/demo_3_phien/xu_ly_anh_T03_kho.html
-  (tuỳ chọn) --khong-danh-sach : không dùng danh sách thí sinh của kịch bản AG khi đối chiếu SBD / mã đề (kết quả "chưa biết danh sách")
-
-Ảnh bị từ chối: trang vẫn dựng tới bước bị chặn, ghi rõ mã + lời khuyên chụp lại, KHÔNG chấm.
-Các bước: 1 ảnh gốc · 2 kiểm tra chất lượng (độ mờ) · 3 4 góc · 4 nắn phối cảnh · 5 lưới ô định vị · 6 OMR tô màu · 7 ô viết tay -> CNN · 8 hai kênh.
-"""
-import argparse
+﻿import argparse
 import base64
 import html
 import json
@@ -27,13 +15,10 @@ sys.path.insert(0, str(ROOT))
 KICH_BAN = ROOT / "data" / "_eval" / "ag" / "kich_ban.json"
 MAU_CSS = ROOT / "frontend" / "mau.css"
 
-# màu vẽ (BGR)
 XANH, CAM, XAM, DO, XANH_DUONG, VANG = (80, 160, 60), (0, 140, 255), (150, 150, 150), (50, 50, 210), (190, 110, 30), (0, 210, 240)
 
 
-# ------------------------------------------------------------------------------------------------ tiện ích ảnh
 def uri(img: np.ndarray, rong_toi_da: int | None = None, png: bool = False, nearest: bool = False) -> str:
-    """Ảnh -> data URI (JPEG q85, hoặc PNG cho ô nhỏ). Thu nhỏ khi hiển thị nếu rong_toi_da."""
     if rong_toi_da and img.shape[1] > rong_toi_da:
         k = rong_toi_da / img.shape[1]
         img = cv2.resize(img, (rong_toi_da, int(round(img.shape[0] * k))), interpolation=cv2.INTER_AREA)
@@ -53,9 +38,7 @@ def pt(v: float) -> str:
     return f"{100 * v:.1f}%".replace(".", ",")
 
 
-# ------------------------------------------------------------------------------------------------ vẽ từng bước
 def ve_goc(gray: np.ndarray, kq) -> np.ndarray:
-    """Bước 3: ứng viên marker (vàng, nhỏ) + 4 góc được chọn (xanh lá) + tứ giác, trên ảnh gốc."""
     im = bgr(gray)
     t = max(2, gray.shape[1] // 700)
     for (x, y) in kq.chi_tiet.get("ung_vien", []):
@@ -70,7 +53,6 @@ def ve_goc(gray: np.ndarray, kq) -> np.ndarray:
 
 
 def vi_tri_o(lay: dict, omr) -> tuple:
-    """Toạ độ ô ĐÃ định vị = toạ độ layout + dịch của hàng / cột (omr.dich_chuyen_mm, mm -> px)."""
     k = lay["dpi"] / 25.4
     dich = {n: (v[0] * k, v[1] * k) for n, v in omr.dich_chuyen_mm.items()}
     dap_an = {}
@@ -92,8 +74,6 @@ def cat_khoi(lay: dict, khoi: str):
 
 
 def ve_luoi(nan: np.ndarray, lay: dict, omr) -> tuple[np.ndarray, np.ndarray]:
-    """Bước 5: (a) cả trang với 3 khối; (b) khối đáp án phóng to: chấm xanh dương = vị trí LÝ THUYẾT trong layout,
-    vòng xanh lá = vị trí SAU định vị theo hàng (dịch tới vài px đến vài chục px)."""
     dap_an, chu_so = vi_tri_o(lay, omr)
     r = int(round(lay["answers"]["bubble_radius"]))
     tong = bgr(nan)
@@ -112,7 +92,6 @@ def ve_luoi(nan: np.ndarray, lay: dict, omr) -> tuple[np.ndarray, np.ndarray]:
 
 
 def ve_omr(nan: np.ndarray, lay: dict, omr) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Bước 6: tô màu từng ô theo trạng thái máy đọc: xanh lá đặc = rõ, cam đặc = mờ, vòng xám = trống; số câu đỏ = CẦN XEM."""
     dap_an, chu_so = vi_tri_o(lay, omr)
     r = int(round(lay["answers"]["bubble_radius"]))
     x0, y0, x1, y1 = cat_khoi(lay, "dap_an")
@@ -128,7 +107,7 @@ def ve_omr(nan: np.ndarray, lay: dict, omr) -> tuple[np.ndarray, np.ndarray, np.
                 cv2.circle(ct, ctr, r, CAM, -1)
             else:
                 cv2.circle(ct, ctr, r, XAM, 2)
-        if c.can_xem:           # khung đỏ quanh cả hàng 4 ô = câu máy không chắc
+        if c.can_xem:
             xs = [dap_an[c.cau][o][0] for o in "ABCD"]
             cy = dap_an[c.cau]["A"][1]
             cv2.rectangle(ct, (int(min(xs) - x0 - r - 8), int(cy - y0 - r - 8)), (int(max(xs) - x0 + r + 8), int(cy - y0 + r + 8)), DO, 5)
@@ -151,7 +130,6 @@ def ve_omr(nan: np.ndarray, lay: dict, omr) -> tuple[np.ndarray, np.ndarray, np.
     return ct, ra[0], ra[1]
 
 
-# ------------------------------------------------------------------------------------------------ HTML
 def the_buoc(so: int, tieu_de: str, mo_ta: str, noi_dung: str, ms: float | None = None, lop: str = "") -> str:
     t = f'<span class="ms">{ms:.0f} ms</span>' if ms is not None else ""
     return (f'<section class="buoc {lop}"><h2><span class="so">{so}</span>{e(tieu_de)}{t}</h2><p class="mo-ta">{mo_ta}</p>{noi_dung}</section>')
@@ -197,11 +175,10 @@ Ngưỡng và mô hình: <code>cv_engine/preprocessing.py</code>, <code>models/o
 DAP_AN_BV = ROOT / "answer_sheet" / "demo_bv" / "demo_bv_dap_an.csv"
 
 
-DANH_SACH_XLA = ([str(s) for s in range(220001, 220010)], ["101", "102", "103", "104"])      # = danh sách dự thi + mã đề của kỳ thi [XLA] (nap_bo_demo --ba-mon)
+DANH_SACH_XLA = ([str(s) for s in range(220001, 220010)], ["101", "102", "103", "104"])
 
 
 def dap_an_theo_ma_de() -> dict[str, str]:
-    """{mã đề: chuỗi 40 đáp án} của bộ demo BV (cùng đáp án với các kỳ thi [XLA] / [ML] / [ĐACN] trong CSDL). Chỉ đọc CSV, không cần CSDL."""
     import csv
     if not DAP_AN_BV.exists():
         return {}
@@ -210,7 +187,6 @@ def dap_an_theo_ma_de() -> dict[str, str]:
 
 
 def buoc_diem_tam(omr, dc) -> str:
-    """Điểm TẠM bằng đúng hàm chấm của hệ thống (backend.grading.cham_diem): câu cần xem KHÔNG được chấm."""
     from decimal import Decimal
 
     from backend import grading
@@ -231,7 +207,6 @@ def buoc_diem_tam(omr, dc) -> str:
 
 
 def giai_thich_cnn(mau28, ten_mang: str = "CNN sâu") -> str:
-    """Hình + lời ngắn: CNN là gì và nó nhận ra chữ số thế nào. Ô mẫu là ô viết tay THẬT vừa cắt từ phiếu (nếu có)."""
     from_img = ""
     if mau28 is not None:
         from_img = (f'<figure style="margin:0 12px 0 0"><img src="{uri(cv2.resize(mau28, (112, 112), interpolation=cv2.INTER_NEAREST), png=True)}" width="112" height="112" alt="ô chữ số 28x28" '
@@ -296,10 +271,8 @@ def chay(anh: Path, ra: Path, dung_ds: bool = True, dau_trang: str = "", ds=None
     kq = preprocess_anh(gray, lay, exif)
     ms["tien_xu_ly"] = (time.perf_counter() - t) * 1000
     buoc = []
-    # 1 ảnh gốc
     buoc.append(the_buoc(1, "Ảnh gốc từ điện thoại", f"Đọc file, áp EXIF (xoay đúng chiều xem), chuyển xám. Cỡ {gray.shape[1]}×{gray.shape[0]} px · EXIF Orientation = {exif}.",
                          anh_tag(uri(gray, 1100), f"{anh.name} (xám, thu nhỏ khi hiển thị)")))
-    # 2 chất lượng
     bs = kq.blur_score
     if bs is not None:
         tl = min(bs / (MO_MIN * 6), 1.0)
@@ -311,7 +284,6 @@ def chay(anh: Path, ra: Path, dung_ds: bool = True, dau_trang: str = "", ds=None
         noi = '<p>Chưa đo được độ nét vì chưa nắn được ảnh (dừng ở bước tìm góc).</p>'
     gan_nguong = bs is not None and kq.ok and bs < 2 * MO_MIN
     buoc.append(the_buoc(2, "Kiểm tra chất lượng (độ mờ)", "Ảnh rung tay / lấy nét sai thì ô tô và chữ số bị nhoè → đọc sai. Quá ngưỡng thì TỪ CHỐI và yêu cầu chụp lại.", noi))
-    # 3 góc
     mo_ta3 = "Tìm 4 ô vuông đen ở góc phiếu: vòng vàng = mọi ứng viên, vòng xanh + tứ giác = bộ 4 hợp hình học được chọn (lồi, cỡ, hình dạng, độ phối cảnh)."
     if kq.marker is not None or kq.chi_tiet.get("ung_vien"):
         n_uv = len(kq.chi_tiet.get("ung_vien", []))
@@ -338,7 +310,7 @@ def chay(anh: Path, ra: Path, dung_ds: bool = True, dau_trang: str = "", ds=None
         hv = ocr.doc_chu_so(kq, lay, mh_ocr)
         ms["ocr"] = (time.perf_counter() - t) * 1000
         sbd_ds = ma_ds = None
-        if ds is not None:                                  # lệnh AP: danh sách dự thi của kỳ thi demo [XLA] (220001–220009; mã đề 101–104)
+        if ds is not None:
             sbd_ds, ma_ds = set(ds[0]), set(ds[1])
             ten_ds = "Danh sách dự thi lấy từ kỳ thi demo [XLA] Xử lý ảnh (SBD 220001–220009, mã đề 101–104)."
         elif dung_ds and KICH_BAN.exists():
@@ -348,13 +320,11 @@ def chay(anh: Path, ra: Path, dung_ds: bool = True, dau_trang: str = "", ds=None
         sbd_trong = None if (sbd_ds is None or "?" in omr.sbd) else omr.sbd in sbd_ds
         ma_trong = None if (ma_ds is None or "?" in omr.ma_de) else omr.ma_de in ma_ds
         dc = ocr.doi_chieu_dinh_danh(omr, hv, sbd_trong, ma_trong, mo_hinh=mh_ocr)
-        # 5 lưới
         tong, ct = ve_luoi(kq.anh_nan, lay, omr)
         dmax = max((max(abs(v[0]), abs(v[1])) for v in omr.dich_chuyen_mm.values()), default=0.0)
         buoc.append(the_buoc(5, "Lưới ô định vị", f"Layout cho biết ô nằm đâu trên phiếu chuẩn. Giấy cong / in lệch làm ô lệch vài mm, nên máy khớp mẫu để <b>dò lại từng hàng</b>. Dịch lớn nhất trên phiếu này: <b>{dmax:.2f} mm</b>.",
                              '<div class="luoi hai">' + anh_tag(uri(tong, 700), "3 khối: 40 câu, SBD, mã đề") +
                              anh_tag(uri(ct, 1000), "Khối đáp án: chấm xanh dương = vị trí lý thuyết; vòng xanh lá = sau khi dò từng hàng") + "</div>", None))
-        # 6 OMR
         ct6, sb6, md6 = ve_omr(kq.anh_nan, lay, omr)
         n_ro = sum(c.trang_thai == "ro" for c in omr.cau)
         n_mo = sum(c.trang_thai == "mo" for c in omr.cau)
@@ -373,7 +343,6 @@ def chay(anh: Path, ra: Path, dung_ds: bool = True, dau_trang: str = "", ds=None
                              leg + '<div class="luoi hai">' + anh_tag(uri(ct6, 1000), "40 câu × 4 ô") +
                              '<div>' + anh_tag(uri(sb6, 420), f"Bubble SBD: máy đọc {omr.sbd}") + anh_tag(uri(md6, 420), f"Bubble mã đề: máy đọc {omr.ma_de}") + '</div></div>'
                              + "<h3>Các câu mờ / nhiều ô / cần xem</h3>" + bang, ms["omr"]))
-        # 7 ô chữ số
         cards = []
         for ten, ds_cot in (("SBD", hv.sbd), ("Mã đề", hv.ma_de)):
             for h in ds_cot:
@@ -394,7 +363,6 @@ def chay(anh: Path, ra: Path, dung_ds: bool = True, dau_trang: str = "", ds=None
                              "Ô trống / ít mực / bôi đen thì KHÔNG qua CNN.",
                              '<div class="ocr-ban"><b>Đây là bước máy học nhận diện chữ số.</b> Phần bubble ở bước 6 chỉ là đo độ tối, không có CNN. Xác suất đã hiệu chỉnh nhiệt độ (T = ' + f"{mh_ocr.thanh_vien[0]['T']:.2f}".replace(".", ",") + ').</div>'
                              '<div class="o-so">' + "".join(cards) + "</div>", ms["ocr"]))
-        # 8 hai kênh
         hangs = []
         for ten, k, cot_bub, cot_hv in (("SBD", "sbd", omr.sbd_cot, hv.sbd), ("Mã đề", "ma_de", omr.ma_de_cot, hv.ma_de)):
             for b, h, d in zip(cot_bub, cot_hv, dc["cot"][k]):

@@ -54,7 +54,6 @@ def in_huong_dan(cong: int, xoa_anh: bool) -> str | None:
 
 
 def dong_trang_thai_don_anh(bat: bool) -> str:
-    """MỘT dòng in lúc khởi động cho biết dọn ảnh tạm đang bật hay tắt."""
     if bat:
         return ("!!! CẢNH BÁO: DỌN ẢNH TẠM ĐANG BẬT (--bat-don-anh) – ngay bây giờ và mỗi giờ sẽ XOÁ ảnh phiếu đã chốt / bị từ chối quá 24 giờ "
                 "ở mọi kỳ thi không có \"[DEMO\" trong tên (kể cả kỳ thi thật). Ctrl+C ngay nếu không chủ ý.")
@@ -64,7 +63,7 @@ def dong_trang_thai_don_anh(bat: bool) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cong", type=int, default=mang.CONG_MAC_DINH)
-    nhom = ap.add_mutually_exclusive_group()                     # hai cờ trái nghĩa cùng lúc -> lỗi (không đoán ý)
+    nhom = ap.add_mutually_exclusive_group()
     nhom.add_argument("--bat-don-anh", action="store_true", help="BẬT luồng dọn ảnh tạm (mặc định TẮT) – chỉ dùng khi chủ ý")
     nhom.add_argument("--khong-xoa-anh", action="store_true", help="(tương thích, giống mặc định) không chạy luồng dọn ảnh tạm")
     ap.add_argument("--chi-in", action="store_true", help="chỉ in địa chỉ / QR / lệnh tường lửa, không chạy máy chủ")
@@ -74,8 +73,8 @@ def main() -> int:
     if a.chi_in:
         return 0
     os.chdir(ROOT)
-    os.environ["SMART_EXAM_HOST"] = "0.0.0.0"                     # cho GET /meta/ket-noi biết đang mở LAN
-    os.environ["ANH_XOA_TU_DONG"] = "1" if a.bat_don_anh else "0"   # LUÔN ghi rõ: biến môi trường cũ / .env không bật ngầm được
+    os.environ["SMART_EXAM_HOST"] = "0.0.0.0"
+    os.environ["ANH_XOA_TU_DONG"] = "1" if a.bat_don_anh else "0"
     import uvicorn
     uvicorn.run("backend.main:app", host="0.0.0.0", port=a.cong)
     return 0

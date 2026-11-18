@@ -1,16 +1,3 @@
-"""
-am_cnn_sau.py - Lệnh AM giai đoạn 2: huấn luyện CNN sâu "sau_2x2" (467 818 tham số) đúng giao thức CNN triển khai và đo tiêu chí (a)–(d)
-của docs/tieu_chi_cnn_sau.md (đăng ký TRƯỚC, commit 4f97e6f). KHÔNG sửa tiêu chí, KHÔNG ghi vào models/. Cần torch + scikit-learn.
-
-  python tools/am_cnn_sau.py huan-luyen   # 3 seed (2026, 1, 2); chạy tiếp được (ghi data/_eval/am/tien_do.txt, bỏ qua bước đã có tệp)
-  python tools/am_cnn_sau.py do           # (c) (d) từng mô hình + (a) (b) -> data/_eval/am/ket_qua.json
-
-Giao thức mỗi seed (giống CNN triển khai, quy trình của ak_so_sanh_mo_rong.py):
-  tiền huấn luyện MNIST 55 000 (10 epoch, Adam 2e-3 + cosine) -> (a) OOF 5-fold theo người viết trang D (tinh chỉnh 6 epoch, lr 3e-4, lô 64) cho 504 ô phiếu dev
-  -> mô hình ỨNG VIÊN = tinh chỉnh trên TOÀN BỘ trang D (5 người) -> data/_eval/am/ocr_cnn_sau_seed{N}.json (tau = 0,9995, delta = 0,99 giữ nguyên;
-  T = nhiệt độ cực tiểu NLL trên OOF trang D). (b) AG: đọc 117 ô đã cắt sẵn (ag_o.npz, từ ak ag-cat; KHÔNG gọi ag_cham_that.cham).
-Baseline = CNN hiện tại cùng cách đo: OOF g0_goc (data/_eval/ak/tam/E2b_cnn_*) + CNN triển khai trên ô AG (AG_cnn_trien_khai_2026.npz).
-"""
 import argparse
 import copy
 import json
@@ -36,8 +23,8 @@ AM = ROOT / "data" / "_eval" / "am"
 TAM = AM / "tam"
 AK_TAM = ROOT / "data" / "_eval" / "ak" / "tam"
 SEEDS = (2026, 1, 2)
-TAU, DELTA, TAU_KHOP = 0.9995, 0.99, 0.5            # GIỮ NGUYÊN theo lệnh – không chỉnh theo dev
-A.TAM = TAM                                         # K.pre_net / A.luu / A.nap ghi + đọc ở đây (K đã đặt A.TAM = AK/tam lúc import)
+TAU, DELTA, TAU_KHOP = 0.9995, 0.99, 0.5
+A.TAM = TAM
 
 
 def ghi_tien_do(msg: str):
@@ -84,14 +71,12 @@ def cmd_huan_luyen(a):
             f_json.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
             np.savez_compressed(TAM / f"AG_cnnsau_{seed}.npz", z=H.logits(m, x_ag))
             ghi_tien_do(f"seed {seed}: XONG (T = {T:.2f}; tổng {time.time() - t0:.0f} s) -> {f_json.name}")
-        except Exception as e:                                       # báo đúng như vậy, KHÔNG bỏ / thay seed
+        except Exception as e:
             ghi_tien_do(f"seed {seed}: LỖI {type(e).__name__}: {e}")
             raise
 
 
-# ------------------------------------------------------------------------------------------- đo
 def thoi_gian_tung_o(mh, x, vong=3, n=500):
-    """≥ 3 lần đo, mỗi lần n lời gọi từng ô một (đã làm nóng): (trung vị, p95) ms mỗi lần."""
     for i in range(60):
         ocr.du_doan_xac_suat(mh, x[i:i + 1])
     kq = []
@@ -107,9 +92,8 @@ def cmd_do(a):
     torch, _, _ = H._torch()
     D = A.du_lieu()
     yt = D["trang"][1]
-    x_kt = np.concatenate([H.doc_mnist()[2][:2000], D["phieu"][0]])               # 2000 ô MNIST test + 504 ô phiếu dev
+    x_kt = np.concatenate([H.doc_mnist()[2][:2000], D["phieu"][0]])
     kq = {"ngay": time.strftime("%Y-%m-%d %H:%M"), "git_head": git_head(), "c": {}, "d": {}}
-    # ---- (c) + (d) từng mô hình
     for seed in SEEDS:
         mh = ocr.nap_mo_hinh_ocr(AM / f"ocr_cnn_sau_seed{seed}.json")
         net = K.tao_cnn_sau()
@@ -120,7 +104,6 @@ def cmd_do(a):
                          "logit_lech_tb": float(np.abs(z_np - z_pt).mean()), "logit_do_lon_max": float(np.abs(z_pt).max())}
         kq["d"][str(seed)] = thoi_gian_tung_o(mh, x_kt)
     kq["d"]["hien_tai"] = thoi_gian_tung_o(ocr.nap_mo_hinh_ocr(), x_kt)
-    # ---- (a) + (b): cùng cách R4 của AK
     A.TAM = AK_TAM
     cnn_cu = A.nap("E2b", "cnn")
     A.TAM = TAM
@@ -129,7 +112,7 @@ def cmd_do(a):
     ra_sau = {sd: K.r4a({"s": [l]}, yt)["s"] for sd, l in zip(SEEDS, sau)}
     ra_tb = K.r4a({"sau": sau}, yt)["sau"]
     nap_b = {"cnn_trien_khai": [(2026, np.load(AK_TAM / "AG_cnn_trien_khai_2026.npz")["z"], 1.0)]}
-    for sd, l in zip(SEEDS, sau):                                      # l = (seed, npz OOF, ghi)
+    for sd, l in zip(SEEDS, sau):
         nap_b[f"sau_{sd}"] = [(sd, np.load(TAM / f"AG_cnnsau_{sd}.npz")["z"], L.chon_nhiet(l[1]["trang"], yt))]
     rb, meta_b = K.r4b(nap_b, yt)
     hw = [ra_sau[s]["hw_gop"] for s in SEEDS]

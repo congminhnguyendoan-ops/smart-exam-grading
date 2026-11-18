@@ -1,14 +1,3 @@
-"""
-(Ghi chú lệnh AO, 16/11/2026: từ lệnh AN, models/ocr_cnn.json là CNN SÂU sau_2x2 (467 818 tham số). Chữ "CNN hiện tại" / số liệu "CNN" trong công cụ và kết quả này là CNN CŨ (105 866 tham số, SHA 6d87205c…) – mô hình lúc đó; bản sao lưu data/_eval/an/ocr_cnn_hien_tai_sao_luu.json. Chạy lại công cụ này sẽ đo mô hình đang triển khai, KHÔNG tái tạo số liệu cũ.)
-ai_so_sanh_thuat_toan.py - Lệnh AI: so sánh CNN chữ số hiện tại với logistic regression / k-NN / SVM RBF / Random Forest / MLP trên CÙNG ảnh 28×28.
-Tiêu chí ĐĂNG KÝ TRƯỚC: docs/tieu_chi_so_sanh_thuat_toan.md (commit 253a4b5 – trước công cụ này). CHỈ ĐO: không sửa models/*, mã hệ thống, CSDL.
-Chỉ dev: MNIST, EMNIST Digits test, trang D001–D010, phiếu dev 0001–0028. KHÔNG đọc 0029–0040 / đợt 2 / giấy thật. Cần torch + scikit-learn.
-
-  python tools/ai_so_sanh_thuat_toan.py kiem-ke     # số mẫu từng nguồn -> data/_eval/ai/kiem_ke.json (nguồn số liệu của docs/kiem_ke_du_lieu.md)
-  python tools/ai_so_sanh_thuat_toan.py chay        # E1 + E2a + E2b, mọi thuật toán (mỗi đơn vị lưu ở data/_eval/ai/tam/, chạy tiếp được)
-  python tools/ai_so_sanh_thuat_toan.py bang        # chỉ số + R1 / R2 -> data/_eval/ai/ket_qua.json, ket_qua.md
-  python tools/ai_so_sanh_thuat_toan.py don         # xoá data/_eval/ai/tam/ (sau khi đã có ket_qua.json)
-"""
 import argparse
 import copy
 import json
@@ -34,15 +23,15 @@ TIEU_CHI = "docs/tieu_chi_so_sanh_thuat_toan.md (commit 253a4b5)"
 SEEDS = (2026, 1, 2)
 SEED0 = 2026
 NGUOI = (1, 2, 3, 4, 5)
-TAU = 0.5                                     # = tau_khop
-GIOI_HAN_FIT_S = 1200                         # 20 phút / lần fit (ghi lại nếu vượt)
-N_SVM_E1, N_MNIST_E2B = 20000, 10000          # mẫu con chốt trước
-W_LUOI = (1, 5, 20)                           # trọng số ô thật ở E2b
-E2A_CNN = dict(lr=2e-3, epochs=30, batch=64)  # CNN / MLP từ đầu chỉ trên ô thật (cố định, không chỉnh)
+TAU = 0.5
+GIOI_HAN_FIT_S = 1200
+N_SVM_E1, N_MNIST_E2B = 20000, 10000
+W_LUOI = (1, 5, 20)
+E2A_CNN = dict(lr=2e-3, epochs=30, batch=64)
 EPS = 1e-6
-THU = False                                   # --thu: chạy thử mã trên dữ liệu tí hon vào thư mục nháp (KHÔNG phải kết quả)
+THU = False
 
-THUAT_TOAN = {   # tên: (nhãn hiển thị, lưới, có ngẫu nhiên?)
+THUAT_TOAN = {
     "lr": ("Logistic regression (softmax, điểm ảnh)", [{"C": c} for c in (0.01, 0.1, 1.0)], False),
     "knn": ("k-NN (Euclid)", [{"k": k} for k in (1, 3, 5, 7, 9)], False),
     "svm": ("SVM nhân RBF", [{"C": c} for c in (1.0, 10.0)], False),
@@ -55,9 +44,7 @@ NUMPY_THUAN = {"lr": "có (W·x + b, softmax)", "knn": "có, nhưng phải mang 
                "mlp": "có (2 phép nhân ma trận)", "cnn": "có – đang chạy bằng NumPy trong cv_engine/ocr.py"}
 
 
-# ------------------------------------------------------------------------------------------- dữ liệu
 def mau_con(y: np.ndarray, n: int, seed: int) -> np.ndarray:
-    """Chỉ số mẫu con phân tầng theo lớp (tỉ lệ lớp giữ nguyên), cố định theo seed. THUẦN."""
     from sklearn.model_selection import train_test_split
     if n >= len(y):
         return np.arange(len(y))
@@ -66,17 +53,16 @@ def mau_con(y: np.ndarray, n: int, seed: int) -> np.ndarray:
 
 
 def du_lieu():
-    """Mọi nguồn, cùng định dạng uint8 [N,28,28]. MNIST: 55 000 huấn luyện (= tập tiền huấn luyện CNN) + 5 000 kiểm định nội bộ."""
     xtr, ytr, xte, yte = H.doc_mnist()
     pm = np.random.default_rng(H.SEED).permutation(len(xtr))
     va, tr = pm[:5000], pm[5000:]
     x55, y55 = C.du_lieu_truoc("mnist")
-    assert THU or np.array_equal(x55, xtr[tr]) and np.array_equal(y55, ytr[tr])          # đúng tập tiền huấn luyện CNN cũ
+    assert THU or np.array_equal(x55, xtr[tr]) and np.array_equal(y55, ytr[tr])
     e = np.load(ROOT / "data" / "nguon_ngoai" / "emnist_digits.npz")
     t = H.tap_do("anh_nan")
     nt0, np0 = np.array([int(r["nguoi"]) for r in t["trang"]["meta"]]), np.array([int(r["nguoi"]) for r in t["phieu"]["meta"]])
     it, ip = np.arange(len(nt0)), np.arange(len(np0))
-    if THU:                                                                     # chế độ THỬ mã: dữ liệu tí hon, kết quả vô nghĩa
+    if THU:
         tr, va = tr[:3000], va[:500]
         g = np.random.default_rng(0)
         it = np.sort(np.concatenate([g.choice(np.where(nt0 == k)[0], 60, replace=False) for k in NGUOI]))
@@ -93,9 +79,7 @@ def vec(x: np.ndarray) -> np.ndarray:
     return x.reshape(len(x), -1).astype(np.float32) / 255.0
 
 
-# ------------------------------------------------------------------------------------------- mô hình scikit-learn
 def knn_phieu(nhan_lang_gieng: np.ndarray, k: int) -> np.ndarray:
-    """Xác suất k-NN = tỉ lệ phiếu của k láng giềng gần nhất (đã sắp theo khoảng cách). THUẦN."""
     n = len(nhan_lang_gieng)
     p = np.zeros((n, 10))
     for j in range(k):
@@ -104,7 +88,6 @@ def knn_phieu(nhan_lang_gieng: np.ndarray, k: int) -> np.ndarray:
 
 
 class KNN:
-    """k-NN brute force; trọng số w của ô thật = nhân bản w lần (tiêu chí mục 3)."""
     def __init__(self, k):
         self.k = k
 
@@ -143,7 +126,6 @@ def tao_sk(ten: str, g: dict, seed: int):
 
 
 def diem_sk(ten: str, m, X) -> np.ndarray:
-    """z (trước nhiệt độ) [N,10]: LR = log xác suất; SVM = decision_function; RF / k-NN = log(p + 1e-6)."""
     if ten == "lr":
         return m.predict_log_proba(X)
     if ten == "svm":
@@ -172,9 +154,7 @@ def acc_macro(y, p, ng) -> float:
     return float(np.mean([(p[ng == k] == y[ng == k]).mean() for k in np.unique(ng)]))
 
 
-# ------------------------------------------------------------------------------------------- mô hình PyTorch
 def tao_mlp():
-    """MLP 784 → 128 (ReLU, Dropout 0,3) → 10 = 101 770 tham số. Vào [N,1,28,28] như CNN."""
     torch, nn, F = H._torch()
 
     class MLP(nn.Module):
@@ -197,7 +177,6 @@ def so_tham_so(m) -> int:
 
 
 def tien_huan_luyen(ten: str, seed: int, ghi: dict):
-    """CNN: bộ đệm Tuần 6 pre_mnist_co_ban_{seed}.pt (bước 1 của quy trình triển khai). MLP: CÙNG quy trình (10 epoch, Adam 2e-3 + cosine, tăng cường cơ bản)."""
     torch, _, _ = H._torch()
     if ten == "cnn":
         m = H.tao_cnn()
@@ -220,7 +199,6 @@ def tien_huan_luyen(ten: str, seed: int, ghi: dict):
     return m
 
 
-# ------------------------------------------------------------------------------------------- đơn vị chạy (mỗi đơn vị một tệp trong tam/)
 def tep(thi_nghiem, ten, seed):
     return TAM / f"{thi_nghiem}_{ten}_{seed}.npz"
 
@@ -247,7 +225,7 @@ def e1(ten, seed, D):
     X, Xva, yva = vec(x), vec(D["mnist_va"][0]), D["mnist_va"][1]
     ghi["n_huan_luyen"] = len(y)
     ghi["kiem_dinh"] = {}
-    if ten == "knn":                                                     # một lần láng giềng cho mọi k
+    if ten == "knn":
         m = fit_sk(ten, {"k": 9}, seed, X, y, ghi=ghi)
         lg = m.lang_gieng(Xva, 9)
         for g in THUAT_TOAN[ten][1]:
@@ -276,7 +254,6 @@ def chon_e1(ten, seed):
 
 
 def e2(bien_the: str, ten: str, seed: int, D):
-    """Leave-one-writer-out. bien_the 'a' = chỉ ô thật; 'b' = MNIST + ô thật. Trả z OOF trên trang D + phiếu dev (thứ tự tap_do)."""
     xt, yt, nt = D["trang"]
     xp, yp, npp = D["phieu"]
     zt, zp = np.zeros((len(yt), 10)), np.zeros((len(yp), 10))
@@ -284,7 +261,7 @@ def e2(bien_the: str, ten: str, seed: int, D):
     if ten in ("cnn", "mlp"):
         if bien_the == "b":
             pre = tien_huan_luyen(ten, seed, ghi)
-            lt, lp = C.oof(pre, "co_ban", seed)                          # tinh chỉnh 5 fold theo người – GIỐNG HỆT quy trình cũ
+            lt, lp = C.oof(pre, "co_ban", seed)
             if ten == "cnn":
                 z0 = np.load(C.CAP / f"oof_g0_goc_{seed}.npz")
                 ch = max(float(np.abs(z0["trang"] - lt).max()), float(np.abs(z0["phieu"] - lp).max()))
@@ -326,7 +303,7 @@ def e2(bien_the: str, ten: str, seed: int, D):
                 return Xt[chon], yt[chon], None
             return (np.concatenate([Xm, Xt[chon]]), np.concatenate([ym, yt[chon]]),
                     np.concatenate([np.ones(len(ym)), np.full(int(chon.sum()), float(w))]))
-        trong = [j for j in NGUOI if j != k]                             # kiểm định LỒNG: bỏ thêm 1 trong 4 người
+        trong = [j for j in NGUOI if j != k]
         if ten == "knn" and bien_the == "a":
             dung = {json.dumps(g): [] for g, _ in ung_vien}
             for j in trong:
@@ -385,9 +362,7 @@ def cmd_chay(a):
     nk.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
-# ------------------------------------------------------------------------------------------- chỉ số (THUẦN)
 def chi_so_e2(z_tr, z_ph, yt, nt, yp, npp) -> dict:
-    """Một (thuật toán, seed): T trên OOF trang D (chon_nhiet), độ đúng theo người, sai mà tự tin p ≥ 0,5, ma trận nhầm lẫn."""
     T = L.chon_nhiet(z_tr, yt)
     pt, pp = L.softmax(z_tr / T), L.softmax(z_ph / T)
     at, ap = pt.argmax(1), pp.argmax(1)
@@ -407,7 +382,6 @@ def chi_so_e2(z_tr, z_ph, yt, nt, yp, npp) -> dict:
 
 
 def gop_seed(rs: list[dict]) -> dict:
-    """Gộp các seed: macro TB, SD giữa 5 người (của độ đúng từng người TB qua seed), SD giữa seed, sai mà tự tin cộng các seed. THUẦN."""
     ng = {k: float(np.mean([r["theo_nguoi"][k] for r in rs])) for k in rs[0]["theo_nguoi"]}
     out = {"n_seed": len(rs), "macro": float(np.mean([r["macro"] for r in rs])), "sd_nguoi": float(np.std(list(ng.values()), ddof=1)),
            "sd_seed": float(np.std([r["macro"] for r in rs], ddof=1)) if len(rs) > 1 else 0.0, "theo_nguoi": ng,
@@ -419,7 +393,6 @@ def gop_seed(rs: list[dict]) -> dict:
 
 
 def ket_luan_r1(e2b: dict) -> dict:
-    """R1: CNN hợp lý nếu macro E2b (TB seed) ≥ tốt nhất − 1,0 điểm %. THUẦN."""
     tot = max(e2b, key=lambda t: e2b[t]["macro"])
     chenh = 100 * (e2b[tot]["macro"] - e2b["cnn"]["macro"])
     return {"tot_nhat": tot, "macro_tot_nhat": e2b[tot]["macro"], "macro_cnn": e2b["cnn"]["macro"], "chenh_diem": round(chenh, 3),
@@ -428,7 +401,6 @@ def ket_luan_r1(e2b: dict) -> dict:
                                     if t != "cnn" and v["macro"] > e2b["cnn"]["macro"]], key=lambda x: -x[1])}
 
 
-# ------------------------------------------------------------------------------------------- kích thước + thời gian
 def do_tg(f, x, lan=300) -> float:
     for i in range(10):
         f(x[i:i + 1])
@@ -471,7 +443,6 @@ def kich_thuoc_toc_do(D) -> dict:
     return out
 
 
-# ------------------------------------------------------------------------------------------- bảng
 def nap(thi, ten):
     seeds = SEEDS if THUAT_TOAN[ten][2] else (SEED0,)
     return [(sd, np.load(tep(thi, ten, sd)), json.loads((TAM / f"{thi}_{ten}_{sd}.json").read_text(encoding="utf-8"))) for sd in seeds]
@@ -509,7 +480,7 @@ def cmd_bang(a):
             kq[thi][ten] = gop_seed(rs)
     kq["R1"] = ket_luan_r1(kq["E2b"])
     tot = kq["R1"]["tot_nhat"]
-    if tot != "cnn":                                                     # kiểm định dấu cặp theo ô, cộng 3 seed của CNN (thuật toán tất định: lặp lại)
+    if tot != "cnn":
         bd = np.concatenate([dung[("E2b", "cnn", s)] for s in SEEDS])
         ud = np.concatenate([dung[("E2b", tot, s if THUAT_TOAN[tot][2] else SEED0)] for s in SEEDS])
         n10, n01 = int((bd & ~ud).sum()), int((~bd & ud).sum())
@@ -586,7 +557,6 @@ def bao_cao(kq: dict) -> str:
     return "\n".join(L_) + "\n"
 
 
-# ------------------------------------------------------------------------------------------- kiểm kê
 def cmd_kiem_ke(a):
     import csv
     import zipfile

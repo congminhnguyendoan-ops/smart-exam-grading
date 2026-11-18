@@ -522,6 +522,13 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - `python tools/chay_demo.py xla-cong-cu` = công cụ ngoại tuyến cổng 8765 cũ (không đăng nhập, không CSDL; chỉ *cố* đặt lại `[XLA]`). `ml`, `dacn` và các cờ `--chi-in` / `--khong-dat-lai` / `--khong-mo` / `--cong N` không đổi; cổng mặc định `xla` = `dacn` = 8000. Mã: `CHE_DO`, `KY_THI_CUA`, `CHE_DO_HE_THONG`, `chay_dacn(..., che_do=)` trong `tools/chay_demo.py`.
 - Kiểm: pytest 739 đạt + 1 skip; `kiem_truoc_demo` 0 KHÔNG ĐẠT; chạy thật trên cổng 8011 (cổng 8000 đang có server của người dùng, không đụng): `/health` 200, `/app/` 200, rồi tắt. **CHƯA nhìn bằng mắt giao diện, CHƯA đăng nhập + tải BV01 qua lệnh này** (cần mật khẩu `gv_an`); chạy trên nhánh `xla-he-thong` phải thêm `--bo-qua-kiem-tra` (tên nhánh không nằm trong `NHANH_DUNG`).
 
+### 4z. Lệnh AZ – đã xoá chú thích và docstring trong mã Python (18/11/2026; nhánh `xoa-chu-thich`, đã gộp `main`)
+- **Quay lại bản có chú thích**: tag `ban-truoc-xoa-chu-thich-18-11` (`main` @ `cf3811a`): `git checkout ban-truoc-xoa-chu-thich-18-11`. Công cụ làm việc này dùng `tokenize` + `ast` (không regex); mỗi tệp sửa có `ast.dump` (bỏ docstring) giống hệt bản gốc, 0 tệp phải hoàn nguyên; tiêu chí `docs/tieu_chi_trien_khai.md` mục AZ.
+- Sửa 162 tệp `.py` (xoá 1 488 dòng chú thích `#` và 1 881 dòng docstring; còn lại chỉ shebang / mã hoá / `# noqa`, `# type:`, `# pragma`, `# fmt:`, `# pylint`, `# isort`). Phạm vi chỉ `.py` (không `.js` / `.html` / `.css` / `.sql` / `.md`).
+- **GIỮ NGUYÊN (không sửa) 11 tệp**: toàn bộ `cv_engine/` (5 tệp), `backend/service.py`, `backend/schemas.py` (băm kiểm trong `tests/test_ar_dong_thoi.py`, `docs/dong_bang_ma_dot2.json`), `tools/eval_dot2.py`, `tools/eval_he_thong.py`, `tools/h3_mo_phong.py`, `tools/eval_h3_mo_phong.py` (SHA ghi trong `docs/dang_ky_test_dot2.json`, `dang_ky_h3_mo_phong.json`). Còn chú thích trong 6 tệp không phải `cv_engine/`.
+- Giữ 26 docstring module ở tệp dùng `description=__doc__` (CLI). Các chú thích "lệnh X" / lịch sử trong mã không còn: tra cứu lịch sử và lý do bằng `docs/`, mục trong CLAUDE.md và tag trên.
+- Kiểm sau xoá: pytest 739 đạt + 1 skip; `kiem_truoc_demo` 0 KHÔNG ĐẠT; `chay_demo dacn|xla --chi-in` đạt; `chay_demo xla` chạy thật trên cổng 8011: `/health` 200, `/app/` 200 (cổng 8000 của người dùng không đụng).
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:

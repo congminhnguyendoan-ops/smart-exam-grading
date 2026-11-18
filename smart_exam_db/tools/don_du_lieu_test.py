@@ -26,9 +26,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 PHAM_VI = (1632, 1633)
-DAU_KY_THI_TEST = ("[DEMO", "[THU")             # kỳ thi ngoài phạm vi mặc định chỉ được xoá phiếu qua --ids khi tên có dấu này
-THU_MUC_SAO_LUU = Path(os.environ["SAO_LUU_DIR"]) if os.environ.get("SAO_LUU_DIR") else ROOT / "data" / "_eval" / "sao_luu_don_du_lieu"   # Lệnh AW: image công khai không ghi được vào data/ -> đặt SAO_LUU_DIR (vd /app/storage/sao_luu)
-# thứ tự xoá (con trước, cha sau); results có FK KHÔNG cascade, score_audit_logs cascade theo results nhưng xoá tường minh để đếm
+DAU_KY_THI_TEST = ("[DEMO", "[THU")
+THU_MUC_SAO_LUU = Path(os.environ["SAO_LUU_DIR"]) if os.environ.get("SAO_LUU_DIR") else ROOT / "data" / "_eval" / "sao_luu_don_du_lieu"
 BANG_XOA = ("score_audit_logs", "results", "ocr_digits", "sheet_answers", "review_queue", "answer_sheets")
 SQL_DEM = {
     "score_audit_logs": "SELECT count(*) AS n FROM score_audit_logs WHERE result_id IN (SELECT result_id FROM results WHERE sheet_id = ANY(%s))",
@@ -46,7 +45,7 @@ SQL_XOA = {
     "review_queue": "DELETE FROM review_queue WHERE sheet_id = ANY(%s)",
     "answer_sheets": "DELETE FROM answer_sheets WHERE sheet_id = ANY(%s)",
 }
-SQL_SAO_LUU = {                                  # dòng sắp xoá -> CSV
+SQL_SAO_LUU = {
     "answer_sheets": "SELECT * FROM answer_sheets WHERE sheet_id = ANY(%s) ORDER BY sheet_id",
     "sheet_answers": "SELECT * FROM sheet_answers WHERE sheet_id = ANY(%s) ORDER BY sheet_id, question_no",
     "review_queue": "SELECT * FROM review_queue WHERE sheet_id = ANY(%s) ORDER BY review_id",
@@ -61,7 +60,6 @@ class LoiDon(Exception):
 
 
 def rut_gon_ten(ten, toi_da=24, dau=10):
-    """Cùng quy tắc với hàm hiển thị ở giao diện (frontend/ten_tep.js): dài hơn 24 ký tự -> 10 ký tự đầu + '…' + đuôi tệp."""
     ten = ten or ""
     if len(ten) <= toi_da:
         return ten
@@ -71,7 +69,6 @@ def rut_gon_ten(ten, toi_da=24, dau=10):
 
 
 def _tep_anh(conn, ids: list[int]) -> list[str]:
-    """Đường dẫn TƯƠNG ĐỐI (so với STORAGE_DIR) của mọi tệp ảnh thuộc các phiếu: ảnh gốc, ảnh nắn, ô viết tay."""
     ra = []
     for r in conn.execute("SELECT image_path, aligned_image_path FROM answer_sheets WHERE sheet_id = ANY(%s)", (ids,)).fetchall():
         ra += [p for p in (r["image_path"], r["aligned_image_path"]) if p]
@@ -80,7 +77,6 @@ def _tep_anh(conn, ids: list[int]) -> list[str]:
 
 
 def lap_ke_hoach(conn, pham_vi=PHAM_VI, ids_them=(), giu_them=()) -> dict:
-    """CHỈ ĐỌC. Trả: giu (phiếu giữ), xoa (phiếu xoá + thông tin), dem (số dòng mỗi bảng), tep (ảnh), ngoai_pham_vi (chỉ liệt kê)."""
     pham_vi, ids_them, giu_them = list(pham_vi), set(ids_them), set(giu_them)
     cot = ("a.sheet_id, a.exam_id, e.exam_title, a.status::text AS status, a.detected_sbd, a.original_filename, a.matched_student_id, "
            "r.status::text AS ket_qua, r.score, (r.result_id IS NOT NULL AND r.status <> 'void') AS chinh_thuc")
@@ -133,7 +129,6 @@ def in_xem_truoc(kh: dict) -> str:
 
 
 def sao_luu(conn, kh: dict, thu_muc: Path, kho: Path) -> list[Path]:
-    """Ghi dòng sắp xoá ra CSV (UTF-8) + sao chép tệp ảnh (chỉ của các phiếu này) vào thu_muc. Trả danh sách tệp đã ghi."""
     thu_muc.mkdir(parents=True, exist_ok=True)
     ra = []
     for b, sql in SQL_SAO_LUU.items():
@@ -160,11 +155,10 @@ def sao_luu(conn, kh: dict, thu_muc: Path, kho: Path) -> list[Path]:
 
 
 def thuc_hien(conn, kh: dict) -> dict:
-    """Xoá trong MỘT giao dịch con (savepoint): mỗi bảng phải xoá ĐÚNG số dòng như xem trước, lệch -> LoiDon + rollback phần đã xoá. KHÔNG commit."""
     if not kh["ids"]:
         return {b: 0 for b in BANG_XOA}
     da = {}
-    with conn.transaction():                                              # savepoint: ném lỗi = hoàn tác toàn bộ phần xoá
+    with conn.transaction():
         for b in BANG_XOA:
             n = conn.execute(SQL_XOA[b], (kh["ids"],)).rowcount
             da[b] = n
@@ -177,7 +171,6 @@ def thuc_hien(conn, kh: dict) -> dict:
 
 
 def xoa_tep(kho: Path, tep: list[str]) -> dict:
-    """Xoá tệp ảnh (đường dẫn tương đối): chỉ trong `kho`; không tồn tại thì bỏ qua; không bao giờ thoát khỏi `kho`."""
     kho_r = kho.resolve()
     ket = {"da_xoa": 0, "khong_ton_tai": 0, "bo_qua_ngoai_kho": 0}
     for rel in tep:
@@ -193,7 +186,6 @@ def xoa_tep(kho: Path, tep: list[str]) -> dict:
 
 
 def kiem_sau(conn, pham_vi) -> dict:
-    """Thống kê hai kỳ thi + dòng mồ côi + API đọc được (hàm dịch vụ mà endpoint gọi)."""
     from backend import bang_diem, service
     tk = {}
     for e in pham_vi:
@@ -225,7 +217,7 @@ def main() -> int:
     conn = ket_noi()
     try:
         if not a.thuc_hien:
-            conn.read_only = True                                         # xem trước: giao dịch CHỈ ĐỌC
+            conn.read_only = True
         try:
             kh = lap_ke_hoach(conn, pham_vi, a.ids, a.giu)
         except LoiDon as e:
@@ -238,7 +230,7 @@ def main() -> int:
         if not kh["ids"]:
             print("Không có gì để xoá.")
             return 0
-        conn.rollback()                                                    # kết thúc giao dịch đọc; sao lưu + xoá trong giao dịch mới
+        conn.rollback()
         thu_muc = THU_MUC_SAO_LUU / datetime.now().strftime("%Y%m%d_%H%M%S")
         tep = sao_luu(conn, kh, thu_muc, kho)
         print(f"\nĐã SAO LƯU {len(tep)} tệp vào {thu_muc}")

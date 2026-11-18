@@ -35,7 +35,6 @@ def _nhap_mat_khau() -> str:
 
 
 def dat_tai_khoan(conn, username: str, email: str, ho_ten: str, vai_tro: str, mat_khau: str) -> str:
-    """Tạo mới hoặc cập nhật (mật khẩu, họ tên, vai trò, bật lại) theo username. Trả 'tao' | 'cap_nhat'."""
     bam = auth.bam_mat_khau(mat_khau)
     r = conn.execute("SELECT user_id FROM users WHERE lower(username) = lower(%s)", (username,)).fetchone()
     if r:

@@ -1,5 +1,3 @@
-"""Kiểm thử API backend (B4). Chạy trên CSDL thật trong giao dịch ROLLBACK + thư mục ảnh tạm (xem conftest.py: conn_thu, client).
-Chỉ dùng ảnh dev 0001–0028 và ảnh giả sinh từ ảnh dev; không đụng 0029–0040."""
 import io
 import uuid
 
@@ -47,7 +45,6 @@ def dem_results(conn, sheet_id) -> int:
 
 
 def giai_quyet_het(client, sheet_id) -> dict:
-    """Giáo viên 'confirm' mọi câu cần xem (câu cần xem vì vị trí thì 'set' theo máy đọc) cho tới khi hết."""
     for c in client.get(f"/sheets/{sheet_id}/review-questions").json():
         if "vi_tri" in c["reasons"]:
             body = {"action": "set", "selected_options": c["omr_reading"] or ""}
@@ -58,7 +55,6 @@ def giai_quyet_het(client, sheet_id) -> dict:
     return client.get(f"/sheets/{sheet_id}").json()
 
 
-# ------------------------------------------------------------------------------------------------ hệ thống / đề thi
 def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200 and r.json()["db"] == "ok" and r.json()["omr_model"].startswith("omr_m1-")
@@ -74,10 +70,10 @@ def test_tao_xem_ky_thi(client):
 
 
 @pytest.mark.parametrize("sua", [
-    {"codes": [{"code": "101", "answers": "ABC"}]},                          # sai độ dài
-    {"codes": [{"code": "101", "answers": "ABCDEABCDE"}]},                   # đáp án E
-    {"codes": [{"code": "10a", "answers": "ABCDABCDAB"}]},                   # mã đề không phải số
-    {"codes": [{"code": "101", "answers": "ABCDABCDAB"}, {"code": "101", "answers": "ABCDABCDAB"}]},   # trùng mã đề
+    {"codes": [{"code": "101", "answers": "ABC"}]},
+    {"codes": [{"code": "101", "answers": "ABCDEABCDE"}]},
+    {"codes": [{"code": "10a", "answers": "ABCDABCDAB"}]},
+    {"codes": [{"code": "101", "answers": "ABCDABCDAB"}, {"code": "101", "answers": "ABCDABCDAB"}]},
     {"num_questions": 41}, {"num_questions": 0}, {"codes": []}, {"max_score": 0},
 ])
 def test_tao_ky_thi_sai_bi_tu_choi(client, sua):
@@ -86,9 +82,6 @@ def test_tao_ky_thi_sai_bi_tu_choi(client, sua):
     assert client.post("/exams", json=body).status_code == 422
 
 
-# ------------------------------------------------------------------------------------------------ ảnh bị từ chối
-# Lệnh AU (T3): tệp KHÔNG phải ảnh nay bị từ chối sớm bằng 422 (kiem_anh.py, test_trien_khai.py) thay vì lưu rồi báo `khong_doc_duoc`;
-# mã `khong_doc_duoc` vẫn còn cho tệp đúng chữ ký ảnh nhưng hỏng bên trong. Ảnh thiếu marker vẫn 201 + rejected như cũ.
 @pytest.mark.parametrize("du_lieu,ma", [pytest.param(anh_trang(), "thieu_marker", id="thieu_marker")])
 def test_anh_hong_bi_tu_choi_dung_ma(client, conn_thu, du_lieu, ma):
     eid = tao_de(client)
@@ -102,7 +95,7 @@ def test_anh_hong_bi_tu_choi_dung_ma(client, conn_thu, du_lieu, ma):
     assert v["score"] is None and v["questions"] == [] and v["reject_code"] == ma
     assert client.post(f"/sheets/{j['sheet_id']}/questions/1/review", json={"action": "confirm"}).status_code == 409
     assert client.put(f"/sheets/{j['sheet_id']}/identity", json={"sbd": "123456"}).status_code == 409
-    assert client.get(f"/sheets/{j['sheet_id']}/image?kind=aligned").status_code == 404       # không có ảnh nắn
+    assert client.get(f"/sheets/{j['sheet_id']}/image?kind=aligned").status_code == 404
     assert client.get(f"/sheets/{j['sheet_id']}/image?kind=original").status_code == 200
 
 
@@ -112,11 +105,10 @@ def test_anh_gia_anh_mo_bi_tu_choi(client):
     if not ds:
         pytest.skip("không có ảnh giả mờ (_gia_v4)")
     eid = tao_de(client)
-    r = tai(client, eid, ds[-1].stem, ds[-1].read_bytes()).json()                              # mờ nặng nhất
+    r = tai(client, eid, ds[-1].stem, ds[-1].read_bytes()).json()
     assert r["status"] == "rejected" and r["reject_code"] in ("anh_mo", "khong_khop_bo_cuc") and r["official_score"] is None
 
 
-# ------------------------------------------------------------------------------------------------ ảnh thật: cần xem -> giáo viên -> chốt
 def test_phieu_can_xem_khong_co_diem_chinh_thuc_roi_chot(client, conn_thu):
     can_anh("0002_C2")
     them_sv(conn_thu, "795125")
@@ -125,12 +117,12 @@ def test_phieu_can_xem_khong_co_diem_chinh_thuc_roi_chot(client, conn_thu):
     sid = t["sheet_id"]
     assert t["status"] == "needs_review" and t["pending_questions"] > 0 and t["official_score"] is None
     v = client.get(f"/sheets/{sid}").json()
-    assert dem_results(conn_thu, sid) == 0 and v["score"]["official"] is None            # CHƯA có điểm chính thức
+    assert dem_results(conn_thu, sid) == 0 and v["score"]["official"] is None
     assert v["sbd"]["detected"] == "795125" and v["student"]["student_code"] == "795125"
     sc = v["score"]
     assert sc["provisional"] <= sc["max_possible"] and sc["pending_questions"] == t["pending_questions"]
     cx = [q for q in v["questions"] if q["needs_review"]]
-    assert len(cx) == sc["pending_questions"] and all(q["is_correct"] is None for q in cx)    # câu cần xem: chưa chấm
+    assert len(cx) == sc["pending_questions"] and all(q["is_correct"] is None for q in cx)
     assert all(q["is_correct"] is not None for q in v["questions"] if not q["needs_review"])
     assert v["review"]["status"] == "pending" and set(v["review"]["reasons"]) & {"low_omr_confidence", "multiple_marks"}
     ds = client.get(f"/sheets/{sid}/review-questions").json()
@@ -139,12 +131,11 @@ def test_phieu_can_xem_khong_co_diem_chinh_thuc_roi_chot(client, conn_thu):
     img = client.get(f"/sheets/{sid}/questions/{ds[0]['question_no']}/image")
     assert img.status_code == 200 and img.headers["content-type"] == "image/png" and img.content[:4] == b"\x89PNG"
 
-    # sửa 1 câu: điểm tạm thay đổi, vẫn chưa có điểm chính thức
     q0 = ds[0]["question_no"]
     r = client.post(f"/sheets/{sid}/questions/{q0}/review", json={"action": "set", "selected_options": "A"})
     assert r.status_code == 200 and r.json()["score"]["pending_questions"] == sc["pending_questions"] - 1
     assert r.json()["score"]["official"] is None and dem_results(conn_thu, sid) == 0
-    assert client.post(f"/sheets/{sid}/questions/{q0}/review", json={"action": "confirm"}).status_code == 409   # đã xử lý rồi
+    assert client.post(f"/sheets/{sid}/questions/{q0}/review", json={"action": "confirm"}).status_code == 409
 
     fin = giai_quyet_het(client, sid)
     assert fin["status"] == "graded" and fin["score"]["official"] is not None and fin["score"]["result_status"] == "confirmed"
@@ -152,7 +143,7 @@ def test_phieu_can_xem_khong_co_diem_chinh_thuc_roi_chot(client, conn_thu):
     assert dem_results(conn_thu, sid) == 1
     assert fin["score"]["official"] == fin["score"]["provisional"] == fin["score"]["max_possible"]
     assert conn_thu.execute("SELECT count(*) AS n FROM score_audit_logs a JOIN results r USING (result_id) WHERE r.sheet_id = %s",
-                            (sid,)).fetchone()["n"] >= 1                                       # trigger audit hoạt động
+                            (sid,)).fetchone()["n"] >= 1
 
 
 def test_tai_lai_cung_anh_tra_phieu_cu(client):
@@ -165,7 +156,6 @@ def test_tai_lai_cung_anh_tra_phieu_cu(client):
 
 
 def test_confirm_khong_duoc_cho_cau_vi_tri(client, conn_thu):
-    """Câu cần xem vì vị trí: 'confirm' bị từ chối (máy chưa chắc đọc đúng hàng) – phải 'set' thủ công."""
     can_anh("0002_C2")
     eid = tao_de(client)
     sid = tai(client, eid, "0002_C2").json()["sheet_id"]
@@ -185,8 +175,6 @@ def test_review_yeu_cau_sai(client, body):
 
 
 def test_sbd_thieu_cot_can_xem_va_giao_vien_chot(client, conn_thu, monkeypatch):
-    """0001_C1: cột SBD 6 không tô -> SBD '06238?' cần xem (dù chữ viết tay đọc được 062384: không tự nhận một kênh duy nhất);
-    giáo viên chốt SBD thật rồi xem hết câu -> phiếu được chốt."""
     can_anh("0001_C1")
     ocr_khop(monkeypatch, ("062384", "101"))
     them_sv(conn_thu, "062384")
@@ -205,7 +193,6 @@ def test_sbd_thieu_cot_can_xem_va_giao_vien_chot(client, conn_thu, monkeypatch):
 
 
 def test_sbd_khong_co_trong_danh_sach(client, conn_thu):
-    """Giáo viên chốt SBD không có trong danh sách -> sbd_not_found; xem hết câu cần xem vẫn KHÔNG có điểm chính thức."""
     can_anh("0002_C2")
     eid = tao_de(client)
     sid = tai(client, eid, "0002_C2").json()["sheet_id"]
@@ -224,7 +211,7 @@ def test_trung_sbd_phieu_thu_hai_vao_review(client, conn_thu):
     b = client.get(f"/sheets/{tai(client, eid, '0002_C3').json()['sheet_id']}").json()
     assert "duplicate_sbd" in b["review"]["reasons"] and b["review"]["priority"] == 1
     fin = giai_quyet_het(client, b["sheet_id"])
-    assert fin["status"] == "needs_review" and fin["score"]["official"] is None            # không ghi đè điểm phiếu đầu
+    assert fin["status"] == "needs_review" and fin["score"]["official"] is None
     assert conn_thu.execute("SELECT count(*) AS n FROM results WHERE exam_id = %s", (eid,)).fetchone()["n"] == 1
 
 
@@ -238,7 +225,6 @@ def test_tai_nhieu_anh_loi_mot_anh_khong_keo_ca_lo(client, conn_thu):
     r = client.post(f"/exams/{eid}/sheets/batch", files=files)
     assert r.status_code == 201 and r.json()["tong"] == 4
     kq = r.json()["results"]
-    # Lệnh AU (T3): tệp rác (không phải ảnh) nay bị kiem_anh.py từ chối theo TỪNG ẢNH (`error`, không tạo phiếu); các ảnh còn lại không bị ảnh hưởng.
     assert [x.get("status") for x in kq] == ["needs_review", "rejected", None, "needs_review"]
     assert [x.get("reject_code") for x in kq] == [None, "thieu_marker", None, None]
     assert "không phải ảnh" in kq[2]["error"] and kq[2]["filename"] == "rac.jpg"
@@ -256,7 +242,6 @@ def test_anh_len_ky_thi_khong_ton_tai(client):
 
 
 def test_ky_thi_it_cau_hon_phieu(client):
-    """Kỳ thi 10 câu: chỉ chấm 10 câu đầu, các câu còn lại của phiếu bị bỏ qua."""
     can_anh("0002_C2")
     eid = tao_de(client, n=10, ma_de=("101", "102", "103", "104"))
     sid = tai(client, eid, "0002_C2").json()["sheet_id"]
@@ -286,7 +271,6 @@ def test_thieu_cau_hinh_bao_loi_ro(monkeypatch):
 
 
 def test_get_conn_rollback_khi_loi(csdl_san_sang):
-    """Yêu cầu lỗi -> giao dịch rollback (không để lại dòng nào) và kết nối được đóng."""
     from backend.db import ket_noi
     from backend.main import get_conn
     ma = ma_mon()
@@ -300,9 +284,7 @@ def test_get_conn_rollback_khi_loi(csdl_san_sang):
         assert c2.execute("SELECT count(*) AS n FROM subjects WHERE subject_code = %s", (ma,)).fetchone()["n"] == 0
 
 
-# ------------------------------------------------------------------------------------------------ đường tự chốt (không cần xem)
 def omr_gia(sbd="795125", ma_de="101", chon=None, mo=(), nhieu=()):
-    """KetQuaOMR dựng tay (ảnh thật nào cũng có câu cần xem nên đường tự chốt phải kiểm bằng dữ liệu tạo ra)."""
     from cv_engine.omr import KetQuaCau, KetQuaCot, KetQuaOMR
     chon = chon or {}
     xs = {o: {"blank": 0.99, "faint": 0.0, "filled": 0.01} for o in "ABCD"}
@@ -325,9 +307,6 @@ def omr_gia(sbd="795125", ma_de="101", chon=None, mo=(), nhieu=()):
 
 
 def ocr_khop(monkeypatch, *cap):
-    """Thay kênh CHỮ VIẾT TAY (CNN) bằng kết quả dựng tay: mỗi phiếu đọc ĐÚNG như bubble giả (sbd, ma_de), độ tin cậy 0,99.
-    Các test này kiểm đường OMR / chấm / chốt điểm, nên hai kênh phải khớp; một cặp = dùng cho mọi phiếu, nhiều cặp = lần lượt.
-    (Hành vi khi hai kênh LỆCH được kiểm riêng bằng CNN thật ở test_backend_ocr.py.)"""
     from cv_engine.ocr import CotOCR, KetQuaOCR
     cap = cap or (("795125", "101"),)
     it = iter(cap) if len(cap) > 1 else None
@@ -342,12 +321,11 @@ def ocr_khop(monkeypatch, *cap):
 
 
 def test_phieu_sach_tu_chot_auto_va_doi_chieu_csdl(client, conn_thu, monkeypatch):
-    """Không còn gì cần xem -> chấm tự động, ghi results 'auto' (không confirmed_by); điểm = điểm tính tay; đối chiếu fn_grade_sheet."""
     can_anh("0002_C2")
     them_sv(conn_thu, "795125")
     eid = tao_de(client)
     key = demo.khoa_demo("101")
-    chon = {q: (key[q - 1] if q % 2 else "A" if key[q - 1] != "A" else "B") for q in range(1, 38)}     # lẻ: đúng, chẵn: sai; 38–40 bỏ trống
+    chon = {q: (key[q - 1] if q % 2 else "A" if key[q - 1] != "A" else "B") for q in range(1, 38)}
     dung = sum(q % 2 == 1 for q in range(1, 38))
     monkeypatch.setattr("backend.service.omr.doc_phieu", lambda kq, layout, mh: omr_gia(chon=chon))
     ocr_khop(monkeypatch)
@@ -359,16 +337,15 @@ def test_phieu_sach_tu_chot_auto_va_doi_chieu_csdl(client, conn_thu, monkeypatch
     r = conn_thu.execute("SELECT status::text AS s, confirmed_by FROM results WHERE sheet_id = %s", (t["sheet_id"],)).fetchone()
     assert r["s"] == "auto" and r["confirmed_by"] is None
     assert all(q["is_correct"] is not None for q in v["questions"])
-    assert client.post(f"/sheets/{t['sheet_id']}/questions/1/review", json={"action": "confirm"}).status_code == 409   # đã chốt
+    assert client.post(f"/sheets/{t['sheet_id']}/questions/1/review", json={"action": "confirm"}).status_code == 409
 
 
 @pytest.mark.parametrize("loai", ["mo", "nhieu"])
 def test_mot_cau_can_xem_la_khong_tu_chot(client, monkeypatch, loai):
-    """Chỉ MỘT câu mờ / nhiều ô cũng đủ để cả phiếu không có điểm chính thức; câu đó không được chấm (dù máy đọc đúng đáp án)."""
     can_anh("0002_C2")
     eid = tao_de(client)
     key = demo.khoa_demo("101")
-    chon = {q: key[q - 1] for q in range(1, 41)}                                     # làm đúng hết 40 câu
+    chon = {q: key[q - 1] for q in range(1, 41)}
     monkeypatch.setattr("backend.service.omr.doc_phieu", lambda kq, layout, mh: omr_gia(chon=chon, **{loai: (7,)}))
     ocr_khop(monkeypatch)
     t = tai(client, eid, "0002_C2").json()

@@ -1,15 +1,3 @@
-"""
-ocr_du_lieu.py - Dữ liệu cho CNN chữ số (Tuần 6, docs/ke_hoach_tuan6.md Bước 2–3).
-
-  cat   : cắt 400 ô/trang × 10 trang (data/raw_digits) và 9 ô/ảnh × phiếu DEV 0001–0034 (data/raw), từ `anh_nan` VÀ `anh_chuan_hoa`
-          (preprocess()); bỏ viền ô; chuẩn hoá kiểu MNIST -> data/_ocr/cat/<nguon>.npz + <nguon>.csv  (nguon = anh_nan | anh_chuan_hoa)
-  xem   : lưới ảnh để xem bằng mắt (ô cắt đã bỏ viền + ảnh MNIST), danh sách ô trống / chạm viền / lạ -> data/_ocr/cat/xem/
-  split : data/ocr_split.csv (người viết, fold, tập) – CHỈ dùng cv_engine/tap_du_lieu.py
-  kiem  : kiểm split đang có = sinh lại từng byte; không phiếu test trong bất kỳ file nào
-
-Phiếu test 0035–0040: KHÔNG đọc ảnh, KHÔNG đọc dòng nhãn (chan_test + bỏ dòng khi đọc ground_truth). Không ghi vào data/raw*.
-Chạy (từ smart_exam_db/):  python tools/ocr_du_lieu.py cat | xem | split | kiem
-"""
 import argparse
 import csv
 import io
@@ -32,12 +20,11 @@ CAT = DATA / "_ocr" / "cat"
 NGUON = ("anh_nan", "anh_chuan_hoa")
 COT_META = ["nguon_anh", "anh", "loai", "vi_tri", "nhan", "nguoi", "fold", "ink_px", "ti_le_muc", "n_tp", "cao", "rong",
             "cham_vien", "vien_con", "lech_x", "lech_y", "ok_vien", "trong"]
-NGUONG_TRONG = 30        # ink_px < ngưỡng -> ô coi là trống (đã so với phân bố ở bước `xem`)
+NGUONG_TRONG = 30
 COT_SPLIT = ["anh", "loai", "nguoi", "fold", "tap"]
 
 
 def _doc_nhan_phieu() -> dict[int, tuple[str, str]]:
-    """{phiếu: (sbd viết tay, mã đề viết tay)} – chỉ phiếu DEV; dòng phiếu test bỏ ngay khi đọc."""
     out = {}
     with (DATA / "ground_truth.csv").open(encoding="utf-8-sig", newline="") as f:
         for r in csv.DictReader(f):
@@ -48,7 +35,6 @@ def _doc_nhan_phieu() -> dict[int, tuple[str, str]]:
 
 
 def _liet_ke():
-    """[(đường dẫn, tên, loại)]: 10 trang chữ số + ảnh phiếu dev (chỉ TÊN file, rồi chan_test)."""
     ds = [(p, p.stem, "trang") for p in sorted((DATA / "raw_digits").glob("D*.jpg"))]
     ph = [(p, p.stem, "phieu") for p in sorted((DATA / "raw").glob("*.jpg")) if ma_phieu(p.stem) in PHIEU_DEV]
     chan_test([p for p, _, _ in ds + ph], xac_nhan=False, viec="ocr_du_lieu cat")
@@ -56,7 +42,6 @@ def _liet_ke():
 
 
 def _nhom_cua_anh(ten: str, loai: str, lay_trang: dict, lay_phieu: dict, nhan_phieu: dict):
-    """Sinh các NHÓM ô cùng hàng của 1 ảnh: [(loai_o, [(vi_tri, nhan, rect), ...])]. Trang: 20 hàng × 20 ô; phiếu: SBD 6 + mã đề 3."""
     if loai == "trang":
         hang: dict[int, list] = {}
         for b in lay_trang["boxes"]:
@@ -119,7 +104,6 @@ def cmd_thong_ke(a):
 
 
 def _luoi(imgs, cot, o_w, o_h, nhan=None, nen=255):
-    """Ghép danh sách ảnh xám (cùng cỡ) thành lưới, có nhãn góc."""
     hang = []
     for i in range(0, len(imgs), cot):
         r = imgs[i:i + cot]
@@ -129,7 +113,6 @@ def _luoi(imgs, cot, o_w, o_h, nhan=None, nen=255):
 
 
 def cmd_xem(a):
-    """Lưới mỗi trang (400 ô: hàng = chữ số 0–9 × 2 hàng) – ô MNIST và ô cắt; tách riêng danh sách đáng ngờ."""
     out = CAT / "xem"
     out.mkdir(parents=True, exist_ok=True)
     lay_t = nap_layout("chu_so")
@@ -154,7 +137,6 @@ def cmd_xem(a):
 
 
 def tao_split() -> str:
-    """Nội dung data/ocr_split.csv: mỗi dòng 1 ẢNH (trang chữ số + ảnh phiếu dev; test chỉ ghi TÊN, không có nhãn)."""
     buf = io.StringIO()
     w = csv.writer(buf, lineterminator="\n")
     w.writerow(COT_SPLIT)
@@ -182,7 +164,7 @@ def cmd_kiem(a):
     for f in range(5):
         assert sorted(r["anh"] for r in trang if r["fold"] == str(f)) == [f"D{2 * f + 1:03d}", f"D{2 * f + 2:03d}"]
     assert all(ma_trang(r["anh"]) for r in trang)
-    for fi in sorted(CAT.glob("*.csv")):                       # không phiếu test trong file cắt
+    for fi in sorted(CAT.glob("*.csv")):
         for r in csv.DictReader(fi.open(encoding="utf-8")):
             if ma_phieu(r["anh"]) is not None:
                 assert ma_phieu(r["anh"]) in PHIEU_DEV, f"{fi.name}: có phiếu test {r['anh']}"

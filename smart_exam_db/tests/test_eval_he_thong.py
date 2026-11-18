@@ -1,5 +1,3 @@
-"""Kiểm thử công cụ đánh giá hệ thống tools/eval_he_thong.py: độc lập, thước đo, chốt chặn (đăng ký, khoá chạy một lần, xác nhận test), chạy nhỏ trên dev.
-Không đọc ảnh / nhãn tập test (0035–0040)."""
 import ast
 import json
 import subprocess
@@ -22,7 +20,6 @@ def test_doc_lap_khong_import_luat_cham():
     assert not {"cv_engine.omr", "cv_engine.ocr", "backend.service", "backend.grading", "cv_engine"} & moi
     dung = {n.attr for n in ast.walk(cay) if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id in ("omr", "ocr", "grading", "service")}
     assert not dung
-    # preprocessing chỉ nằm trong hàm so với Tuần 4
     ham = next(n for n in cay.body if isinstance(n, ast.FunctionDef) and n.name == "nhat_quan_tuan4")
     assert any(isinstance(n, ast.ImportFrom) and n.module == "cv_engine.preprocessing" for n in ast.walk(ham))
     assert "cv_engine.preprocessing" not in mod_tren

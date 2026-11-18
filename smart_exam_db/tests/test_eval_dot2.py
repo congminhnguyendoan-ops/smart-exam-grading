@@ -1,5 +1,3 @@
-"""Kiểm thử công cụ đợt 2 tools/eval_dot2.py: độc lập, nhãn (gồm chấm nhỏ), đối chiếu chéo nhãn, khoá chạy một lần, đăng ký, sửa nhãn theo giấy,
-xem mù không rò kết luận máy, chạy nhỏ trên ảnh giả hoá. Không đọc ảnh / nhãn val / test; không cần ảnh đợt 2 thật."""
 import ast
 import csv
 import json
@@ -25,7 +23,7 @@ def test_doc_lap_khong_import_luat_cham():
 def test_nhan_cham_nho_la_trong():
     assert E.tap_chon("*B") == "" and E.tap_chon("-") == "" and E.tap_chon("bD") == "BD"
     assert E.trang_thai_that("*B") == "vet" and E.trang_thai_that("-") == "trong" and E.trang_thai_that("b") == "mo" and E.trang_thai_that("AC") == "nhieu"
-    assert not E.H.dung_that("*B", "B")                                   # chấm nhỏ không phải đáp án
+    assert not E.H.dung_that("*B", "B")
     ds = {"B": "dam", "b": "mo", "AB": "hai_dam", "Ab": "dam_mo", "bd": "hai_mo", "ABD": "ba_dam", "abd": "ba_mo", "*B": "cham_nho", "-": "trong"}
     assert {k: E.loai_cau(k) for k in ds} == ds
     assert [E.nhan_o("*B", o) for o in "ABCD"] == ["blank", "vet", "blank", "blank"]
@@ -39,7 +37,7 @@ def test_nhan_goc_khop_cheo_va_phat_hien_sua_tay(tmp_path):
     assert sum(loai == "cham_nho" for t in nhan.values() for loai in t["loai"].values()) == 30
     assert nhan["0107"]["sbd_bubble"] == "37-273"
     assert len(E.ten_anh(nhan)) == 20
-    rows = E.doc_csv(E.CELL)                                              # sửa tay 1 ô cell_labels -> phải DỪNG
+    rows = E.doc_csv(E.CELL)
     rows[0]["cell_label"] = "filled"
     xau = tmp_path / "cell.csv"
     with xau.open("w", encoding="utf-8-sig", newline="") as f:
@@ -86,7 +84,6 @@ def test_thu_gia_khong_tao_khoa_va_khong_can_dang_ky(monkeypatch, tmp_path):
 
 @pytest.fixture
 def ma_khoa_on_dinh(monkeypatch):
-    """Trỏ 'mã khoá' sang thư mục dữ liệu đợt 2 (không đổi trong lúc phát triển) để test không phụ thuộc cây git đang sạch hay dơ."""
     monkeypatch.setattr(E, "DUONG_DAN_MA", ["smart_exam_db/answer_sheet/dot2"])
 
 
@@ -112,10 +109,10 @@ def test_dang_ky_khop_va_nhan_sua_phai_co_bo_sung(monkeypatch, tmp_path, ma_khoa
     monkeypatch.setattr(E, "GT_SUA", tmp_path / "ground_truth_dot2_da_sua.csv")
     monkeypatch.setattr(E, "CELL_SUA", tmp_path / "cell_labels_dot2_da_sua.csv")
     monkeypatch.setattr(E, "SUA_NHAN", tmp_path / "sua_nhan.csv")
-    assert E.kiem_dang_ky(dk)["ma_commit"] == head                        # chưa có nhãn sửa -> chấp nhận
+    assert E.kiem_dang_ky(dk)["ma_commit"] == head
     for p in (E.GT_SUA, E.CELL_SUA, E.SUA_NHAN):
         p.write_text("x", encoding="utf-8")
-    with pytest.raises(SystemExit) as e:                                  # có nhãn sửa mà chưa đăng ký bổ sung
+    with pytest.raises(SystemExit) as e:
         E.kiem_dang_ky(dk)
     assert "bổ sung" in str(e.value)
     bs = {p.name: E.H.sha_file(p) for p in (E.GT_SUA, E.CELL_SUA, E.SUA_NHAN)}
@@ -137,16 +134,16 @@ def test_ap_dung_sua_nhan(monkeypatch, tmp_path):
             w.writeheader()
             w.writerows(rows)
     ghi([dict(phieu="0101", muc="q2", nhan_cu="SAI", nhan_moi="A", ly_do="x", ngay="2026-10-30")])
-    with pytest.raises(SystemExit):                                       # nhãn cũ không khớp
+    with pytest.raises(SystemExit):
         E.ap_dung_sua()
     ghi([dict(phieu="0101", muc="q2", nhan_cu=cu, nhan_moi="A", ly_do="", ngay="2026-10-30")])
-    with pytest.raises(SystemExit):                                       # thiếu lý do
+    with pytest.raises(SystemExit):
         E.ap_dung_sua()
     ghi([dict(phieu="0101", muc="q2", nhan_cu=cu, nhan_moi="A", ly_do="so giấy thật", ngay="2026-10-30")])
     E.ap_dung_sua()
     moi = E.doc_nhan(E.GT_SUA, E.CELL_SUA)["0101"]
     assert moi["q"][2] == "A" and moi["loai"][2] == "dam" and E.doc_nhan(E.GT, E.CELL)["0101"]["q"][2] == cu
-    assert E.nguon_nhan()[0] == E.GT_SUA                                  # có bản sửa thì dùng bản sửa
+    assert E.nguon_nhan()[0] == E.GT_SUA
 
 
 def test_chay_nho_tren_anh_gia_hoa(csdl_san_sang, monkeypatch, tmp_path):
@@ -161,7 +158,7 @@ def test_chay_nho_tren_anh_gia_hoa(csdl_san_sang, monkeypatch, tmp_path):
     pt = E.phan_tich(kq["rows"])
     assert pt["vet"]["n"] == 6 and pt["vet"]["gan_co"] == 6 and pt["vet"]["doc_thanh_dap_an_chac_LOI_NANG"] == 0
     assert pt["phieu_0107_sbd_can_xem"] == {"0107_C3": True}
-    r105 = next(r for r in kq["rows"] if r["phieu"] == 105)                # tô nhạt cả tờ: mọi câu có ô được chọn đều có cờ
+    r105 = next(r for r in kq["rows"] if r["phieu"] == 105)
     assert all(c["cx"] for c in r105["cau"] if c["that"] != "trong")
     mu, may = E.H.html_trang(kq["rows"], False), E.H.html_trang(kq["rows"], True)
     assert "chưa có kết luận của máy" in mu and "máy:" not in mu and "ô tô" not in mu and "cần xem" not in mu.lower()
@@ -169,7 +166,6 @@ def test_chay_nho_tren_anh_gia_hoa(csdl_san_sang, monkeypatch, tmp_path):
 
 
 def test_dang_ky_that_khop_voi_cay_lam_viec():
-    """Bản đăng ký thật (docs/dang_ky_test_dot2.json) phải khớp SHA các file đang có – bắt lỗi ghi sai (vd chữ HOA / thường) hoặc file trôi sau đăng ký."""
     if not E.DANG_KY.exists():
         pytest.skip("chưa có bản đăng ký")
     d = json.loads(E.DANG_KY.read_text(encoding="utf-8"))

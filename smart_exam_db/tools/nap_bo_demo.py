@@ -24,18 +24,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
-os.environ.setdefault("AUTH_MODE", "demo")      # công cụ trong tiến trình: không cần đăng nhập
+os.environ.setdefault("AUTH_MODE", "demo")
 
 import kiem_bo_demo as K  # noqa: E402
 
 NHAN = "[DEMO-BV]"
 NHAN_TAP = "[DEMO-BV-TẬP]"
-DU_THI = {"E1": [str(s) for s in range(220001, 220006)], "E2": [str(s) for s in range(220006, 220010)]}   # 220010 cố ý KHÔNG dự thi
+DU_THI = {"E1": [str(s) for s in range(220001, 220006)], "E2": [str(s) for s in range(220006, 220010)]}
 SO_CAU, THANG, DAT = 40, 10, 5
 
 
 def ke_hoach(ban_tap: bool = False) -> list[dict]:
-    """Kỳ thi cần nạp, dựng từ demo_bv_dap_an.csv (đã kiểm bằng kiem_bo_demo). ban_tap: chỉ đổi nhãn tiêu đề [DEMO-BV] -> [DEMO-BV-TẬP]."""
     loi, _ = K.kiem(K.doc(K.DAP_AN), K.doc(K.KICH_BAN))
     if loi:
         raise SystemExit("DỪNG: kịch bản demo sai – chạy python tools/kiem_bo_demo.py:\n  " + "\n  ".join(loi))
@@ -56,7 +55,6 @@ TIEU_DE_BA_MON = {ma: tieu_de for ma, tieu_de, _, _ in BA_MON}
 
 
 def ke_hoach_ba_mon() -> list[dict]:
-    """Lệnh AP: 3 kỳ thi theo môn, dựng từ bộ BV (đáp án 4 mã đề 101–104 của E1 + E2; lớp + giáo viên của E1; dự thi 220001–220009)."""
     goc = ke_hoach(False)
     codes = [c for e in goc for c in e["codes"]]
     du_thi = [s for e in goc for s in e["du_thi"]]
@@ -65,7 +63,6 @@ def ke_hoach_ba_mon() -> list[dict]:
 
 
 def doi_chieu(conn, kh: list[dict]) -> list[dict]:
-    """Tra (chỉ đọc) id môn / lớp / giáo viên / sinh viên + kỳ thi đã có. Thiếu thứ gì thì DỪNG (không tự tạo)."""
     ra = []
     for e in kh:
         mon = conn.execute("SELECT subject_id, subject_name FROM subjects WHERE subject_code = %s", (e["subject_code"],)).fetchone()
@@ -87,11 +84,10 @@ def doi_chieu(conn, kh: list[dict]) -> list[dict]:
 
 
 def nap(conn, ap_dung: bool, ban_tap: bool = False, ba_mon: bool = False) -> list[dict]:
-    """Trả tóm tắt từng kỳ thi (số dòng sẽ / đã INSERT mỗi bảng). ap_dung=False: chỉ đọc. KHÔNG commit (người gọi quyết định)."""
     from backend import service
     tom = []
     for e in doi_chieu(conn, ke_hoach_ba_mon() if ba_mon else ke_hoach(ban_tap)):
-        ten_mon = (e["mon"] or {"subject_name": e["subject_name"]})["subject_name"]          # môn mới (lệnh AP): chưa có trong bảng subjects, tao_ky_thi sẽ tạo
+        ten_mon = (e["mon"] or {"subject_name": e["subject_name"]})["subject_name"]
         moi = e["exam_id"] is None
         da_du_thi = set() if moi else {r["student_id"] for r in conn.execute("SELECT student_id FROM exam_students WHERE exam_id = %s",
                                                                                  (e["exam_id"],)).fetchall()}

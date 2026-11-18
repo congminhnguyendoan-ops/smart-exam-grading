@@ -1,20 +1,3 @@
-"""
-thu_lenh_v.py - Thử bằng TRÌNH DUYỆT THẬT (Playwright Chromium) lệnh V (30/10/2026), Việc 1–4.
-CHỈ ROLLBACK (tools/thu_dien_thoai.MayChuThu: máy chủ trong tiến trình, MỘT kết nối không commit, ảnh vào thư mục tạm) -> KHÔNG ghi dòng nào vào CSDL thật.
-Dùng tài khoản thật `admin` và `gv_binh`: mật khẩu chỉ được đặt tạm TRONG giao dịch sẽ ROLLBACK (mật khẩu thật không đổi).
-Cần migration 005 (bảng admin_audit_log).
-
-  python tools/thu_lenh_v.py
-
-V4 (máy tính, admin): Quản trị → bấm "Đóng" kỳ thi 1381 → thẻ "Nhật ký" có dòng "Đóng kỳ thi" · "Kỳ thi #1381" do admin; trang không chứa mật khẩu.
-V3 (máy tính, admin): chi tiết phiếu #1091 (cột 6: ô tô '?', chữ viết tay 4) -> lý do "Cột 6: ô tô trống hoặc không đọc được …; chữ viết tay đọc là 4".
-V2 (máy tính, gv_binh): ô chọn kỳ thi ẨN 1381 (đã đóng); bật "Hiện cả kỳ thi đã đóng" -> hiện, nhớ ở localStorage; đăng xuất -> khoá bị xoá.
-V1 (máy tính, gv_binh): tải ảnh vào 1381 (đã đóng) -> dòng "Bị từ chối" + lý do, KHÔNG có "Gửi lại"; tải vào 1633 khi mạng bị cắt -> "Lỗi mạng" + "Gửi lại";
-    nối mạng lại, bấm "Gửi lại" -> có kết quả.
-V2 + V1 + V3 (điện thoại Pixel 7, gv_binh, /m): danh sách kỳ thi ẩn 1381; bật hiện -> chọn 1381 -> chụp -> thẻ "bị từ chối", không "Gửi lại";
-    đổi sang 1633, mạng bị cắt -> "lỗi mạng" + "Gửi lại" -> gửi lại BV10 -> cảnh báo SBD theo cột ("ô viết tay trống … không có trong danh sách"); đăng xuất -> khoá bị xoá.
-Ảnh + ket_qua.json: data/_eval/ui_v/.
-"""
 import json
 import os
 import sys
@@ -53,7 +36,6 @@ def may_tinh(b, url, k, g):
     ctx = b.new_context(viewport={"width": 1400, "height": 1000}, locale="vi-VN")
     pg = ctx.new_page()
     pg.on("dialog", lambda d: d.accept())
-    # ---------------- V4: admin đóng kỳ thi 1381 bằng nút trên trang Quản trị -> Nhật ký
     pg.goto(url + "/app/")
     _dang_nhap(pg, "admin")
     _cho_trang(pg, "#/admin", "Quản trị")
@@ -67,7 +49,6 @@ def may_tinh(b, url, k, g):
     k["v4_nhat_ky_co_dong_dong_ky_thi"] = "Đóng kỳ thi" in dong1 and f"Kỳ thi #{KT_DONG}" in dong1 and "admin" in dong1 and "draft → closed" in dong1
     k["v4_trang_nhat_ky_khong_chua_mat_khau"] = MK not in pg.content()
     pg.screenshot(path=str(OUT / "01_v4_nhat_ky.png"), full_page=True)
-    # ---------------- V3: chi tiết phiếu có cột ô tô '?' + chữ viết tay đọc được
     pg.goto(url + f"/app/#/sheet/{PHIEU_V3}"); _cho_trang(pg, f"#/sheet/{PHIEU_V3}", f"Phiếu #{PHIEU_V3}")
     pg.wait_for_selector(".ly-do-cot")
     ly = pg.inner_text(".ly-do-cot")
@@ -77,7 +58,6 @@ def may_tinh(b, url, k, g):
     pg.locator(".ly-do-cot").first.screenshot(path=str(OUT / "02_v3_ly_do_cot.png"))
     pg.screenshot(path=str(OUT / "02b_v3_chi_tiet.png"), full_page=True)
     pg.click("#logout"); pg.wait_for_selector("#f-login")
-    # ---------------- V2: gv_binh – ô chọn kỳ thi ẩn kỳ thi đã đóng
     _dang_nhap(pg, "gv_binh")
     _cho_trang(pg, "#/upload", "Tải ảnh")
     ds = _ds_chon(pg)
@@ -91,7 +71,6 @@ def may_tinh(b, url, k, g):
     k["v2_nho_trong_localstorage"] = pg.evaluate("() => localStorage.getItem('hienKyThiDong')") == "1"
     pg.reload(); pg.wait_for_selector("#userbox:not(.hidden)"); pg.wait_for_selector(f'#exam-select option[value="{KT_DONG}"]', state="attached")
     k["v2_tai_lai_van_nho"] = pg.is_checked("#hien-dong")
-    # ---------------- V1 (máy tính): tải vào kỳ thi ĐÃ ĐÓNG -> bị từ chối, không Gửi lại
     with pg.expect_response(lambda r: r.url.endswith(f"/exams/{KT_DONG}")):
         pg.select_option("#exam-select", str(KT_DONG))
     pg.goto(url + "/app/#/upload"); pg.wait_for_selector("#files")
@@ -102,7 +81,6 @@ def may_tinh(b, url, k, g):
     k["v1_may_tinh_bi_tu_choi_co_ly_do"] = "Bị từ chối" in hang and "Kỳ thi đã đóng" in hang
     k["v1_may_tinh_tu_choi_khong_gui_lai"] = pg.locator("#rows tr:first-child [data-gui-lai]").count() == 0
     pg.screenshot(path=str(OUT / "04_v1_may_tinh_tu_choi.png"), full_page=True)
-    # ---------------- V1 (máy tính): mạng bị cắt -> Lỗi mạng + Gửi lại -> nối lại, gửi lại được
     with pg.expect_response(lambda r: r.url.endswith(f"/exams/{KT_MO}")):
         pg.select_option("#exam-select", str(KT_MO))
     pg.goto(url + "/app/#/upload"); pg.wait_for_selector("#files")
@@ -122,7 +100,6 @@ def may_tinh(b, url, k, g):
     g["v1_may_tinh_sau_gui_lai"] = hang
     k["v1_may_tinh_gui_lai_thanh_cong"] = rr.value.status == 201 and ("Cần xem" in hang or "Chính thức" in hang)
     pg.screenshot(path=str(OUT / "06_v1_may_tinh_gui_lai.png"), full_page=True)
-    # ---------------- V2: đăng xuất xoá khoá
     pg.click("#logout"); pg.wait_for_selector("#f-login")
     k["v2_dang_xuat_xoa_khoa"] = pg.evaluate("() => localStorage.getItem('hienKyThiDong')") is None
     ctx.close()
@@ -145,7 +122,6 @@ def dien_thoai(b, pw, url, k, g):
     pg.wait_for_selector(f'#exam-list .exam[data-id="{KT_DONG}"]')
     k["m_v2_bat_hien_ky_thi_dong"] = "ĐÃ ĐÓNG" in pg.inner_text(f'#exam-list .exam[data-id="{KT_DONG}"]')
     pg.screenshot(path=str(OUT / "08_m_v2_hien_ca_dong.png"), full_page=True)
-    # ---------------- V1: kỳ thi đã đóng -> thẻ "bị từ chối", không Gửi lại
     pg.click(f'#exam-list .exam[data-id="{KT_DONG}"]'); pg.wait_for_selector("#v-cap:not(.hidden)")
     pg.set_input_files("#nhieu", str(ANH / "BV07.jpg"))
     pg.wait_for_selector("#ds-to li.tuchoi", timeout=60000)
@@ -155,7 +131,6 @@ def dien_thoai(b, pw, url, k, g):
     k["m_v1_tu_choi_khong_gui_lai"] = pg.locator("#ds-to li.tuchoi [data-gui-lai]").count() == 0
     k["m_v1_dem_tu_choi"] = "1 từ chối" in pg.inner_text("#tk-so").replace("\n", " ")
     pg.screenshot(path=str(OUT / "09_m_v1_tu_choi.png"), full_page=True)
-    # ---------------- V1: đổi sang kỳ thi đang mở, mạng bị cắt -> lỗi mạng + Gửi lại -> gửi lại
     pg.click("#doi-ky-thi"); pg.wait_for_selector(f'#exam-list .exam[data-id="{KT_MO}"]')
     pg.click(f'#exam-list .exam[data-id="{KT_MO}"]'); pg.wait_for_selector("#v-cap:not(.hidden)")
     cat = f"**/exams/{KT_MO}/sheets"
@@ -171,7 +146,6 @@ def dien_thoai(b, pw, url, k, g):
     the = pg.inner_text("#ds-to li.xong")
     g["m_sau_gui_lai"] = the
     k["m_v1_gui_lai_thanh_cong"] = "phiếu #" in the
-    # ---------------- V3 trên /m: BV10 – SBD 220010 không có trong danh sách, ô viết tay trống
     k["m_v3_canh_bao_sbd_theo_cot"] = "SBD cần xem" in the and "ô viết tay trống" in the and "không có trong danh sách kỳ thi" in the
     pg.screenshot(path=str(OUT / "11_m_v1_v3_gui_lai_canh_bao.png"), full_page=True)
     pg.click("#logout"); pg.wait_for_selector("#v-login:not(.hidden)")

@@ -1,16 +1,3 @@
-"""
-kiem_anh_dot2.py - Kiểm ảnh ĐỢT 2 (data/raw_dot2/, phiếu 0101–0110) TRƯỚC khi chạy test – CHỈ ĐỌC (lệnh K, 29/10/2026).
-
-Làm: (1) tên tệp: đủ 20 ảnh, mỗi mã đúng 2 ảnh, đúng cặp điều kiện chụp trong tệp phân công
-     (answer_sheet/dot2/phan_cong_va_dap_an_dot2.xlsx, sheet "Phân công") và cột `conditions` của ground_truth_dot2.csv;
-     (2) từng ảnh: kích thước điểm ảnh (header), EXIF Orientation, dung lượng, SHA-256, EXIF hãng / máy / thời điểm / phần mềm;
-     (3) tìm 4 marker góc bằng cv_engine.preprocessing.find_markers (CHỈ phát hiện: không nắn, không chấm,
-     không đọc SBD / mã đề / ô tô).
-Ghi: data/_eval/kiem_anh_dot2.csv, data/_eval/sha_anh_dot2.txt. Không ghi gì vào data/raw*.
-KHÔNG đọc cột đáp án của tệp phân công / nhãn (chỉ mã phiếu + điều kiện chụp).
-
-  python tools/kiem_anh_dot2.py
-"""
 import csv
 import hashlib
 import re
@@ -36,7 +23,6 @@ EXIF_IFD = 0x8769
 
 
 def dieu_kien_phan_cong() -> dict[str, list[str]]:
-    """{mã phiếu: [Ck, Ck]} từ cột 'Điều kiện chụp' – chỉ đọc 2 cột, bỏ qua mọi cột khác."""
     ws = openpyxl.load_workbook(PHAN_CONG, read_only=True)["Phân công"]
     hang = list(ws.iter_rows(values_only=True))
     tieu_de = [str(x or "") for x in hang[0]]
@@ -70,7 +56,6 @@ def main():
     layout = nap_layout("phieu")
     van_de, hang, sha_dong = [], [], []
 
-    # --- tên tệp
     theo_ma: dict[str, list[str]] = {}
     for p in tep:
         m = TEN_RE.match(p.name)
@@ -92,7 +77,6 @@ def main():
     if len(tep) != 20:
         van_de.append(f"số tệp = {len(tep)} (cần 20)")
 
-    # --- từng ảnh
     for p in tep:
         b = p.read_bytes()
         sha = hashlib.sha256(b).hexdigest().upper()

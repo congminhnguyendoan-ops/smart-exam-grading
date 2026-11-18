@@ -1,16 +1,3 @@
-"""
-ag_tao_kich_ban.py - Lệnh AG: kịch bản tô cho thử GIẤY THẬT + tệp in. Tiêu chí: docs/tieu_chi_thu_giay_that.md (commit 18fd340, TRƯỚC công cụ này).
-
-  python tools/ag_tao_kich_ban.py                  # = tất cả: kich-ban -> in-phieu -> giao-viec -> kiem-in
-  python tools/ag_tao_kich_ban.py kich-ban         # data/_eval/ag/kich_ban.json (hạt giống cố định HAT_GIONG)
-  python tools/ag_tao_kich_ban.py in-phieu         # data/_eval/ag/phieu_trang_in_10.pdf (10 trang A4, phiếu trống ĐÚNG 100%)
-  python tools/ag_tao_kich_ban.py giao-viec        # data/_eval/ag/phieu_giao_viec_ag.pdf (bìa + 10 trang, đen trắng)
-  python tools/ag_tao_kich_ban.py kiem-in          # render lại PDF phiếu, đo tâm 4 ô vuông đen so với layout.json
-
-Kịch bản: 10 tờ T01–T10; T01–T08 bút bi (T01–T04 xanh, T05–T08 đen), T09–T10 bút chì 2B (CHỈ tờ chì có câu "te").
-SBD xoay vòng 220006–220009, mã đề 103 / 104 (danh sách kỳ thi TẬP 1633). Mỗi tờ 8–10 câu đặc biệt: nhat, hai_o, te, bo_trong, vet; mỗi loại ≥ 6 lần.
-H3b: tờ T03 (SBD cột 2), T06 (mã đề cột 3), T10 (SBD cột 5) có cột "thieu_bubble" – VIẾT chữ số tay, KHÔNG tô ô tròn.
-"""
 import argparse
 import json
 import random
@@ -35,17 +22,15 @@ SO_TO, SO_CAU = 10, 40
 DS_SBD = ("220006", "220007", "220008", "220009")
 DS_MA = ("103", "104")
 LOAI_DAC_BIET = ("nhat", "hai_o", "te", "bo_trong", "vet")
-# số câu đặc biệt mỗi tờ theo bút (tờ chì có "te"): bi 8 câu, chì 9 câu -> mỗi loại ≥ 6 trên 10 tờ
 SO_DAC_BIET = {"bi": {"nhat": 2, "hai_o": 2, "bo_trong": 2, "vet": 2},
                "chi": {"te": 4, "nhat": 1, "hai_o": 1, "bo_trong": 1, "vet": 2}}
-THIEU_BUBBLE = {"T03": ("sbd", 2), "T06": ("ma_de", 3), "T10": ("sbd", 5)}       # (trường, vị trí TỪ 1)
+THIEU_BUBBLE = {"T03": ("sbd", 2), "T06": ("ma_de", 3), "T10": ("sbd", 5)}
 CHAP_NHAN = {"binh_thuong": ["doc_dung", "can_xem"], "bo_trong": ["doc_dung", "can_xem"], "nhat": ["doc_dung", "can_xem"],
              "hai_o": ["can_xem"], "te": ["doc_dung", "can_xem"], "vet": ["doc_dung", "can_xem"]}
 O = "ABCD"
 
 
 def but_cua(i: int) -> tuple[str, str]:
-    """(loại bút, mô tả) của tờ thứ i (0-based)."""
     if i >= 8:
         return "chi", "bút chì 2B"
     return "bi", ("bút bi xanh" if i < 4 else "bút bi đen")
@@ -71,7 +56,6 @@ def huong_dan(n: int, c: dict) -> str:
 
 
 def lap_kich_ban(hat: int = HAT_GIONG) -> dict:
-    """Kịch bản tất định theo hạt giống. Không đọc ảnh / tệp."""
     rng = random.Random(hat)
     to = {}
     for i in range(SO_TO):
@@ -111,7 +95,6 @@ def lap_kich_ban(hat: int = HAT_GIONG) -> dict:
 
 
 def kiem_kich_ban(kb: dict) -> list[str]:
-    """Ràng buộc của lệnh AG – trả danh sách lỗi (rỗng = đạt)."""
     loi = []
     dem = Counter()
     for ma, t in kb["to"].items():
@@ -158,7 +141,6 @@ def cmd_kich_ban(a=None) -> dict:
     return kb
 
 
-# ------------------------------------------------------------------------------------------------ PDF
 def _font():
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
@@ -167,7 +149,6 @@ def _font():
 
 
 def cmd_in_phieu(a=None):
-    """10 trang A4, mỗi trang = PNG phiếu trống 2480×3508 px @300 DPI phủ ĐÚNG khổ A4 (210 × 297 mm) -> in 100% là đúng toạ độ layout.json."""
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
     from reportlab.lib.units import mm
@@ -182,7 +163,6 @@ def cmd_in_phieu(a=None):
 
 
 def o_bang(cc: dict) -> str:
-    """Nội dung ô của bảng 40 câu trên phiếu giao việc."""
     l, d = cc["loai"], cc["dap_an"]
     if l == "bo_trong":
         return "TRỐNG"
@@ -211,7 +191,6 @@ def cmd_giao_viec(a=None):
         c.setFont("DejaVu-Bold" if dam else "DejaVu", co)
         c.drawString(x, y, s)
 
-    # ---- bìa
     y = H - 25 * mm
     dong(20 * mm, y, "THỬ GIẤY THẬT – PHIẾU GIAO VIỆC (lệnh AG)", 18, True)
     for s in ["In phiếu trống (phieu_trang_in_10.pdf) khổ A4, tỉ lệ 100% / Actual size – KHÔNG chọn 'vừa trang' / 'Fit'.",
@@ -235,7 +214,6 @@ def cmd_giao_viec(a=None):
         dong(25 * mm, y, f"Người {i + 1}: tờ T{2 * i + 1:02d} và T{2 * i + 2:02d}     Tên (giả / viết tắt): ____________________", 11)
     c.showPage()
 
-    # ---- 10 trang
     for ma, t in kb["to"].items():
         y = H - 18 * mm
         dong(15 * mm, y, f"Tờ {ma}   –   Người tô: ______________   –   Bút: {t['but_mo_ta']}", 16, True)
@@ -259,7 +237,6 @@ def cmd_giao_viec(a=None):
             y -= 6 * mm
             dong(15 * mm, y, "nhưng KHÔNG tô ô tròn của cột này (các cột khác tô bình thường).", 11.5, True)
         y -= 10 * mm
-        # bảng 40 câu: 4 cột × 10 dòng
         cot_w, dong_h = 45 * mm, 9.2 * mm
         x0 = 15 * mm
         for n in range(1, SO_CAU + 1):
@@ -290,7 +267,6 @@ def cmd_giao_viec(a=None):
 
 
 def do_marker(xam) -> dict:
-    """Tâm 4 ô vuông đen (TL/TR/BR/BL) trên ảnh 300 DPI của một trang: thành phần liên thông tối, cỡ ≈ ô 8 mm (94,5 px)."""
     import cv2
     import numpy as np
     L = json.loads(LAYOUT.read_text(encoding="utf-8"))
@@ -306,7 +282,6 @@ def do_marker(xam) -> dict:
 
 
 def cmd_kiem_in(a=None) -> dict:
-    """Render từng trang PDF phiếu ở 300 DPI (PyMuPDF): khổ trang = A4, ảnh = 2480×3508, tâm 4 ô vuông lệch layout.json ≤ 2 px (0,17 mm)."""
     import numpy as np
     import pymupdf
     import cv2
@@ -320,7 +295,7 @@ def cmd_kiem_in(a=None) -> dict:
         xam = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width)
         m = do_marker(xam)
         lech = max((v[2] for v in m.values()), default=999.0)
-        h, w = min(xam.shape[0], mau.shape[0]), min(xam.shape[1], mau.shape[1])        # A4 @300 DPI = 2480,3 px -> trình render làm tròn 2480 / 2481
+        h, w = min(xam.shape[0], mau.shape[0]), min(xam.shape[1], mau.shape[1])
         kq["trang"].append({"trang": i + 1, "kho_mm": [round(w_mm, 2), round(h_mm, 2)], "anh_px": [pix.width, pix.height], "so_marker": len(m),
                             "lech_marker_px_max": round(lech, 2),
                             "lech_so_png_tb": round(float(np.abs(xam[:h, :w].astype(np.int16) - mau[:h, :w].astype(np.int16)).mean()), 3)})

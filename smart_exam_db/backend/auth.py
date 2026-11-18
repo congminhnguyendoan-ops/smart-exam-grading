@@ -1,12 +1,3 @@
-"""
-auth.py - Xác thực: băm mật khẩu (scrypt), token phiên ký HMAC, giới hạn thử đăng nhập sai, người dùng hiện tại.
-
-Không có thư viện ngoài (hashlib / hmac / secrets). Không bao giờ ghi mật khẩu / token vào log.
-  - Hash: "scrypt$n$r$p$muối_b64$hash_b64" (tham số nằm trong chuỗi -> nâng cấp được; hash lạ => xác minh False, không ném lỗi).
-  - Token: "v1.<payload_b64>.<chữ ký_b64>", payload {u: user_id, e: hết hạn (epoch s), f: dấu vân tay hash mật khẩu}.
-    Đổi mật khẩu => f đổi => token cũ vô hiệu. Mỗi yêu cầu vẫn tra `users` (is_active có hiệu lực ngay).
-  - Giới hạn thử sai: bộ nhớ trong tiến trình, 5 lần / 15 phút cho mỗi (username, IP).
-"""
 import base64
 import hashlib
 import hmac
@@ -22,7 +13,7 @@ MAXMEM = 64 * 1024 * 1024
 COOKIE = "se_session"
 MAT_KHAU_TOI_THIEU = 8
 SO_LAN_SAI_TOI_DA, CUA_SO_GIAY = 5, 15 * 60
-THONG_BAO_SAI = "Sai tên đăng nhập hoặc mật khẩu."          # DUY NHẤT một thông báo cho mọi lỗi đăng nhập (không lộ tài khoản có tồn tại)
+THONG_BAO_SAI = "Sai tên đăng nhập hoặc mật khẩu."
 
 
 def _b64(b: bytes) -> str:
@@ -33,7 +24,6 @@ def _unb64(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 
 
-# ------------------------------------------------------------------------------------------------ mật khẩu
 def bam_mat_khau(mat_khau: str, muoi: bytes | None = None) -> str:
     muoi = muoi or os.urandom(16)
     h = hashlib.scrypt(mat_khau.encode("utf-8"), salt=muoi, n=N_SCRYPT, r=R_SCRYPT, p=P_SCRYPT, maxmem=MAXMEM, dklen=32)
@@ -41,7 +31,6 @@ def bam_mat_khau(mat_khau: str, muoi: bytes | None = None) -> str:
 
 
 def kiem_mat_khau(mat_khau: str, bam: str | None) -> bool:
-    """So khớp hằng thời gian. Hash không đúng định dạng (vd chuỗi giả trong 04_seed.sql) -> False."""
     try:
         ten, n, r, p, muoi, h = (bam or "").split("$")
         if ten != "scrypt":
@@ -57,12 +46,10 @@ _BAM_GIA = bam_mat_khau("mat-khau-gia-de-can-bang-thoi-gian", b"\x00" * 16)
 
 
 def kiem_gia() -> None:
-    """Khi tên đăng nhập không tồn tại vẫn tốn một phép scrypt – không phân biệt được qua thời gian phản hồi."""
     kiem_mat_khau("x", _BAM_GIA)
 
 
 def mat_khau_hop_le(mat_khau: str) -> str | None:
-    """None nếu hợp lệ, không thì lý do (tiếng Việt)."""
     if len(mat_khau) < MAT_KHAU_TOI_THIEU:
         return f"Mật khẩu phải có ít nhất {MAT_KHAU_TOI_THIEU} ký tự."
     if len(mat_khau) > 200:
@@ -75,7 +62,6 @@ def mat_khau_ngau_nhien(do_dai: int = 14) -> str:
     return "".join(secrets.choice(bang) for _ in range(do_dai))
 
 
-# ------------------------------------------------------------------------------------------------ token
 def _vet_mat_khau(bam: str) -> str:
     return hashlib.sha256(bam.encode()).hexdigest()[:12]
 
@@ -85,14 +71,12 @@ def _ky(khoa: str, payload: str) -> str:
 
 
 def tao_token(khoa: str, user_id: int, bam_mat_khau_hien_tai: str, gio: float, bay_gio: float | None = None) -> str:
-    # "n" = nonce ngẫu nhiên (lệnh AR – R4): mỗi lần đăng nhập một token KHÁC NHAU kể cả trong cùng một giây -> đăng xuất thu hồi đúng MỘT phiên, phiên khác không bị ảnh hưởng.
     payload = _b64(json.dumps({"u": user_id, "e": int((bay_gio or time.time()) + gio * 3600), "f": _vet_mat_khau(bam_mat_khau_hien_tai), "n": secrets.token_hex(8)},
                               separators=(",", ":")).encode())
     return f"v1.{payload}.{_ky(khoa, 'v1.' + payload)}"
 
 
 def doc_token(khoa: str, token: str, bay_gio: float | None = None) -> dict | None:
-    """Payload nếu chữ ký đúng và chưa hết hạn, không thì None."""
     try:
         ver, payload, ky = token.split(".")
         if ver != "v1" or not hmac.compare_digest(ky, _ky(khoa, f"v1.{payload}")):
@@ -105,9 +89,7 @@ def doc_token(khoa: str, token: str, bay_gio: float | None = None) -> dict | Non
         return None
 
 
-# ------------------------------------------------------------------------------------------------ giới hạn thử sai
 class GioiHanDangNhap:
-    """5 lần sai / 15 phút cho mỗi khoá (username thường + IP). Đăng nhập đúng thì xoá bộ đếm."""
 
     def __init__(self, toi_da: int = SO_LAN_SAI_TOI_DA, cua_so: int = CUA_SO_GIAY):
         self.toi_da, self.cua_so = toi_da, cua_so
@@ -133,15 +115,14 @@ class GioiHanDangNhap:
 gioi_han = GioiHanDangNhap()
 
 
-# ------------------------------------------------------------------------------------------------ người dùng hiện tại
 @dataclass(frozen=True)
 class NguoiDung:
     user_id: int
     username: str
     full_name: str
     email: str
-    role: str                 # admin | teacher | student
-    demo: bool = False        # AUTH_MODE=demo: không kiểm quyền (hành vi cũ)
+    role: str
+    demo: bool = False
 
     @property
     def la_admin(self) -> bool:

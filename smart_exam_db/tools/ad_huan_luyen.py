@@ -1,15 +1,3 @@
-"""
-ad_huan_luyen.py - Lệnh AD, Bước 4: baseline (g0_goc dựng lại) vs ứng viên ad1 (MNIST + EMNIST qua ve_mnist + ô giả), CV theo người viết.
-Tiêu chí CHỐT TRƯỚC ở docs/lenh_ad.md Bước 3 (commit 5af47ab). CHỈ dev: trang D001–D010 + phiếu 0001–0028; KHÔNG đọc 0029–0040. Cần torch.
-
-  python tools/ad_huan_luyen.py chay                # OOF 5 fold × 3 seed cho baseline + ad1 (mô hình trung gian ở data/_eval/ad/tam/)
-  python tools/ad_huan_luyen.py bang                # 3 tiêu chí + số phụ -> data/_eval/ad/ket_qua.json, ket_qua.md
-  python tools/ad_huan_luyen.py xuat                # CHỈ khi đạt cả 3: tinh chỉnh trên toàn bộ trang D -> data/_eval/ad/ocr_cnn_ung_vien.json
-  python tools/ad_huan_luyen.py don                 # xoá data/_eval/ad/tam/
-
-Baseline dựng lại bằng chính mã cũ: seed 2026 tiền huấn luyện MNIST TỪ ĐẦU (so trọng số với bộ đệm Tuần 6), seed 1, 2 dùng bộ đệm
-tiền huấn luyện Tuần 6 (data/_ocr/cap/pre_mnist_co_ban_*.pt); mọi seed tinh chỉnh OOF lại từ đầu và so logit với bộ đệm oof_g0_goc_*.npz.
-"""
 import argparse
 import copy
 import json
@@ -33,13 +21,11 @@ TAM = AD / "tam"
 OOF = AD / "oof"
 SEEDS = (2026, 1, 2)
 CAU_HINH = ("baseline", "ad1")
-PRE_AD1 = dict(lr=2e-3, epochs=4)        # như c1_emnist (Tuần 6)
-TAU_KHOP = L.TAU_KHOP                    # 0,5 – ngưỡng nhận của luật đối chiếu SBD / mã đề
+PRE_AD1 = dict(lr=2e-3, epochs=4)
+TAU_KHOP = L.TAU_KHOP
 
 
-# ------------------------------------------------------------------------------------------- dữ liệu ứng viên
 def du_lieu_ad1():
-    """MNIST 55 000 (đúng tập tiền huấn luyện cũ) + EMNIST Digits train qua ve_mnist + ô giả (đã qua cat_o)."""
     x, y = C.du_lieu_truoc("mnist")
     e = np.load(ROOT / "data" / "nguon_ngoai" / "emnist_digits.npz")
     g = np.load(AD / "o_gia.npz")
@@ -59,7 +45,7 @@ def tien_huan_luyen(ten: str, seed: int, nhat_ky: dict):
     t0 = time.time()
     if ten == "baseline":
         cu = C.CAP / f"pre_mnist_co_ban_{seed}.pt"
-        if seed == 2026:                                  # dựng lại TỪ ĐẦU, so với bộ đệm Tuần 6
+        if seed == 2026:
             x, y = C.du_lieu_truoc("mnist")
             m = H.huan_luyen_cnn(x, y, C.PRE["epochs"], C.PRE["lr"], seed, tran=f"pre baseline/{seed}")
             if cu.exists():
@@ -92,7 +78,7 @@ def cmd_chay(a):
                 continue
             t0 = time.time()
             pre = tien_huan_luyen(ten, sd, nk)
-            lt, lp = C.oof(pre, "co_ban", sd)                # tinh chỉnh 5 fold theo người viết – GIỐNG HỆT quy trình cũ
+            lt, lp = C.oof(pre, "co_ban", sd)
             np.savez_compressed(f, trang=lt, phieu=lp)
             if ten == "baseline":
                 cu = C.CAP / f"oof_g0_goc_{sd}.npz"
@@ -105,7 +91,6 @@ def cmd_chay(a):
             nk_f.write_text(json.dumps(nk, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
-# ------------------------------------------------------------------------------------------- đo
 def xac_suat(ten, sd, t):
     z = np.load(OOF / f"oof_{ten}_{sd}.npz")
     T = L.chon_nhiet(z["trang"], t["trang"]["y"])
@@ -116,7 +101,7 @@ def so_do(p_tr, p_ph, t, omr) -> dict:
     y_tr, meta_tr = t["trang"]["y"], t["trang"]["meta"]
     y_ph, meta_ph = t["phieu"]["y"], t["phieu"]["meta"]
     ng_tr = np.array([int(r["nguoi"]) for r in meta_tr])
-    co_muc = np.array([r["trong"] != "1" for r in meta_ph])                 # ô phiếu có mực (qua CNN lúc chạy thật)
+    co_muc = np.array([r["trong"] != "1" for r in meta_ph])
     a_tr, a_ph = p_tr.argmax(1), p_ph.argmax(1)
     r = {"theo_nguoi_trang": {str(k): float((a_tr[ng_tr == k] == y_tr[ng_tr == k]).mean()) for k in range(1, 6)}}
     r["tc1_macro_trang"] = float(np.mean(list(r["theo_nguoi_trang"].values())))
@@ -130,7 +115,6 @@ def so_do(p_tr, p_ph, t, omr) -> dict:
     r["tc2_sai_tu_tin"] = int(sai_tt_tr.sum() + sai_tt_ph.sum())
     r["sai_tu_tin_trang"], r["sai_tu_tin_phieu"] = int(sai_tt_tr.sum()), int(sai_tt_ph.sum())
     r["sai_tong"] = int((a_tr != y_tr).sum() + ((a_ph != y_ph) & co_muc).sum())
-    # tiêu chí 3: cột SBD / mã đề cần xem sau đối chiếu bubble (luật hiện hành)
     cx = []
     for i, m in enumerate(meta_ph):
         o = omr[m["anh"]]
@@ -139,7 +123,7 @@ def so_do(p_tr, p_ph, t, omr) -> dict:
         cx.append(not c.chac)
     r["tc3_cot_can_xem"] = float(np.mean(cx))
     r["cot_can_xem_n"], r["cot_n"] = int(np.sum(cx)), len(cx)
-    d = C.danh_gia(p_tr, p_ph, t, omr)                                       # T4 (ảnh), lỗi im lặng mức trường – hàm cũ
+    d = C.danh_gia(p_tr, p_ph, t, omr)
     r["T4_anh_can_xem"], r["T4_gan"], r["T4_anh"], r["loi_im_lang_truong"] = d["T4"], d["T4_gan"], d["T4_anh"], d["IL"]
     cm = np.zeros((10, 10), int)
     for yy, pp in zip(np.concatenate([y_tr, y_ph[co_muc]]), np.concatenate([a_tr, a_ph[co_muc]])):
@@ -177,7 +161,6 @@ def cmd_bang(a):
     d1 = 100 * (u["tc1_macro_trang"] - b["tc1_macro_trang"])
     dat1, dat2, dat3 = d1 >= 1.0, u["tc2_sai_tu_tin_cong3"] <= b["tc2_sai_tu_tin_cong3"], u["tc3_cot_can_xem"] <= b["tc3_cot_can_xem"] + 1e-12
     kq["ket_luan"] = {"tc1_chenh_diem": round(d1, 3), "tc1_dat": dat1, "tc2_dat": dat2, "tc3_dat": dat3, "dat_ca_ba": dat1 and dat2 and dat3}
-    # kiểm định dấu cặp theo ô (cộng 3 seed): ô baseline đúng / ad1 sai so với ngược lại
     bd = np.concatenate([kq["theo_seed"][f"baseline|{s}"]["dung_tung_o"] for s in SEEDS])
     ud = np.concatenate([kq["theo_seed"][f"ad1|{s}"]["dung_tung_o"] for s in SEEDS])
     n10, n01 = int((bd & ~ud).sum()), int((~bd & ud).sum())
@@ -187,7 +170,6 @@ def cmd_bang(a):
         v.pop("dung_tung_o")
     AD.mkdir(parents=True, exist_ok=True)
     (AD / "ket_qua.json").write_text(json.dumps(kq, ensure_ascii=False, indent=1), encoding="utf-8")
-    # bảng
     dong = ["| Số đo | baseline | ad1 | Tiêu chí |", "|---|---|---|---|",
             f"| (1) Độ đúng trang D, macro 5 người, TB 3 seed | {100 * b['tc1_macro_trang']:.2f}% | {100 * u['tc1_macro_trang']:.2f}% | "
             f"chênh {d1:+.2f} điểm, cần ≥ +1,00 → {'ĐẠT' if dat1 else 'KHÔNG ĐẠT'} |",
@@ -215,7 +197,6 @@ def cmd_bang(a):
     print("\n".join(dong))
 
 
-# ------------------------------------------------------------------------------------------- xuất (chỉ khi đạt)
 def cmd_xuat(a):
     import xuat_ocr as X
     kq = json.loads((AD / "ket_qua.json").read_text(encoding="utf-8"))
@@ -227,7 +208,7 @@ def cmd_xuat(a):
     sd = 2026
     pre = tien_huan_luyen("ad1", sd, {})
     m = H.huan_luyen_cnn(x, y, C.FT["epochs"], C.FT["lr"], sd, mo_hinh=copy.deepcopy(pre), batch=C.FT["batch"])
-    p_tr, _, T = xac_suat("ad1", sd, t)                    # T, τ, δ từ OOF của chính seed này (như xuat_ocr.py)
+    p_tr, _, T = xac_suat("ad1", sd, t)
     ng = L.chon_nguong(p_tr, y)
     tau, delta = (ng[1], ng[2]) if ng else (0.9999, 0.99)
     out = {"phien_ban": "ocr_cnn_v1", "kien_truc": "Conv16(3x3)-pool-Conv32(3x3)-pool-Dense64-Dense10, ReLU, padding 1",
