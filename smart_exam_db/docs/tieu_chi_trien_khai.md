@@ -58,3 +58,19 @@ Không sửa `cv_engine/`, `models/`, `backend/service.py`, `backend/schemas.py`
 | W7 | pytest toàn bộ ≥ 713 đạt + test mới đạt (bỏ `PUBLIC_BASE_URL` trước khi chạy); `kiem_truoc_demo` 0 KHÔNG ĐẠT. |
 
 Báo cáo phải nêu rõ những gì CHƯA thử (ví dụ: chưa nạp vào CSDL công khai thật, chưa thử trên Render).
+
+
+---
+
+# Mục AY – Lệnh AY: `chay_demo.py xla` chạy HỆ THỐNG THẬT (18/11/2026, nhánh `xla-he-thong` từ `main` @ `4931558`)
+
+Đăng ký TRƯỚC khi sửa mã; không đổi sau khi thấy kết quả. Không sửa `cv_engine/`, `models/`, `backend/service.py`, `backend/schemas.py`.
+
+| Mã | Tiêu chí |
+|---|---|
+| Y1 | `chay_demo.py xla`: kiểm nhánh git + SHA mô hình như cũ; đặt lại (có sao lưu) phiếu của RIÊNG kỳ thi `[XLA]`; khởi động server FastAPI như `dacn`; mở trình duyệt vào `http://127.0.0.1:8000/app/`; in hướng dẫn ngắn chỉ gồm: đăng nhập, chọn kỳ `[XLA]`, "Tải ảnh & chấm", tải BV01, đọc điểm tạm và câu "cần xem". Không đặt lại `[ĐACN]`, `[ML]`. |
+| Y2 | Công cụ ngoại tuyến cổng 8765 KHÔNG bị xoá: giữ làm lệnh `chay_demo.py xla-cong-cu` (hành vi cũ của `xla`). |
+| Y3 | Giữ nguyên `--chi-in`, `--khong-dat-lai`, `--khong-mo`, `--cong N`; `dacn` và `ml` không đổi hành vi. |
+| Y4 | Cập nhật `docs/huong_dan_chay_3_demo.md` (mô tả lại `xla`; chỗ ghi "nhánh `cnn-sau`" thành `main`) và bảng ba lệnh trong `README.md`. |
+| Y5 | Test mới cho nhánh `xla` (chạy `--chi-in`, không chạm `[ĐACN]` / `[ML]`, `xla-cong-cu` còn tồn tại); pytest toàn bộ ≥ 729 đạt + test mới; `kiem_truoc_demo` 0 KHÔNG ĐẠT. |
+| Y6 | Chạy thật `chay_demo.py xla --khong-mo`; `/health` 200 và `/app/` 200 (lấy bằng lệnh); rồi tắt server. |

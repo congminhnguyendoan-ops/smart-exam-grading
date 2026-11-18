@@ -41,12 +41,13 @@ Chạy từ thư mục `smart_exam_db\`, trên máy đã cài môi trường (Po
 
 | Lệnh | Là gì | Địa chỉ | CSDL, đăng nhập |
 |---|---|---|---|
-| `python tools/chay_demo.py xla` | **Công cụ ngoại tuyến riêng** (không phải hệ thống chính): chọn ảnh phiếu, xem từng bước nắn ảnh → OMR → CNN → đối chiếu hai kênh → điểm tạm. Chỉ nghe ở máy này; ảnh tải lên ở thư mục tạm và bị xoá ngay | `http://127.0.0.1:8765/` | Không cần CSDL, không đăng nhập (chỉ *cố* đặt lại kỳ `[XLA] Xử lý ảnh` nếu nối được CSDL) |
+| `python tools/chay_demo.py xla` | **Hệ thống thật** cho buổi xử lý ảnh: khởi động server FastAPI (như `dacn`), đặt lại riêng kỳ `[XLA] Xử lý ảnh`; đăng nhập, tải BV01 vào kỳ đó, đọc điểm tạm và các câu "cần xem" | `http://127.0.0.1:8000/app/` | **Cần CSDL và đăng nhập**; dừng nếu không đặt lại được kỳ `[XLA]` |
+| `python tools/chay_demo.py xla-cong-cu` | **Công cụ ngoại tuyến riêng** (không phải hệ thống chính): chọn ảnh phiếu, xem từng bước nắn ảnh → OMR → CNN → đối chiếu hai kênh → điểm tạm. Chỉ nghe ở máy này; ảnh tải lên ở thư mục tạm và bị xoá ngay | `http://127.0.0.1:8765/` | Không cần CSDL, không đăng nhập (chỉ *cố* đặt lại kỳ `[XLA] Xử lý ảnh` nếu nối được CSDL) |
 | `python tools/chay_demo.py ml` | **Trang HTML tĩnh** tổng hợp kết quả máy học (dữ liệu, mô hình, so sánh thuật toán, giới hạn), có phần chạy CNN thật trên ô phiếu dev; không có máy chủ | tệp `data\_eval\demo_3_phien\may_hoc_chay_demo.html` | Không cần CSDL, không đăng nhập (chỉ *cố* đặt lại kỳ `[ML] Máy học` nếu nối được) |
 | `python tools/chay_demo.py dacn` | **Hệ thống thật**: khởi động server FastAPI (như `tools/chay_server_lan.py`, dọn ảnh tạm tắt) cùng một trang "Lý thuyết các môn"; đăng nhập, tải ảnh vào kỳ `[ĐACN] Đồ án chuyên ngành`, duyệt, bảng điểm, xuất Excel, phân quyền theo lớp, trang quản trị | `http://127.0.0.1:8000/` | **Cần CSDL và đăng nhập**; dừng nếu không đặt lại được kỳ `[ĐACN]`. Mật khẩu tài khoản demo không nằm trong git: tự đặt bằng `python -m backend.tai_khoan dat-lai-mat-khau` |
 
 Ba kỳ thi `[XLA]`, `[ML]`, `[ĐACN]` được nạp vào CSDL bằng `python tools/nap_bo_demo.py --ba-mon --ap-dung`. Ảnh phiếu demo BV01–BV10 và các ảnh thử nằm trong `data/` (không có trong repo): sinh lại ảnh BV bằng `python tools/thu_bo_demo.py xuat`.
-Tuỳ chọn chung: `--chi-in` (chỉ kiểm tra và in hướng dẫn), `--khong-dat-lai`, `--khong-mo`, `--cong N`. Chạy server cho điện thoại (trang `/m`): `python tools/chay_server_lan.py`.
+Tuỳ chọn chung: `--chi-in` (chỉ kiểm tra và in hướng dẫn), `--khong-dat-lai`, `--khong-mo`, `--cong N`. Cổng mặc định: `xla` và `dacn` 8000, `xla-cong-cu` 8765. Chạy server cho điện thoại (trang `/m`): `python tools/chay_server_lan.py`.
 
 ## Chạy kiểm thử
 

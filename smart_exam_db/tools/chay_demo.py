@@ -1,7 +1,8 @@
 """
 chay_demo.py - Lệnh AP (16/11/2026): MỘT LỆNH cho mỗi buổi demo theo môn.
 
-  python tools/chay_demo.py xla     # Xử lý ảnh: công cụ đơn giản (không đăng nhập, không CSDL): chọn ảnh phiếu -> từng bước xử lý ảnh, câu cần xem + lý do, điểm tạm, CNN là gì
+  python tools/chay_demo.py xla     # Xử lý ảnh: HỆ THỐNG THẬT (cổng 8000, đăng nhập, kỳ [XLA]): tải BV01 -> điểm tạm + câu cần xem (như dacn nhưng kỳ [XLA], vào /app/)
+  python tools/chay_demo.py xla-cong-cu  # công cụ NGOẠI TUYẾN cổng 8765 (không đăng nhập, không CSDL): từng bước xử lý ảnh, CNN là gì (hành vi cũ của xla)
   python tools/chay_demo.py ml      # Máy học: dựng + mở trang demo_may_hoc (dữ liệu, lý thuyết CNN / CNN sâu, hai cấu trúc + mã, 11 thuật toán, chạy trực tiếp)
   python tools/chay_demo.py dacn    # Đồ án chuyên ngành: mở máy chủ như chay_server_lan.py (đăng nhập, kỳ [ĐACN], tải ảnh, duyệt, điểm, báo cáo) + trang "lý thuyết các môn"
 
@@ -35,8 +36,10 @@ sys.path.insert(0, str(ROOT / "tools"))
 NHANH_DUNG = ("main", "cnn-sau", "trien-khai")       # CNN sâu có trên cả ba (gộp lệnh AS, nhánh lệnh AU); điều quyết định là SHA mô hình
 SHA_MO_HINH_OCR = "a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8"       # CNN sâu (lệnh AN)
 XAC_NHAN = "DAT_LAI"
-CHE_DO = ("xla", "ml", "dacn")
-CONG_XLA, CONG_DACN = 8765, 8000
+CHE_DO = ("xla", "xla-cong-cu", "ml", "dacn")
+KY_THI_CUA = {"xla": "xla", "xla-cong-cu": "xla", "ml": "ml", "dacn": "dacn"}       # chế độ -> khoá kỳ thi trong dat_lai_demo.KY_THI_BA_MON (xla-cong-cu cũng chỉ đụng kỳ [XLA])
+CHE_DO_HE_THONG = ("xla", "dacn")                                                  # chạy server FastAPI thật, bắt buộc có CSDL
+CONG_XLA, CONG_DACN = 8765, 8000                    # CONG_XLA = cổng công cụ ngoại tuyến (xla-cong-cu); xla (hệ thống thật) dùng CONG_DACN
 RA = ROOT / "data" / "_eval" / "demo_3_phien"
 ANH_BV = ROOT / "data" / "_eval" / "demo_bv" / "anh_gia"
 ANH_THEM = [("T05_thuong.JPG", "ảnh chụp THẬT, chữ viết tay thật"), ("T03_kho.JPG", "ảnh chụp THẬT, điều kiện khó"),
@@ -90,6 +93,14 @@ def dat_lai(che_do: str, in_ra=print) -> bool:
 def huong_dan(che_do: str, url: str, url_phu: str = "") -> list[str]:
     """8–10 dòng 'bấm gì, nói gì'."""
     if che_do == "xla":
+        return [f"1. Trang {url} đã mở. ĐĂNG NHẬP gv_an (mật khẩu do bạn đặt, docs/chay_server_va_tai_khoan.md mục 3).",
+                "2. Chọn kỳ thi '[XLA] Xử lý ảnh' (0 phiếu).",
+                "3. Bấm 'Tải ảnh & chấm'.",
+                "4. Chọn BV01 trong data\\_eval\\demo_bv\\anh_gia rồi tải lên. NÓI: ảnh → nắn → OMR + CNN → chấm.",
+                "5. Đọc ĐIỂM TẠM của BV01 trong danh sách phiếu. NÓI: điểm tạm chưa phải điểm chính thức.",
+                "6. Mở phiếu: đọc các câu 'cần xem' và LÝ DO. NÓI: câu không chắc không bao giờ được chấm tự động.",
+                "7. Dừng: Ctrl+C ở cửa sổ này. Muốn làm lại từ đầu: chạy lại lệnh (tự đặt lại kỳ [XLA] về 0 phiếu)."]
+    if che_do == "xla-cong-cu":
         return [f"1. Trang {url} đã mở: 'Chọn ảnh phiếu'. NÓI: công cụ này chạy ngoại tuyến, đúng hàm của hệ thống, không đăng nhập, không CSDL.",
                 "2. BẤM BV01 (phiếu tốt). Cuộn bước 1–4: ảnh gốc → độ mờ → 4 góc → nắn về A4. NÓI: máy tìm 4 ô vuông đen rồi nắn phiếu về khung chuẩn.",
                 "3. Cuộn bước 4b và 5: chuẩn hoá ánh sáng (bỏ bóng) và lưới ô. NÓI: nhờ lưới, toạ độ mọi ô biết trước; giấy cong thì dò lại từng hàng.",
@@ -298,9 +309,10 @@ def may_chu_dang_chay(cong: int, cho_s: float = 0.0, hoi=urllib.request.urlopen)
         time.sleep(0.5)
 
 
-def chay_dacn(cong: int, mo: bool, mo_trinh_duyet=webbrowser.open, mo_tien_trinh=subprocess.Popen, hoi=urllib.request.urlopen, cho_s: float = 60.0) -> int:
-    lt = dung_ly_thuyet()
-    url = f"http://127.0.0.1:{cong}/"
+def chay_dacn(cong: int, mo: bool, mo_trinh_duyet=webbrowser.open, mo_tien_trinh=subprocess.Popen, hoi=urllib.request.urlopen, cho_s: float = 60.0, che_do: str = "dacn") -> int:
+    """che_do = 'xla' (lệnh AY): cùng máy chủ thật nhưng mở /app/ và KHÔNG dựng trang 'Lý thuyết các môn'."""
+    lt = dung_ly_thuyet() if che_do == "dacn" else None
+    url = f"http://127.0.0.1:{cong}/" if che_do == "dacn" else f"http://127.0.0.1:{cong}/app/"
     proc = None
     if may_chu_dang_chay(cong, 0.0, hoi):
         print(f"(đã có máy chủ chạy ở cổng {cong} – dùng lại; nếu vừa đổi mã hãy tắt rồi chạy lại lệnh này)")
@@ -312,11 +324,12 @@ def chay_dacn(cong: int, mo: bool, mo_trinh_duyet=webbrowser.open, mo_tien_trinh
             if proc is not None:
                 proc.terminate()
             return 1
-    for d in huong_dan("dacn", url):
+    for d in huong_dan(che_do, url):
         print(d)
     if mo:
         mo_trinh_duyet(url)
-        mo_trinh_duyet(lt.resolve().as_uri())
+        if lt is not None:
+            mo_trinh_duyet(lt.resolve().as_uri())
     if proc is None:
         return 0
     try:
@@ -348,27 +361,27 @@ def main(argv: list[str] | None = None) -> int:
     if sai and not a.bo_qua_kiem_tra:
         print("DỪNG: kiểm tra nhánh / mô hình không đạt (thêm --bo-qua-kiem-tra nếu chỉ muốn thử).")
         return 2
-    cong = a.cong or (CONG_XLA if a.che_do == "xla" else CONG_DACN)
+    cong = a.cong or (CONG_XLA if a.che_do == "xla-cong-cu" else CONG_DACN)
     if a.chi_in:
-        url = {"xla": f"http://127.0.0.1:{cong}/", "ml": str((RA / "may_hoc_chay_demo.html").resolve().as_uri()), "dacn": f"http://127.0.0.1:{cong}/"}[a.che_do]
+        url = {"xla": f"http://127.0.0.1:{cong}/app/", "xla-cong-cu": f"http://127.0.0.1:{cong}/", "ml": str((RA / "may_hoc_chay_demo.html").resolve().as_uri()), "dacn": f"http://127.0.0.1:{cong}/"}[a.che_do]
         print("(--chi-in: không đặt lại, không mở máy chủ, không mở trình duyệt)")
         for d in huong_dan(a.che_do, url):
             print(d)
         return 0
     if not a.khong_dat_lai:
-        print(f"Đặt lại dữ liệu kỳ thi '{__import__('dat_lai_demo').KY_THI_BA_MON[a.che_do]}' (sao lưu rồi xoá phiếu của ĐÚNG kỳ này):")
-        ok = dat_lai(a.che_do)
-        if not ok and a.che_do == "dacn":
-            print("DỪNG: chế độ dacn cần CSDL và kỳ thi sạch. Kiểm PostgreSQL / .env, hoặc chạy: python tools/nap_bo_demo.py --ba-mon --ap-dung")
+        print(f"Đặt lại dữ liệu kỳ thi '{__import__('dat_lai_demo').KY_THI_BA_MON[KY_THI_CUA[a.che_do]]}' (sao lưu rồi xoá phiếu của ĐÚNG kỳ này):")
+        ok = dat_lai(KY_THI_CUA[a.che_do])
+        if not ok and a.che_do in CHE_DO_HE_THONG:
+            print(f"DỪNG: chế độ {a.che_do} cần CSDL và kỳ thi sạch. Kiểm PostgreSQL / .env, hoặc chạy: python tools/nap_bo_demo.py --ba-mon --ap-dung")
             return 1
         if not ok:
             print(f"   (chế độ {a.che_do} không ghi CSDL nên vẫn chạy tiếp)")
     mo = not a.khong_mo
-    if a.che_do == "xla":
+    if a.che_do == "xla-cong-cu":
         return chay_xla(cong, mo)
     if a.che_do == "ml":
         return chay_ml(mo, a.da_tinh_san)
-    return chay_dacn(cong, mo)
+    return chay_dacn(cong, mo, che_do=a.che_do)
 
 
 if __name__ == "__main__":

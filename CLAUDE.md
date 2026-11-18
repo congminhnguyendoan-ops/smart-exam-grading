@@ -517,6 +517,11 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - Đặt lại giữa các buổi: `dat_lai_demo.py --ky-thi xla|ml|dacn [--xac-nhan DAT_LAI]`; trong container cần `-e SAO_LUU_DIR=/app/storage/sao_luu` (biến mới của `don_du_lieu_test.py`, mặc định không đổi). `tools/nap_demo_cong_khai.py`, `dat_lai_demo.py`, `don_du_lieu_test.py` được `.dockerignore` cho phép vào image.
 - pytest 729 đạt + 1 skip. **CHƯA thử trong container Docker** (engine không chạy 18/11), chưa nạp vào CSDL công khai thật; ảnh BV01–BV10 không nằm trong image / git. Chi tiết: `docs/trien_khai_public.md` mục 2 (bước 4b) và 9b.
 
+### 4y. Lệnh AY – `chay_demo.py xla` chạy HỆ THỐNG THẬT (18/11/2026; nhánh `xla-he-thong`, đã gộp `main`; tag `main-truoc-gop-xla-18-11` = trước gộp)
+- `python tools/chay_demo.py xla`: kiểm nhánh + SHA mô hình → đặt lại (có sao lưu) RIÊNG kỳ `[XLA]` → khởi động server như `dacn` (`chay_server_lan.py`, dọn ảnh tạm TẮT) → mở `http://127.0.0.1:8000/app/` (một tab, không có "Lý thuyết các môn") → in 7 dòng: đăng nhập, chọn kỳ `[XLA]`, "Tải ảnh & chấm", BV01, điểm tạm, câu "cần xem". **Cần CSDL + đăng nhập**; không đặt lại được → dừng (như `dacn`). Không đụng `[ĐACN]` / `[ML]`.
+- `python tools/chay_demo.py xla-cong-cu` = công cụ ngoại tuyến cổng 8765 cũ (không đăng nhập, không CSDL; chỉ *cố* đặt lại `[XLA]`). `ml`, `dacn` và các cờ `--chi-in` / `--khong-dat-lai` / `--khong-mo` / `--cong N` không đổi; cổng mặc định `xla` = `dacn` = 8000. Mã: `CHE_DO`, `KY_THI_CUA`, `CHE_DO_HE_THONG`, `chay_dacn(..., che_do=)` trong `tools/chay_demo.py`.
+- Kiểm: pytest 739 đạt + 1 skip; `kiem_truoc_demo` 0 KHÔNG ĐẠT; chạy thật trên cổng 8011 (cổng 8000 đang có server của người dùng, không đụng): `/health` 200, `/app/` 200, rồi tắt. **CHƯA nhìn bằng mắt giao diện, CHƯA đăng nhập + tải BV01 qua lệnh này** (cần mật khẩu `gv_an`); chạy trên nhánh `xla-he-thong` phải thêm `--bo-qua-kiem-tra` (tên nhánh không nằm trong `NHANH_DUNG`).
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
