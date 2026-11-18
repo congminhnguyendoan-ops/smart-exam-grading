@@ -504,6 +504,12 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
   Công cụ: `tools/av_thu_container.py bv|ram` (lái bản đang chạy qua HTTP, mật khẩu admin qua `AV_ADMIN_PW`).
 - Việc chưa làm: pool kết nối, rate limit toàn cục, khoá batch cùng tệp, ép đổi mật khẩu, dọn `revoked_tokens`, nhập thí sinh qua web.
 
+### 4w. Lệnh AW – gộp `trien-khai` vào `main` (18/11/2026)
+- **`main` = bản công khai (T1–T10 + AV): Docker + Caddy, `render.yaml`, giới hạn tải lên, `MOI_TRUONG=production`, đổi mật khẩu DB cục bộ.** Gộp `--no-ff` (`88466dd`), không xung đột; `git diff trien-khai main` rỗng.
+  Tag: `main-truoc-gop-trien-khai-17-11` (main cũ `f812cb2`), `ban-trien-khai-17-11` (`a548e02`), đã push. Quay lại: `git checkout main-truoc-gop-trien-khai-17-11`; KHÔNG force push `main`.
+- Sau gộp: pytest **713 đạt + 1 skip** (cần `Remove-Item Env:PUBLIC_BASE_URL`); `kiem_truoc_demo` 27 đạt, 1 cảnh báo (`PUBLIC_BASE_URL`), 0 KHÔNG ĐẠT; `chay_demo dacn --chi-in` đạt.
+- Phần 2 (nạp dữ liệu demo cho DB công khai) làm trên nhánh `nap-demo-cong-khai`, tiêu chí W1–W7 ở `docs/tieu_chi_trien_khai.md` mục AW; CHƯA gộp `main`.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
