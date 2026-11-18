@@ -38,3 +38,23 @@ Báo cáo kết quả phải nêu rõ những gì CHƯA thử thật (ví dụ: 
 | V8 | `render.yaml` (web Docker gói Starter, 1 worker, đĩa bền gắn `STORAGE_DIR`, health check `/health`; 1 Postgres) + mục Render trong `docs/trien_khai_public.md` (biến phải đặt, cách chạy không Caddy, `--workers 1` cố định). `DATABASE_URL` dạng `postgres://` của Render phải chạy với psycopg (không thì chuẩn hoá trong cấu hình, kèm test). Ghi rõ CHƯA thử trên Render thật. |
 | V9 | Mật khẩu role `smart_exam_app` cục bộ: sinh ngẫu nhiên 24 ký tự, `ALTER ROLE`, cập nhật `.env` cục bộ, KHÔNG in mật khẩu ra màn hình / log / báo cáo; tìm mọi chỗ khác đọc mật khẩu cũ và báo cáo; mật khẩu cũ bị từ chối; server cục bộ khởi động và chấm 1 phiếu. Thiếu quyền → DỪNG, đưa lệnh cho người dùng. |
 | V10 | pytest toàn bộ ≥ 698 đạt + test mới; `kiem_truoc_demo` 0 KHÔNG ĐẠT (cây làm việc sạch trước khi chạy). |
+
+
+---
+
+# Mục AW – Lệnh AW phần 2: nạp dữ liệu demo cho CSDL công khai (18/11/2026, nhánh `nap-demo-cong-khai`)
+
+Đăng ký TRƯỚC khi làm; không đổi sau khi thấy kết quả. Phần 1 (gộp `trien-khai` vào `main`) đã xong và xanh (713 đạt, `kiem_truoc_demo` 0 KHÔNG ĐẠT).
+Không sửa `cv_engine/`, `models/`, `backend/service.py`, `backend/schemas.py`. Phần 2 CHƯA gộp `main` cho tới khi W1–W7 đạt và người dùng duyệt.
+
+| Mã | Tiêu chí |
+|---|---|
+| W1 | `tools/nap_demo_cong_khai.py`: idempotent, chạy trên CSDL đã khởi tạo bằng `khoi_tao_db_san_xuat`. Mặc định XEM TRƯỚC (giao dịch chỉ đọc, không ghi). GHI chỉ khi có `--xac-nhan NAP_DEMO_CONG_KHAI`. Luôn in đích nạp (host + tên CSDL từ `DATABASE_URL`, KHÔNG in người dùng / mật khẩu / cổng) trước mọi thao tác. |
+| W2 | Nội dung: lớp, sinh viên, môn, kỳ thi của 3 demo (`[XLA] Xử lý ảnh`, `[ML] Máy học`, `[ĐACN] Đồ án chuyên ngành`; tiêu đề trùng `nap_bo_demo.BA_MON` và `dat_lai_demo.KY_THI_BA_MON`; 40 câu, mã đề 101–104, đáp án trùng `demo_bv_dap_an.csv`). Mọi sinh viên là dữ liệu GIẢ: in ra họ tên + MSSV (= SBD) từng người; người dùng xác nhận không có tên / mã thật. Không chắc một bản ghi giả hay thật → DỪNG và hỏi. |
+| W3 | Tài khoản: 1 admin + 2 giáo viên, tên do tham số (`--admin`, `--giao-vien A B`); từ chối `admin`, `gv_an`, `gv_binh`, `sv220001` (không phân biệt hoa thường) và tên trùng nhau. Mật khẩu ngẫu nhiên ≥ 16 ký tự, in MỘT lần ra màn hình, không ghi log / tệp; tài khoản đã có thì GIỮ NGUYÊN (không đổi mật khẩu, không in). Không tạo tài khoản sinh viên. |
+| W4 | Không nạp ảnh bài làm, không đọc `data/`; kỳ thi 0 phiếu. |
+| W5 | Thử trên CSDL tạm (compose tạm hoặc schema tạm) rồi dọn sạch: nạp xong đăng nhập được bằng tài khoản mới; tải ảnh BV01 lên kỳ thi XLA → ghép đúng SBD 220001, điểm **9,5**; chạy lần 2 không thêm bản ghi nào (đếm từng bảng trước / sau). Có test. |
+| W6 | `docs/trien_khai_public.md`: bước "nạp dữ liệu demo" đúng thứ tự (db → khởi tạo → nạp demo → app) + cách đặt lại demo giữa các lần trình bày (`dat_lai_demo.py --ky-thi`), nếu không chạy được trên CSDL công khai thì nêu rõ. |
+| W7 | pytest toàn bộ ≥ 713 đạt + test mới đạt (bỏ `PUBLIC_BASE_URL` trước khi chạy); `kiem_truoc_demo` 0 KHÔNG ĐẠT. |
+
+Báo cáo phải nêu rõ những gì CHƯA thử (ví dụ: chưa nạp vào CSDL công khai thật, chưa thử trên Render).
