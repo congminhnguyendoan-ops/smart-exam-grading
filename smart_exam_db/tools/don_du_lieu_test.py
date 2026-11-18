@@ -16,6 +16,7 @@ import argparse
 import csv
 import io
 import json
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -26,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 
 PHAM_VI = (1632, 1633)
 DAU_KY_THI_TEST = ("[DEMO", "[THU")             # kỳ thi ngoài phạm vi mặc định chỉ được xoá phiếu qua --ids khi tên có dấu này
-THU_MUC_SAO_LUU = ROOT / "data" / "_eval" / "sao_luu_don_du_lieu"
+THU_MUC_SAO_LUU = Path(os.environ["SAO_LUU_DIR"]) if os.environ.get("SAO_LUU_DIR") else ROOT / "data" / "_eval" / "sao_luu_don_du_lieu"   # Lệnh AW: image công khai không ghi được vào data/ -> đặt SAO_LUU_DIR (vd /app/storage/sao_luu)
 # thứ tự xoá (con trước, cha sau); results có FK KHÔNG cascade, score_audit_logs cascade theo results nhưng xoá tường minh để đếm
 BANG_XOA = ("score_audit_logs", "results", "ocr_digits", "sheet_answers", "review_queue", "answer_sheets")
 SQL_DEM = {

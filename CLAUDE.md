@@ -508,7 +508,7 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - **`main` = bản công khai (T1–T10 + AV): Docker + Caddy, `render.yaml`, giới hạn tải lên, `MOI_TRUONG=production`, đổi mật khẩu DB cục bộ.** Gộp `--no-ff` (`88466dd`), không xung đột; `git diff trien-khai main` rỗng.
   Tag: `main-truoc-gop-trien-khai-17-11` (main cũ `f812cb2`), `ban-trien-khai-17-11` (`a548e02`), đã push. Quay lại: `git checkout main-truoc-gop-trien-khai-17-11`; KHÔNG force push `main`.
 - Sau gộp: pytest **713 đạt + 1 skip** (cần `Remove-Item Env:PUBLIC_BASE_URL`); `kiem_truoc_demo` 27 đạt, 1 cảnh báo (`PUBLIC_BASE_URL`), 0 KHÔNG ĐẠT; `chay_demo dacn --chi-in` đạt.
-- Phần 2 (nạp dữ liệu demo cho DB công khai) làm trên nhánh `nap-demo-cong-khai`, tiêu chí W1–W7 ở `docs/tieu_chi_trien_khai.md` mục AW; CHƯA gộp `main`.
+- Phần 2 (nạp dữ liệu demo cho DB công khai) làm trên nhánh `nap-demo-cong-khai`, tiêu chí W1–W7 ở `docs/tieu_chi_trien_khai.md` mục AW; CHƯA gộp `main`. Kết quả: `tools/nap_demo_cong_khai.py --admin QT --giao-vien GV1 GV2 [--xac-nhan NAP_DEMO_CONG_KHAI]` (mặc định xem trước; chỉ INSERT; tên cấm admin / gv_an / gv_binh / sv220001; mật khẩu 20 ký tự in một lần); 10 sinh viên GIẢ lấy từ `04_seed.sql`; đặt lại bằng `dat_lai_demo.py --ky-thi` (+ `SAO_LUU_DIR` trong container, MỚI). pytest 729 đạt + 1 skip. CHƯA thử trong container Docker thật, CHƯA nạp vào CSDL công khai thật.
 
 ## 5. Cài đặt và chạy
 

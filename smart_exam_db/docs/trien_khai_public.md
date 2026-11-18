@@ -44,8 +44,18 @@ docker compose run --rm --no-deps app python tools/khoi_tao_db_san_xuat.py --ap-
 #    ĐỪNG bật app trước bước này: backend CỐ Ý từ chối khởi động khi chưa có migration 006 (thấy trong log:
 #    "Chưa áp migration 006 …"); container sẽ khởi động lại liên tục cho tới khi CSDL được khởi tạo.
 
-# 4b) Danh sách thí sinh (xem mục 10: chưa có đường nhập qua web) – tối thiểu bảng students cần có SBD của thí sinh, vd:
-docker compose exec -T db psql -U smart_exam_app -d smart_exam -c "INSERT INTO students (student_code, full_name) VALUES ('220001', 'Họ tên');"
+# 4b) Dữ liệu demo (Lệnh AW) – TUỲ CHỌN, đúng thứ tự: db (3) -> khởi tạo (4) -> NẠP DEMO (4b) -> app (4c). CSDL phải đã khởi tạo ở bước 4.
+#     Nạp: 2 lớp, 10 sinh viên GIẢ (MSSV 220001–220010), 3 kỳ thi [XLA] / [ML] / [ĐACN] (40 câu, mã đề 101–104, 9 thí sinh dự thi, 0 phiếu),
+#     admin + 2 giáo viên do BẠN đặt tên (không dùng admin / gv_an / gv_binh / sv220001). KHÔNG có ảnh bài làm, KHÔNG có tài khoản sinh viên.
+#     Xem trước (mặc định, chỉ đọc; in đích nạp = host + tên CSDL và danh sách sinh viên):
+docker compose run --rm --no-deps app python tools/nap_demo_cong_khai.py --admin <quan_tri> --giao-vien <gv_mot> <gv_hai>
+#     Ghi thật (mật khẩu 20 ký tự của tài khoản MỚI in MỘT lần; chép ngay; chạy `run --rm`, KHÔNG chạy nền để đầu ra không nằm lại trong log container):
+docker compose run --rm --no-deps app python tools/nap_demo_cong_khai.py --admin <quan_tri> --giao-vien <gv_mot> <gv_hai> --xac-nhan NAP_DEMO_CONG_KHAI
+#     Chạy lại an toàn (không thêm dòng nào, không đổi / in lại mật khẩu). Nếu đã tạo admin ở bước 4 thì dùng CHÍNH tên đó cho --admin (giữ nguyên mật khẩu cũ).
+#     Giáo viên 1 phụ trách lớp CNTT-K22A và tạo cả 3 kỳ thi; giáo viên 2 phụ trách CNTT-K22B (không thấy kỳ thi của giáo viên 1: minh hoạ phân quyền theo lớp).
+#     Ảnh phiếu demo BV01–BV10 KHÔNG nằm trong image / git (data/ bị loại): lấy từ máy phát triển (data/_eval/demo_bv/anh_gia/, tạo bằng tools/thu_bo_demo.py tao-anh + xuat)
+#     rồi tự tải lên trong buổi trình bày. Muốn dùng danh sách thí sinh THẬT thay cho demo: bỏ qua bước này, nhập bằng SQL (mục 10), ví dụ:
+docker compose exec -T db psql -U smart_exam_app -d smart_exam -c "INSERT INTO students (student_code, full_name) VALUES ('<mssv>', '<họ tên>');"
 
 # 4c) Bật ứng dụng + proxy
 docker compose up -d app caddy
@@ -147,11 +157,26 @@ Sao lưu CSDL trước khi cập nhật.
 - Dung lượng ảnh mỗi phiếu: ước lượng (~0,8 MB mỗi ảnh gốc + ảnh nắn + 9 ô chữ số); volume thử có 649 tệp sau các lần thử (gồm ảnh gốc, ảnh nắn, ô chữ số).
 - Image dùng `python:3.14-slim` và `opencv-python-headless==5.0.0.93`: **ĐÃ build được** (lệnh AV) và cho điểm đúng bằng điểm kỳ vọng ở mọi phép thử.
 
+## 9b. Nạp và đặt lại dữ liệu demo (Lệnh AW)
+
+Nạp: bước 4b ở mục 2. Công cụ chỉ INSERT, mặc định xem trước, ghi cần `--xac-nhan NAP_DEMO_CONG_KHAI`; tài khoản / sinh viên / kỳ thi đã có mà khác dữ liệu demo thì DỪNG (không ghi đè).
+
+**Đặt lại giữa các lần trình bày** (xoá phiếu đã tải lên ở MỘT kỳ thi demo, về 0 phiếu; giữ lớp, sinh viên, dự thi, đáp án, tài khoản):
+```bash
+# xem trước (chỉ đọc)
+docker compose run --rm --no-deps -e SAO_LUU_DIR=/app/storage/sao_luu app python tools/dat_lai_demo.py --ky-thi xla
+# xoá thật: sao lưu CSV + ảnh vào volume storage/sao_luu, xoá trong MỘT giao dịch, hoàn tác nếu lệch số dòng
+docker compose run --rm --no-deps -e SAO_LUU_DIR=/app/storage/sao_luu app python tools/dat_lai_demo.py --ky-thi xla --xac-nhan DAT_LAI
+```
+`--ky-thi` nhận `xla` | `ml` | `dacn`; phạm vi là đúng MỘT kỳ thi tìm theo tiêu đề nguyên văn. `SAO_LUU_DIR` bắt buộc trong container (user `app` không ghi được vào `/app/data`).
+Đã thử đường này trên CSDL thật nhưng trong schema tạm (nạp → tải BV01 → đặt lại → 0 phiếu, 27 dự thi còn nguyên); **CHƯA thử bên trong container** (Docker engine không chạy khi làm lệnh AW).
+Không dùng `dat_lai_demo.py` KHÔNG tham số trên CSDL công khai: nó chỉ dành cho các kỳ thi id cố định của máy phát triển.
+
 ## 10. Việc đã biết, CHƯA làm (ngoài phạm vi lệnh AU / AV)
 
 | Việc | Hệ quả khi công khai |
 |---|---|
-| **Nhập danh sách thí sinh qua web** | Bản sạch KHÔNG có sinh viên và web không có chỗ nhập (bảng `students`). Chưa có sinh viên thì phiếu không ghép được SBD, không có điểm chính thức. Tạm thời nhập bằng SQL (bước 4b). **Phát hiện ở lệnh AV.** |
+| **Nhập danh sách thí sinh qua web** | (Demo: đã có `nap_demo_cong_khai.py`, mục 4b / 9b.) Bản sạch KHÔNG có sinh viên và web không có chỗ nhập (bảng `students`). Chưa có sinh viên thì phiếu không ghép được SBD, không có điểm chính thức. Tạm thời nhập bằng SQL (bước 4b). **Phát hiện ở lệnh AV.** |
 | Pool kết nối CSDL (AH #7) | mỗi yêu cầu mở một kết nối mới; tải cao tốn thời gian / kết nối |
 | Rate limit toàn cục | chỉ có khoá đăng nhập theo (tên, IP) và giới hạn chấm; các API khác chưa giới hạn tần suất (Caddy chỉ giới hạn kích thước thân) |
 | Batch cùng tệp (R2 không phủ `/sheets/batch`) | cùng một ảnh trong hai lô đồng thời có thể lỗi; giao diện không dùng endpoint này |
