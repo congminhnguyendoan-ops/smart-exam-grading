@@ -1,4 +1,3 @@
-"""Lệnh U: tools/sao_luu_demo.py – tách DATABASE_URL, lệnh pg_dump / pg_restore KHÔNG chứa mật khẩu."""
 import sys
 from pathlib import Path
 

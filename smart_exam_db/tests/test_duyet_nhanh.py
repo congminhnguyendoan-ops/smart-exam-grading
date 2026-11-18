@@ -1,17 +1,12 @@
-"""Lệnh AF (01/11/2026): duyệt nhanh – POST /sheets/{id}/questions/confirm-remaining + GET /exams/{id}/review-groups.
-CSDL thật trong giao dịch ROLLBACK (conftest.py). Bất biến kiểm: mỗi câu đi qua đúng đường xác nhận từng câu (kết quả TRÙNG KHÍT với bấm từng câu);
-SBD / mã đề không bao giờ bị đụng; danh sách câu lệch -> 409 và không ghi gì; câu vi_tri không được xác nhận nhanh; có một dòng nhật ký; phân quyền.
-Lệnh AF2: hàng loạt CHỈ cho câu nhieu_o / to_nhat -> ảnh thử đổi từ 0002_C2 (toàn câu mờ, nay không còn câu hợp lệ) sang BV07 (tô nhạt cả tờ,
-40 câu to_nhat); hang_loat() mặc định gửi đúng danh sách câu HỢP LỆ (như giao diện); câu vi_tri trong lô -> 422 (trước 409). Test riêng AF2: test_duyet_nhanh_af2.py."""
 import pytest
 
 from conftest import can_file
 from test_backend_api import ROOT, can_anh, dem_results, giai_quyet_het, tai, tao_de, them_sv
 from test_dang_nhap import bang_moi, client_on, the_gioi  # noqa: F401  (fixture)
 
-ANH_OK = ROOT / "data" / "_eval" / "demo_bv" / "anh_gia" / "BV07.jpg"   # BV07: SBD / mã đề chắc, 40 câu cần xem chỉ vì to_nhat, không câu vi_tri
-ANH_SBD = "0001_C1"         # dev: SBD cần xem (cột 6 không tô bubble); câu cần xem: mờ + nhiều ô
-SBD_0002 = "220007"         # SBD của BV07 (tên biến giữ từ AF)
+ANH_OK = ROOT / "data" / "_eval" / "demo_bv" / "anh_gia" / "BV07.jpg"
+ANH_SBD = "0001_C1"
+SBD_0002 = "220007"
 HL = {"nhieu_o", "to_nhat"}
 
 
@@ -20,7 +15,6 @@ def can_xem(client, sid) -> list[int]:
 
 
 def can_xem_hl(client, sid) -> list[int]:
-    """Câu cần xem hợp lệ cho hàng loạt (AF2) – đúng danh sách giao diện gửi."""
     return [c["question_no"] for c in client.get(f"/sheets/{sid}/review-questions").json() if c["reasons"] and set(c["reasons"]) <= HL]
 
 
@@ -51,10 +45,9 @@ def phieu_ok(client, conn_thu):
     return eid, sid
 
 
-# ------------------------------------------------------------------------------------------------ kết quả = xác nhận từng câu
 def test_hang_loat_trung_khit_xac_nhan_tung_cau(client, conn_thu, phieu_ok):
     eid, sid = phieu_ok
-    eid2 = tao_de(client)                                       # cùng đề, cùng ảnh -> đường cũ: bấm "Xác nhận như máy đọc" từng câu
+    eid2 = tao_de(client)
     sid2 = tai_ok(client, eid2).json()["sheet_id"]
     ds = can_xem(client, sid)
     r = hang_loat(client, sid)
@@ -62,7 +55,7 @@ def test_hang_loat_trung_khit_xac_nhan_tung_cau(client, conn_thu, phieu_ok):
     j = r.json()
     assert j["da_xac_nhan"] == ds and j["con_chon_tay"] == [] and j["status"] == "graded" and j["official"] is not None
     v2 = giai_quyet_het(client, sid2)
-    assert cau_db(conn_thu, sid) == cau_db(conn_thu, sid2)                                     # từng câu ghi y như xác nhận thường
+    assert cau_db(conn_thu, sid) == cau_db(conn_thu, sid2)
     v = client.get(f"/sheets/{sid}").json()
     assert v["status"] == v2["status"] == "graded" and v["score"]["official"] == v2["score"]["official"]
     assert v["score"]["result_status"] == v2["score"]["result_status"] == "confirmed"
@@ -84,7 +77,6 @@ def test_ghi_mot_dong_nhat_ky_khong_du_lieu_ca_nhan(client, conn_thu, phieu_ok):
     assert SBD_0002 not in chu and "full_name" not in chu and "sv thử" not in chu and "password" not in chu
 
 
-# ------------------------------------------------------------------------------------------------ chặn
 def test_thieu_hoac_sai_confirm_422_khong_ghi_gi(client, conn_thu, phieu_ok):
     _, sid = phieu_ok
     truoc = cau_db(conn_thu, sid)
@@ -99,15 +91,14 @@ def test_danh_sach_lech_409_khong_ghi_gi(client, conn_thu, phieu_ok):
     _, sid = phieu_ok
     ds = can_xem(client, sid)
     truoc = cau_db(conn_thu, sid)
-    assert hang_loat(client, sid, ds[:-1]).status_code == 409                                   # thiếu một câu (màn hình cũ)
-    thua = next((n for n in range(1, 41) if n not in ds), 41)                                   # BV07: cả 40 câu đều cần xem -> câu 41 (không tồn tại)
-    assert hang_loat(client, sid, ds[1:] + [thua]).status_code == 409                           # có một câu không cần xem (giữ ≤ 40 phần tử)
-    assert hang_loat(client, sid, ds[:-1] + ds[:1]).status_code == 409                          # lặp (giữ ≤ 40 phần tử)
+    assert hang_loat(client, sid, ds[:-1]).status_code == 409
+    thua = next((n for n in range(1, 41) if n not in ds), 41)
+    assert hang_loat(client, sid, ds[1:] + [thua]).status_code == 409
+    assert hang_loat(client, sid, ds[:-1] + ds[:1]).status_code == 409
     assert cau_db(conn_thu, sid) == truoc
-    # ai đó vừa duyệt một câu -> danh sách màn hình cũ lệch -> 409
     assert client.post(f"/sheets/{sid}/questions/{ds[0]}/review", json={"action": "confirm"}).status_code == 200
     assert hang_loat(client, sid, ds).status_code == 409
-    assert hang_loat(client, sid).status_code == 200                                           # tải lại danh sách -> được
+    assert hang_loat(client, sid).status_code == 200
 
 
 def test_phieu_da_chot_409(client, phieu_ok):
@@ -121,16 +112,16 @@ def test_phieu_da_chot_409(client, phieu_ok):
 def test_cau_vi_tri_khong_xac_nhan_nhanh(client, conn_thu, phieu_ok):
     _, sid = phieu_ok
     ds = can_xem(client, sid)
-    n_tay = ds[0]                                                                               # giả lập: câu này cần xem vì vị trí
+    n_tay = ds[0]
     conn_thu.execute("UPDATE sheet_answers SET review_reasons = array_append(review_reasons, 'vi_tri') WHERE sheet_id = %s AND question_no = %s",
                      (sid, n_tay))
-    assert hang_loat(client, sid, ds).status_code == 422                                       # AF2: lô có câu vi_tri -> từ chối CẢ LÔ (422; AF: 409)
+    assert hang_loat(client, sid, ds).status_code == 422
     r = hang_loat(client, sid, ds[1:])
     assert r.status_code == 200, r.text
     j = r.json()
     assert j["da_xac_nhan"] == ds[1:] and j["con_chon_tay"] == [n_tay] and j["status"] == "needs_review" and j["official"] is None
     assert can_xem(client, sid) == [n_tay]
-    assert hang_loat(client, sid, [n_tay]).status_code == 422                                  # chỉ còn câu chọn tay: không xác nhận nhanh được (AF2: 422)
+    assert hang_loat(client, sid, [n_tay]).status_code == 422
 
 
 def test_khong_bao_gio_dung_sbd_ma_de(client, conn_thu):
@@ -141,26 +132,25 @@ def test_khong_bao_gio_dung_sbd_ma_de(client, conn_thu):
     assert v0["status"] == "needs_review" and v0["sbd"]["can_xem"]
     od0 = conn_thu.execute("SELECT detected_sbd, detected_exam_code, omr_detail FROM answer_sheets WHERE sheet_id = %s", (sid,)).fetchone()
     dg0 = conn_thu.execute("SELECT field, position, corrected_digit FROM ocr_digits WHERE sheet_id = %s ORDER BY field, position", (sid,)).fetchall()
-    con_tay = [n for n in can_xem(client, sid) if n not in can_xem_hl(client, sid)]               # AF2: câu mờ ở lại cho giáo viên
+    con_tay = [n for n in can_xem(client, sid) if n not in can_xem_hl(client, sid)]
     assert can_xem_hl(client, sid), "0001_C1 phải có câu 'nhiều ô'"
     r = hang_loat(client, sid)
     assert r.status_code == 200, r.text
-    assert r.json()["status"] == "needs_review" and r.json()["official"] is None                # SBD chưa chốt -> chưa có điểm chính thức
+    assert r.json()["status"] == "needs_review" and r.json()["official"] is None
     v = client.get(f"/sheets/{sid}").json()
     assert v["sbd"] == v0["sbd"] and v["exam_code"] == v0["exam_code"] and v["student"] == v0["student"]
     assert conn_thu.execute("SELECT detected_sbd, detected_exam_code, omr_detail FROM answer_sheets WHERE sheet_id = %s", (sid,)).fetchone() == od0
     assert conn_thu.execute("SELECT field, position, corrected_digit FROM ocr_digits WHERE sheet_id = %s ORDER BY field, position", (sid,)).fetchall() == dg0
     assert dem_results(conn_thu, sid) == 0
-    assert can_xem(client, sid) == con_tay                                                     # câu nhiều ô hết; câu mờ + SBD còn chờ giáo viên (AF: [])
+    assert can_xem(client, sid) == con_tay
 
 
 def test_ky_thi_dong_giong_xac_nhan_tung_cau(client, conn_thu, phieu_ok):
-    """Quy tắc hiện có (lệnh H): kỳ thi ĐÓNG vẫn duyệt được (chỉ chặn tải ảnh). Xác nhận hàng loạt theo đúng quy tắc đó."""
     eid, sid = phieu_ok
     conn_thu.execute("UPDATE exams SET status = 'closed' WHERE exam_id = %s", (eid,))
     ds = can_xem(client, sid)
-    assert client.post(f"/sheets/{sid}/questions/{ds[0]}/review", json={"action": "confirm"}).status_code == 200   # đường cũ: được
-    assert hang_loat(client, sid).status_code == 200                                                              # đường mới: như cũ
+    assert client.post(f"/sheets/{sid}/questions/{ds[0]}/review", json={"action": "confirm"}).status_code == 200
+    assert hang_loat(client, sid).status_code == 200
 
 
 def test_review_groups_chi_doc(client, conn_thu, phieu_ok):
@@ -175,7 +165,6 @@ def test_review_groups_chi_doc(client, conn_thu, phieu_ok):
     assert client.get("/exams/99999999/review-groups").status_code == 404
 
 
-# ------------------------------------------------------------------------------------------------ phân quyền (AUTH_MODE=on)
 def test_phan_quyen_hang_loat_va_nhom(the_gioi, conn_thu):
     can_file(ANH_OK)
     w = the_gioi
@@ -185,15 +174,15 @@ def test_phan_quyen_hang_loat_va_nhom(the_gioi, conn_thu):
     ds = [c["question_no"] for c in w.c.get(f"/sheets/{sid}/review-questions", headers=w.hA).json()]
     assert ds, "phiếu thử phải có câu cần xem"
     body = {"question_nos": ds, "confirm": True}
-    assert w.c.post(f"/sheets/{sid}/questions/confirm-remaining", json=body).status_code == 401                   # chưa đăng nhập
-    r = w.c.post(f"/sheets/{sid}/questions/confirm-remaining", headers=w.hB, json=body)                           # giáo viên lớp khác
+    assert w.c.post(f"/sheets/{sid}/questions/confirm-remaining", json=body).status_code == 401
+    r = w.c.post(f"/sheets/{sid}/questions/confirm-remaining", headers=w.hB, json=body)
     assert r.status_code == 404 and r.json()["detail"].startswith("Không có ")
-    assert w.c.post(f"/sheets/{sid}/questions/confirm-remaining", headers=w.hSv, json=body).status_code == 403     # sinh viên
+    assert w.c.post(f"/sheets/{sid}/questions/confirm-remaining", headers=w.hSv, json=body).status_code == 403
     assert w.c.get(f"/exams/{w.EA}/review-groups", headers=w.hB).status_code == 404
     assert w.c.get(f"/exams/{w.EA}/review-groups", headers=w.hSv).status_code == 403
-    assert [c["question_no"] for c in w.c.get(f"/sheets/{sid}/review-questions", headers=w.hA).json()] == ds      # bị chặn -> không đổi gì
+    assert [c["question_no"] for c in w.c.get(f"/sheets/{sid}/review-questions", headers=w.hA).json()] == ds
     assert w.c.get(f"/exams/{w.EA}/review-groups", headers=w.hA).status_code == 200
-    r = w.c.post(f"/sheets/{sid}/questions/confirm-remaining", headers=w.hA, json=body)                           # đúng giáo viên phụ trách
+    r = w.c.post(f"/sheets/{sid}/questions/confirm-remaining", headers=w.hA, json=body)
     assert r.status_code == 200, r.text
     assert r.json()["da_xac_nhan"] == ds
     nk = conn_thu.execute("SELECT actor_user_id FROM admin_audit_log WHERE action = 'xac_nhan_hang_loat' ORDER BY log_id DESC LIMIT 1").fetchone()

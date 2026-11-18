@@ -1,5 +1,3 @@
-"""Lệnh AF2 (01/11/2026): logic JS (node:test) + kiểm tệp tĩnh – nút hàng loạt chỉ nhiều ô / tô nhạt, giải thích câu mờ / vết,
-bẫy Tab + Esc trong hộp, trả tiêu điểm về nút mở hộp, role="dialog" + aria-modal. Không cần CSDL."""
 import re
 import shutil
 import subprocess
@@ -25,9 +23,9 @@ def _ham(js: str, ten: str, ket: str) -> str:
 
 def test_nut_va_giai_thich():
     f = _ham((FRONTEND / "app.js").read_text(encoding="utf-8"), "function khungNhanh", "const cauConLai")
-    assert "DuyetNhanh.nhanNutHangLoat(hl.duoc.length)" in f and "${nhan ? " in f                    # 0 câu hợp lệ -> không có nút
+    assert "DuyetNhanh.nhanNutHangLoat(hl.duoc.length)" in f and "${nhan ? " in f
     assert "Câu mờ / vết cần quyết định bằng mắt" in f and 'aria-haspopup="dialog"' in f
-    assert "Xác nhận tất cả" not in f                                                                 # nhãn cũ (AF) đã bỏ
+    assert "Xác nhận tất cả" not in f
 
 
 def test_hop_bay_tab_esc_tra_tieu_diem_aria():
@@ -36,5 +34,5 @@ def test_hop_bay_tab_esc_tra_tieu_diem_aria():
     assert 'setAttribute("aria-labelledby", "dlg-hl-h")' in f and 'setAttribute("aria-describedby", "dlg-hl-canh-bao")' in f
     assert 'document.addEventListener("keydown", phimHop, true)' in f and 'document.removeEventListener("keydown", phimHop, true)' in f
     assert "DuyetNhanh.phimHop(" in f
-    assert "const moTu = document.activeElement" in f and "moTu.isConnected ? moTu" in f                # đóng -> tiêu điểm về nút mở hộp
-    assert 'id="hl-ok" disabled' in f and '$("#hl-huy", dlg).focus()' in f                            # vẫn: khoá tới khi tích, Enter = Huỷ
+    assert "const moTu = document.activeElement" in f and "moTu.isConnected ? moTu" in f
+    assert 'id="hl-ok" disabled' in f and '$("#hl-huy", dlg).focus()' in f

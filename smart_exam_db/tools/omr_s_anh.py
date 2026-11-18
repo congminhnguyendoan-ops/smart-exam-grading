@@ -91,7 +91,6 @@ def md_that(s_anh, hang_ro, o_faint):
 
 
 def ve_gia(nen, vet, n_vet=None):
-    """Phiếu trắng: câu i (i < len(vet)) chỉ có 1 ô A ở xám vet[i]; các câu còn lại tô ô C ở xám `nen`. Trả (cau, ld_vet)."""
     L, mau = nap_layout("phieu"), omr.nap_mau()
     ans = L["answers"]
     R = ans["bubble_radius"]

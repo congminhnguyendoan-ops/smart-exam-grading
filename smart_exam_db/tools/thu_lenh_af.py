@@ -1,17 +1,3 @@
-"""
-thu_lenh_af.py - Thử bằng TRÌNH DUYỆT THẬT (Playwright Chromium) lệnh AF (01/11/2026): duyệt nhanh – phím tắt, xác nhận hàng loạt (có hộp hỏi),
-hàng đợi lọc theo lý do, nhãn "máy đọc / dấu hiệu". CHỈ ROLLBACK (tools/thu_dien_thoai.MayChuThu: MỘT kết nối không commit) -> 0 dòng ghi vào CSDL
-thật; thư mục ảnh tạm của máy chủ thử bị XOÁ khi xong. Mật khẩu gv_binh chỉ đặt tạm TRONG giao dịch sẽ rollback.
-
-  python tools/thu_lenh_af.py          # -> data/_eval/ui_af/ (ảnh màn hình + ket_qua.json)
-
-Kịch bản (kỳ thi TẬP 1633, gv_binh): tải BV07 (tô nhạt cả tờ – nhiều câu cờ), BV09, BV06, BV10 (SBD ngoài danh sách).
-  ĐO THAO TÁC (mỗi lần bấm chuột / phím = 1):  BV09 duyệt theo CÁCH CŨ (bấm "Xác nhận như máy đọc" từng câu)  ·  BV07 bằng XÁC NHẬN HÀNG LOẠT
-  ·  BV06 chỉ bằng BÀN PHÍM (Esc, C, Enter cho câu đầu – sửa tay; Space cho câu còn lại; N sang phiếu kế).
-  KIỂM: hộp xác nhận (nút xác nhận khoá tới khi tích, tiêu điểm ở "Huỷ", Enter = Huỷ, không gửi gì), danh sách câu + đáp án máy đọc, cảnh báo
-  không hoàn tác; BV10: hàng loạt KHÔNG đụng SBD (vẫn cần xem, ô SBD trống, chưa có điểm chính thức); phím tắt không cướp phím trong ô SBD; hàng đợi lọc.
-Trước / sau: số phiếu của 1380, 1381, 1632, 1633 đếm bằng kết nối RIÊNG phải không đổi.
-"""
 import json
 import shutil
 import sys
@@ -28,7 +14,7 @@ os.environ["ANH_XOA_TU_DONG"] = "0"
 import thu_dien_thoai as T  # noqa: E402
 from thu_lenh_aa import ANH, KT, _cho_anh, _cho_h2, _dang_nhap, _tai, dem_phieu  # noqa: E402
 
-MK = "Thu-Lenh-AA-2026"           # thu_lenh_aa._dang_nhap dùng hằng này
+MK = "Thu-Lenh-AA-2026"
 OUT = ROOT / "data" / "_eval" / "ui_af"
 
 
@@ -88,7 +74,6 @@ def chay() -> dict:
                 may_tinh(b, url, k, g, tt)
                 man_nho(b, url, k, g)
                 b.close()
-            # máy chủ đã rảnh: đọc nhật ký trên chính giao dịch thử (sẽ rollback)
             nk = c.execute("SELECT details FROM admin_audit_log WHERE action = 'xac_nhan_hang_loat' ORDER BY log_id").fetchall()[nk0:]
             g["nhat_ky_hang_loat"] = [r["details"] for r in nk]
             k["nhat_ky_moi_lan_hang_loat_mot_dong"] = len(nk) == g.get("so_lan_hang_loat")
@@ -108,7 +93,7 @@ def may_tinh(b, url, k, g, tt):
     ctx = b.new_context(viewport={"width": 1400, "height": 1000}, locale="vi-VN")
     pg = ctx.new_page()
     hop = []
-    pg.on("dialog", lambda d: (hop.append(d.message), d.dismiss()))           # hộp confirm() gốc của trình duyệt: không ngờ tới -> từ chối
+    pg.on("dialog", lambda d: (hop.append(d.message), d.dismiss()))
     pg.goto(url + "/app/"); _dang_nhap(pg, "gv_binh")
     with pg.expect_response(lambda r: r.url.endswith(f"/exams/{KT}")):
         pg.select_option("#exam-select", str(KT))
@@ -117,18 +102,16 @@ def may_tinh(b, url, k, g, tt):
     api = lambda p: pg.request.get(url + p).json()                             # noqa: E731
     g["cau_can_xem_luc_tai"] = {t: len(api(f"/sheets/{s}/review-questions")) for t, s in ids.items()}
 
-    # ---------------- AF4 hàng đợi lọc / nhóm
     pg.goto(url + "/app/#/review"); _cho_h2(pg, "Hàng đợi duyệt"); pg.wait_for_selector("#loc-nhom")
     pg.screenshot(path=str(OUT / "01_hang_doi_nhom.png"), full_page=True)
     g["nhom_hang_doi"] = pg.evaluate("() => [...document.querySelectorAll('#main tbody tr')].map((r) => [r.cells[0].innerText.trim(), r.dataset.nhom])")
     k["hang_doi_co_loc_theo_ly_do"] = pg.locator("#loc-nhom option").count() >= 2
-    pg.select_option("#loc-nhom", "dinh_danh")                                 # chờ bảng VẼ LẠI (bảng cũ cũng có dòng dinh_danh)
+    pg.select_option("#loc-nhom", "dinh_danh")
     pg.wait_for_function("() => { const r = [...document.querySelectorAll('#main tbody tr')]; return r.length && r.every((x) => x.dataset.nhom === 'dinh_danh'); }")
     k["loc_dinh_danh_chi_con_bv10"] = pg.evaluate("() => [...document.querySelectorAll('#main tbody tr')].map((r) => parseInt(r.cells[0].innerText, 10))") == [ids["BV10.jpg"]]
     pg.screenshot(path=str(OUT / "02_hang_doi_loc_sbd.png"), full_page=True)
     pg.select_option("#loc-nhom", "")
 
-    # ---------------- TRƯỚC: BV09 theo cách cũ (bấm "Xác nhận như máy đọc" từng câu)
     s9, d = ids["BV09.jpg"], DemThaoTac()
     mo_tu_hang_doi(pg, url, s9, d)
     n9 = con_lai(pg)
@@ -140,7 +123,6 @@ def may_tinh(b, url, k, g, tt):
     tt["cu_bv09"] = {"so_cau_co": n9, "thao_tac": d.n + 1, "chi_tiet": d.nhat_ky + ["bấm Phiếu cần xem kế tiếp"]}
     g["bv09_sau"] = {"status": api(f"/sheets/{s9}")["status"]}
 
-    # ---------------- SAU: BV07 bằng xác nhận hàng loạt
     s7, d = ids["BV07.jpg"], DemThaoTac()
     mo_tu_hang_doi(pg, url, s7, d)
     _cho_anh(pg)
@@ -151,7 +133,7 @@ def may_tinh(b, url, k, g, tt):
     k["nhan_may_doc_dau_hieu"] = "Máy đọc:" in nhan and "Dấu hiệu:" in nhan
     pg.screenshot(path=str(OUT / "03_duyet_bv07_truoc_hang_loat.png"), full_page=False)
     truoc7 = api(f"/sheets/{s7}/review-questions")
-    pg.click("#xn-tat-ca")                                                     # lần mở hộp này chỉ để KIỂM "Enter = Huỷ" – không tính thao tác
+    pg.click("#xn-tat-ca")
     d.nhat_ky.append("(kiểm thử) mở hộp lần 1 – không tính")
     pg.wait_for_selector("#dlg-hl")
     k["hop_nut_xac_nhan_khoa_ban_dau"] = pg.is_disabled("#hl-ok")
@@ -160,7 +142,7 @@ def may_tinh(b, url, k, g, tt):
     k["hop_canh_bao_khong_hoan_tac"] = "Không hoàn tác được" in pg.inner_text("#dlg-hl")
     g["hop_dong_dau"] = pg.locator("#dlg-hl .ds-hl li").first.inner_text()
     pg.screenshot(path=str(OUT / "04_hop_xac_nhan.png"), full_page=False)
-    pg.keyboard.press("Enter")                                                 # Enter khi tiêu điểm ở "Huỷ" -> đóng, KHÔNG gửi
+    pg.keyboard.press("Enter")
     pg.wait_for_selector("#dlg-hl", state="detached")
     k["enter_trong_hop_la_huy_khong_gui"] = len(api(f"/sheets/{s7}/review-questions")) == len(truoc7)
     d.nhat_ky.append("(kiểm thử) Enter trong hộp = Huỷ – không tính vào số thao tác")
@@ -182,7 +164,6 @@ def may_tinh(b, url, k, g, tt):
     tt["moi_bv07_hang_loat"] = {"so_cau_co": n7, "thao_tac": d.n, "chi_tiet": d.nhat_ky}
     g["so_lan_hang_loat"] = 1
 
-    # ---------------- SAU: BV06 chỉ bằng bàn phím
     s6, d = ids["BV06.jpg"], DemThaoTac()
     pg.goto(url + f"/app/#/review/{s6}"); _cho_h2(pg, f"Duyệt phiếu #{s6}"); pg.wait_for_timeout(300)
     d.n += 1; d.nhat_ky.append("(mở phiếu: tính 1 như các cách khác)")
@@ -206,7 +187,6 @@ def may_tinh(b, url, k, g, tt):
     d.phim(pg, "n", "(phiếu kế)")
     tt["moi_bv06_ban_phim"] = {"so_cau_co": n6, "thao_tac": d.n, "chi_tiet": d.nhat_ky}
 
-    # ---------------- BV10: hàng loạt KHÔNG đụng SBD; phím tắt không cướp phím trong ô SBD
     s10 = ids["BV10.jpg"]
     pg.goto(url + f"/app/#/review/{s10}"); _cho_h2(pg, f"Duyệt phiếu #{s10}"); pg.wait_for_selector("#in-sbd")
     v0 = api(f"/sheets/{s10}")
@@ -231,7 +211,6 @@ def may_tinh(b, url, k, g, tt):
 
 
 def man_nho(b, url, k, g):
-    """Chromium giả lập màn 393×851 (Pixel 7) – CHỈ chụp màn duyệt + hộp xác nhận để xem bằng mắt (không phải Safari iPhone)."""
     ctx = b.new_context(viewport={"width": 393, "height": 851}, device_scale_factor=2.75, is_mobile=True, has_touch=True, locale="vi-VN")
     pg = ctx.new_page()
     pg.goto(url + "/app/"); _dang_nhap(pg, "gv_binh")

@@ -1,15 +1,3 @@
-"""
-check_task_pdf.py - So phiếu giao việc (bản người tô cầm trên tay) với ground_truth.csv. KHÔNG sửa gì.
-
-Trích chữ trong answer_sheet/output/phieu_giao_viec.pdf bằng PyMuPDF (PDF vẽ bằng chữ thật, không phải ảnh):
-mã phiếu, SBD, mã đề, bút, điều kiện chụp, 40 câu (chữ xám + "(mờ)" = tô mờ). So 3 chiều:
-  1. PDF  <-> ground_truth.csv hiện tại      (chỗ lệch = nhãn đã sửa theo giấy, hoặc nhãn bị sai)
-  2. PDF  <-> kịch bản sinh lại make_plan()  (PDF có đúng là kịch bản gốc seed 2026 không)
-  3. ground_truth.csv ở commit đầu 399d48c <-> PDF (lệch có từ đầu hay do lần sửa sau)
-
-Chạy (từ thư mục smart_exam_db/):
-  python tools/check_task_pdf.py
-"""
 import csv
 import io
 import re
@@ -19,7 +7,7 @@ from pathlib import Path
 
 import pymupdf
 
-ROOT = Path(__file__).resolve().parent.parent          # smart_exam_db/
+ROOT = Path(__file__).resolve().parent.parent
 ANSWER_SHEET = ROOT / "answer_sheet"
 sys.path.insert(0, str(ANSWER_SHEET))
 from make_dataset_plan import CONDITIONS, make_plan  # noqa: E402
@@ -31,7 +19,7 @@ FIRST_COMMIT = "399d48c"
 
 def is_gray(color: int) -> bool:
     r, g, b = (color >> 16) & 255, (color >> 8) & 255, color & 255
-    return r == g == b and 60 < r < 200                 # Color(.45,.45,.45) ~ 115; đen = 0
+    return r == g == b and 60 < r < 200
 
 
 def spans(page) -> list[dict]:
@@ -46,7 +34,6 @@ def spans(page) -> list[dict]:
 
 
 def parse_task(sp: list[dict]) -> dict:
-    """1 phiếu giao việc (các span thuộc nửa trang của nó)."""
     full = {s["text"] for s in sp}
     get = lambda pat: next(re.search(pat, t).group(1) for t in full if re.search(pat, t))  # noqa: E731
     rec = {
@@ -60,13 +47,12 @@ def parse_task(sp: list[dict]) -> dict:
     labels = [s for s in sp if re.fullmatch(r"Câu\s+\d+:", s["text"].strip())]
     for lab in labels:
         q = int(re.search(r"\d+", lab["text"]).group())
-        # chữ đáp án vẽ tại x + 17 mm, cùng dòng; "(mờ)" tại x + 24 mm
         row = [s for s in sp if abs(s["y"] - lab["y"]) < 1.0 and 14 < s["x"] - lab["x"] < 23]
         if len(row) != 1:
             raise ValueError(f"phiếu {rec['sheet_id']} câu {q}: tìm thấy {len(row)} ô đáp án")
         a = row[0]["text"].strip()
         faint_note = any(abs(s["y"] - lab["y"]) < 1.0 and 21 < s["x"] - lab["x"] < 30
-                         and s["text"].strip() == "(mờ)" for s in sp)       # 4 cột câu cùng dòng
+                         and s["text"].strip() == "(mờ)" for s in sp)
         if a == "–":
             a = "-"
         elif faint_note or row[0]["gray"]:
@@ -82,7 +68,7 @@ def read_pdf(path: Path) -> dict:
     out = {}
     for page in pymupdf.open(path):
         sp = spans(page)
-        for half in (lambda s: s["y"] < 148, lambda s: s["y"] >= 148):   # 2 phiếu / trang: top 8 và 152 mm
+        for half in (lambda s: s["y"] < 148, lambda s: s["y"] >= 148):
             part = [s for s in sp if half(s)]
             if part:
                 rec = parse_task(part)

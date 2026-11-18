@@ -52,28 +52,25 @@ import cv_engine.preprocessing as pp  # noqa: E402
 
 OUT = EVAL_DIR / "v5_chuan_hoa"
 VAN_TAY = EVAL_DIR / "v4_verify" / "anh_nan_sha256.csv"
-MM = 300 / 25.4                 # px layout / mm
+MM = 300 / 25.4
 PDF = {"phieu": "phieu_trang.pdf", "chu_so": "trang_chu_so.pdf"}
 
-# Mặt nạ giấy trắng (chỉ eval)
-GIAY_TRANG_MIN = 250            # điểm ảnh trang mẫu render ≥ 250 = giấy
-CO_GIAY_MM = 2.0                # giữ giấy cách mọi nét in ≥ 2 mm (nội dung C3 còn lệch thật tới 1,3 mm sau nắn)
-NOI_PHAN_TU_MM = 3.0            # bỏ ô tròn / ô viết nới 3 mm: bên trong chúng là "giấy" trên PDF nhưng có mực trên ảnh
-VUNG_TRONG_MM = (14, 14, 196, 283)      # x0, y0, x1, y1 – bên trong 4 tâm marker
-CHU_KY_MM = (14, 259, 196, 283)         # phiếu: dải "Chữ ký thí sinh / giám thị" (viết tay tự do)
-LUOI_NEN = (10, 14)             # ô lưới đo bóng (ngang × dọc) ≈ 18 × 19 mm
-LUOI_MIN = 0.05                 # ô lưới có < 5% điểm giấy: bỏ
-LOI_MARKER_MM = 3.0             # lõi marker ±3 mm (6×6 mm, như den_loi_marker)
+GIAY_TRANG_MIN = 250
+CO_GIAY_MM = 2.0
+NOI_PHAN_TU_MM = 3.0
+VUNG_TRONG_MM = (14, 14, 196, 283)
+CHU_KY_MM = (14, 259, 196, 283)
+LUOI_NEN = (10, 14)
+LUOI_MIN = 0.05
+LOI_MARKER_MM = 3.0
 
-# Độ tách / bootstrap
-LOI_TI_LE = 0.75                # lõi ô = r × 0,75 (như local_darkness)
+LOI_TI_LE = 0.75
 BOOT_N, BOOT_SEED = 1000, 2026
-CO_O_VIET_MM = 1.0              # trang D: co ô viết 1 mm khỏi viền in
+CO_O_VIET_MM = 1.0
 DIEU_KIEN = ("C1", "C2", "C3", "C4")
-ANH_GRADIENT = ("0001_C1", "0008_C1")   # tự kiểm gradient: ảnh C1 (sáng đều) – 0008 có nhiều ô faint
+ANH_GRADIENT = ("0001_C1", "0008_C1")
 
 
-# ============================================================================ tiện ích
 def ghi_csv(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     keys = list(dict.fromkeys(k for r in rows for k in r))
@@ -95,7 +92,6 @@ def git(*args) -> str:
 
 
 def anh_nan_v(x) -> np.ndarray:
-    """anh_nan của preprocess() hiện tại (v4 trên dev: 78/78 ok)."""
     kq = pp.preprocess(x.duong_dan, nap_layout_loai(x.loai))
     if not kq.ok:
         sys.exit(f"{x.ten}: preprocess từ chối ({kq.ly_do}) – v4 trên dev phải ok 78/78")
@@ -106,10 +102,7 @@ def f4(v) -> str:
     return "" if v is None or (isinstance(v, float) and np.isnan(v)) else f"{v:.4f}"
 
 
-# ============================================================================ lệnh van-tay
 def cmd_van_tay(a) -> None:
-    """SHA-256 của anh_nan (byte, kèm kích thước) cho 78 ảnh dev, ghi TRƯỚC khi sửa preprocessing.py – để Bước 5 chứng
-    minh anh_nan không đổi bằng so sánh trước/sau thật (không phải so một đoạn code với chính nó)."""
     if VAN_TAY.exists() and not a.ghi_de:
         sys.exit(f"{VAN_TAY} đã có – vân tay v4 chỉ ghi một lần (thêm --ghi-de nếu chắc chắn code vẫn là v4).")
     if git("status", "--porcelain", "--", "cv_engine/preprocessing.py"):
@@ -127,12 +120,7 @@ def cmd_van_tay(a) -> None:
     print(f"\n{len(rows)} ảnh dev, ok {sum(r['ok'] for r in rows)}/{len(rows)}, HEAD {head} -> {VAN_TAY}")
 
 
-# ============================================================================ lệnh so-anh-nan (dừng C)
 def cmd_so_anh_nan(a) -> None:
-    """anh_nan của preprocess() HIỆN TẠI so với vân tay v4 -> data/_eval/<phương pháp>/so_pixel_dev.csv (cột anh,
-    so_diem_khac như kiem_load_image.py so-pixel – đầu vào của finalize --ke-thua). SHA trùng ⇒ 0 điểm khác; SHA khác ⇒
-    'sha_khac' (≠ '0') -> --ke-thua tự từ chối. Phương pháp sau v5 (vd v6_api): anh_chuan_hoa cũng phải trùng SHA của v5
-    (v5_chuan_hoa/so_pixel_dev.csv), không thì cũng ghi 'sha_khac'."""
     if not VAN_TAY.exists():
         sys.exit(f"Thiếu {VAN_TAY} – vân tay v4 phải ghi trước khi sửa preprocessing.py (lệnh van-tay).")
     ref = {r["anh"]: r for r in csv.DictReader(VAN_TAY.open(encoding="utf-8-sig"))}
@@ -162,13 +150,11 @@ def cmd_so_anh_nan(a) -> None:
           + (f"; KHÁC: {', '.join(khac)}" if khac else "") + f" -> {out / 'so_pixel_dev.csv'}")
 
 
-# ============================================================================ mặt nạ giấy trắng (chỉ eval)
 def mm_px(v) -> int:
     return round(v * MM)
 
 
 def mat_na_giay(loai: str, layout: dict, mau: np.ndarray) -> np.ndarray:
-    """bool (H, W): điểm giấy trắng chắc chắn – dùng đo nền. Từ trang mẫu render (eval), KHÔNG dùng trong normalize."""
     nen_in = (mau < GIAY_TRANG_MIN).astype(np.uint8)
     dist = cv2.distanceTransform(1 - nen_in, cv2.DIST_L2, 5)
     m = (dist >= CO_GIAY_MM * MM).astype(np.uint8)
@@ -203,7 +189,7 @@ def mat_na_giay(loai: str, layout: dict, mau: np.ndarray) -> np.ndarray:
 def nap_tai_nguyen() -> dict:
     L = {lo: nap_layout_loai(lo) for lo in PDF}
     mau = {}
-    for lo in PDF:      # render ra 2481 × 3508 (làm tròn của PyMuPDF) – cắt về đúng page_px của layout
+    for lo in PDF:
         W, H = L[lo]["page_px"]
         m = render_pdf_page(ANSWER_SHEET / "output" / PDF[lo], 300)
         if m.shape[0] < H or m.shape[1] < W:
@@ -212,7 +198,6 @@ def nap_tai_nguyen() -> dict:
     return {"layout": L, "mau": mau, "mat_na": {lo: mat_na_giay(lo, L[lo], mau[lo]) for lo in PDF}}
 
 
-# ============================================================================ a. nền giấy
 def o_luoi() -> list[tuple[slice, slice]]:
     x0, y0, x1, y1 = (mm_px(v) for v in VUNG_TRONG_MM)
     xs, ys = np.linspace(x0, x1, LUOI_NEN[0] + 1).round().astype(int), np.linspace(y0, y1, LUOI_NEN[1] + 1).round().astype(int)
@@ -244,9 +229,7 @@ def do_nen(anh: np.ndarray, mask: np.ndarray, layout: dict) -> dict:
             "muc_marker": mk, "muc_marker_td": mk / float(p50)}
 
 
-# ============================================================================ b. độ tách theo nhãn
 def nhom_o(layout: dict, nhan: dict) -> list[tuple]:
-    """[(loại, item dò lại, tên hàng, [(tâm, nhãn, tên ô)], r)] – hàng câu đáp án + cột chữ số SBD/mã đề."""
     out = []
     a = layout["answers"]
     for q in range(1, a["num_questions"] + 1):
@@ -260,14 +243,12 @@ def nhom_o(layout: dict, nhan: dict) -> list[tuple]:
 
 
 def tinh_dich(anh_nan: np.ndarray, layout: dict, mau: np.ndarray) -> dict:
-    """Độ dịch ±4 mm của từng hàng câu / khối SBD, mã đề (như check_labels audit), dò trên anh_nan."""
     s = round(SEARCH_MM * layout["dpi"] / 25.4)
     items = [("q", q) for q in range(1, layout["answers"]["num_questions"] + 1)] + [("sbd", 0), ("exam_code", 0)]
     return {it: register(anh_nan, mau, item_box(layout, it), s) for it in items}
 
 
 def loi_tb(anh: np.ndarray, cx: float, cy: float, r: float) -> float:
-    """Trung bình xám lõi ô (bán kính 0,75 r – cùng lõi với local_darkness)."""
     x0, y0 = int(cx - r), int(cy - r)
     p = anh[y0:int(cy + r) + 1, x0:int(cx + r) + 1].astype(np.float32)
     yy, xx = np.ogrid[:p.shape[0], :p.shape[1]]
@@ -275,7 +256,6 @@ def loi_tb(anh: np.ndarray, cx: float, cy: float, r: float) -> float:
 
 
 def vanh_giay(anh: np.ndarray, cx: float, cy: float, r: float) -> float:
-    """Trung vị xám vành giấy 1,15r–1,45r quanh ô (cùng vành với local_darkness) – mức sáng giấy tại ô."""
     x0, y0 = int(cx - 1.5 * r), int(cy - 1.5 * r)
     p = anh[y0:int(cy + 1.5 * r), x0:int(cx + 1.5 * r)].astype(np.float32)
     yy, xx = np.ogrid[:p.shape[0], :p.shape[1]]
@@ -296,7 +276,6 @@ def do_o(anh: np.ndarray, layout: dict, nhan: dict, dich: dict) -> list[dict]:
 
 
 def thang(o: list[dict], k: str) -> float:
-    """Thang của ảnh = trung vị filled − trung vị blank (ô đáp án) – để hiệu không phụ thuộc phép kéo dãn tuyến tính."""
     f = [r[k] for r in o if r["loai"] == "dap_an" and r["nhan"] == "filled"]
     b = [r[k] for r in o if r["loai"] == "dap_an" and r["nhan"] == "blank"]
     return float(np.median(f) - np.median(b))
@@ -320,9 +299,7 @@ def hang_tu_o(o: list[dict]) -> list[dict]:
     return out
 
 
-# ============================================================================ thống kê gộp + bootstrap
 def auc(pos: np.ndarray, neg: np.ndarray) -> float:
-    """P(pos > neg) + 0,5 P(=) (Mann–Whitney)."""
     neg = np.sort(neg)
     lo, hi = np.searchsorted(neg, pos, "left"), np.searchsorted(neg, pos, "right")
     return float((lo + (hi - lo) / 2).sum() / (len(pos) * len(neg)))
@@ -333,7 +310,6 @@ def khoang(pos: np.ndarray, neg: np.ndarray) -> float:
 
 
 def gop(theo_anh: dict, lop: str, k: str, rng) -> dict:
-    """theo_anh: {ảnh: (giá trị lop, giá trị blank)}. Điểm + khoảng tin cậy 95% bootstrap theo ảnh."""
     ten = list(theo_anh)
     P = np.concatenate([theo_anh[t][0] for t in ten])
     N = np.concatenate([theo_anh[t][1] for t in ten])
@@ -355,7 +331,6 @@ def gop(theo_anh: dict, lop: str, k: str, rng) -> dict:
 
 
 def tom_tat_tach(o_rows: list[dict], h_rows: list[dict]) -> dict:
-    """{điều kiện: {...}} – cỡ mẫu, theo hàng (local / tuyệt đối), gộp ô đáp án + bootstrap."""
     out = {}
     for dk in DIEU_KIEN:
         o = [r for r in o_rows if r["dieu_kien"] == dk and r["loai"] == "dap_an"]
@@ -383,7 +358,6 @@ def tom_tat_tach(o_rows: list[dict], h_rows: list[dict]) -> dict:
     return out
 
 
-# ============================================================================ c. trang chữ số
 def do_chu_so(anh: np.ndarray, layout: dict, dich: dict, nen: dict) -> dict:
     co = CO_O_VIET_MM * MM
     sigma = nen["nhieu"] * nen["giay_p50"]
@@ -404,7 +378,6 @@ def do_chu_so(anh: np.ndarray, layout: dict, dich: dict, nen: dict) -> dict:
 
 
 def dich_chu_so(anh_nan: np.ndarray, layout: dict, mau: np.ndarray) -> dict:
-    """Độ dịch ±4 mm theo từng hàng ô viết (register với trang mẫu), dò trên anh_nan."""
     s = round(SEARCH_MM * layout["dpi"] / 25.4)
     noi = NOI_PHAN_TU_MM * MM
     out = {}
@@ -416,19 +389,16 @@ def dich_chu_so(anh_nan: np.ndarray, layout: dict, mau: np.ndarray) -> dict:
     return out
 
 
-# ============================================================================ các cách chuẩn hoá được so
 CACH = {c: (lambda anh_nan, layout, c=c: pp.normalize(anh_nan, layout, c)) for c in pp.CACH_CHUAN_HOA}
-HO = {"khong": 0, "chia_nen": 1, "chia_nen_keo": 2, "clahe": 3}     # độ phức tạp: khong < M1 < M2 < M3 (người dùng chốt)
-CA_BIEN_TD = 0.012              # cổng 1: hàng lật mà |Δ hiệu tương đối| ≤ 0,012 (sàn làm tròn uint8 ở tu-kiem) = "ca biên"
+HO = {"khong": 0, "chia_nen": 1, "chia_nen_keo": 2, "clahe": 3}
+CA_BIEN_TD = 0.012
 
 
 def ho(c: str) -> int:
     return HO[pp.CACH_CHUAN_HOA[c][0]]
 
 
-# ============================================================================ đo một ảnh
 def do_mot_anh(x, anh_nan, tn, nhan, cach_ten) -> dict:
-    """-> {cách: (dòng nền + thời gian, các ô, các hàng, dòng chữ số | None)}."""
     L, M, mau = tn["layout"][x.loai], tn["mat_na"][x.loai], tn["mau"][x.loai]
     if x.loai == "phieu":
         dich = tinh_dich(anh_nan, L, mau)
@@ -452,7 +422,6 @@ def do_mot_anh(x, anh_nan, tn, nhan, cach_ten) -> dict:
     return out
 
 
-# ============================================================================ lệnh mat-na
 XEM_MAT_NA = ("0001_C1", "0005_C2", "0015_C3", "0032_C4", "D003")
 
 
@@ -492,18 +461,13 @@ figure{{display:inline-block;margin:8px;vertical-align:top}}img{{width:600px;bor
     print(f"-> {OUT / 'xem_mat_na.html'}")
 
 
-# ============================================================================ lệnh tu-kiem
 HUONG_GRADIENT = {"tl_br": (1, 1), "br_tl": (-1, -1), "tr_bl": (-1, 1), "bl_tr": (1, -1)}
-# Lần chạy đầu chỉ có tl_br: ảnh C1 vốn đã có bóng ~0,23–0,26 (ô lưới 158–224) ngược chiều nên gradient BÙ TRỪ bóng
-# sẵn có (bóng 0,258 -> 0,252) -> thử cả 4 hướng chéo; phép đo phải phản ứng ở hướng cùng chiều bóng sẵn có.
-BONG_TANG_MIN = 1.5             # hướng xấu nhất: bóng(gradient) ≥ 1,5 × bóng(gốc)
-CHIA_NEN_HOI_PHUC = 1.25        # mọi hướng: bóng(gradient + chia nền thử) ≤ 1,25 × bóng(gốc + chia nền thử)
-LOCAL_DELTA_MAX = 0.02          # local_darkness gần như bất biến với bóng mượt
+BONG_TANG_MIN = 1.5
+CHIA_NEN_HOI_PHUC = 1.25
+LOCAL_DELTA_MAX = 0.02
 
 
 def gradient(shape, huong=(1, 1), lo=0.6, hi=1.0) -> np.ndarray:
-    """Bóng nhân tạo mượt theo đường chéo: lo ở một góc -> hi ở góc đối diện. huong = (dấu x, dấu y), (1, 1) = tối ở
-    góc trên trái, sáng ở góc dưới phải."""
     H, W = shape
     yy, xx = np.mgrid[:H, :W].astype(np.float32)
     u = xx / (W - 1) if huong[0] > 0 else 1 - xx / (W - 1)
@@ -512,12 +476,10 @@ def gradient(shape, huong=(1, 1), lo=0.6, hi=1.0) -> np.ndarray:
 
 
 def chia_nen_thu(anh: np.ndarray) -> np.ndarray:
-    """BẢN THỬ chỉ cho tự kiểm (không phải M1 chốt): chia nền ước lượng (uoc_luong_nen của 3b) × 240."""
     return np.clip(anh.astype(np.float32) / np.maximum(pp.uoc_luong_nen(anh), 1.0) * 240, 0, 255).round().astype(np.uint8)
 
 
 def so_sanh_hang(ref: list[dict], moi: list[dict]) -> dict:
-    """Theo khoá (ảnh, hàng, lớp): số hàng lật tách -> không tách (local), Δ hiệu local / tương đối lớn nhất."""
     R = {(r["anh"], r["loai"], r["hang"], r["lop"]): r for r in ref}
     lat, d_tho, d_td = [], [], []
     for r in moi:
@@ -588,7 +550,6 @@ def cmd_tu_kiem(a) -> None:
     print(f"\nTỰ KIỂM: {'ĐẠT' if dat else 'KHÔNG ĐẠT'}  (-> {OUT / 'tu_kiem_gradient.csv'})")
 
 
-# ============================================================================ lệnh khao-sat
 def bang_md(tieu_de: list[str], dong: list[list]) -> str:
     return "\n".join(["| " + " | ".join(tieu_de) + " |", "|" + "---|" * len(tieu_de)]
                      + ["| " + " | ".join(str(v) for v in d) + " |" for d in dong])
@@ -600,7 +561,6 @@ def ci(v) -> str:
 
 def tom_tat(c: str, nen: list, o: list, h: list, cs: list) -> str:
     md = [f"# Bước 5 – khảo sát cách `{c}` (dev, {len(nen)} ảnh)\n"]
-    # a
     dong = []
     for dk in DIEU_KIEN + ("D",):
         r = [x for x in nen if x["dieu_kien"] == dk]
@@ -616,7 +576,6 @@ def tom_tat(c: str, nen: list, o: list, h: list, cs: list) -> str:
     gp, mk = np.array([x["giay_p50"] for x in nen]), np.array([x["muc_marker"] for x in nen])
     md.append(f"\nCân bằng GIỮA các ảnh (78 ảnh): giấy p50 std {gp.std():.1f} (min {gp.min():.0f}, max {gp.max():.0f}); "
               f"mực marker std {mk.std():.1f} (min {mk.min():.0f}, max {mk.max():.0f}).\n")
-    # b
     T = tom_tat_tach(o, h)
     md.append("## b. Cỡ mẫu (ô đáp án)\n")
     md.append(bang_md(["ĐK", "ảnh", "ảnh có faint", "faint", "filled", "blank", "hàng faint", "hàng filled"],
@@ -636,7 +595,6 @@ def tom_tat(c: str, nen: list, o: list, h: list, cs: list) -> str:
                             f"{T[dk][f'{lop}_{k}_khoang']:+.4f}", ci(T[dk][f'{lop}_{k}_khoang_ci'])]
                            for dk in DIEU_KIEN for k in ("tuyet_doi", "local")]))
         md.append("")
-    # 0032_C4 + hàng faint khó nhất
     md.append("## b. 0032_C4 (vệt bóng) – từng hàng có faint / hiệu filled nhỏ nhất\n")
     r32 = sorted([r for r in h if r["anh"] == "0032_C4"], key=lambda r: r["td_local"])
     md.append(bang_md(["hàng", "lớp", "hiệu local", "tương đối local", "hiệu tuyệt đối", "tương đối tuyệt đối"],
@@ -650,7 +608,6 @@ def tom_tat(c: str, nen: list, o: list, h: list, cs: list) -> str:
     md.append(bang_md(["ảnh", "hàng", "hiệu local", "tương đối local", "hiệu tuyệt đối", "tương đối tuyệt đối"],
                       [[r["anh"], r["hang"], f"{r['hieu_local']:+.4f}", f"{r['td_local']:+.4f}",
                         f"{r['hieu_tuyet_doi']:+.4f}", f"{r['td_tuyet_doi']:+.4f}"] for r in kho]))
-    # c
     md.append("\n## c. Trang chữ số D\n")
     md.append(bang_md(["trang", "ô", "tương phản TV", "tương phản p5", "nét/nhiễu TV", "nét/nhiễu p5", "mức nét TV",
                        "giấy trong ô TV"],
@@ -658,7 +615,6 @@ def tom_tat(c: str, nen: list, o: list, h: list, cs: list) -> str:
                         f"{r['snr_p5']:.1f}", f"{r['net_trungvi']:.1f}", f"{r['giay_o_trungvi']:.1f}"] for r in cs]))
     net = np.array([r["net_trungvi"] for r in cs])
     md.append(f"\nMức nét giữa 10 trang: std {net.std():.1f} (min {net.min():.0f}, max {net.max():.0f}).\n")
-    # d
     ms = np.array([x["ms"] for x in nen])
     md.append(f"## d. Thời gian `{c}`: trung vị {np.median(ms):.1f} ms, max {ms.max():.1f} ms "
               f"({nen[int(np.argmax(ms))]['anh']})\n")
@@ -692,7 +648,6 @@ def cmd_khao_sat(a) -> None:
     print(f"\n{(time.perf_counter() - t0):.0f} s -> {OUT}")
 
 
-# ============================================================================ lệnh so-sanh (dừng B)
 def doc_csv(path: Path) -> list[dict]:
     so = {"local", "tuyet_doi", "giay_vanh", "hieu_local", "td_local", "hieu_tuyet_doi", "td_tuyet_doi", "ms", "bong",
           "nhieu", "giay_p50", "muc_marker", "tp_trungvi", "tp_p5", "snr_trungvi", "snr_p5", "net_trungvi", "dan"}
@@ -705,13 +660,11 @@ def nap_ket_qua(c: str) -> dict:
 
 
 def mau_bootstrap(anh_theo_dk: dict) -> dict:
-    """Chỉ số ảnh rút lại (cùng cho MỌI cấu hình -> bootstrap ghép cặp): {đk: B × n}."""
     rng = np.random.default_rng(BOOT_SEED)
     return {dk: rng.integers(0, len(ds), (BOOT_N, len(ds))) for dk, ds in anh_theo_dk.items()}
 
 
 def gop_ghep_cap(o: list[dict], anh_theo_dk: dict, rut: dict, k="tuyet_doi", lop="faint") -> dict:
-    """{đk: (auc, khoảng, auc_boot[B], khoang_boot[B])} – gộp ô đáp án, rút theo ảnh với chỉ số chung."""
     out = {}
     for dk, ds in anh_theo_dk.items():
         P = {t: [] for t in ds}
@@ -749,7 +702,6 @@ def cmd_so_sanh(a) -> None:
     G = {c: {(lop): gop_ghep_cap(K[c]["o"], anh_theo_dk, rut, "tuyet_doi", lop) for lop in ("faint", "filled")}
          for c in ds_cach}
     H0 = {(r["anh"], r["loai"], r["hang"], r["lop"]): r for r in K["khong"]["hang"]}
-    # độ dốc nền trong hàng (trên anh_nan): (max − min) / max của vành giấy các ô – đánh dấu hàng gần mép bóng
     doc = {}
     for r in o0:
         doc.setdefault((r["anh"], r["loai"], r["hang"]), []).append(r["giay_vanh"])
@@ -760,7 +712,6 @@ def cmd_so_sanh(a) -> None:
         R = K[c]
         s = {"ho": pp.CACH_CHUAN_HOA[c][0], "ms_tv": float(np.median([r["ms"] for r in R["nen"]])),
              "ms_max": float(max(r["ms"] for r in R["nen"]))}
-        # cổng 1
         lat, giam = [], {lop: [] for lop in ("faint", "filled")}
         for r in R["hang"]:
             q = H0[(r["anh"], r["loai"], r["hang"], r["lop"])]
@@ -775,7 +726,6 @@ def cmd_so_sanh(a) -> None:
             d, o_ = min(giam[lop])
             s[f"{lop}_d_td_min"], s[f"{lop}_d_td_min_o"] = d, o_
             s[f"{lop}_so_giam_qua_bien"] = sum(x < -CA_BIEN_TD for x, _ in giam[lop])
-        # cổng 2
         s["bong"] = {dk: float(np.median([r["bong"] for r in R["nen"] if r["dieu_kien"] == dk])) for dk in nen0}
         s["bong_max"] = {dk: max((r["bong"], r["anh"]) for r in R["nen"] if r["dieu_kien"] == dk) for dk in nen0}
         b0 = {r["anh"]: r["bong"] for r in K["khong"]["nen"]}
@@ -785,7 +735,6 @@ def cmd_so_sanh(a) -> None:
         gp = np.array([r["giay_p50"] for r in R["nen"]])
         mk = np.array([r["muc_marker"] for r in R["nen"]])
         s["giay_std"], s["muc_std"] = float(gp.std()), float(mk.std())
-        # cổng 3 (điểm ước lượng; kèm CI ghép cặp của Δ)
         s["cong3"] = True
         for lop in ("faint", "filled"):
             for dk in DIEU_KIEN:
@@ -795,7 +744,7 @@ def cmd_so_sanh(a) -> None:
                                     "ci_d_auc": ci_hieu(ab, ab0), "ci_d_khoang": ci_hieu(kb, kb0)}
                 if lop == "faint" and (au < au0 or kh < kh0):
                     s["cong3"] = False
-        diem = np.min([G[c]["faint"][dk][2] for dk in DIEU_KIEN], axis=0)      # maximin theo từng lần rút
+        diem = np.min([G[c]["faint"][dk][2] for dk in DIEU_KIEN], axis=0)
         s["diem"] = min(G[c]["faint"][dk][0] for dk in DIEU_KIEN)
         s["dk_xau"] = min(DIEU_KIEN, key=lambda dk: G[c]["faint"][dk][0])
         chi_tiet[c] = diem
@@ -804,7 +753,6 @@ def cmd_so_sanh(a) -> None:
         s["D_snr"] = float(np.median([r["snr_trungvi"] for r in cs]))
         s["D_net_std"] = float(np.std([r["net_trungvi"] for r in cs]))
         bang[c] = s
-    # xếp hạng: qua cả 3 cổng (khong là đối chứng – miễn cổng 2), maximin AUC faint tuyệt đối; hoà theo CI ghép cặp
     qua = [c for c in ds_cach if bang[c]["cong1"] and bang[c]["cong3"] and (bang[c]["cong2"] or c == "khong")]
     tot = max(qua, key=lambda c: bang[c]["diem"])
     hoa = []
@@ -814,7 +762,6 @@ def cmd_so_sanh(a) -> None:
         if c == tot or lo_ <= 0:
             hoa.append(c)
     chon = min(hoa, key=lambda c: (ho(c), bang[c]["nhieu"]["C2"], bang[c]["ms_tv"]))
-    # ---- bảng
     md.append(f"Cấu hình qua cổng (`khong` là đối chứng, miễn cổng 2): {', '.join(qua)}\n")
     md.append(f"Tốt nhất theo maximin AUC faint tuyệt đối: **{tot}** ({bang[tot]['diem']:.4f}); hoà với nó (CI ghép cặp "
               f"của Δ điểm maximin chứa 0): {', '.join(hoa)}\n")
@@ -860,7 +807,6 @@ def cmd_so_sanh(a) -> None:
     md.append("\n## c. Trang D: tương phản nét TV, nét/nhiễu TV, std mức nét giữa 10 trang\n")
     md.append(bang_md(["cấu hình", "tương phản", "nét/nhiễu", "std mức nét"],
                       [[c, f"{b['D_tp']:.3f}", f"{b['D_snr']:.1f}", f"{b['D_net_std']:.1f}"] for c, b in bang.items()]))
-    # 0032_C4 gần mép bóng
     h32 = sorted({(r["loai"], r["hang"]) for r in o0 if r["anh"] == "0032_C4"},
                  key=lambda k: -doc[("0032_C4",) + k])[:10]
     md.append("\n## 0032_C4 – 10 hàng có độ dốc nền trong hàng lớn nhất (gần mép bóng; trên anh_nan), Δ hiệu tương đối "
@@ -882,7 +828,6 @@ def cmd_so_sanh(a) -> None:
     print(f"\n-> {OUT / 'so_sanh.md'}")
 
 
-# ============================================================================ lệnh xem-b (HTML trước/sau)
 XEM_B_TRANG = ("0032_C4", "0010_C2", "0019_C3", "0028_C4", "D007")
 XEM_B_HANG = [("0019_C3", ("q", 30)), ("0019_C4", ("q", 30)), ("0033_C2", ("q", 4)), ("0034_C2", ("q", 7)),
               ("0028_C4", ("sbd", 0)), ("0032_C4", ("q", 32))]

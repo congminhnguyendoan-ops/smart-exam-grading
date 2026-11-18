@@ -1,7 +1,3 @@
-"""Lệnh V4 – nhật ký thao tác quản trị (bảng admin_audit_log, migration 005; GET /admin/audit).
-CSDL thật trong giao dịch ROLLBACK (conftest.conn_thu kiểm cả admin_audit_log không bị để lại), AUTH_MODE=on.
-Kiểm: chỉ admin xem (giáo viên / sinh viên 403, chưa đăng nhập 401); MỖI loại thao tác thành công để lại ĐÚNG MỘT dòng (đủ mọi hành động của
-nhat_ky.HANH_DONG); thao tác bị từ chối không để lại dòng nào; mật khẩu / mã băm không xuất hiện trong nhật ký; phân trang mới nhất trước."""
 import json
 import uuid
 
@@ -63,7 +59,6 @@ def test_moi_thao_tac_dung_mot_dong(nk):
         da.add(hanh_dong)
         return r, dong
 
-    # kỳ thi
     m = _moc(conn)
     r = c.post("/admin/exams", headers=ad, json=than(teacher_user_id=id_g))
     assert r.status_code == 201
@@ -76,7 +71,6 @@ def test_moi_thao_tac_dung_mot_dong(nk):
     _, d = lam("dong_ky_thi", "exam", eid, lambda: c.post(f"/admin/exams/{eid}/status", headers=ad, json={"closed": True}))
     assert d["details"]["status"] == {"cu": "draft", "moi": "closed"}
     lam("mo_ky_thi", "exam", eid, lambda: c.post(f"/admin/exams/{eid}/status", headers=ad, json={"closed": False}))
-    # tài khoản
     ten = "v4" + uuid.uuid4().hex[:8]
     m = _moc(conn)
     r = c.post("/admin/users", headers=ad, json={"username": ten, "full_name": "GV nhật ký", "password": MK_MOI})
@@ -91,7 +85,6 @@ def test_moi_thao_tac_dung_mot_dong(nk):
     assert d["details"]["exam_id"] == eid and d["details"]["phu_trach_truoc"] != ten
     _, d = lam("bo_gan_ky_thi", "user", uid, lambda: c.delete(f"/admin/users/{uid}/exams/{eid}", headers=ad))
     assert d["details"]["exam_id"] == eid
-    # lớp
     ma = "V4-" + uuid.uuid4().hex[:8].upper()
     m = _moc(conn)
     r = c.post("/admin/classes", headers=ad, json={"class_code": ma, "class_name": "Lớp nhật ký"})
@@ -106,7 +99,7 @@ def test_moi_thao_tac_dung_mot_dong(nk):
     lam("bo_giao_vien_khoi_lop", "class", cid, lambda: c.delete(f"/admin/classes/{cid}/teachers/{uid}", headers=ad))
     _, d = lam("dat_lop_giao_vien", "user", uid, lambda: c.put(f"/admin/users/{uid}/classes", headers=ad, json={"class_ids": [cid]}))
     assert d["details"]["them"] == [ma] and d["details"]["bo"] == []
-    m = _moc(conn)                                                                             # lưu mà không đổi gì: không ghi
+    m = _moc(conn)
     assert c.put(f"/admin/users/{uid}/classes", headers=ad, json={"class_ids": [cid]}).status_code == 200 and _sau(conn, m) == []
     lam("vo_hieu_hoa_lop", "class", cid, lambda: c.post(f"/admin/classes/{cid}/status", headers=ad, json={"is_active": False}))
     lam("kich_hoat_lop", "class", cid, lambda: c.post(f"/admin/classes/{cid}/status", headers=ad, json={"is_active": True}))
@@ -114,8 +107,7 @@ def test_moi_thao_tac_dung_mot_dong(nk):
     assert d["details"]["class_code"] == ma
     _, d = lam("xoa_ky_thi", "exam", eid, lambda: c.delete(f"/admin/exams/{eid}", headers=ad), 204)
     assert d["details"]["exam_title"] == "Đổi tên V4"
-    assert da == set(nhat_ky.HANH_DONG), set(nhat_ky.HANH_DONG) - da                  # phủ ĐỦ mọi loại thao tác
-    # đọc lại qua API: mới nhất trước, tên người thao tác
+    assert da == set(nhat_ky.HANH_DONG), set(nhat_ky.HANH_DONG) - da
     j = c.get("/admin/audit?page_size=3", headers=ad).json()
     assert [x["action"] for x in j["dong"]] == ["xoa_ky_thi", "xoa_lop", "kich_hoat_lop"] and j["dong"][0]["actor_username"]
     assert j["tong"] >= len(da) and j["trang"] == 1 and j["co_trang"] == 3
@@ -133,16 +125,16 @@ def test_thao_tac_bi_tu_choi_khong_ghi(nk):
     conn.execute("INSERT INTO exam_students (exam_id, student_id) VALUES (%s, %s)", (eid, sv))
     m = _moc(conn)
     tu_choi = [
-        (lambda: c.delete(f"/admin/exams/{eid}", headers=ad), 409),                                       # có danh sách dự thi
+        (lambda: c.delete(f"/admin/exams/{eid}", headers=ad), 409),
         (lambda: c.patch(f"/admin/exams/{eid}", headers=ad, json={"exam_title": "ab"}), 422),
         (lambda: c.post("/admin/exams/999999999999/status", headers=ad, json={"closed": True}), 404),
         (lambda: c.post("/admin/classes", headers=ad, json={"class_code": "CNTT-K22A", "class_name": "Trùng"}), 409),
         (lambda: c.post(f"/admin/users/{id_g}/password", headers=ad, json={"new_password": "ngan"}), 422),
-        (lambda: c.post(f"/admin/users/{id_ad}/active", headers=ad, json={"is_active": False}), 404),   # không khoá admin qua web
+        (lambda: c.post(f"/admin/users/{id_ad}/active", headers=ad, json={"is_active": False}), 404),
         (lambda: c.put(f"/admin/users/{id_g}/exams/999999999999", headers=ad), 404),
         (lambda: c.put(f"/admin/users/{id_g}/classes", headers=ad, json={"class_ids": [999999999999]}), 422),
-        (lambda: c.post(f"/admin/exams/{eid}/status", headers=h["gv"], json={"closed": True}), 403),     # giáo viên
-        (lambda: c.post("/admin/classes", json={"class_code": "V4-KDN", "class_name": "x"}), 401),        # chưa đăng nhập
+        (lambda: c.post(f"/admin/exams/{eid}/status", headers=h["gv"], json={"closed": True}), 403),
+        (lambda: c.post("/admin/classes", json={"class_code": "V4-KDN", "class_name": "x"}), 401),
     ]
     for goi, ma in tu_choi:
         r = goi()

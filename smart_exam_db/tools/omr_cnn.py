@@ -1,19 +1,3 @@
-"""
-omr_cnn.py - Tuần 5 PHẦN B3: so sánh M1 (logistic trên 9 đặc trưng) với M2 = CNN nhỏ trên ẢNH Ô (môn máy học: so sánh trung thực).
-CHỈ để huấn luyện / so sánh (cần torch). Chỉ 56 ảnh train 0001–0028, cùng 7 fold theo phiếu (data/split.csv), cùng luật câu
-(trong_min 0,90, to_min 0,50, ro_min chọn THEO TỪNG ĐIỀU KIỆN trong nested CV – omr_c2.chon_ro_min_dk), cùng đo.
-
-Chốt trước khi chạy:
-  - đầu vào CNN: ô đáp án cắt 3r × 3r quanh tâm (vị trí omr.dinh_vi), chia mức giấy vành (như đặc trưng M1), co về 32×32;
-  - kiến trúc: Conv12(3×3)-pool-Conv24(3×3)-pool-Dense32-Dense3 (~52 k tham số), CE có trọng số cân bằng lớp, Adam 2e-3 cosine, 14 epoch,
-    tăng cường: dịch ±2 px, nhân sáng 0,9–1,1; seed 2026; KHÔNG chọn epoch / siêu tham số bằng dữ liệu;
-  - so với M1 bằng: F1 faint theo C1–C4 + CI ghép cặp (bootstrap theo phiếu), nested: lỗi nặng / nhẹ / cần xem thừa theo điều kiện;
-  - quy tắc: M2 chỉ thay M1 nếu đạt tiêu chí B2 (nặng 0; thừa ≤ 3% mọi điều kiện) VÀ tốt hơn M1 NGOÀI CI ghép cặp (maximin F1 faint
-    hoặc thừa gộp); hoà -> giữ M1. Không bắt buộc thắng.
-
-  python tools/omr_cnn.py cat         # cắt ô -> data/_omr/cnn_o.npz (56 ảnh × 160 ô)
-  python tools/omr_cnn.py so-sanh     # nested 7×(6+1) lần huấn luyện -> data/_eval/omr/b3_cnn.json + .md
-"""
 import json
 import sys
 import time
@@ -111,7 +95,7 @@ def huan_luyen(x, y, seed=SEED):
             n = len(ix)
             th = torch.zeros(n, 2, 3)
             th[:, 0, 0] = th[:, 1, 1] = 1
-            th[:, :, 2] = (torch.rand(n, 2, generator=g) * 2 - 1) * (2 / (CO / 2))        # dịch ±2 px
+            th[:, :, 2] = (torch.rand(n, 2, generator=g) * 2 - 1) * (2 / (CO / 2))
             xb = F.grid_sample(xb, F.affine_grid(th, xb.shape, align_corners=False), align_corners=False, padding_mode="border")
             xb = xb * (0.9 + 0.2 * torch.rand(n, 1, 1, 1, generator=g))
             loss = F.cross_entropy(m(xb), Y[ix], weight=w)
@@ -181,7 +165,6 @@ def cmd_so_sanh():
         ket[ten] = {"ro_min_theo_fold": chon, "nested_theo_dk": ngoai, "nested_tong": N.tong(ngoai), "f1_faint": f1,
                     "nham_trong_co_to": int(((y == 0) & (d_arg > 0)).sum() + ((y > 0) & (d_arg == 0)).sum()),
                     "cm": np.bincount(3 * y + d_arg, minlength=9).reshape(3, 3).tolist()}
-    # CI ghép cặp của hiệu (cnn − m1)
     diff = {c: boot["cnn"][c] - boot["m1"][c] for c in DK}
     mm = {t: np.nanmin(np.vstack([boot[t][c] for c in DK]), axis=0) for t in boot}
     d_mm = mm["cnn"] - mm["m1"]

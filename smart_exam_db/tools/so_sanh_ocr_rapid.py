@@ -1,17 +1,3 @@
-"""
-so_sanh_ocr_rapid.py - Lệnh D, ứng viên A' (RapidOCR tối giản): mô hình NHẬN DẠNG PP-OCRv6 small (ONNX, lấy từ wheel rapidocr 3.10.0) chạy bằng
-onnxruntime, KHÔNG khâu dò chữ (ô đã cắt sẵn). CHỈ chạy trong môi trường RIÊNG data/_eval/so_sanh_ocr/venv_ocr (numpy + onnxruntime) –
-KHÔNG import cv_engine / cv2, không đụng .venv chính. Đầu vào: data/_eval/so_sanh_ocr/o_chu_so.npz (tools/so_sanh_ocr.py xuat-o, chỉ dev).
-
-  data\\_eval\\so_sanh_ocr\\venv_ocr\\Scripts\\python.exe tools/so_sanh_ocr_rapid.py      # từ smart_exam_db\\
-
-Tiền xử lý giống RapidOCR / PaddleOCR (resize_norm_img): chữ tối trên nền trắng, 3 kênh, cao 48 px giữ tỉ lệ, (x/255 − 0,5)/0,5, đệm phải bằng 0
-tới rộng 320. Hai biến thể đầu vào × hai cách giải mã:
-  x28  = ảnh MNIST 28×28 (đảo màu, có lề 4 px sẵn)        goc = ô cắt gốc đã bỏ viền ~97×62 px (đảo màu, thêm lề trắng 15% chiều cao)
-  loc  = giải mã CTC tham lam tự do rồi lọc 0–9: đúng MỘT chữ số -> chữ số đó; 0 hoặc ≥ 2 chữ số -> "không đọc được" (∅); tin cậy = xác suất ký tự
-  ep   = "chỉ chữ số": điểm mỗi chữ số d = max theo khung thời gian của P(d); đọc = argmax (luôn ra một chữ số); tin cậy = điểm đó (không hiệu chỉnh)
-Ghi: du_doan_ocr_<bien>_<giai_ma>.csv (tap, i, chu_so, tin_cay), q_ocr_<bien>.npz (điểm 10 chữ số, cho luật đối chiếu), ocr_chi_phi.json.
-"""
 import csv
 import ctypes
 import hashlib
@@ -26,7 +12,7 @@ import onnxruntime as ort
 ROOT = Path(__file__).resolve().parent.parent
 RA = ROOT / "data" / "_eval" / "so_sanh_ocr"
 MO_HINH = RA / "mo_hinh" / "PP-OCRv6_rec_small.onnx"
-SHA_MO_HINH = "6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884"     # rapidocr-3.10.0 wheel, rapidocr/models/
+SHA_MO_HINH = "6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884"
 CAO, RONG = 48, 320
 LE_GOC = 0.15
 
@@ -45,7 +31,6 @@ def ws_mb() -> float:
 
 
 def resize_song_tuyen(a: np.ndarray, h: int, w: int) -> np.ndarray:
-    """Resize song tuyến (NumPy thuần, căn tâm điểm ảnh như cv2.INTER_LINEAR) – float32."""
     a = a.astype(np.float32)
     H, W = a.shape
     ys = np.clip((np.arange(h) + 0.5) * H / h - 0.5, 0, H - 1)
@@ -59,7 +44,6 @@ def resize_song_tuyen(a: np.ndarray, h: int, w: int) -> np.ndarray:
 
 
 def chuan_bi(o_muc: np.ndarray, le: float) -> np.ndarray:
-    """Ô mực (nét sáng 255 trên nền 0) -> tensor 3×48×320 của PP-OCR (chữ tối trên nền trắng)."""
     g = 255.0 - o_muc.astype(np.float32)
     if le > 0:
         p = int(round(le * g.shape[0]))
@@ -85,12 +69,11 @@ class NhanDang:
         self.ten_vao = self.s.get_inputs()[0].name
 
     def chay(self, x: np.ndarray) -> np.ndarray:
-        p = self.s.run(None, {self.ten_vao: x})[0]                     # [N, T, C] – đầu ra đã softmax
+        p = self.s.run(None, {self.ten_vao: x})[0]
         assert p.shape[2] == len(self.vocab), (p.shape, len(self.vocab))
         return p
 
     def giai_ma(self, p: np.ndarray):
-        """-> (loc: list[(chu_so | '', tin_cay, chuoi_tu_do)], ep: [N,10] điểm chữ số)."""
         loc = []
         for q in p:
             a = q.argmax(1)
@@ -127,7 +110,7 @@ def main() -> int:
         for tap in ("P", "D"):
             X = np.stack([chuan_bi(o, le) for o, le in vao[tap][bien]])
             loc, ep = [], []
-            for i in range(0, len(X), 64):                        # giải mã từng lô: đầu ra [64, 40, 18 710] ~ 190 MB
+            for i in range(0, len(X), 64):
                 a, b = nd.giai_ma(nd.chay(X[i:i + 64]))
                 loc += a
                 ep.append(b)
@@ -146,7 +129,6 @@ def main() -> int:
             print(f"  {bien} {tap}: {len(X)} ô")
         np.savez_compressed(RA / f"q_ocr_{bien}.npz", P=q_all["P"], D=q_all["D"])
         del X
-    # thời gian: gồm tiền xử lý NumPy + suy luận + giải mã; ô gốc (biến thể dùng ô ở độ phân giải gốc), 1 luồng gọi
     goc = vao["P"]["goc"]
     for i in range(10):
         nd.giai_ma(nd.chay(chuan_bi(*goc[i])[None]))
@@ -160,7 +142,7 @@ def main() -> int:
     cp["ms_1_chu_so"] = {"p50": pc(t1, 50), "p95": pc(t1, 95), "n": len(t1)}
     cp["ms_9_chu_so_mot_lo"] = {"p50": pc(t9, 50), "p95": pc(t9, 95), "n": len(t9)}
     cp["ws_sau_nap_mb"] = round(w1, 1)
-    cp["ws_sau_do_thoi_gian_mb"] = round(ws_mb(), 1)          # tiến trình chỉ còn mô hình + 504 ô gốc (các lô lớn đã giải phóng)
+    cp["ws_sau_do_thoi_gian_mb"] = round(ws_mb(), 1)
     cp["luong_onnxruntime"] = "mặc định (nhiều luồng nội bộ)"
     (RA / "ocr_chi_phi.json").write_text(json.dumps(cp, ensure_ascii=False, indent=1), encoding="utf-8")
     print(json.dumps(cp, ensure_ascii=False, indent=1))

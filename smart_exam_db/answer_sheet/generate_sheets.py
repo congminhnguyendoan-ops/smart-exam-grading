@@ -1,22 +1,3 @@
-"""
-generate_sheets.py - Sinh phiếu trả lời PDF + trang thu chữ số + layout.json
-
-Cài đặt:   pip install reportlab
-Chạy:      python generate_sheets.py              # 40 phiếu đánh số + 10 trang chữ số
-           python generate_sheets.py --count 60 --digit-pages 15
-
-Đầu ra (thư mục output/):
-  phieu_trang.pdf          1 phiếu trống (không mã phiếu) - dùng cho kỳ thi thật / in thêm
-  phieu_danh_so.pdf        N phiếu, mỗi phiếu in "Mã phiếu: 0001..." - dùng để THU DỮ LIỆU
-  trang_chu_so.pdf         trang thu chữ số viết tay (D001, D002...)
-  layout.json              toạ độ pixel mọi ô (300 DPI) -> sheet_templates.layout_config
-  digit_sheet_layout.json  toạ độ ô trên trang thu chữ số
-  phieu_trang_300dpi.png   phieu_trang.pdf render 300 DPI, xám, cắt đúng page_px – MẪU ĐỊNH VỊ của cv_engine/omr.py
-  phieu_trang_300dpi.json  SHA-256 điểm ảnh của PNG trên + phiên bản PyMuPDF (omr.py / pytest kiểm khi nạp)
-
-Chỉ sinh lại PNG mẫu từ phieu_trang.pdf hiện có (không ghi lại PDF – PDF reportlab mỗi lần sinh khác byte do ngày giờ):
-           python generate_sheets.py --chi-mau-png
-"""
 import argparse
 import os
 
@@ -33,12 +14,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 pdfmetrics.registerFont(TTFont("VN", os.path.join(HERE, "fonts", "DejaVuSans.ttf")))
 pdfmetrics.registerFont(TTFont("VNB", os.path.join(HERE, "fonts", "DejaVuSans-Bold.ttf")))
 
-GREY_TEXT = Color(0.55, 0.55, 0.55)      # chữ mờ trong bubble: đủ để người đọc, ít nhiễu cho OMR
+GREY_TEXT = Color(0.55, 0.55, 0.55)
 LINE = Color(0.25, 0.25, 0.25)
 
 
 def Y(y_mm):
-    """Đổi toạ độ y (gốc trên-trái, mm) sang hệ reportlab (gốc dưới-trái, point)."""
     return (L.PAGE_H_MM - y_mm) * mm
 
 
@@ -73,7 +53,7 @@ def draw_markers(c):
 
 def draw_digit_field(c, title, first_x, n):
     p = L.DIGIT_COL_PITCH_MM
-    x_left = first_x - p / 2 - 5.5          # chừa chỗ cho nhãn 0-9
+    x_left = first_x - p / 2 - 5.5
     x_right = first_x + (n - 1) * p + p / 2 + 1
     rect(c, x_left, 45.5, x_right - x_left, 80.5, lw=0.8)
     text(c, (x_left + x_right) / 2, 50, title, size=8, font="VNB", align="center")
@@ -191,7 +171,6 @@ def draw_digit_page(c, page_code):
 
 
 def write_update_sql(path):
-    """SQL ghi layout.json vào bảng sheet_templates (database smart_exam)."""
     import json
     lay = L.build_layout()
     with open(path, "w", encoding="utf-8") as f:
@@ -206,8 +185,6 @@ def write_update_sql(path):
 
 
 def write_template_png(pdf_path, png_path):
-    """Mẫu phiếu trắng cho định vị OMR (Tuần 5): render 300 DPI xám, cắt về page_px (PyMuPDF làm tròn ra 2481 px rộng).
-    Ghi kèm <png>.json: SHA-256 điểm ảnh (không phải SHA file PNG – nén PNG có thể khác giữa các phiên bản OpenCV)."""
     import hashlib
     import json
 

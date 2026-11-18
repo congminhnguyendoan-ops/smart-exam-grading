@@ -1,14 +1,3 @@
-"""
-kiem_vi_tri_eval.py - Tuần 5 PHẦN B1b: kiểm chính PHÉP ĐO VỊ TRÍ ĐỘC LẬP của eval_omr.py bằng ảnh dịch giả (nợ #13).
-
-eval_omr.vi_tri_doc_lap đo vị trí từng hàng / cột bằng phaseCorrelate + tâm vòng tròn in sẵn (khác omr.dinh_vi). Nếu phép đo đó tự khớp
-nhầm thì cờ "vị trí đáng ngờ" của eval vô nghĩa. Ở đây dịch ảnh đã nắn (train, ảnh đệm) một khoảng biết trước rồi đo lại:
-  Δ = đo(ảnh dịch) − đo(ảnh gốc) phải ≈ khoảng dịch. Mỗi (ảnh, độ dịch) xếp: ĐÚNG (mọi phần tử |Δ − dịch| <= 0,3 mm) /
-  DỪNG (eval tự ném RuntimeError – an toàn) / SAI IM LẶNG (đo ra khác mà không báo – lỗ hổng của phép đo).
-Chỉ ảnh train 0001–0028. Không dùng nhãn.
-
-  python tools/kiem_vi_tri_eval.py   -> data/_eval/omr/kiem_vi_tri_eval.json + .md
-"""
 import json
 import sys
 from pathlib import Path
@@ -26,7 +15,6 @@ from omr_du_lieu import anh_da_nan, ds_anh  # noqa: E402
 
 OUT = ROOT / "data" / "_eval" / "omr"
 SAI_SO_MM = 0.3
-# (dx, dy) mm: dưới nửa chu kỳ, gần nửa chu kỳ, và ĐÚNG một chu kỳ ô (ngang 7, dọc 11, bubble dọc 5,8) – ca khớp nhầm kinh điển
 DICH = [(0.5, 0), (2.0, 0), (3.5, 0), (4.0, 0), (-4.0, 0), (7.0, 0), (0, 0.5), (0, 2.0), (0, 3.5), (0, 5.0), (0, -5.0), (0, 5.8), (0, 11.0),
         (2.0, 2.0), (-3.0, 3.0)]
 

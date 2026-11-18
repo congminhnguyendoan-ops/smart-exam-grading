@@ -1,16 +1,3 @@
-"""
-eval_ocr.py - Đánh giá ĐỘC LẬP đường đọc SBD / mã đề hai kênh (Tuần 6 Phần C, Bước 3–5). CHỈ gọi cv_engine.preprocessing, omr.doc_phieu,
-ocr.doc_chu_so, ocr.doi_chieu_dinh_danh (pytest kiểm điều này): không import công cụ huấn luyện, không đọc cache cắt ô.
-Nhãn chữ viết tay (SBD, mã đề) lấy từ data/ground_truth.csv, CHỈ cho các phiếu thuộc tập được chọn.
-
-  python tools/eval_ocr.py run --tap dev                 # phiếu 0001–0028 (56 ảnh): số đo đầy đủ -> data/_eval/ocr/eval_<tap>.json + .md
-  python tools/eval_ocr.py run --tap val --xac-nhan-val  # 0029–0034 (12 ảnh): CHỈ chạy khi đã đăng ký trước (docs/ke_hoach_tuan6.md mục 11)
-  (tập test 0035–0040: không có lệnh ở công cụ này – đánh giá cuối là bước riêng, có chan_test)
-
-Số đo: T3 = độ đúng chữ số CNN (argmax, người LẠ chỉ đúng với dev khi mô hình chưa thấy phiếu; xem hạn chế trong kế hoạch),
-T4 = % ảnh có SBD hoặc mã đề bị gắn "cần xem", lỗi im lặng mức trường (nhận mà sai so với chữ VIẾT TAY thật) – bắt buộc 0,
-CP 95%, theo người viết và C1–C4, thời gian `doc_chu_so`. SBD / mã đề "có trong danh sách" = đúng (kỳ thi mô phỏng đủ thí sinh).
-"""
 import argparse
 import csv
 import json
@@ -36,7 +23,6 @@ def cp_ci(k: int, n: int, a: float = 0.05):
 
 
 def doc_nhan(tap) -> dict:
-    """{'0001': (sbd viết tay, mã đề viết tay)} CHỈ cho phiếu của `tap`; dòng phiếu khác bỏ ngay khi đọc."""
     out = {}
     with (DATA / "ground_truth.csv").open(encoding="utf-8-sig", newline="") as f:
         for r in csv.DictReader(f):
@@ -46,7 +32,6 @@ def doc_nhan(tap) -> dict:
 
 
 def luoi_html(o: list) -> str:
-    """Lưới HTML để xem bằng mắt: mỗi ảnh một hàng 9 ô = ảnh ô viết tay + chữ số bubble + chữ số máy đọc (%); ô cần xem tô vàng."""
     import base64
 
     import cv2

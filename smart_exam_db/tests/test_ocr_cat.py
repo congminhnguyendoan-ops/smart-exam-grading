@@ -1,4 +1,3 @@
-"""Cắt ô chữ số viết tay (cv_engine/ocr.py Bước 2) + dữ liệu OCR (tools/ocr_du_lieu.py). Ảnh giả + (nếu có data/) ảnh thật dev."""
 import sys
 from pathlib import Path
 
@@ -13,7 +12,6 @@ from cv_engine import ocr  # noqa: E402
 
 
 def _trang_gia(chu=True, dx=0, dy=0):
-    """Ảnh xám 600×500, nền 200, 2 khung ô 71×106 (nét viền 4 px) cách nhau 12 px; ô đầu có 1 chữ '1' dày 6 px."""
     im = np.full((500, 600), 200, np.uint8)
     rects = [(100 + dx, 100 + dy, 71, 106), (183 + dx, 100 + dy, 71, 106)]
     for x, y, w, h in rects:
@@ -30,31 +28,30 @@ def test_cat_khung_va_chu():
     assert o[0].ok_vien and o[1].ok_vien
     assert o[0].anh28 is not None and o[0].anh28.shape == (28, 28) and o[0].anh28.dtype == np.uint8
     assert o[0].n_tp == 1 and o[0].vien_con < 0.5 and o[0].cham_vien == 0
-    assert o[1].anh28 is None and o[1].ink_px == 0           # ô trống (chỉ có viền)
+    assert o[1].anh28 is None and o[1].ink_px == 0
     assert abs(o[0].lech_vien[0]) <= 2 and abs(o[0].lech_vien[1]) <= 2
 
 
 @pytest.mark.parametrize("dx,dy", [(-25, 18), (30, -22), (12, 35)])
 def test_cat_theo_vien_khi_trang_lech(dx, dy):
-    """Khung lệch 12–35 px so với danh nghĩa (trang chữ số thật lệch tới ~25 px): vẫn tìm khung, chữ không bị cụt, viền không lọt vào ô."""
     im, rects = _trang_gia(dx=dx, dy=dy)
     nom = [(100, 100, 71, 106), (183, 100, 71, 106)]
     o = ocr.cat_anh(im, [nom])[0]
     assert o[0].ok_vien and o[0].vien_con < 0.5
     assert o[0].anh28 is not None and o[1].anh28 is None
-    assert o[0].cao >= 50                                      # nét dài ~55 px còn nguyên
+    assert o[0].cao >= 50
 
 
 def test_khung_khong_tim_thay_duoc_danh_dau():
     im, rects = _trang_gia()
-    cv2.rectangle(im, (95, 95), (260, 215), 200, -1)           # xoá hết khung
+    cv2.rectangle(im, (95, 95), (260, 215), 200, -1)
     o = ocr.cat_anh(im, [rects])[0]
-    assert not o[0].ok_vien and not o[1].ok_vien               # không đoán im lặng: công cụ liệt kê được
+    assert not o[0].ok_vien and not o[1].ok_vien
 
 
 def test_ve_mnist_tam_o_giua():
     ink = np.zeros((60, 40), np.float32)
-    ink[5:55, 18:22] = 1.0                                     # nét dọc
+    ink[5:55, 18:22] = 1.0
     a = ocr.ve_mnist(ink)
     ys, xs = np.nonzero(a)
     assert a.shape == (28, 28) and abs(ys.mean() - 13.5) <= 1.0 and abs(xs.mean() - 13.5) <= 1.0
@@ -91,7 +88,6 @@ def test_split_ocr_sinh_lai_giong_nhau():
 
 
 def test_cat_chan_tap_test(monkeypatch, tmp_path):
-    """Liệt kê ảnh để cắt phải đi qua chan_test và không bao giờ chứa phiếu test."""
     import ocr_du_lieu as d
     if not (ROOT / "data/raw").exists():
         pytest.skip("thiếu data/")

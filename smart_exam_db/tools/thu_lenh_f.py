@@ -53,7 +53,6 @@ def f4() -> dict:
             for i in (1, 2):
                 pg.set_input_files("#cam", str(T.GIA_12 / f"BV{i:02d}_v1.jpg"))
             cho_het()
-            # tờ 3: ngắt đường tải ảnh -> lỗi mạng (ảnh còn trong bộ nhớ trang, CHƯA tới máy chủ)
             pg.route("**/exams/*/sheets", lambda r: r.abort())
             pg.set_input_files("#cam", str(T.GIA_12 / "BV03_v1.jpg"))
             pg.wait_for_function("() => window.__hangDoi.ds.some(t => t.trangThai === 'loi')", timeout=30000)
@@ -63,7 +62,6 @@ def f4() -> dict:
             assert len(truoc) == 3 and "lỗi mạng" in truoc[0]["txt"] or any("lỗi mạng" in d["txt"] for d in truoc)
             pg.unroute("**/exams/*/sheets")
 
-            # ---- TẢI LẠI TRANG ----
             pg.reload()
             pg.wait_for_selector("#v-cap:not(.hidden)", timeout=30000)
             pg.wait_for_selector("#ds-to .to", timeout=30000)
@@ -78,7 +76,6 @@ def f4() -> dict:
             ket["kiem"]["to_3_bao_mat_phai_chup_lai"] = "mất khi tải lại" in tim(3)["txt"] and pg.query_selector("[data-chup-lai]") is not None
             ket["kiem"]["so_to_ke_tiep_dung"] = "Tờ 4" in pg.inner_text("#cam-txt")
 
-            # ---- chụp lại tờ 3 (giữ số tờ) rồi tải lại lần nữa: cả 3 tờ đều còn ----
             pg.set_input_files("[data-chup-lai]", str(T.GIA_12 / "BV03_v2.jpg"))
             cho_het()
             chup("03_sau_khi_chup_lai_to_3.png")
@@ -90,7 +87,6 @@ def f4() -> dict:
             ket["kiem"]["khong_con_to_mat_chua_thay"] = pg.evaluate("() => window.__hangDoi.soMat()") == 0
             ket["kiem"]["sessionStorage_khong_co_anh_hay_token"] = pg.evaluate(
                 "() => { const s = sessionStorage.getItem('m_hang_doi') || ''; return !/token|data:image|Authorization/i.test(s) && s.length < 4000; }")
-            # đăng xuất: xoá siêu dữ liệu
             pg.click("#logout")
             pg.wait_for_selector("#v-login:not(.hidden)")
             ket["kiem"]["dang_xuat_xoa_sieu_du_lieu"] = pg.evaluate("() => sessionStorage.getItem('m_hang_doi') === null")
@@ -109,7 +105,7 @@ def f23() -> dict:
     ket = {"che_do": "rollback (0 dòng ghi vào CSDL thật)", "kiem": {}}
     with T.MayChuThu() as mc:
         url = f"http://127.0.0.1:{mc.cong}"
-        dl = T.dung_du_lieu_tam(mc.conn)                                  # giáo viên gv_thu_dt + kỳ thi gộp (không dùng ở đây)
+        dl = T.dung_du_lieu_tam(mc.conn)
         uid = mc.conn.execute("SELECT user_id FROM users WHERE username = %s", (dl["username"],)).fetchone()["user_id"]
         lop = mc.conn.execute("SELECT class_id FROM classes WHERE class_code = 'CNTT-K22A'").fetchone()["class_id"]
         mc.conn.execute("INSERT INTO students (student_code, full_name) VALUES (%s, 'SV thử trùng SBD') ON CONFLICT DO NOTHING", (SBD_0002,))
@@ -129,7 +125,6 @@ def f23() -> dict:
             pg.wait_for_function(f"() => document.querySelector('#exam-select').selectedOptions[0].value === '{eid}'")
             nhan = lambda: pg.evaluate("() => document.querySelector('#exam-select').selectedOptions[0].innerText")   # noqa: E731
 
-            # ---- F3: nhãn ô chọn kỳ thi theo số phiếu thật ----
             ket["F3_truoc_khi_tai"] = nhan()
             pg.goto(url + "/app/#/upload")
             pg.wait_for_selector("#files", state="attached")
@@ -142,7 +137,6 @@ def f23() -> dict:
             chup("F3_02_sau_khi_tai.png")
             ket["kiem"]["F3_nhan_tu_0_len_1_phieu"] = "(0 phiếu)" in ket["F3_truoc_khi_tai"] and "(1 phiếu)" in ket["F3_sau_khi_tai"]
 
-            # ---- F2: phiếu A chính thức, phiếu B (chụp lại) trùng SBD bị giữ ----
             api = ctx.request
 
             def giai_quyet_het(sid):
@@ -172,7 +166,7 @@ def f23() -> dict:
             pg.goto(url + f"/app/#/review/{bsid}"); pg.wait_for_selector("#khung-trung")
             chup("F2_02_man_duyet_hai_lua_chon.png")
             ket["kiem"]["F2_man_duyet_co_hai_nut"] = pg.locator("#trung-bo").count() == 1 and pg.locator("#trung-thay").count() == 1
-            pg.click("#trung-thay")                                           # hộp xác nhận tự chấp nhận (ghi nội dung vào ket["hop_xac_nhan"])
+            pg.click("#trung-thay")
             pg.wait_for_function("() => /Đã thay phiếu/.test(document.querySelector('#toast').textContent)", timeout=60000)
             pg.wait_for_timeout(800)
             chup("F2_03_sau_khi_thay.png")
@@ -199,7 +193,6 @@ TEN_DAI = "att.pc5ziEjVdDSu9zNPSpp9Llr1udeCi1EQjzdpGAIhgWQ.jpeg"
 
 
 def g2() -> dict:
-    """Lệnh G2/G3: tên tệp dài được rút gọn (title = tên đầy đủ), dòng bảng không giãn; câu lý do phiếu chưa ghép (Bảng điểm)."""
     from playwright.sync_api import sync_playwright
     from backend import demo, service
     OUT_G.mkdir(parents=True, exist_ok=True)
@@ -235,7 +228,6 @@ def g2() -> dict:
             first = mc.conn.execute("SELECT min(sheet_id) AS s FROM answer_sheets WHERE exam_id = %s", (eid,)).fetchone()["s"]
             pg.goto(url + f"/app/#/sheet/{first}"); pg.wait_for_selector(".tentep"); chup("04_chi_tiet_phieu.png")
             ket["kiem"]["G2_chi_tiet_rut_gon"] = pg.locator(".tentep").first.inner_text() == "att.pc5ziE….jpeg"
-            # /m trên điện thoại
             dt = b.new_context(**pw.devices["Pixel 7"], locale="vi-VN"); pm = dt.new_page()
             pm.goto(url + "/m"); pm.wait_for_selector("#v-login:not(.hidden)")
             pm.fill("#lg-user", dl["username"]); pm.fill("#lg-pass", dl["mat_khau"]); pm.tap("#f-login button")

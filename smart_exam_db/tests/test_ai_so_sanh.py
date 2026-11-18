@@ -1,4 +1,3 @@
-"""Lệnh AI – các hàm THUẦN của tools/ai_so_sanh_thuat_toan.py (không cần dữ liệu, không torch)."""
 import sys
 from pathlib import Path
 
@@ -21,7 +20,7 @@ def test_mau_con_phan_tang_co_dinh():
     y = np.repeat(np.arange(10), [100, 200, 100, 100, 100, 100, 100, 100, 100, 100])
     i = A.mau_con(y, 330, 2026)
     assert len(i) == 330 and np.array_equal(i, A.mau_con(y, 330, 2026))
-    assert np.bincount(y[i])[1] == 60                                              # tỉ lệ lớp giữ nguyên
+    assert np.bincount(y[i])[1] == 60
     assert len(A.mau_con(y, 5000, 1)) == len(y)
 
 
@@ -48,7 +47,7 @@ def test_chi_so_e2_hieu_chinh_va_sai_tu_tin():
     y = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9] * 5)
     ng = np.repeat(A.NGUOI, 10)
     z = np.eye(10)[y] * 5.0
-    z[0] = np.eye(10)[7] * 5.0                                                        # một ô sai rất tự tin
+    z[0] = np.eye(10)[7] * 5.0
     r = A.chi_so_e2(z, z[:10], y, ng, y[:10], ng[:10])
     assert r["sai_trang"] == 1 and r["sai_tu_tin_trang"] == 1 and r["theo_nguoi"]["1"] == pytest.approx(0.9)
     assert r["macro"] == pytest.approx(0.98) and r["confusion"][0][7] == 1 and 0.5 <= r["T"] <= 6

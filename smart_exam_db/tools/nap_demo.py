@@ -1,15 +1,9 @@
-"""
-nap_demo.py - Nạp dữ liệu mẫu cho demo backend: kỳ thi "[DEMO] ..." + 4 mã đề + đáp án giả lập + 28 thí sinh DEMO (SBD viết tay của
-phiếu 0001–0028 trong data/ground_truth.csv). CHẠY LẠI ĐƯỢC (không nhân đôi, không ghi đè); không xoá gì. Xem backend/demo.py.
-
-  python tools/nap_demo.py            # từ smart_exam_db/ ; cần .env (DATABASE_URL) và đã chạy: python -m backend.migrate
-"""
 import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-os.environ.setdefault("AUTH_MODE", "demo")      # công cụ chạy trong tiến trình: bỏ đăng nhập (backend: AUTH_MODE=on là mặc định)
+os.environ.setdefault("AUTH_MODE", "demo")
 from backend import demo, service  # noqa: E402
 from backend.config import lay_cau_hinh  # noqa: E402
 from backend.db import giao_dich  # noqa: E402

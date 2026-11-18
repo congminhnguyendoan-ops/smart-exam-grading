@@ -1,4 +1,3 @@
-"""Kiểm thử bộ demo bảo vệ [DEMO-BV]: công cụ kiểm kịch bản (không CSDL) và công cụ nạp (CSDL thật trong giao dịch ROLLBACK – không ghi gì)."""
 import copy
 import sys
 
@@ -16,12 +15,11 @@ def du_lieu():
     return K.doc(K.DAP_AN), K.doc(K.KICH_BAN)
 
 
-# ------------------------------------------------------------------------------------------------ kiểm kịch bản (không CSDL)
 def test_kich_ban_goc_khop(du_lieu):
     loi, bang = K.kiem(*du_lieu)
     assert not loi and len(bang) == 10
     d = {b["phieu"]: b for b in bang}
-    assert d["BV01"]["diem"] == 9.5 and d["BV09"]["diem"] == 3.25 and len(d["BV07"]["cau_mo"]) == 40      # BV07 tô nhạt cả tờ
+    assert d["BV01"]["diem"] == 9.5 and d["BV09"]["diem"] == 3.25 and len(d["BV07"]["cau_mo"]) == 40
     assert d["BV02"]["cau_nhieu_o"] == [6] and 39 in d["BV03"]["cau_trong"]
 
 
@@ -46,7 +44,6 @@ def test_phat_hien_kich_ban_sai(du_lieu, hong, mong):
     assert any(mong in x for x in loi), loi
 
 
-# ------------------------------------------------------------------------------------------------ nạp (CSDL thật, giao dịch ROLLBACK)
 def _dem(conn) -> dict:
     return {t: conn.execute(f"SELECT count(*) AS n FROM {t}").fetchone()["n"] for t in ("exams", "exam_codes", "answer_keys", "exam_students")}
 
@@ -59,9 +56,9 @@ def test_xem_truoc_khong_ghi_va_ap_dung_idempotent(conn_thu):
     lan1 = N.nap(conn_thu, ap_dung=True)
     sau1 = _dem(conn_thu)
     ky_vong = {k: sum(t["insert"][k] for t in tom) for k in tom[0]["insert"]}
-    assert {k: sau1[k] - truoc[k] for k in sau1} == ky_vong                                      # đúng số dòng đã báo ở bản xem trước
+    assert {k: sau1[k] - truoc[k] for k in sau1} == ky_vong
     lan2 = N.nap(conn_thu, ap_dung=True)
-    assert _dem(conn_thu) == sau1 and all(v == 0 for t in lan2 for v in t["insert"].values())  # chạy lại: không đổi
+    assert _dem(conn_thu) == sau1 and all(v == 0 for t in lan2 for v in t["insert"].values())
     for t in lan1:
         e = conn_thu.execute("SELECT e.exam_id, e.num_questions, e.max_score, e.pass_score, c.class_code, s.subject_code, u.username "
                              "FROM exams e JOIN classes c USING (class_id) JOIN subjects s USING (subject_id) JOIN users u ON u.user_id = e.created_by "
@@ -75,7 +72,6 @@ def test_xem_truoc_khong_ghi_va_ap_dung_idempotent(conn_thu):
 
 
 def test_ban_tap_giong_ban_demo_chi_khac_tieu_de(conn_thu):
-    """--ban-tap: 2 kỳ thi [DEMO-BV-TẬP] cùng đáp án / môn / lớp / GV / dự thi; không đụng kỳ thi [DEMO-BV]; chạy lại không trùng."""
     import nap_bo_demo as N
     goc, tap = N.ke_hoach(), N.ke_hoach(ban_tap=True)
     for g, t in zip(goc, tap):
@@ -86,6 +82,6 @@ def test_ban_tap_giong_ban_demo_chi_khac_tieu_de(conn_thu):
     lan1 = N.nap(conn_thu, ap_dung=True, ban_tap=True)
     assert {t["ma"] for t in lan1} == {"E1", "E2"} and all("TẬP" in t["exam_title"] for t in lan1)
     sau1 = _dem(conn_thu)
-    assert N.nap(conn_thu, ap_dung=True, ban_tap=True) and _dem(conn_thu) == sau1                # chạy lại: không đổi
+    assert N.nap(conn_thu, ap_dung=True, ban_tap=True) and _dem(conn_thu) == sau1
     assert conn_thu.execute("SELECT count(*) AS n FROM exams WHERE exam_title LIKE '%%[DEMO-BV]%%'").fetchone()["n"] == demo_truoc
-    assert sau1["exams"] - truoc["exams"] == sum(t["insert"]["exams"] for t in lan1)              # chưa nạp: 2; đã nạp thật: 0
+    assert sau1["exams"] - truoc["exams"] == sum(t["insert"]["exams"] for t in lan1)

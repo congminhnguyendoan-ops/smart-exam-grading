@@ -1,16 +1,3 @@
-"""
-omr_long.py - Tuần 5 PHẦN B1a: số đo OMR "không lạc quan" bằng nested CV (docs/ke_hoach_tuan5.md mục 9 nợ #1, #2).
-
-Phần A chọn ro_min trên chính OOF 7-fold rồi báo số trên chính OOF đó. Ở đây, với từng fold NGOÀI k (7 vòng):
-  1. các fold còn lại (6) -> OOF TRONG 6-fold (mỗi fold trong huấn luyện trên 5 fold) -> chọn ro_min theo ĐÚNG quy tắc Phần A
-     (lớn nhất trong lưới RO_LUOI có 0 lỗi nặng và cần xem thừa <= 2,5%);
-  2. huấn luyện trên 6 fold -> dự đoán fold ngoài k, áp ro_min vừa chọn -> đếm.
-Cộng 7 fold ngoài = số đo mà không tham số nào được chọn bằng dữ liệu của chính fold đo. (trong_min / to_min chốt trước, C logistic cố
-định = không chọn bằng dữ liệu; nguồn ảnh anh_nan chọn ở A2 theo quy tắc "hoà -> anh_nan", ghi là giới hạn còn lại.)
-Chỉ 56 ảnh train 0001-0028 (data/_omr/dac_trung_nan.csv). Không đọc val / test.
-
-  python tools/omr_long.py chay   -> data/_eval/omr/long_nested.json + .md
-"""
 import json
 import sys
 from pathlib import Path
@@ -28,7 +15,6 @@ DK = H.DIEU_KIEN
 
 
 def dem_cau(rows, P, luat_cau):
-    """Đếm theo điều kiện: câu, rõ thật, nặng, nhẹ, cần xem thừa (câu rõ 1 ô), cần xem. rows/P: các dòng ô đáp án."""
     nhom = {}
     for i, r in enumerate(rows):
         nhom.setdefault((r["anh"], r["phan_tu"]), []).append(i)
@@ -54,7 +40,6 @@ def tong(d):
 
 
 def chon_ro_min(rows, P, luat):
-    """Quy tắc Phần A: lớn nhất trong RO_LUOI có 0 lỗi nặng và cần xem thừa <= THUA_MAX_CHON."""
     ok = []
     for ro in H.RO_LUOI:
         t = tong(dem_cau(rows, P, {**luat, "ro_min": ro}))
@@ -79,12 +64,12 @@ def chay():
     ro_cu = cu["ro_min"]
     ngoai = {k: dict(cau=0, ro_that=0, nang=0, nhe=0, thua=0, can_xem=0) for k in DK}
     chon = {}
-    P_oof_cu = np.load(H.OMR_DIR / "oof_cau_m1_nan.npy")                      # OOF Phần A (ro_min chọn trên chính nó)
+    P_oof_cu = np.load(H.OMR_DIR / "oof_cau_m1_nan.npy")
     cu_d = dem_cau(sel, P_oof_cu, cu)
     for k in range(1, 8):
         con = [f for f in range(1, 8) if f != k]
         P_trong = np.zeros((len(sel), 3))
-        for j in con:                                                          # OOF trong: fold j bỏ ra, học trên 5 fold còn lại
+        for j in con:
             tr = np.isin(fold, [f for f in con if f != j])
             P_trong[fold == j] = fit_predict(X, y, tr, fold == j)
         idx = np.flatnonzero(np.isin(fold, con))

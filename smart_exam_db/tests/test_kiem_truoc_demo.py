@@ -1,4 +1,3 @@
-"""Lệnh U: tools/kiem_truoc_demo.py – mục KHÔNG ĐẠT khi giả lập thiếu tệp / SHA lệch, mã thoát, và các kiểm CSDL KHÔNG ghi gì (kể cả phép đo tốc độ)."""
 import json
 import sys
 
@@ -41,7 +40,6 @@ def test_ma_thoat_chi_khac_0_khi_co_khong_dat():
 
 
 def test_kiem_csdl_chay_trong_giao_dich_chi_doc(conn_thu):
-    """read_only: nếu một kiểm nào đó ghi (vd migrate.da_ap tạo bảng) thì PostgreSQL ném lỗi – test này bắt lỗi đó."""
     conn_thu.read_only = True
     muc = K.kiem_csdl(conn_thu) + K.kiem_tai_khoan(conn_thu)
     assert muc[0].ket_qua == K.DAT and any("Migration" in m.ten for m in muc)

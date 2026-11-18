@@ -1,6 +1,3 @@
-"""Kiểm thử đăng nhập + phân quyền theo lớp + môn / lớp của kỳ thi. Chạy trên CSDL thật trong giao dịch ROLLBACK (conftest.py: conn_thu).
-CẦN migration 002 (fixture csdl_san_sang áp migration; nếu bảng mới vẫn thiếu thì test SKIP có thông báo rõ – không bao giờ tính là đạt).
-Các test không cần CSDL: test_xac_thuc_khong_csdl.py."""
 import io
 import uuid
 from dataclasses import replace
@@ -17,7 +14,6 @@ MK = "MatKhau-Thu-123"
 BAM_GIA_SEED = "$2b$12$KIXQJ6vY0nZ0r8bB1rj3NuQm5YfV1N3x7n0gM1W6xFvX4v2Q9m3yS"
 
 
-# ------------------------------------------------------------------------------------------------ fixture + trợ giúp
 @pytest.fixture
 def bang_moi(conn_thu):
     r = conn_thu.execute("SELECT to_regclass('teacher_classes') AS t, (SELECT count(*) FROM information_schema.columns "
@@ -29,7 +25,6 @@ def bang_moi(conn_thu):
 
 @pytest.fixture
 def client_on(bang_moi, cau_hinh_thu, monkeypatch):
-    """API ở AUTH_MODE=on (khoá ký riêng của test), dùng chung một giao dịch ROLLBACK; bộ đếm thử sai mới cho mỗi test."""
     from fastapi.testclient import TestClient
     from backend.main import app, get_cau_hinh, get_conn
     cfg = replace(cau_hinh_thu, auth_mode="on", auth_secret="t" * 48)
@@ -67,7 +62,6 @@ def gan(conn, uid, cid, sid=None):
 
 
 def dn(client, username, mk=MK) -> dict:
-    """Đăng nhập, trả header Bearer (cookie của client được xoá để các yêu cầu sau chỉ dùng header)."""
     r = client.post("/auth/login", json={"username": username, "password": mk})
     assert r.status_code == 200, r.text
     token = r.cookies.get(auth.COOKIE)
@@ -76,7 +70,6 @@ def dn(client, username, mk=MK) -> dict:
 
 
 def ky_thi(client, h, **them) -> int:
-    """Có `teacher_user_id` -> admin tạo qua /admin/exams và gán giáo viên phụ trách (lệnh H: giáo viên không tự tạo kỳ thi)."""
     r = client.post("/admin/exams" if "teacher_user_id" in them else "/exams", headers=h, json={"exam_title": "Đề thử phân quyền", "subject_code": "T" + uuid.uuid4().hex[:8].upper(),
                                                "subject_name": "Môn thử", "num_questions": 10,
                                                "codes": [{"code": "101", "answers": demo.khoa_demo("101", 10)}], **them})
@@ -90,8 +83,6 @@ def tai_trang(client, h, eid, ten="x"):
 
 @pytest.fixture
 def the_gioi(client_on, bang_moi):
-    """2 giáo viên (mỗi người một lớp), admin, sinh viên; kỳ thi EA (lớp A, của gv A), EB (lớp B, của gv B), E_cu (không lớp, của gv A);
-    một phiếu SA (ảnh trắng -> bị từ chối) của EA."""
     c, conn = client_on, bang_moi
     mon = conn.execute("INSERT INTO subjects (subject_code, subject_name) VALUES (%s, 'Môn gán lớp') RETURNING subject_id",
                        ("M" + uuid.uuid4().hex[:8].upper(),)).fetchone()["subject_id"]
@@ -115,14 +106,13 @@ def khong_ton_tai(r) -> bool:
     return r.status_code == 404 and r.json()["detail"].startswith("Không có ")
 
 
-# ------------------------------------------------------------------------------------------------ đăng nhập
 def test_dang_nhap_dung_cookie_httponly(client_on, bang_moi):
     u, uid = tao_user(bang_moi)
-    r = client_on.post("/auth/login", json={"username": u.upper(), "password": MK})            # tên không phân biệt hoa thường
+    r = client_on.post("/auth/login", json={"username": u.upper(), "password": MK})
     assert r.status_code == 200 and r.json()["username"] == u and r.json()["role"] == "teacher" and "password" not in r.text
     ck = r.headers["set-cookie"].lower()
-    assert "se_session=" in ck and "httponly" in ck and "samesite=lax" in ck and "path=/" in ck and "secure" not in ck       # Secure bật bằng COOKIE_SECURE
-    me = client_on.get("/me").json()                                                           # cookie của client được dùng tự động
+    assert "se_session=" in ck and "httponly" in ck and "samesite=lax" in ck and "path=/" in ck and "secure" not in ck
+    me = client_on.get("/me").json()
     assert me["user_id"] == uid and me["last_login_at"] is not None and "password_hash" not in me
 
 
@@ -137,13 +127,13 @@ def test_cookie_secure_khi_bat_bien_moi_truong(client_on, bang_moi):
 def test_loi_dang_nhap_cung_mot_thong_bao(client_on, bang_moi):
     u, _ = tao_user(bang_moi)
     khoa, _ = tao_user(bang_moi, active=False)
-    gia, _ = tao_user(bang_moi, bam=BAM_GIA_SEED)                                             # hash giả của 04_seed.sql
+    gia, _ = tao_user(bang_moi, bam=BAM_GIA_SEED)
     kq = [client_on.post("/auth/login", json=b) for b in (
         {"username": u, "password": "sai-mat-khau"}, {"username": "khong-co-" + u, "password": MK},
         {"username": khoa, "password": MK}, {"username": gia, "password": MK})]
     assert {r.status_code for r in kq} == {401}
     assert {r.json()["detail"] for r in kq} == {auth.THONG_BAO_SAI}
-    assert client_on.get("/me").status_code == 401                                             # không đặt cookie khi thất bại
+    assert client_on.get("/me").status_code == 401
 
 
 def test_gioi_han_thu_sai_429(client_on, bang_moi):
@@ -151,13 +141,13 @@ def test_gioi_han_thu_sai_429(client_on, bang_moi):
     khac, _ = tao_user(bang_moi)
     for _ in range(5):
         assert client_on.post("/auth/login", json={"username": u, "password": "sai"}).status_code == 401
-    r = client_on.post("/auth/login", json={"username": u, "password": MK})                   # đúng mật khẩu nhưng đang bị chặn
+    r = client_on.post("/auth/login", json={"username": u, "password": MK})
     assert r.status_code == 429 and "quá nhiều" in r.json()["detail"]
-    assert client_on.post("/auth/login", json={"username": khac, "password": MK}).status_code == 200   # tài khoản khác không bị ảnh hưởng
+    assert client_on.post("/auth/login", json={"username": khac, "password": MK}).status_code == 200
     xa, _ = tao_user(bang_moi)
     for _ in range(5):
         client_on.post("/auth/login", json={"username": "khong-co-" + xa, "password": "x"})
-    assert client_on.post("/auth/login", json={"username": "khong-co-" + xa, "password": "x"}).status_code == 429   # cả tên không tồn tại
+    assert client_on.post("/auth/login", json={"username": "khong-co-" + xa, "password": "x"}).status_code == 429
 
 
 def test_dang_xuat_xoa_cookie(client_on, bang_moi):
@@ -168,7 +158,6 @@ def test_dang_xuat_xoa_cookie(client_on, bang_moi):
     assert client_on.get("/me").status_code == 401
 
 
-# ------------------------------------------------------------------------------------------------ phiên / token
 ENDPOINT_MAU = [("GET", "/exams"), ("GET", "/exams/1"), ("GET", "/exams/1/sheets"), ("GET", "/exams/1/results"), ("GET", "/exams/1/export.xlsx"),
                 ("GET", "/exams/1/review-questions"), ("GET", "/sheets/1"), ("GET", "/sheets/1/image"), ("GET", "/sheets/1/review-questions"),
                 ("GET", "/sheets/1/questions/1/image"), ("GET", "/sheets/1/digits/sbd/0/image"), ("GET", "/me"), ("GET", "/me/classes"),
@@ -195,7 +184,7 @@ def test_token_het_han_gia_va_tai_khoan_bi_khoa(client_on, bang_moi):
     for t in (f"Bearer {het_han}", f"Bearer {gia}", sua):
         assert client_on.get("/me", headers={"Authorization": t}).status_code == 401
     bang_moi.execute("UPDATE users SET is_active = FALSE WHERE user_id = %s", (uid,))
-    assert client_on.get("/me", headers=h).status_code == 401                                   # khoá có hiệu lực ngay, không chờ token hết hạn
+    assert client_on.get("/me", headers=h).status_code == 401
 
 
 def test_cookie_va_bearer_deu_duoc_chap_nhan(client_on, bang_moi):
@@ -206,7 +195,6 @@ def test_cookie_va_bearer_deu_duoc_chap_nhan(client_on, bang_moi):
     assert client_on.get("/me").status_code == 200
 
 
-# ------------------------------------------------------------------------------------------------ hồ sơ + mật khẩu
 def test_xem_va_sua_ho_so(client_on, bang_moi):
     u, _ = tao_user(bang_moi)
     h = dn(client_on, u)
@@ -218,7 +206,7 @@ def test_xem_va_sua_ho_so(client_on, bang_moi):
     assert client_on.patch("/me", headers=h, json={"full_name": "   "}).status_code == 422
     assert client_on.patch("/me", headers=h, json={}).status_code == 422
     assert client_on.get("/me", headers=h).json()["full_name"] == "Tên Mới"
-    assert client_on.patch("/me", headers=h, json={"role": "admin", "full_name": "Vẫn Là GV"}).json()["role"] == "teacher"   # không tự nâng quyền
+    assert client_on.patch("/me", headers=h, json={"role": "admin", "full_name": "Vẫn Là GV"}).json()["role"] == "teacher"
 
 
 def test_doi_mat_khau(client_on, bang_moi):
@@ -228,7 +216,7 @@ def test_doi_mat_khau(client_on, bang_moi):
     assert client_on.post("/me/password", headers=h, json={"old_password": MK, "new_password": "ngan"}).status_code == 422
     assert client_on.post("/me/password", headers=h, json={"old_password": MK, "new_password": MK}).status_code == 422
     assert client_on.post("/me/password", headers=h, json={"old_password": MK, "new_password": "MatKhauMoi-456"}).status_code == 204
-    assert client_on.get("/me", headers=h).status_code == 401                                   # phiên cũ vô hiệu
+    assert client_on.get("/me", headers=h).status_code == 401
     assert client_on.post("/auth/login", json={"username": u, "password": MK}).status_code == 401
     assert client_on.post("/auth/login", json={"username": u, "password": "MatKhauMoi-456"}).status_code == 200
 
@@ -244,22 +232,20 @@ def test_tai_khoan_mau_dat_tai_khoan(bang_moi):
     assert auth.kiem_mat_khau("Mk-moi-2", h2["password_hash"]) and h2["full_name"] == "Tên 2"
 
 
-# ------------------------------------------------------------------------------------------------ vai trò
 def test_sinh_vien_khong_dung_duoc_api_cham(the_gioi):
     g = the_gioi
     for pt, dd in (("GET", "/exams"), ("GET", f"/exams/{g.EA}"), ("POST", "/exams"), ("GET", "/me/classes"), ("GET", f"/classes/{g.lopA['id']}/students"),
                    ("GET", f"/sheets/{g.SA}"), ("GET", f"/exams/{g.EA}/results"), ("GET", f"/exams/{g.EA}/export.xlsx")):
         r = g.c.request(pt, dd, headers=g.hSv, json={} if pt == "POST" else None)
         assert r.status_code == 403, (pt, dd, r.status_code)
-    assert g.c.get("/me", headers=g.hSv).status_code == 200                                      # vẫn xem được hồ sơ của mình
+    assert g.c.get("/me", headers=g.hSv).status_code == 200
 
 
-# ------------------------------------------------------------------------------------------------ kỳ thi: môn / lớp + phân quyền
 def test_ds_ky_thi_theo_quyen_co_mon_lop(the_gioi):
     g = the_gioi
     ds = lambda h: {e["exam_id"]: e for e in g.c.get("/exams", headers=h).json()}                   # noqa: E731
     a, b, ad = ds(g.hA), ds(g.hB), ds(g.hAd)
-    assert {g.EA, g.E_cu} <= set(a) and g.EB not in a                                            # kỳ thi cũ (không lớp) vẫn hiện cho người tạo
+    assert {g.EA, g.E_cu} <= set(a) and g.EB not in a
     assert g.EB in b and g.EA not in b and g.E_cu not in b
     assert {g.EA, g.EB, g.E_cu} <= set(ad)
     e = a[g.EA]
@@ -275,7 +261,7 @@ def test_hai_giao_vien_cung_lop_thay_ky_thi_cua_lop(the_gioi):
     gan(g.conn, id2, g.lopA["id"])
     h2 = dn(g.c, u2)
     ids = {e["exam_id"] for e in g.c.get("/exams", headers=h2).json()}
-    assert g.EA in ids and g.E_cu not in ids                                                      # kỳ thi của LỚP mình thấy; kỳ thi cá nhân không lớp của người khác thì không
+    assert g.EA in ids and g.E_cu not in ids
     assert g.c.get(f"/sheets/{g.SA}", headers=h2).status_code == 200
 
 
@@ -284,20 +270,18 @@ def test_tao_ky_thi_voi_lop(the_gioi):
     so_lop = g.conn.execute("SELECT count(*) AS n FROM classes").fetchone()["n"]
     body = {"exam_title": "Đề lớp", "subject_code": "TL" + uuid.uuid4().hex[:6].upper(), "num_questions": 10,
             "codes": [{"code": "101", "answers": demo.khoa_demo("101", 10)}]}
-    # lệnh H: giáo viên KHÔNG tự tạo kỳ thi (kể cả với lớp của mình) -> 403; quy tắc lớp vẫn áp cho admin
     for them in ({"class_id": g.lopA["id"]}, {"class_id": g.lopB["id"]}, {"class_code": "KHONG-CO-LOP-NAY"}, {}):
         assert g.c.post("/exams", headers=g.hA, json={**body, **them}).status_code == 403, them
     ok = g.c.post("/exams", headers=g.hAd, json={**body, "class_id": g.lopA["id"], "class_code": g.lopA["ma"].lower()})
-    assert ok.status_code == 201                                                                  # class_id + class_code cùng lớp (không phân biệt hoa thường)
+    assert ok.status_code == 201
     r = g.c.post("/exams", headers=g.hAd, json={**body, "class_code": "KHONG-CO-LOP-NAY"})
     assert r.status_code == 422 and r.json()["detail"] == MA_LOP_KHONG_DUNG
     assert g.c.post("/exams", headers=g.hAd, json={**body, "class_id": g.lopA["id"], "class_code": g.lopB["ma"]}).status_code == 422
-    assert g.c.post("/exams", headers=g.hAd, json={**body, "class_id": g.lopB["id"]}).status_code == 201     # admin: lớp bất kỳ
-    assert g.conn.execute("SELECT count(*) AS n FROM classes").fetchone()["n"] == so_lop                     # KHÔNG tự tạo lớp
+    assert g.c.post("/exams", headers=g.hAd, json={**body, "class_id": g.lopB["id"]}).status_code == 201
+    assert g.conn.execute("SELECT count(*) AS n FROM classes").fetchone()["n"] == so_lop
 
 
 def test_idor_ky_thi_404_nhu_khong_ton_tai(the_gioi):
-    """B (và A với kỳ thi của B) truy cập kỳ thi của người khác: 404 với cùng nội dung như một id không tồn tại; chủ sở hữu / admin được."""
     g = the_gioi
     anh = ("x.jpg", anh_trang(), "image/jpeg")
     yeu_cau = [("GET", "/exams/{e}", {}), ("GET", "/exams/{e}/sheets", {}), ("GET", "/exams/{e}/review-questions", {}), ("GET", "/exams/{e}/results", {}),
@@ -312,7 +296,7 @@ def test_idor_ky_thi_404_nhu_khong_ton_tai(the_gioi):
         assert chu.status_code in (200, 201), (pt, mau, chu.status_code, chu.text[:100])
         admin = g.c.request(pt, mau.format(e=g.EA), headers=g.hAd, **kw)
         assert admin.status_code in (200, 201), (pt, mau, admin.status_code)
-    for pt, mau, kw in yeu_cau[:5]:                                                               # A không thấy kỳ thi của B
+    for pt, mau, kw in yeu_cau[:5]:
         assert g.c.request(pt, mau.format(e=g.EB), headers=g.hA, **kw).status_code == 404
 
 
@@ -327,7 +311,7 @@ def test_idor_phieu_404_nhu_khong_ton_tai(the_gioi):
         khong_co = g.c.request(pt, mau.format(s=kv), headers=g.hB, **kw)
         assert ngoai.status_code == 404 == khong_co.status_code, (pt, mau, ngoai.status_code)
         assert ngoai.json()["detail"].replace(str(s), "N") == khong_co.json()["detail"].replace(str(kv), "N") == "Không có phiếu N.", (pt, mau)
-        for h in (g.hA, g.hAd):                                                                   # chủ / admin KHÔNG nhận thông báo "không có phiếu"
+        for h in (g.hA, g.hAd):
             r = g.c.request(pt, mau.format(s=s), headers=h, **kw)
             assert not (r.status_code == 404 and r.json()["detail"] == f"Không có phiếu {s}."), (pt, mau, r.text[:100])
 
@@ -341,7 +325,6 @@ def test_idor_khong_sua_duoc_phieu_cua_nguoi_khac(the_gioi):
     assert g.c.get(f"/sheets/{g.SA}", headers=g.hA).json() == truoc
 
 
-# ------------------------------------------------------------------------------------------------ lớp + sinh viên
 def test_lop_cua_toi_va_sinh_vien_chi_lop_minh(the_gioi):
     g = the_gioi
     a = g.c.get("/me/classes", headers=g.hA).json()
@@ -367,8 +350,8 @@ def test_tim_kiem_va_phan_trang_sinh_vien(the_gioi):
     tat_ca = g.c.get(url, headers=g.hA).json()["sinh_vien"]
     ma = tat_ca[1]["student_code"]
     assert [s["student_code"] for s in g.c.get(url, headers=g.hA, params={"q": ma}).json()["sinh_vien"]] == [ma]
-    assert g.c.get(url, headers=g.hA, params={"q": "SỐ 2"}).json()["tong"] == 1 or g.c.get(url, headers=g.hA, params={"q": "số 2"}).json()["tong"] == 1   # theo tên, không phân biệt hoa thường
-    assert g.c.get(url, headers=g.hA, params={"q": "%"}).json()["tong"] == 0                       # ký tự đại diện được thoát, không khớp mọi dòng
+    assert g.c.get(url, headers=g.hA, params={"q": "SỐ 2"}).json()["tong"] == 1 or g.c.get(url, headers=g.hA, params={"q": "số 2"}).json()["tong"] == 1
+    assert g.c.get(url, headers=g.hA, params={"q": "%"}).json()["tong"] == 0
     assert g.c.get(url, headers=g.hA, params={"q": "_"}).json()["tong"] == 0
     p1 = g.c.get(url, headers=g.hA, params={"page": 1, "page_size": 2}).json()
     p2 = g.c.get(url, headers=g.hA, params={"page": 2, "page_size": 2}).json()
@@ -377,22 +360,19 @@ def test_tim_kiem_va_phan_trang_sinh_vien(the_gioi):
     assert g.c.get(url, headers=g.hA, params={"page": 0}).status_code == 422
 
 
-# ------------------------------------------------------------------------------------------------ Excel + bảng điểm
 def test_bang_diem_va_excel_co_mon_lop(the_gioi):
     g = the_gioi
     b = g.c.get(f"/exams/{g.EA}/results", headers=g.hA).json()
     assert b["class_code"] == g.lopA["ma"] and b["subject_name"] == "Môn thử" and b["subject_code"] and b["class_name"]
     ws = load_workbook(io.BytesIO(g.c.get(f"/exams/{g.EA}/export.xlsx", headers=g.hA).content))["Bảng điểm"]
     assert "Môn thử" in ws["A4"].value and ws["A4"].value.startswith("Môn: ") and g.lopA["ma"] in ws["F4"].value and ws["F4"].value.startswith("Lớp: ")
-    assert ws["A1"].value.startswith("BẢNG ĐIỂM") and ws["A5"].value == "STT" and ws["B5"].value == "SBD"          # cấu trúc cột cũ không đổi
+    assert ws["A1"].value.startswith("BẢNG ĐIỂM") and ws["A5"].value == "STT" and ws["B5"].value == "SBD"
     ws2 = load_workbook(io.BytesIO(g.c.get(f"/exams/{g.E_cu}/export.xlsx", headers=g.hA).content))["Bảng điểm"]
     assert "không gắn lớp" in ws2["F4"].value
     assert g.c.get(f"/exams/{g.E_cu}/results", headers=g.hA).json()["class_code"] is None
 
 
-# ------------------------------------------------------------------------------------------------ chế độ demo + dữ liệu mẫu
 def test_che_do_demo_giu_hanh_vi_cu(client):
-    """`client` (conftest) chạy AUTH_MODE=demo: không cần đăng nhập; DEMO_USER / X-User; không có /auth/login."""
     assert client.get("/exams").status_code == 200
     me = client.get("/me").json()
     assert me["username"]
@@ -404,7 +384,7 @@ def test_migration_002_chay_lai_an_toan(bang_moi):
     from backend import migrate
     sql = (migrate.THU_MUC / "002_lop_giao_vien.sql").read_text(encoding="utf-8")
     bang_moi.execute(sql)
-    bang_moi.execute(sql)                                                                         # lần hai không lỗi, không đổi dữ liệu
+    bang_moi.execute(sql)
     assert bang_moi.execute("SELECT to_regclass('teacher_classes') AS t").fetchone()["t"] is not None
 
 

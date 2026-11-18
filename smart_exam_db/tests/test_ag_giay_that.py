@@ -1,5 +1,3 @@
-"""Lệnh AG (01/11/2026): kịch bản thử giấy thật + phần so sánh của công cụ chấm – KHÔNG cần ảnh, KHÔNG cần CSDL.
-Tiêu chí: docs/tieu_chi_thu_giay_that.md (commit 18fd340)."""
 import copy
 import sys
 from pathlib import Path
@@ -17,9 +15,8 @@ def kb():
     return K.lap_kich_ban()
 
 
-# ------------------------------------------------------------------------------------------------ kịch bản
 def test_kich_ban_tat_dinh_va_dat_rang_buoc(kb):
-    assert K.lap_kich_ban() == kb                                                   # cùng hạt giống -> cùng kịch bản
+    assert K.lap_kich_ban() == kb
     assert K.lap_kich_ban(K.HAT_GIONG + 1) != kb
     assert K.kiem_kich_ban(kb) == []
     assert list(kb["to"]) == [f"T{i:02d}" for i in range(1, 11)]
@@ -28,7 +25,7 @@ def test_kich_ban_tat_dinh_va_dat_rang_buoc(kb):
         assert len(t["cau"]) == 40 and t["sbd"] in K.DS_SBD and t["ma_de"] in K.DS_MA
         dac = [c["loai"] for c in t["cau"].values() if c["loai"] != "binh_thuong"]
         assert 8 <= len(dac) <= 10
-        assert ("te" in dac) == (t["but"] == "chi")                                 # "te" CHỈ ở tờ bút chì
+        assert ("te" in dac) == (t["but"] == "chi")
         for l in dac:
             dem[l] = dem.get(l, 0) + 1
     assert all(dem[l] >= 6 for l in K.LOAI_DAC_BIET), dem
@@ -63,7 +60,6 @@ def test_kiem_kich_ban_bat_loi(kb):
     assert any("thiếu bubble" in e for e in K.kiem_kich_ban(y))
 
 
-# ------------------------------------------------------------------------------------------------ so sánh
 @pytest.mark.parametrize("dap_an,doc,cx,mong", [
     ("B", "B", False, "doc_dung"), ("B", "C", False, "sai_am_tham"), ("B", "", False, "sai_am_tham"), ("B", "C", True, "can_xem"),
     ("", "", False, "doc_dung"), ("", "A", False, "sai_am_tham"), ("BC", "CB", False, "doc_dung"), ("BC", "B", False, "sai_am_tham"),
@@ -75,12 +71,11 @@ def test_phan_loai_cau(dap_an, doc, cx, mong):
 def test_phan_loai_cot():
     assert C.phan_loai_cot("3", "3", False) == "doc_dung"
     assert C.phan_loai_cot("3", "8", False) == "sai_am_tham"
-    assert C.phan_loai_cot("?", "8", False) == "sai_am_tham"                         # thiếu bubble mà máy "thấy" một chữ số, không cờ
+    assert C.phan_loai_cot("?", "8", False) == "sai_am_tham"
     assert C.phan_loai_cot("?", "?", True) == "can_xem"
 
 
 def rec_dung(ma: str, to: dict, cx=(), sai=None, truong=None) -> dict:
-    """Bản ghi đọc ảnh GIẢ (không ảnh): đọc đúng kịch bản; cx = câu gắn cần xem; sai = {câu: ô đọc}; truong = ghi đè trường."""
     cau = []
     for n, c in to["cau"].items():
         doc = (sai or {}).get(int(n), c["dap_an"])
@@ -115,7 +110,7 @@ def test_bat_sai_am_tham_cau_va_hai_o_tu_chot(kb):
     r = rec_dung("T01", t, sai={n: sai})
     h = int(next(k for k, c in t["cau"].items() if c["loai"] == "hai_o"))
     for c in r["cau"]:
-        if c["n"] == h:                                                             # máy TỰ CHỐT một ô cho câu tô 2 ô
+        if c["n"] == h:
             c.update(doc_o=t["cau"][str(h)]["dap_an"][0], cx=False, ly_do=[])
     k = C.tong_hop([C.danh_gia_anh(r, t)], kb, [], [])
     assert k["C1"] == "KHÔNG ĐẠT"
@@ -124,7 +119,7 @@ def test_bat_sai_am_tham_cau_va_hai_o_tu_chot(kb):
 
 
 def test_h3a_truong_nhan_sai_va_h3b_thieu_bubble_bi_nhan(kb):
-    t3 = kb["to"]["T03"]                                                            # T03: SBD cột 2 thiếu bubble
+    t3 = kb["to"]["T03"]
     r = rec_dung("T03", t3, truong={"sbd": {"gia_tri": t3["sbd"], "chac": True, "ly_do": [], "trong_ds": True}})
     k = C.tong_hop([C.danh_gia_anh(r, t3)], kb, [], [])
     assert k["H3"]["H3b_vi_pham"] == 1 and k["H3"]["ket_luan"] == "KHÔNG ĐẠT"
@@ -133,7 +128,7 @@ def test_h3a_truong_nhan_sai_va_h3b_thieu_bubble_bi_nhan(kb):
     r = rec_dung("T01", t1, truong={"sbd": {"gia_tri": sai, "chac": True, "ly_do": [], "trong_ds": True}})
     k = C.tong_hop([C.danh_gia_anh(r, t1)], kb, [], [])
     assert k["H3"]["H3a_truong_nhan_ma_sai"] == 1 and k["C1"] == "KHÔNG ĐẠT"
-    r = rec_dung("T01", t1, truong={"sbd": {"gia_tri": sai, "chac": True, "ly_do": [], "trong_ds": False}})   # ngoài danh sách -> backend giữ lại
+    r = rec_dung("T01", t1, truong={"sbd": {"gia_tri": sai, "chac": True, "ly_do": [], "trong_ds": False}})
     assert C.tong_hop([C.danh_gia_anh(r, t1)], kb, [], [])["H3"]["H3a_truong_nhan_ma_sai"] == 0
 
 
@@ -149,9 +144,7 @@ def test_anh_bi_tu_choi_va_to_chua_kiem_duoc_bao(kb, tmp_path):
     assert "T05.jpg (tờ T05): **bị tiền xử lý từ chối** – `thieu_marker`" in md and "**Tờ T05: chưa kiểm được**" in md and "anh_la.jpg: bỏ qua" in md
 
 
-# ------------------------------------------------------------------------------------------------ AG2: bảng phụ "sau xác minh"
 def _hai_lech(kb):
-    """T01: một câu bỏ trống mà người tô lỡ tô A (máy đọc A, không cờ); câu bình thường mà người tô tô 2 ô (máy đọc 2 ô, cần xem)."""
     t = kb["to"]["T01"]
     nt = int(next(k for k, c in t["cau"].items() if c["loai"] == "bo_trong"))
     nb = int(next(k for k, c in t["cau"].items() if c["loai"] == "binh_thuong"))
@@ -168,7 +161,7 @@ def test_sau_xac_minh_doi_dap_an_khong_doi_ban_chinh(kb):
     chinh = C.tong_hop(dg, kb, [], [])
     assert chinh["C1"] == "KHÔNG ĐẠT" and [x["n"] for x in chinh["sai_am_tham"]["cau"]] == [nt]
     dg2, doi = C.ap_lech_kich_ban(dg, lech, kb)
-    assert dg == goc                                                                # bản chính KHÔNG bị sửa
+    assert dg == goc
     phu = C.tong_hop(dg2, kb, [], [])
     assert phu["C1"] == "ĐẠT" and phu["sai_am_tham"]["cau"] == []
     assert phu["theo_loai"]["hai_o"]["n"] == chinh["theo_loai"]["hai_o"]["n"] + 1
@@ -191,7 +184,7 @@ def test_sau_xac_minh_tep_lech_sai_bi_tu_choi(kb):
 def test_cham_khong_doc_tep_lech_va_sau_xac_minh_khong_ghi_de(kb, tmp_path, monkeypatch):
     import inspect
     import json
-    assert "lech" not in inspect.getsource(C.cham) and "lech" not in inspect.getsource(C.tong_hop)   # mặc định KHÔNG dùng tệp lệch
+    assert "lech" not in inspect.getsource(C.cham) and "lech" not in inspect.getsource(C.tong_hop)
     dg, lech, _, _ = _hai_lech(kb)
     (tmp_path / "kb.json").write_text(json.dumps(kb, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(C, "KICH_BAN", tmp_path / "kb.json")

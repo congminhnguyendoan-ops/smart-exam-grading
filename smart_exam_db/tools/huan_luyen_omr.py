@@ -1,16 +1,3 @@
-"""
-huan_luyen_omr.py - Huấn luyện + chọn mô hình ô cho cv_engine/omr.py (Tuần 5, Phần A; docs/ke_hoach_tuan5.md).
-
-Chỉ dùng 56 ảnh TRAIN 0001–0028, 7 fold theo phiếu (data/split.csv). Phần A không chạm val 0029–0034; test bị chặn.
-scikit-learn CHỈ dùng ở đây; mô hình xuất ra JSON để omr.py chạy bằng NumPy.
-
-  python tools/huan_luyen_omr.py dac-trung      # đặc trưng 56 ảnh × 250 ô cho anh_nan và anh_chuan_hoa -> data/_omr/
-  python tools/huan_luyen_omr.py cv             # M0 (ngưỡng cố định) + M1 (logistic) 7-fold OOF, F1 faint theo C1–C4 + CI,
-                                                # so anh_nan / anh_chuan_hoa, chọn nguồn -> data/_omr/chon_nguon.json
-  python tools/huan_luyen_omr.py luat           # ngưỡng luật ô -> câu / cột trên OOF (quy tắc chốt trước) -> data/_omr/luat.json
-  python tools/huan_luyen_omr.py xuat           # mô hình JSON: models/omr_m0.json, models/omr_m1.json (huấn luyện trên cả
-                                                # 56 ảnh train) + mô hình từng fold data/_omr/mo_hinh_fold/ (cho eval OOF)
-"""
 import argparse
 import csv
 import datetime as dt
@@ -37,12 +24,10 @@ LOP_BUBBLE = ("blank", "filled")
 SEED = 2026
 SO_BOOT = 1000
 DIEU_KIEN = ("C1", "C2", "C3", "C4")
-C_LOGISTIC = 1.0            # cố định (Nợ kỹ thuật #2: không dò C trên OOF rồi báo trên chính OOF)
-# M0: ngưỡng cố định của audit Tuần 4 (check_labels MARK_MIN / FILLED_MIN) trên thang ld_anh (S không dùng nhãn)
+C_LOGISTIC = 1.0
 M0_NGUONG = {"mark_min": 0.25, "filled_min": 0.80}
 
 
-# ------------------------------------------------------------------------------------------------ đặc trưng
 def cmd_dac_trung() -> None:
     L = nap_layout("phieu")
     mau = omr.nap_mau()
@@ -52,7 +37,7 @@ def cmd_dac_trung() -> None:
     ghi = {k: [] for k in NGUON}
     for r in ds_anh("train"):
         nan, chuan = anh_da_nan(r["anh"], L)
-        dv = omr.dinh_vi(nan, L, mau)                 # định vị luôn trên anh_nan (mẫu trắng; chuẩn hoá không đổi hình học)
+        dv = omr.dinh_vi(nan, L, mau)
         if any(dv.co.values()):
             raise SystemExit(f"{r['anh']}: định vị có cờ – A1 đã kiểm 56/56 không cờ, xem lại trước khi huấn luyện")
         for k, anh in (("nan", nan), ("chuan", chuan)):
@@ -89,9 +74,7 @@ def ma_tran(rows: list[dict]) -> np.ndarray:
     return np.array([[float(r[t]) for t in omr.TEN_DAC_TRUNG] for r in rows], np.float64)
 
 
-# ------------------------------------------------------------------------------------------------ mô hình
 def m0_du_doan(X: np.ndarray, lop: tuple) -> np.ndarray:
-    """M0: xác suất 'cứng' (0/1) từ ngưỡng cố định trên ld_anh – dùng đúng omr.du_doan (mô hình loại 'nguong')."""
     return omr.du_doan({"loai": "nguong", "nguong": M0_NGUONG}, "cau" if lop == LOP_CAU else "bubble", X)
 
 
@@ -111,7 +94,6 @@ def m1_sang_json(m, lop: tuple) -> dict:
 
 
 def oof(rows: list[dict], loai: str, mo_hinh: str) -> np.ndarray:
-    """Xác suất ngoài fold (OOF) cho các dòng loai ('cau' / 'bubble')."""
     lop = LOP_CAU if loai == "cau" else LOP_BUBBLE
     idx = [i for i, r in enumerate(rows) if r["loai"] == loai]
     X = ma_tran([rows[i] for i in idx])
@@ -128,7 +110,6 @@ def oof(rows: list[dict], loai: str, mo_hinh: str) -> np.ndarray:
     return P
 
 
-# ------------------------------------------------------------------------------------------------ đo
 def f1_lop(y: np.ndarray, d: np.ndarray, k: int) -> float:
     tp = np.sum((y == k) & (d == k))
     fp = np.sum((y != k) & (d == k))
@@ -137,7 +118,6 @@ def f1_lop(y: np.ndarray, d: np.ndarray, k: int) -> float:
 
 
 def boot_f1(rows_c, y, d, k, rng_idx) -> np.ndarray:
-    """F1 lớp k trên mỗi mẫu bootstrap theo phiếu (rng_idx: danh sách mảng phiếu được rút)."""
     phieu = np.array([r["phieu"] for r in rows_c])
     out = []
     for rut in rng_idx:
@@ -151,7 +131,7 @@ def cmd_cv() -> None:
     rows = {k: doc_dac_trung(k) for k in NGUON}
     cau = {k: [r for r in rows[k] if r["loai"] == "cau"] for k in NGUON}
     phieu_ds = sorted({r["phieu"] for r in cau["nan"]})
-    rut = [rng.choice(phieu_ds, len(phieu_ds), replace=True) for _ in range(SO_BOOT)]    # ghép cặp: dùng chung mọi cấu hình
+    rut = [rng.choice(phieu_ds, len(phieu_ds), replace=True) for _ in range(SO_BOOT)]
     y = np.array([LOP_CAU.index(r["nhan"]) for r in cau["nan"]])
     assert all(r1["anh"] == r2["anh"] and r1["phan_tu"] == r2["phan_tu"] and r1["o"] == r2["o"]
                for r1, r2 in zip(cau["nan"], cau["chuan"]))
@@ -174,7 +154,6 @@ def cmd_cv() -> None:
                                     "macro_f1": float(np.mean([f1_lop(y[s], d[s], c) for c in range(3)]))}
             Pb = oof(rows[k], "bubble", mh)
             np.save(OMR_DIR / f"oof_bubble_{mh}_{k}.npy", Pb)
-    # báo cáo
     dong = ["# A2 – M0 / M1, anh_nan / anh_chuan_hoa (OOF 7-fold, 56 ảnh train 0001–0028)", "",
             f"Bootstrap theo phiếu {SO_BOOT} lần, seed {SEED}, CI 95% (ghép cặp giữa các cấu hình). F1 lớp faint, cấp ô.", "",
             "| Mô hình | Nguồn | " + " | ".join(f"{dk} F1 faint [CI] (n)" for dk in DIEU_KIEN) + " | maximin |",
@@ -188,7 +167,6 @@ def cmd_cv() -> None:
     for k in NGUON:
         for dk in DIEU_KIEN:
             dong.append(f"- {NGUON[k]} {dk}: {ket[('m1', k)][dk]['cm']}")
-    # so nguồn (M1): hiệu F1 faint chuan − nan theo điều kiện + maximin, CI ghép cặp
     diff = {dk: boot[("m1", "chuan", dk)] - boot[("m1", "nan", dk)] for dk in DIEU_KIEN}
     mm_b = {k: np.nanmin(np.vstack([boot[("m1", k, dk)] for dk in DIEU_KIEN]), axis=0) for k in NGUON}
     d_mm = mm_b["chuan"] - mm_b["nan"]
@@ -203,7 +181,6 @@ def cmd_cv() -> None:
             xau_hon.append(dk)
     mm = {k: min(ket[("m1", k)][dk]["f1_faint"] for dk in DIEU_KIEN) for k in NGUON}
     dong.append(f"- maximin: {mm['chuan'] - mm['nan']:+.3f} [{ci_mm[0]:+.3f}; {ci_mm[1]:+.3f}]")
-    # quy tắc mục 4d: chuẩn hoá chỉ khi maximin cao hơn ngoài CI và không điều kiện nào thấp hơn ngoài CI; hoà -> anh_nan
     chon = "chuan" if (ci_mm[0] > 0 and not xau_hon) else "nan"
     ly_do = ("maximin F1 faint của anh_chuan_hoa cao hơn ngoài CI, không điều kiện nào thấp hơn ngoài CI"
              if chon == "chuan" else
@@ -218,15 +195,9 @@ def cmd_cv() -> None:
     print("\n".join(dong))
 
 
-# ------------------------------------------------------------------------------------------------ ngưỡng luật
-# Quy tắc chọn (docs/ke_hoach_tuan5.md A3, chốt trước khi chạy): trên OOF M1 của nguồn đã chọn –
-#   trong_min (ô "trống chắc"), to_min (ô "tô chắc"): giá trị chốt, KIỂM có biên ≥ BIEN_AN_TOAN so với ca xấu nhất OOF
-#     (p(trống) lớn nhất của ô có tô; p(có tô) lớn nhất của ô trống) – không đạt thì DỪNG, không tự nới;
-#   ro_min: lớn nhất trong lưới RO_LUOI mà tỉ lệ "cần xem thừa" (câu rõ 1 ô bị cần xem) ≤ THUA_MAX_CHON (2,5% – chừa 0,5
-#     điểm % cho độ lạc quan của OOF so với tiêu chí 3%).
 LUAT_CHOT = {"cau": {"trong_min": 0.90, "to_min": 0.50},
              "bubble": {"trong_min": 0.90, "to_min": 0.70, "ro_min_ld_anh": 0.70}}
-BIEN_LD_ANH = 0.05          # ro_min_ld_anh phải thấp hơn ld_anh nhỏ nhất của bubble tô thật (train) ít nhất bấy nhiêu
+BIEN_LD_ANH = 0.05
 BIEN_AN_TOAN = 0.20
 RO_LUOI = (0.5, 0.6, 0.7, 0.8, 0.9)
 THUA_MAX_CHON = 0.025
@@ -242,7 +213,6 @@ def trang_thai_that(nhan_4: list[str]) -> tuple[str, frozenset]:
 
 
 def mo_phong_cau(rows: list[dict], P: np.ndarray, luat_cau: dict) -> dict:
-    """Áp omr.ap_luat_cau lên OOF, đếm theo câu: lỗi nặng / nhẹ, cần xem thừa (công cụ huấn luyện – eval có bộ đếm riêng)."""
     nhom: dict = {}
     for i, r in enumerate(rows):
         nhom.setdefault((r["anh"], r["phan_tu"]), []).append(i)
@@ -262,7 +232,6 @@ def mo_phong_cau(rows: list[dict], P: np.ndarray, luat_cau: dict) -> dict:
 
 
 def thua_theo_dieu_kien(rows: list[dict], P: np.ndarray, luat_cau: dict) -> dict:
-    """{điều kiện: (số câu rõ 1 ô bị cần xem, số câu rõ 1 ô)} và tổng lỗi nặng – để chọn ro_min THEO TỪNG ĐIỀU KIỆN (Phần B2)."""
     nhom: dict = {}
     for i, r in enumerate(rows):
         nhom.setdefault((r["anh"], r["phan_tu"]), []).append(i)
@@ -289,8 +258,8 @@ def cmd_luat() -> None:
         P = np.load(OMR_DIR / f"oof_{loai}_m1_{k}.npy")
         y = np.array([lop.index(r["nhan"]) for r in sel])
         p_to = 1 - P[:, 0]
-        xau_to = float(P[y > 0, 0].max())             # ô có tô mà p(trống) cao nhất
-        xau_trong = float(p_to[y == 0].max())          # ô trống mà p(có tô) cao nhất
+        xau_to = float(P[y > 0, 0].max())
+        xau_trong = float(p_to[y == 0].max())
         L = dict(LUAT_CHOT[loai])
         if L["trong_min"] - xau_to < BIEN_AN_TOAN or L["to_min"] - xau_trong < BIEN_AN_TOAN:
             raise SystemExit(f"{loai}: biên an toàn không đạt (trong_min {L['trong_min']} vs {xau_to:.3f}; to_min "
@@ -310,12 +279,11 @@ def cmd_luat() -> None:
                 luoi[ro] = d
                 print(f"ro_min {ro}: nặng {d['nang']}, nhẹ {d['nhe']}, cần xem thừa {d['thua']}/{d['ro_that']} "
                       f"({d['thua'] / d['ro_that']:.2%}), cần xem {d['can_xem']}/{d['cau']}")
-            # Phần B2 (20/10/2026): ro_min chọn theo TỪNG ĐIỀU KIỆN – thừa ≤ 2,5% Ở MỌI C1–C4 (Phần A chỉ xét gộp: 0,6 -> C2 3,79% > 3%)
             theo_dk = {ro: thua_theo_dieu_kien(sel, P, {**L, "ro_min": ro}) for ro in RO_LUOI}
             for ro, v in theo_dk.items():
                 print(f"  ro_min {ro}: thừa theo điều kiện " + ", ".join(f"{dk} {a}/{b} ({a / b:.2%})" for dk, (a, b) in v["dk"].items()))
             ok = [ro for ro, v in theo_dk.items() if v["nang"] == 0 and all(a / b <= THUA_MAX_CHON for a, b in v["dk"].values())]
-            if not ok:                      # dự phòng (giống omr_c2.chon_ro_min_dk): ro_min có thừa-xấu-nhất nhỏ nhất, phải còn ≤ 3% (tiêu chí ★Q2)
+            if not ok:
                 xau = {ro: max(a / b for a, b in v["dk"].values()) for ro, v in theo_dk.items() if v["nang"] == 0}
                 ro_du = min(xau, key=lambda r: (xau[r], -r)) if xau else None
                 print(f"  không ro_min nào ≤ {THUA_MAX_CHON:.1%} mọi điều kiện -> dự phòng ro_min {ro_du} (xấu nhất {xau.get(ro_du, 9):.2%})")
@@ -335,7 +303,6 @@ def cmd_luat() -> None:
           "->", OMR_DIR / "luat.json")
 
 
-# ------------------------------------------------------------------------------------------------ xuất mô hình
 def _sha_file(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
@@ -359,7 +326,6 @@ def sieu_du_lieu(k: str, fold_huan_luyen: list[int]) -> dict:
 
 
 def tao_m1(rows: list[dict], fold_bo: int | None, k: str, luat: dict) -> dict:
-    """Mô hình M1 JSON huấn luyện trên các fold ≠ fold_bo (None = cả 7 fold)."""
     out = {"loai": "logistic", "phien_ban": "omr_m1", "ten_dac_trung": list(omr.TEN_DAC_TRUNG),
            "nguon_anh": NGUON[k], "luat": luat}
     folds = [f for f in range(1, 8) if f != fold_bo]
@@ -368,7 +334,6 @@ def tao_m1(rows: list[dict], fold_bo: int | None, k: str, luat: dict) -> dict:
         X = ma_tran(sel)
         m = m1_huan_luyen(X, np.array([lop.index(r["nhan"]) for r in sel]))
         out[loai] = m1_sang_json(m, lop)
-        # suy luận NumPy từ JSON (omr.du_doan) phải trùng sklearn
         sai = np.abs(omr.du_doan({"loai": "logistic", loai: out[loai]}, loai, X) - m.predict_proba(X)).max()
         if sai > 1e-9:
             raise SystemExit(f"omr.du_doan lệch sklearn {sai:.2e} ({loai}) – không xuất mô hình")

@@ -1,20 +1,9 @@
-"""
-xuat_cay_va_moc.py - Lệnh W3 (30/10/2026): sinh docs/cay_thu_muc.md (Bảng 3.13) và docs/moc_commit.md (Bảng 3.14) TỪ GIT – chỉ những gì có thật.
-
-  python tools/xuat_cay_va_moc.py          # ghi lại hai tệp (chạy lại được; nội dung chỉ đổi khi git đổi)
-
-Cây thư mục = các tệp git đang theo dõi (`git ls-files`, nhánh hiện tại) – tự nhiên không có .venv, .git, data/, __pycache__ (đều nằm trong .gitignore);
-kèm một mục riêng liệt kê những gì CHỈ có trên máy này (bị .gitignore bỏ qua) trừ .venv / data / __pycache__, chỉ ghi tên + số tệp.
-Mốc commit = `git log --all --date=short` (MỌI nhánh, lệnh Y), gom theo ngày (số commit, số commit chỉ ở nhánh khác, hash đầu / cuối, tiêu đề từng commit,
-† = không nằm trong nhánh hiện tại) + bảng tag (ngày, commit, có nằm trong nhánh hiện tại không, các nhánh chứa tag).
-Chỉ ĐỌC git, không ghi gì ngoài hai tệp docs.
-"""
 import subprocess
 import sys
 from collections import OrderedDict, defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent           # smart_exam_db/
+ROOT = Path(__file__).resolve().parent.parent
 BO = (".venv", ".git", "data", "__pycache__")
 
 
@@ -27,7 +16,6 @@ def goc_repo() -> Path:
 
 
 def cay(tep: list[str]) -> list[str]:
-    """Cây kiểu `tree` từ danh sách đường dẫn (thư mục trước, tệp sau, theo tên); thư mục ghi số tệp bên trong."""
     nut: dict = {}
     for t in tep:
         d = nut
@@ -52,12 +40,10 @@ def cay(tep: list[str]) -> list[str]:
 
 
 def _ds(*a) -> list[str]:
-    """git ls-files -z ở GỐC repo (đường dẫn có dấu tiếng Việt không bị đặt trong nháy)."""
     return [p for p in git("-C", str(goc_repo()), "ls-files", "-z", *a).split("\0") if p]
 
 
 def chi_tren_may() -> list[str]:
-    """Tệp / thư mục bị .gitignore bỏ qua (chỉ có trên máy này), trừ .venv, data, __pycache__ – gom theo thư mục cấp 1 (cấp 2 trong smart_exam_db/)."""
     nhom: dict[str, int] = defaultdict(int)
     for p in _ds("--others", "--ignored", "--exclude-standard"):
         phan = p.split("/")
@@ -71,7 +57,7 @@ def chi_tren_may() -> list[str]:
 def xuat_cay() -> str:
     g = goc_repo()
     theo_doi = _ds()
-    moi = _ds("--others", "--exclude-standard")                                         # tệp mới, KHÔNG bị .gitignore (sẽ commit cùng)
+    moi = _ds("--others", "--exclude-standard")
     tep = [t for t in theo_doi + moi if not any(x in BO for x in t.split("/"))]
     nhanh, hash_ = git("rev-parse", "--abbrev-ref", "HEAD").strip(), git("rev-parse", "--short", "HEAD").strip()
     d = [f"# Cây thư mục dự án (Bảng 3.13)", "",
@@ -87,8 +73,7 @@ def xuat_cay() -> str:
 
 
 def xuat_moc() -> str:
-    """Lệnh Y: lấy commit từ MỌI nhánh (`git log --all`: nhánh cục bộ, remote, tag); đánh dấu commit KHÔNG nằm trong nhánh hiện tại."""
-    dong = git("log", "--all", "--date=short", "--format=%ad%x09%h%x09%s").splitlines()[::-1]          # cũ -> mới
+    dong = git("log", "--all", "--date=short", "--format=%ad%x09%h%x09%s").splitlines()[::-1]
     trong_head = set(git("log", "--format=%h").split())
     theo_ngay: "OrderedDict[str, list]" = OrderedDict()
     for x in dong:

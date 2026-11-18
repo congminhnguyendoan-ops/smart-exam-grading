@@ -36,8 +36,8 @@ from cv_engine.preprocessing import GOC, load_image  # noqa: E402
 GIA = EVAL_DIR / "_gia_v4"
 FONT = ANSWER_SHEET / "fonts" / "DejaVuSans.ttf"
 NHOM = {"khong_du_marker": ["thieu_marker", "marker_khong_dat"]}
-NEN_BAN = 95                # nền bàn xám như ảnh giả của 3c (marker_that.anh_gia)
-MM = 300 / 25.4             # px layout / mm
+NEN_BAN = 95
+MM = 300 / 25.4
 
 
 def nap_layout(loai: str) -> dict:
@@ -46,7 +46,6 @@ def nap_layout(loai: str) -> dict:
 
 
 def tam_v3() -> dict[str, np.ndarray]:
-    """4 tâm marker (TL, TR, BR, BL thật của trang) do v3_hinh_hoc chọn trên ảnh dev."""
     out = {}
     for r in csv.DictReader((EVAL_DIR / "v3_hinh_hoc" / "diem_dev.csv").open(encoding="utf-8-sig")):
         if r["tra_anh"] == "co":
@@ -60,7 +59,6 @@ def huong(tam: np.ndarray) -> int:
 
 
 def phoi_canh(t: np.ndarray) -> float:
-    """Độ phối cảnh của 4 tâm (như K2 của 3c): min(trên/dưới, trái/phải và nghịch đảo)."""
     d = lambda i, j: float(np.hypot(*(t[i] - t[j])))
     tl = [d(0, 1) / d(3, 2), d(0, 3) / d(1, 2)]
     return min(min(r, 1 / r) for r in tl)
@@ -71,7 +69,6 @@ def bien_doi(H: np.ndarray, pts: np.ndarray) -> np.ndarray:
 
 
 class Nguon:
-    """Ảnh dev nguồn: ảnh xám + tâm marker v3 + H_L (toạ độ layout -> ảnh)."""
 
     def __init__(self, ten: str, duong_dan: Path, loai: str, tam: np.ndarray):
         self.ten, self.loai, self.tam = ten, loai, tam
@@ -81,20 +78,16 @@ class Nguon:
         self.H_L = cv2.getPerspectiveTransform(tam_L, tam.astype(np.float32))
 
     def o_vuong(self, goc: int, nua_mm: float) -> np.ndarray:
-        """Đa giác trên ảnh của ô vuông cạnh 2·nua_mm (mm) quanh tâm marker góc `goc` (0..3 = TL, TR, BR, BL)."""
         c = np.array(self.layout["markers"]["centers"][GOC[goc]])
         h = nua_mm * MM
         return bien_doi(self.H_L, c + np.array([[-h, -h], [h, -h], [h, h], [-h, h]]))
 
     def trang(self, H_them=np.eye(3)) -> np.ndarray:
-        """Đa giác mép giấy (cả trang) trên ảnh, sau phép H_them."""
         w, h = self.layout["page_px"]
         return bien_doi(H_them @ self.H_L, [[0, 0], [w, 0], [w, h], [0, h]])
 
 
-# ============================================================================ các phép tạo ảnh giả
 def H_xoay(k: int, shape) -> tuple[np.ndarray, int]:
-    """Xoay k·90° THEO chiều kim đồng hồ: (H nguồn -> giả, mã cv2.rotate)."""
     h, w = shape
     if k == 1:
         return np.array([[0, -1, h - 1], [1, 0, 0], [0, 0, 1]], float), cv2.ROTATE_90_CLOCKWISE
@@ -112,7 +105,6 @@ def nen_ban(shape, rng) -> np.ndarray:
 
 
 def dan(canvas: np.ndarray, src: np.ndarray, H: np.ndarray, mat_na_src: np.ndarray | None = None) -> np.ndarray:
-    """Dán src (biến đổi H) lên canvas; chỉ phần mat_na_src > 0 (mặc định cả ảnh)."""
     h, w = canvas.shape
     anh = cv2.warpPerspective(src.astype(np.float32), H, (w, h), flags=cv2.INTER_LINEAR)
     m = mat_na_src if mat_na_src is not None else np.full(src.shape, 255, np.uint8)
@@ -121,7 +113,6 @@ def dan(canvas: np.ndarray, src: np.ndarray, H: np.ndarray, mat_na_src: np.ndarr
 
 
 def nen_giay_quanh(gray: np.ndarray, poly: np.ndarray) -> float:
-    """Độ sáng giấy quanh một đa giác: trung vị vành rộng ~ nửa cạnh đa giác bên ngoài nó."""
     m = np.zeros(gray.shape, np.uint8)
     cv2.fillPoly(m, [poly.astype(np.int32)], 1)
     k = int(np.ptp(poly[:, 0]) * 0.5) | 1
@@ -130,8 +121,6 @@ def nen_giay_quanh(gray: np.ndarray, poly: np.ndarray) -> float:
 
 
 def mo_chuyen_dong(gray: np.ndarray, dai: int, goc_do: float = 0) -> np.ndarray:
-    """Mờ chuyển động thẳng dài `dai` px (ảnh gốc) theo hướng goc_do (0 = ngang). goc_do = 0 giữ đúng nhân cũ
-    (ảnh giả cũ tái tạo từng byte)."""
     if goc_do == 0:
         k = np.zeros((dai, dai), np.float32)
         k[dai // 2, :] = 1.0 / dai
@@ -147,8 +136,6 @@ def mo_chuyen_dong(gray: np.ndarray, dai: int, goc_do: float = 0) -> np.ndarray:
 
 
 def vet_muc(gray: np.ndarray, tam) -> tuple[np.ndarray, np.ndarray]:
-    """(ys, xs) điểm ảnh của vết mực chứa tâm marker `tam` – mặt nạ mực cùng ngưỡng với preprocessing
-    (xám / nền giấy cục bộ < MUC_TI_LE, nối 8 hướng)."""
     muc = (gray.astype(np.float32) / np.maximum(pp.uoc_luong_nen(gray), 1.0) < pp.MUC_TI_LE).astype(np.uint8)
     _, lab = cv2.connectedComponents(muc, connectivity=8)
     i = lab[int(round(tam[1])), int(round(tam[0]))]
@@ -158,15 +145,12 @@ def vet_muc(gray: np.ndarray, tam) -> tuple[np.ndarray, np.ndarray]:
 
 
 def mep_vet_muc(gray: np.ndarray, tam) -> dict:
-    """Khoảng cách (px) từ vết mực của marker tới 4 mép ảnh; 0 = chạm mép."""
     ys, xs = vet_muc(gray, tam)
     H, W = gray.shape
     return {"tren": int(ys.min()), "duoi": int(H - 1 - ys.max()), "trai": int(xs.min()), "phai": int(W - 1 - xs.max())}
 
 
 def tim_nghieng(n: Nguon, muc_tieu: float) -> np.ndarray:
-    """H làm ảnh 'quá nghiêng': cạnh trên của ảnh co lại t lần (giữa), chiều cao còn 0,85; chọn t (chia đôi) để độ
-    phối cảnh của 4 tâm marker = muc_tieu."""
     h, w = n.gray.shape
     goc = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
 
@@ -184,7 +168,6 @@ def tim_nghieng(n: Nguon, muc_tieu: float) -> np.ndarray:
     return H_t((lo + hi) / 2)
 
 
-# ============================================================================ lệnh tao-gia
 def cmd_tao_gia(a) -> None:
     GIA.mkdir(parents=True, exist_ok=True)
     anh_dev = {x.ten: x for x in list_images("dev")}
@@ -194,7 +177,6 @@ def cmd_tao_gia(a) -> None:
     rows, anh_ghep = [], []
 
     def ghi(ten, nhom, img, nguon, bien_the, mong, H=None, ly_do=(), layout=None, ghi_chu=""):
-        """mong = 'ok' (tâm + hướng mong đợi tính từ H và nguồn) hoặc 'tu_choi' (ly_do = tập mã chấp nhận)."""
         img = np.clip(img, 0, 255).astype(np.uint8)
         _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 95])
         buf.tofile(GIA / f"{ten}.jpg")
@@ -215,19 +197,17 @@ def cmd_tao_gia(a) -> None:
     phieu4 = ("0001_C1", "0005_C2", "0015_C3", "0008_C4")
     nguon5 = phieu4 + ("D003",)
 
-    # 1. Xoay 90 / 180 / 270 (theo chiều kim đồng hồ, không mất dữ liệu) – 6 nguồn
     print("1. xoay")
     for t, n in ns.items():
         for k in (1, 2, 3):
             H, ma = H_xoay(k, n.gray.shape)
             ghi(f"xoay{90 * k}_{t}", "xoay", cv2.rotate(n.gray, ma), t, f"{90 * k}°", "ok", H)
 
-    # 2. Che 1 marker: màu giấy cục bộ / đĩa tối Ø20 mm (tròn -> không còn là tứ giác) – 5 nguồn, đổi góc
     print("2. che marker")
     for i, t in enumerate(nguon5):
         n = ns[t]
         goc = i % 4
-        o_che = n.o_vuong(goc, 7.0)                          # che ô 14 mm quanh marker 8 mm
+        o_che = n.o_vuong(goc, 7.0)
         img = n.gray.copy()
         cv2.fillPoly(img, [o_che.astype(np.int32)], int(nen_giay_quanh(n.gray, o_che)))
         ghi(f"che_giay_{GOC[goc]}_{t}", "che_marker", img, t, f"che {GOC[goc]} màu giấy", "tu_choi", ly_do=KDM)
@@ -240,13 +220,9 @@ def cmd_tao_gia(a) -> None:
         img = n.gray * (1 - m) + 0.45 * nen_giay_quanh(n.gray, o_che) * m
         ghi(f"che_toi_{GOC[goc]}_{t}", "che_marker", img, t, f"đĩa tối Ø20 mm che {GOC[goc]}", "tu_choi", ly_do=KDM)
 
-    # 3. Khung hình cắt qua 1 marker (cắt thẳng theo trục ảnh) + đối chứng cắt lề – 3 nguồn.
-    #    Tờ gần thẳng trục ảnh ⇒ đường cắt qua 1 marker cũng sượt marker cùng cạnh. Xoay ảnh nguồn ±5° trước (như cầm
-    #    máy hơi lệch; thu 0,88 để 4 góc không ra ngoài khung) để marker cần cắt nhô ra ~16 mm so với marker kia; chọn chiều xoay để 3 marker còn lại nguyên vẹn.
     print("3. cắt qua marker")
 
     def cat(R, goc, canh, f, h, w):
-        """(c, H cắt, cỡ ảnh sau cắt) – cắt theo cạnh `canh` qua marker `goc` (sau phép xoay R) mức f."""
         o = bien_doi(R, n.o_vuong(goc, 4.0))
         (x0, y0), (x1, y1) = o.min(0), o.max(0)
         if canh == "phai":
@@ -259,7 +235,6 @@ def cmd_tao_gia(a) -> None:
         return (slice(None, c), slice(None)), T(0, 0) @ R, (c, w)
 
     def nguyen_ven(H, goc, co) -> bool:
-        """3 marker còn lại nguyên vẹn, cách mép ảnh ≥ 1 mm (ô 10 mm quanh tâm nằm trong ảnh)."""
         for g in range(4):
             if g != goc:
                 q = bien_doi(H, n.o_vuong(g, 5.0))
@@ -268,7 +243,7 @@ def cmd_tao_gia(a) -> None:
         return True
 
     MUC = (("2px", None), ("25", 0.25), ("50", 0.5), ("75", 0.75), ("het", "het"))
-    CAT_MUC = {}                # nguồn -> (R, góc, cạnh, ảnh đã xoay) cho nhóm 13 (cắt theo MỰC)
+    CAT_MUC = {}
     for t, goc, canh in (("0001_C1", 2, "phai"), ("0015_C3", 1, "tren"), ("D003", 3, "duoi")):
         n = ns[t]
         h, w = n.gray.shape
@@ -290,9 +265,6 @@ def cmd_tao_gia(a) -> None:
             else:
                 ld = ("marker_cham_mep",)
             if f is None:
-                # Mức "2px" cắt 2 px qua ĐỈNH ô 8 mm dự đoán từ H, không đo trên mực. Sửa ca thử thiết kế sai (dừng C,
-                # 06/10/2026, có bằng chứng): đo mặt nạ mực của marker trên ảnh đã cắt; mực KHÔNG chạm mép (≥ 1 px) ⇒
-                # marker thực chất còn nguyên ⇒ mong đợi "ok hoặc marker_cham_mep". Mực chạm mép (0 px) ⇒ giữ nghiêm.
                 kc = mep_vet_muc(img, bien_doi(H, n.tam)[goc])[canh]
                 if kc >= 1:
                     mong, ghi_chu = "ok_hoac", f"mực marker cách mép {kc} px (không chạm) – sửa ca thử thiết kế sai"
@@ -301,7 +273,6 @@ def cmd_tao_gia(a) -> None:
             ghi(f"cat_{nhan}_{GOC[goc]}_{t}", "cat_marker", img, t, f"xoay {goc_do}°, cắt {canh} qua {GOC[goc]}: {nhan}",
                 mong, H, ly_do=ld, ghi_chu=ghi_chu)
         CAT_MUC[t] = (R, goc, canh, xoay)
-        # đối chứng: cắt lề, chừa ≥ 5 mm giấy quanh mọi marker (ô 18 mm quanh tâm)
         hop = np.vstack([n.o_vuong(g, 9.0) for g in range(4)])
         cx0, cy0 = np.floor(hop.min(0)).astype(int).clip(0)
         cx1, cy1 = np.ceil(hop.max(0)).astype(int)
@@ -309,7 +280,6 @@ def cmd_tao_gia(a) -> None:
         ghi(f"cat_le_{t}", "cat_le", n.gray[cy0:cy1, cx0:cx1], t, "cắt lề, chừa 5 mm quanh marker", "ok",
             T(-cx0, -cy0))
 
-    # 4. Hai tờ trên một ảnh (ảnh ngang 4032×3024, mỗi tờ thu 0,5)
     print("4. hai tờ")
     for i, (t1, t2, g1, g2) in enumerate((("0001_C1", "0008_C4", 0, 0), ("0001_C1", "D003", 0, 0),
                                           ("0005_C2", "0008_C4", 5, -5))):
@@ -326,8 +296,6 @@ def cmd_tao_gia(a) -> None:
         ghi(f"hai_to_{i + 1}_{t1}+{t2}", "hai_to", canvas, f"{t1}+{t2}", f"xoay {g1}°/{g2}°", "tu_choi", Hs[0],
             ly_do=("nhieu_phieu",))
 
-    # 5. Tờ khác lọt khung: tờ chính thu 0,8 giữa nền bàn; góc dưới-phải của tờ khác đặt cùng mặt phẳng,
-    #    marker BR của nó cách marker TL tờ chính d mm theo mỗi trục (ra ngoài). Mong đợi ok (chấp nhận marker_mo_ho).
     print("5. tờ khác lọt khung")
     for i, (tc, tk, d, sat) in enumerate((("0001_C1", "0008_C4", 30, False), ("0001_C1", "0008_C4", 22, False),
                                           ("0001_C1", "0008_C4", 19, False), ("0015_C3", "0005_C2", 10, True))):
@@ -337,10 +305,10 @@ def cmd_tao_gia(a) -> None:
         S = T(w * 0.1, h * 0.1, 0.8)
         canvas = dan(nen_ban((h, w), rng), c.gray, S)
         ctl, kbr = c.layout["markers"]["centers"]["tl"], k.layout["markers"]["centers"]["br"]
-        dich = T(ctl[0] - d * MM - kbr[0], ctl[1] - d * MM - kbr[1])      # layout tờ khác -> layout tờ chính
-        H_k = S @ c.H_L @ dich @ np.linalg.inv(k.H_L)                     # ảnh tờ khác -> canvas
+        dich = T(ctl[0] - d * MM - kbr[0], ctl[1] - d * MM - kbr[1])
+        H_k = S @ c.H_L @ dich @ np.linalg.inv(k.H_L)
         pw, ph = k.layout["page_px"]
-        x_het = kbr[0] + (6 * MM if sat else 99999)                       # 'đè sát': không có lề giấy ngoài marker
+        x_het = kbr[0] + (6 * MM if sat else 99999)
         y_het = kbr[1] + (6 * MM if sat else 99999)
         vung = bien_doi(k.H_L, [[pw * 0.7, ph * 0.8], [min(pw, x_het), ph * 0.8], [min(pw, x_het), min(ph, y_het)],
                                 [pw * 0.7, min(ph, y_het)]])
@@ -351,8 +319,6 @@ def cmd_tao_gia(a) -> None:
             f"góc BR tờ {tk} cách TL {d} mm/trục{' (không lề)' if sat else ''}", "ok_hoac", S,
             ly_do=("marker_mo_ho",), ghi_chu="KHÔNG được chọn marker tờ khác")
 
-    # 6. Mờ Gauss / chuyển động (σ, độ dài: px trên ẢNH GỐC). Tập chấp nhận chốt ở dừng B (06/10/2026) theo
-    #    `khao-sat` (mo_huong vs hậu quả filled/faint − blank; ngưỡng anh_mo 0,012 là ngưỡng TẠM, thận trọng)
     print("6. mờ")
     for t in nguon5:
         n = ns[t]
@@ -365,21 +331,18 @@ def cmd_tao_gia(a) -> None:
             ghi(f"mo_dong{dai}_{t}", "mo", mo_chuyen_dong(n.gray, dai), t, f"chuyển động ngang {dai} px", mong, T(0, 0),
                 ly_do=("anh_mo",))
 
-    # 7. Nhầm loại trang (ảnh giữ nguyên, chấm với layout của loại kia)
     print("7. nhầm loại trang")
     ghi("nham_loai_D003", "nham_loai", ns["D003"].gray, "D003", "trang D chấm theo layout phiếu", "tu_choi",
         layout="phieu", ly_do=("khong_khop_bo_cuc",))
     ghi("nham_loai_0001_C1", "nham_loai", ns["0001_C1"].gray, "0001_C1", "phiếu chấm theo layout trang D",
         "tu_choi", layout="chu_so", ly_do=("khong_khop_bo_cuc",))
 
-    # 8. Tối + nhiễu (đối chứng: nhiễu không được làm từ chối / lọt anh_mo)
     print("8. tối + nhiễu")
     for i, t in enumerate(("0001_C1", "0008_C4")):
         rng = np.random.default_rng(300 + i)
         ghi(f"toi_nhieu_{t}", "toi_nhieu", ns[t].gray * 0.4 + rng.normal(0, 8, ns[t].gray.shape), t,
             "sáng × 0,4, nhiễu σ 8", "ok", T(0, 0))
 
-    # 9. Quá nghiêng: độ phối cảnh 4 tâm ~0,45 / ~0,40 (< K2 0,50)
     print("9. quá nghiêng")
     for t in ("0001_C1", "0008_C4"):
         n = ns[t]
@@ -389,7 +352,6 @@ def cmd_tao_gia(a) -> None:
             ghi(f"qua_nghieng_{int(pc * 100)}_{t}", "qua_nghieng", img, t,
                 f"độ phối cảnh {phoi_canh(bien_doi(H, n.tam)):.3f}", "tu_choi", H, ly_do=KDM)
 
-    # 10. Không có phiếu: mặt bàn (dải nền phía trên tờ ở ảnh C3) / giấy trắng (lõi trang, xoá nét in bằng median)
     print("10. không có phiếu")
     dai = []
     for x in anh_dev.values():
@@ -410,12 +372,11 @@ def cmd_tao_gia(a) -> None:
         x0, y0 = loi.min(0).astype(int)
         x1, y1 = loi.max(0).astype(int)
         nho = cv2.resize(n.gray[y0:y1, x0:x1], None, fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
-        trang = cv2.medianBlur(cv2.medianBlur(nho, 41), 41)                # xoá ô tròn 5 mm / chữ, giữ độ sáng nền
+        trang = cv2.medianBlur(cv2.medianBlur(nho, 41), 41)
         trang = cv2.resize(trang, (3024, 4032), interpolation=cv2.INTER_CUBIC) + rng.normal(0, 3, (4032, 3024))
         ghi(f"khong_phieu_giay_{t}", "khong_phieu", trang, t, "giấy trắng (lõi trang, median xoá nét)", "tu_choi",
             ly_do=("thieu_marker",) + KDM)
 
-    # 11. Mờ chuyển động chéo 45° (thêm ở dừng B) – mo_huong lấy min của ∂²/∂x², ∂²/∂y²: hướng chéo làm nhoè cả hai
     print("11. mờ chuyển động chéo")
     for t in ("0001_C1", "0015_C3", "D003"):
         for dai in (15, 30):
@@ -423,7 +384,6 @@ def cmd_tao_gia(a) -> None:
             ghi(f"mo_cheo{dai}_{t}", "mo", mo_chuyen_dong(ns[t].gray, dai, 45), t, f"chuyển động chéo 45° {dai} px",
                 mong, T(0, 0), ly_do=("anh_mo",))
 
-    # 12. Mờ + tối + nhiễu: nhiễu làm tăng phương sai đạo hàm bậc hai – không được làm ảnh mờ lọt qua anh_mo
     print("12. mờ + tối + nhiễu")
     for i, t in enumerate(("0001_C1", "0008_C4")):
         rng = np.random.default_rng(500 + i)
@@ -431,18 +391,16 @@ def cmd_tao_gia(a) -> None:
         ghi(f"mo_toi_nhieu_{t}", "mo", g, t, "Gauss σ 5 + sáng × 0,4 + nhiễu σ 8", "tu_choi", T(0, 0),
             ly_do=("anh_mo",) + KDM)
 
-    # 13. Cắt theo MỰC (thêm ở dừng C): mép ảnh đi vào phần mực của marker đúng 2 px, đo trên mặt nạ mực của ảnh đã
-    #     xoay (cùng ngưỡng mực với preprocessing); kiểm lại trên ảnh đã cắt: mực phải chạm mép (0 px)
     print("13. cắt theo mực 2 px")
     for t, (R, goc, canh, xoay) in CAT_MUC.items():
         n = ns[t]
         h, w = xoay.shape
         ys, xs = vet_muc(xoay, bien_doi(R, n.tam)[goc])
         if canh == "phai":
-            c = int(xs.max()) - 1                    # bỏ 2 cột mực ngoài cùng (xmax − 1, xmax)
+            c = int(xs.max()) - 1
             img, H = xoay[:, :c], R
         elif canh == "tren":
-            c = int(ys.min()) + 2                    # bỏ 2 hàng mực trên cùng
+            c = int(ys.min()) + 2
             img, H = xoay[c:, :], T(0, -c) @ R
         else:
             c = int(ys.max()) - 1
@@ -453,7 +411,6 @@ def cmd_tao_gia(a) -> None:
         ghi(f"cat_muc_2px_{GOC[goc]}_{t}", "cat_marker", img, t, f"cắt {canh} vào mực marker {GOC[goc]} 2 px",
             "tu_choi", H, ly_do=("marker_cham_mep",), ghi_chu="mực marker chạm mép (0 px), đã cắt 2 px mực")
 
-    # ---- ghi danh_sach.csv + ảnh ghép
     with (GIA / "danh_sach.csv").open("w", encoding="utf-8-sig", newline="") as fh:
         wr = csv.DictWriter(fh, fieldnames=list(rows[0]))
         wr.writeheader()
@@ -466,7 +423,6 @@ def cmd_tao_gia(a) -> None:
 
 
 def viet_ghep(anh_ghep: list, cot=6, rong=300, moi_trang=36) -> int:
-    """Ảnh ghép xem nhanh: thu nhỏ, vẽ tứ giác 4 tâm mong đợi (xanh, chấm đỏ = TL), chú thích mong đợi."""
     font = ImageFont.truetype(str(FONT), 13)
     o_cao = 470
     so_trang = 0
@@ -495,16 +451,13 @@ def viet_ghep(anh_ghep: list, cot=6, rong=300, moi_trang=36) -> int:
     return so_trang
 
 
-# ============================================================================ lệnh khao-sat (dừng B)
 KS = EVAL_DIR / "v4_verify"
-TRUNG_PX = 30               # phần tử phiếu mà sau xoay 180° rơi trong 30 px một phần tử khác (32/250)
-GAUSS = (0, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16, 20, 25, 32)   # mức mờ (px trên ảnh gốc) – mịn hơn ảnh giả,
-                            # kéo tới khi faint/blank gãy (lần chạy đầu tới σ 8 vẫn tách hết)
+TRUNG_PX = 30
+GAUSS = (0, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16, 20, 25, 32)
 DONG = (10, 15, 20, 25, 30, 40, 60, 80, 120)
 
 
 def phan_tu_trung(layout: dict) -> np.ndarray:
-    """Mặt nạ (theo thứ tự của phan_tu_bo_cuc) các phần tử mà ảnh lật 180° của chúng rơi gần một phần tử khác."""
     W, H = layout["page_px"]
     tam = np.vstack([t for _, t in pp.phan_tu_bo_cuc(layout)])
     xoay = np.array([W - 1, H - 1]) - tam
@@ -512,9 +465,6 @@ def phan_tu_trung(layout: dict) -> np.ndarray:
 
 
 def hieu_nhan(anh_nan, layout, nhan: dict, phieu_trang=None) -> dict:
-    """Theo nhãn (như phép 3 / dung-sai, CHỈ để chọn ngưỡng anh_mo – verify không gọi): mỗi hàng câu / cột chữ số,
-    hiệu filled = min(filled) − max(blank), hiệu faint = min(faint) − max(blank) (local_darkness). phieu_trang ->
-    dò lại từng hàng / khối ±4 mm (cách OMR Tuần 5 sẽ đọc); None -> đọc tại toạ độ layout."""
     ans = layout["answers"]
     nhom = [(("q", q), [ans["centers"][str(q)][o] for o in ans["options"]], ans["bubble_radius"],
              [nhan[(str(q), o)] for o in ans["options"]]) for q in range(1, ans["num_questions"] + 1)]
@@ -575,7 +525,6 @@ def cmd_khao_sat(a) -> None:
     khac = {"phieu": "chu_so", "chu_so": "phieu"}
     tam = tam_v3()
 
-    # ---- A. 78 ảnh dev thật: S đúng chiều / lật 180°, nhầm loại trang, blur, lõi marker
     rows = []
     for n_, x in enumerate(list_images("dev"), 1):
         gray = load_image(x.duong_dan)
@@ -589,13 +538,11 @@ def cmd_khao_sat(a) -> None:
               f"/ {r['mo_toan_trang']:.5f} | nhầm loại {r['S_nham_loai']:.3f} | lõi {r['loi_marker_max']:.3f}")
     ghi_csv_ks(KS / "khao_sat_dev.csv", rows)
 
-    # ---- B. hậu quả của mờ: ảnh dev bị làm mờ (nắn bằng 4 tâm v3 – không phụ thuộc khâu tìm marker)
     nhan = doc_nhan_o()
     trang = render_pdf_page(ANSWER_SHEET / "output" / "phieu_trang.pdf", L["phieu"]["dpi"])
     dev = {x.ten: x for x in list_images("dev")}
     nguon = []
     for c, mac_dinh in (("C1", "0001_C1"), ("C2", "0005_C2"), ("C3", "0015_C3"), ("C4", "0008_C4")):
-        # thêm ảnh cùng điều kiện có nhiều ô faint nhất (nhiều mẫu lớp hiếm nhất), không chọn theo kết quả đo
         ung = [t for t, x in dev.items() if x.dieu_kien == c and t != mac_dinh]
         nhieu = max(ung, key=lambda t: sum(v == "faint" for k, v in nhan[t[:4]].items() if k[0].isdigit()))
         nguon += [mac_dinh, nhieu]

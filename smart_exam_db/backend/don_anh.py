@@ -24,13 +24,11 @@ CHU_KY_GIAY = 3600
 
 
 def da_co_cot(conn) -> bool:
-    """Migration 003 đã áp chưa (có cột answer_sheets.image_deleted_at)."""
     return conn.execute("SELECT 1 FROM information_schema.columns WHERE table_name = 'answer_sheets' AND column_name = 'image_deleted_at'"
                         ).fetchone() is not None
 
 
 def phieu_can_xoa(conn, cfg: CauHinh, bay_gio: datetime | None = None, gioi_han: int = 500, ky_thi: list[int] | None = None) -> list[dict]:
-    """[{sheet_id, exam_id, status, moc, tep: [đường dẫn tương đối]}] – CHỈ ĐỌC. `bay_gio`: đồng hồ giả (test); `ky_thi`: chỉ các kỳ thi này."""
     moc = (bay_gio or datetime.now(timezone.utc)) - timedelta(hours=cfg.anh_giu_gio)
     rows = conn.execute(
         "SELECT a.sheet_id, a.exam_id, a.status::text AS status, a.image_path, a.aligned_image_path, "
@@ -48,8 +46,6 @@ def phieu_can_xoa(conn, cfg: CauHinh, bay_gio: datetime | None = None, gioi_han:
 
 
 def xoa_tep(storage_dir: Path, tep: list[str]) -> tuple[int, list[str]]:
-    """Xoá các tệp (đường dẫn tương đối) NẰM TRONG storage_dir. Trả (số tệp đã xoá, các đường dẫn bị TỪ CHỐI vì ra ngoài storage_dir).
-    Tệp không còn -> bỏ qua (không lỗi). Không xoá thư mục."""
     goc = storage_dir.resolve()
     da_xoa, tu_choi = 0, []
     for rel in tep:
@@ -66,7 +62,6 @@ def xoa_tep(storage_dir: Path, tep: list[str]) -> tuple[int, list[str]]:
 
 
 def don(conn, cfg: CauHinh, bay_gio: datetime | None = None, ap_dung: bool = True, ky_thi: list[int] | None = None) -> dict:
-    """Một lượt dọn. ap_dung=False: chỉ liệt kê. KHÔNG commit (người gọi quyết). Phiếu có tệp bị từ chối KHÔNG được đánh dấu đã xoá."""
     ds = phieu_can_xoa(conn, cfg, bay_gio, ky_thi=ky_thi)
     tong = {"phieu": len(ds), "tep_xoa": 0, "tu_choi": [], "phieu_danh_dau": 0}
     if not ap_dung:
@@ -96,7 +91,6 @@ def chay_mot_luot(cfg: CauHinh) -> dict | None:
 
 
 class LuongDon:
-    """Luồng nền nhẹ: một lượt ngay khi khởi động rồi mỗi CHU_KY_GIAY. Lỗi một lượt chỉ ghi log, không làm sập máy chủ."""
 
     def __init__(self, cfg: CauHinh, chu_ky: float = CHU_KY_GIAY):
         self.cfg, self.chu_ky, self.dung = cfg, chu_ky, threading.Event()

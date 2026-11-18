@@ -1,5 +1,3 @@
-"""Lệnh H – Việc 3: trang bìa kỳ thi (PDF + mã QR /m?kythi=<id>) và tham số kythi của trang điện thoại /m.
-QR được GIẢI MÃ lại từ PDF (PyMuPDF dựng ảnh -> cv2.QRCodeDetector) để chắc chắn đường dẫn đúng. CSDL thật trong giao dịch ROLLBACK, AUTH_MODE=on."""
 import shutil
 import subprocess
 import uuid
@@ -18,7 +16,6 @@ DAP_AN = demo.khoa_demo("101", 40)
 
 
 def doc_pdf(pdf: bytes) -> tuple[str, str]:
-    """(nội dung QR, chữ trên trang) của trang đầu."""
     import pymupdf
     doc = pymupdf.open(stream=pdf, filetype="pdf")
     assert len(doc) == 1
@@ -49,10 +46,10 @@ def test_trang_bia_qr_mac_dinh_lay_tu_yeu_cau(bia):
     r = c.get(f"/exams/{eid}/cover.pdf", headers=h["A"])
     assert r.status_code == 200 and r.headers["content-type"] == "application/pdf" and r.content.startswith(b"%PDF")
     qr, chu = doc_pdf(r.content)
-    assert qr == f"http://testserver/m?kythi={eid}"                                            # TestClient: base_url = http://testserver
+    assert qr == f"http://testserver/m?kythi={eid}"
     phang = " ".join(chu.split())
     assert ten in phang and f"Mã kỳ thi: {eid}" in phang and ho_ten in phang and "20/11/2026" in phang and "101" in phang
-    assert DAP_AN not in chu.replace("\n", "") and "CẢNH BÁO" in phang                          # không in đáp án; địa chỉ máy cục bộ -> cảnh báo
+    assert DAP_AN not in chu.replace("\n", "") and "CẢNH BÁO" in phang
     assert c.get(f"/exams/{eid}/cover.pdf", headers=h["ad"]).status_code == 200
 
 
@@ -74,7 +71,6 @@ def test_trang_bia_ngoai_quyen(bia):
 
 
 def test_kythi_ngoai_quyen_khong_lo_ten(bia):
-    """Trang /m chỉ chọn kỳ thi nằm trong GET /exams của người đăng nhập: B không thấy -> m_kythi trả lỗi chung; trang /m tĩnh không chứa tên kỳ thi."""
     c, h, eid, ten, _ = bia
     assert eid in {e["exam_id"] for e in c.get("/exams", headers=h["A"]).json()}
     assert eid not in {e["exam_id"] for e in c.get("/exams", headers=h["B"]).json()}
@@ -96,7 +92,6 @@ def test_dia_chi_goc_cau_hinh():
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="không có node để chạy test JS")
 def test_m_kythi_node():
-    """tests/js/m_kythi.test.js: đọc ?kythi (bỏ giá trị lạ), chọn kỳ thi có quyền, không có quyền = cùng một lỗi không lộ tên."""
     r = subprocess.run(["node", "--test", str(ROOT / "tests" / "js" / "m_kythi.test.js")], capture_output=True, text=True, encoding="utf-8")
     assert r.returncode == 0, r.stdout + r.stderr
     for f in ("m.js", "m_kythi.js"):
@@ -107,6 +102,6 @@ def test_m_kythi_node():
 def test_m_js_dung_m_kythi_va_bo_tham_so_sau_khi_chon():
     js = (ROOT / "frontend" / "m.js").read_text(encoding="utf-8")
     assert "MKyThi.docThamSo(location.search)" in js and "MKyThi.chonTuDanhSach" in js and "thongBaoLoi(404)" in js
-    assert "history.replaceState" in js                                                         # chọn xong mới bỏ ?kythi (đăng nhập xong vẫn quay về đúng kỳ thi)
+    assert "history.replaceState" in js
     html = (ROOT / "frontend" / "m.html").read_text(encoding="utf-8")
     assert html.index("/app/m_kythi.js") < html.index("/app/m.js")

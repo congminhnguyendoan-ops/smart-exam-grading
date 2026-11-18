@@ -1,21 +1,3 @@
-"""
-kiem_load_image.py - Kiểm tra load_image() của cv_engine/preprocessing.py (Tuần 4, Bước 2).
-
-Lệnh:
-  exif      (a) Tạo ảnh thử EXIF Orientation 1/3/6/8 từ data/raw/0001_C1.jpg (phiếu dev, C1) vào
-            data/_eval/_exif/: điểm ảnh lưu bị xoay NGƯỢC, thẻ EXIF = k -> đọc đúng phải ra lại ảnh gốc.
-            JPEG mã hoá lại nên không thể giống hệt: đạt = cùng kích thước + sai khác trung bình < 2 mức xám,
-            đồng thời mọi chiều sai phải khác xa (chứng minh phép đo phân biệt được).
-            Kèm: ca HEIC thật (IMG_4214.HEIC = 0001_C1, tra mapping.csv) – bắt lỗi xoay 2 lần;
-            đường dẫn có dấu tiếng Việt; file không tồn tại / file hỏng -> LoiDocAnh.
-  so-pixel  (b) 78 ảnh dev: load_image(p) phải GIỐNG TỪNG ĐIỂM ẢNH cv2.imdecode(np.fromfile(p), GRAYSCALE)
-            -> data/_eval/v2_load/so_pixel_dev.csv (finalize --ke-thua đọc file này).
-
-Chỉ ghi vào data/_eval/. Không đụng data/raw/, data/raw_heic/, data/raw_digits/.
-Chạy (từ thư mục smart_exam_db/):
-  python tools/kiem_load_image.py exif
-  python tools/kiem_load_image.py so-pixel
-"""
 import argparse
 import csv
 import sys
@@ -26,7 +8,7 @@ import numpy as np
 from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 
-ROOT = Path(__file__).resolve().parent.parent          # smart_exam_db/
+ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 EVAL_DIR = DATA / "_eval"
 EXIF_DIR = EVAL_DIR / "_exif"
@@ -38,15 +20,13 @@ from eval_preprocessing import ghi_csv, list_images  # noqa: E402
 register_heif_opener()
 
 ANH_GOC = "0001_C1"
-MAD_DAT = 2.0            # sai khác trung bình (mức xám) tối đa khi đọc đúng chiều (JPEG mã hoá lại q=95)
-MAD_SAI_MIN = 20.0       # mọi chiều SAI phải khác ít nhất bấy nhiêu (nếu cùng kích thước)
-# Điểm ảnh lưu trong file = ảnh gốc xoay NGƯỢC với phép xoay mà thẻ EXIF yêu cầu.
-# Viết độc lập với ap_exif_orientation() (cv2.rotate thay vì np.rot90) để không tự kiểm chính mình.
+MAD_DAT = 2.0
+MAD_SAI_MIN = 20.0
 LUU_NGUOC = {
     1: lambda a: a,
     3: lambda a: cv2.rotate(a, cv2.ROTATE_180),
-    6: lambda a: cv2.rotate(a, cv2.ROTATE_90_COUNTERCLOCKWISE),     # xem: xoay 90° theo chiều kim đồng hồ
-    8: lambda a: cv2.rotate(a, cv2.ROTATE_90_CLOCKWISE),            # xem: xoay 90° ngược chiều kim đồng hồ
+    6: lambda a: cv2.rotate(a, cv2.ROTATE_90_COUNTERCLOCKWISE),
+    8: lambda a: cv2.rotate(a, cv2.ROTATE_90_CLOCKWISE),
 }
 
 
@@ -55,7 +35,6 @@ def doc_cv2(p: Path, flags=cv2.IMREAD_GRAYSCALE) -> np.ndarray:
 
 
 def mad(a: np.ndarray, b: np.ndarray):
-    """Sai khác tuyệt đối trung bình; None nếu khác kích thước."""
     if a.shape != b.shape:
         return None
     return float(np.mean(np.abs(a.astype(np.int16) - b.astype(np.int16))))
@@ -74,7 +53,7 @@ def nho(g: np.ndarray, h=420) -> np.ndarray:
 
 def ghi_jpg(path: Path, g: np.ndarray, q=90) -> None:
     ok, buf = cv2.imencode(".jpg", g, [cv2.IMWRITE_JPEG_QUALITY, q])
-    buf.tofile(path)                                     # tofile: an toàn với đường dẫn Unicode
+    buf.tofile(path)
 
 
 def cmd_exif(_a) -> None:
@@ -95,12 +74,10 @@ def cmd_exif(_a) -> None:
 
         ra, ori = doc_anh(p)
         m = mad(ra, goc)
-        # chiều sai: áp mọi giá trị EXIF khác k lên điểm ảnh đã lưu
         luu_xam = doc_cv2(p, cv2.IMREAD_GRAYSCALE | cv2.IMREAD_IGNORE_ORIENTATION)
         sai = [mad(ap_exif_orientation(luu_xam, k2), goc) for k2 in range(1, 9) if k2 != k]
         sai_cung_co = [x for x in sai if x is not None]
         m_sai = min(sai_cung_co) if sai_cung_co else None
-        # đối chứng độc lập: Pillow exif_transpose và OpenCV tự xoay EXIF (kiểm chính file thử)
         with Image.open(p) as im:
             m_pil = mad(cv2.cvtColor(np.asarray(ImageOps.exif_transpose(im).convert("RGB")), cv2.COLOR_RGB2GRAY), goc)
         m_cv = mad(doc_cv2(p), goc)
@@ -115,14 +92,13 @@ def cmd_exif(_a) -> None:
               f"{f(m):>8s} {f(m_sai):>16s} {f(m_pil):>6s} {f(m_cv):>6s}  {'ĐẠT' if dat else 'KHÔNG ĐẠT'}")
         xem.append((f"exif_{k}", ra))
 
-    # ---- ca HEIC thật
     heic = heic_cua(ANH_GOC)
     with Image.open(heic) as im:
         exif_heic = im.getexif().get(274)
         info_ori = im.info.get("original_orientation")
     ra, ori = doc_anh(heic)
     m = mad(ra, goc)
-    dat = m is not None and m < MAD_DAT * 2           # JPG gốc được mã hoá từ HEIC này (q mặc định) -> nới gấp đôi
+    dat = m is not None and m < MAD_DAT * 2
     rows.append({"ca": f"heic {heic.name}", "exif_ghi": info_ori if info_ori is not None else "",
                  "exif_doc": ori, "luu_rong": "", "luu_cao": "", "ra_rong": ra.shape[1], "ra_cao": ra.shape[0],
                  "mad_dung": m if m is not None else "", "mad_sai_min": "", "mad_pil": "", "mad_opencv": "", "dat": int(dat)})
@@ -133,7 +109,6 @@ def cmd_exif(_a) -> None:
     xem.append(("HEIC", ra))
     xem.insert(0, ("gốc", goc))
 
-    # ---- đường dẫn Unicode
     p_vn = EXIF_DIR / "ảnh_thử_đường_dẫn_tiếng_việt.jpg"
     p_vn.write_bytes((EXIF_DIR / "exif_6.jpg").read_bytes())
     m = mad(load_image(p_vn), goc)
@@ -143,7 +118,6 @@ def cmd_exif(_a) -> None:
           f"cv2.imread trả None: {imread_none} (lý do không dùng cv2.imread)")
     rows.append({"ca": "duong_dan_tieng_viet", "exif_doc": 6, "mad_dung": m, "dat": int(dat_vn)})
 
-    # ---- file không đọc được
     hong = EXIF_DIR / "hong.jpg"
     hong.write_bytes(b"day khong phai anh JPEG")
     for ten, p in (("file_khong_ton_tai", EXIF_DIR / "khong_co.jpg"), ("file_hong", hong)):
@@ -158,7 +132,6 @@ def cmd_exif(_a) -> None:
     cols = ["ca", "exif_ghi", "exif_doc", "luu_rong", "luu_cao", "ra_rong", "ra_cao",
             "mad_dung", "mad_sai_min", "mad_pil", "mad_opencv", "dat"]
     ghi_csv(EXIF_DIR / "ket_qua.csv", [{c: r.get(c, "") for c in cols} for r in rows])
-    # ảnh xem bằng mắt: mọi ảnh đọc ra phải đứng thẳng như ảnh gốc
     tiles = []
     for ten, g in xem:
         t = cv2.cvtColor(nho(g), cv2.COLOR_GRAY2BGR)

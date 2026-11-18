@@ -1,18 +1,3 @@
-"""
-ag_cham_that.py - Lệnh AG: chấm ảnh chụp GIẤY THẬT so với kịch bản (data/_eval/ag/kich_ban.json) theo tiêu chí docs/tieu_chi_thu_giay_that.md
-(commit 18fd340 – chốt TRƯỚC công cụ này). Pipeline OFFLINE giống backend: preprocess -> omr.doc_phieu -> ocr.doc_chu_so -> ocr.doi_chieu_dinh_danh;
-không CSDL, không server. KHÔNG thêm tiêu chí mới.
-
-  python tools/ag_cham_that.py cham [--thu-muc data/anh_that_ag] [--ra data/_eval/ag]   # -> ket_qua.md + ket_qua.json
-  python tools/ag_cham_that.py tu-kiem      # ảnh GIẢ LẬP vẽ từ kịch bản (thư mục tạm, xoá khi xong) -> data/_eval/ag/tu_kiem/ – KHÔNG dùng kết luận H3
-  python tools/ag_cham_that.py sau-xac-minh --lech-kich-ban data/_eval/ag/lech_kich_ban.json
-        # Lệnh AG2 (phụ lục): bảng PHỤ "sau xác minh" – đọc ket_qua.json đã có (KHÔNG đọc lại ảnh, KHÔNG ghi đè ket_qua.*), thay đáp án kịch bản bằng
-        # đáp án người tô thực tế ở các câu liệt kê, ghi sau_xac_minh.md / .json. Kết luận CHÍNH THỨC vẫn là của ket_qua.json. `cham` KHÔNG BAO GIỜ đọc tệp lệch.
-
-Tên ảnh: T01.jpg … T10.jpg (điều kiện thường), T0X_kho.jpg (điều kiện khó). JPG / JPEG / PNG / HEIC / HEIF, không phân biệt hoa thường.
-Tên khác -> liệt kê "bỏ qua (tên không đúng)". Ảnh bị tiền xử lý từ chối -> liệt kê kèm lý do (KHÔNG phải sai âm thầm). Tờ không có ảnh đọc được -> báo rõ.
-"Trường được nhận" = đối chiếu hai kênh chắc VÀ SBD / mã đề có trong danh sách kỳ thi 1633 (giống backend: ngoài danh sách -> giữ lại cần xem).
-"""
 import argparse
 import json
 import re
@@ -33,27 +18,23 @@ DUOI = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
 TEN = re.compile(r"^(T\d{2})(_kho)?$", re.IGNORECASE)
 LOAI = ("binh_thuong", "bo_trong", "nhat", "hai_o", "te", "vet")
 TEN_LOAI = {"binh_thuong": "bình thường (1 ô đậm)", "bo_trong": "bỏ trống", "nhat": "nhạt", "hai_o": "hai ô", "te": "tẩy", "vet": "vết"}
-DOT2 = {"binh_thuong": (11, 272), "bo_trong": (0, 118), "anh_sbd_ma_de": (9, 20)}       # docs/ket_qua_dot2.md – để đối chiếu C2
-THETA1 = 0.95                                                                             # ĐX1 (lệnh AE) – chỉ để báo C3
+DOT2 = {"binh_thuong": (11, 272), "bo_trong": (0, 118), "anh_sbd_ma_de": (9, 20)}
+THETA1 = 0.95
 
 
-# ------------------------------------------------------------------------------------------------ so sánh (THUẦN – pytest không cần ảnh)
 def phan_loai_cau(dap_an: str, doc: str, can_xem: bool) -> str:
-    """tieu_chi mục 2: cx -> can_xem; không cx và tập ô đọc = tập ô đúng -> doc_dung; còn lại -> sai_am_tham."""
     if can_xem:
         return "can_xem"
     return "doc_dung" if "".join(sorted(doc)) == "".join(sorted(dap_an)) else "sai_am_tham"
 
 
 def phan_loai_cot(bubble_dung: str, bubble_doc: str, can_xem: bool) -> str:
-    """Cột SBD / mã đề. bubble_dung = chữ số tô ('?' với cột thiếu bubble). Không cần xem mà bubble đọc ≠ đúng -> sai_am_tham."""
     if can_xem:
         return "can_xem"
     return "doc_dung" if bubble_doc == bubble_dung else "sai_am_tham"
 
 
 def cp(k: int, n: int) -> list:
-    """Clopper–Pearson 95%."""
     from scipy.stats import beta
     if n == 0:
         return [None, None]
@@ -63,7 +44,6 @@ def cp(k: int, n: int) -> list:
 
 
 def danh_gia_anh(rec: dict, to: dict) -> dict:
-    """So một ảnh đã đọc (rec – xem doc_anh) với kịch bản của tờ. Trả bản ghi từng câu / cột / trường. THUẦN."""
     ra = {"anh": rec["anh"], "to": rec["to"], "dieu_kien": rec["dieu_kien"], "but": to["but"], "cau": [], "cot": [], "truong": {}}
     for c in rec["cau"]:
         kb = to["cau"][str(c["n"])]
@@ -96,7 +76,6 @@ def danh_gia_anh(rec: dict, to: dict) -> dict:
 
 
 def tong_hop(danh_gia: list[dict], kb: dict, tu_choi: list[dict], bo_qua: list[str]) -> dict:
-    """Bảng theo loại, SBD / mã đề, điều kiện, bút; C1 / C2 / C3 / H3. THUẦN."""
     def bang(cau):
         d = defaultdict(Counter)
         for c in cau:
@@ -112,7 +91,6 @@ def tong_hop(danh_gia: list[dict], kb: dict, tu_choi: list[dict], bo_qua: list[s
           "to_chua_kiem": sorted(set(kb["to"]) - {a["to"] for a in danh_gia}),
           "theo_loai": bang(cau), "theo_dieu_kien": {dk: bang([c for c in cau if c["dieu_kien"] == dk]) for dk in ("thuong", "kho")},
           "theo_but": {b: bang([c for c in cau if c["but"] == b]) for b in ("bi", "chi")}}
-    # SBD / mã đề
     kq["cot"] = {"n": len(cot), "can_xem": sum(c["cx"] for c in cot), "sai_am_tham": sum(c["ket_qua"] == "sai_am_tham" for c in cot),
                  "doc_dung": sum(c["ket_qua"] == "doc_dung" for c in cot), "bubble_kenh_dung": sum(c["bubble_kenh_dung"] for c in cot),
                  "viet_kenh_dung": sum(c["viet_kenh_dung"] for c in cot)}
@@ -120,7 +98,6 @@ def tong_hop(danh_gia: list[dict], kb: dict, tu_choi: list[dict], bo_qua: list[s
                     "sai_am_tham": sum(t["ket_qua"] == "sai_am_tham" for t in truong)}
     kq["anh_phai_xem"] = sum(a["phai_xem"] for a in danh_gia)
     kq["anh_sbd_ma_de_phai_xem"] = sum(a["sbd_ma_de_phai_xem"] for a in danh_gia)
-    # C1
     sai = [c for c in cau if c["ket_qua"] == "sai_am_tham"]
     sai_cot = [c for c in cot if c["ket_qua"] == "sai_am_tham"]
     sai_tr = [t for t in truong if t["ket_qua"] == "sai_am_tham"]
@@ -129,7 +106,6 @@ def tong_hop(danh_gia: list[dict], kb: dict, tu_choi: list[dict], bo_qua: list[s
                          "truong": [{k: t[k] for k in ("anh", "truong", "gia_tri", "dung")} for t in sai_tr]}
     kq["C1"] = "chưa kiểm được (không có ảnh đọc được)" if not danh_gia else ("ĐẠT" if not (sai or sai_cot or sai_tr) else "KHÔNG ĐẠT")
     kq["C1_ci_cau"] = cp(len(sai), len(cau))
-    # C3: câu tẩy
     te = [c for c in cau if c["loai"] == "te"]
     def ro(c, nguong):
         return bool(c["P"]) and all((c["P"]["ABCD".index(o)][2] / max(c["P"]["ABCD".index(o)][1] + c["P"]["ABCD".index(o)][2], 1e-9)) >= nguong
@@ -139,7 +115,6 @@ def tong_hop(danh_gia: list[dict], kb: dict, tu_choi: list[dict], bo_qua: list[s
                 "sai_am_tham": sum(c["ket_qua"] == "sai_am_tham" for c in te), "doc_thanh_nhieu_o": len(nhieu_te),
                 "nhieu_o_moi_o_ro_05": sum(ro(c, 0.5) for c in nhieu_te), "nhieu_o_moi_o_ro_theta1": sum(ro(c, THETA1) for c in nhieu_te),
                 "chi_tiet": [{k: c[k] for k in ("anh", "n", "to_truoc", "dap_an", "doc", "trang_thai", "ly_do", "ket_qua")} for c in te]}
-    # H3
     h3b = [t for t in truong if t["co_cot_thieu_bubble"]]
     kq["H3"] = {"H3a_truong_nhan_ma_sai": len(sai_tr), "H3b_so_truong_kiem": len(h3b), "H3b_vi_pham": sum(t["h3b_dat"] is False for t in h3b),
                 "H3b_to_chua_kiem": sorted({m for m, t in kb["to"].items() if t["thieu_bubble"]} - {a["to"] for a in danh_gia})}
@@ -154,15 +129,11 @@ def tong_hop(danh_gia: list[dict], kb: dict, tu_choi: list[dict], bo_qua: list[s
     return kq
 
 
-# ------------------------------------------------------------------------------------------------ AG2: bảng phụ "sau xác minh" (THUẦN)
 def loai_theo_dap_an(dap_an: str) -> str:
-    """Loại của câu khi chỉ biết đáp án thực tế: 0 ô -> bỏ trống, 1 ô -> bình thường, ≥ 2 ô -> hai ô."""
     return "bo_trong" if not dap_an else ("binh_thuong" if len(dap_an) == 1 else "hai_o")
 
 
 def ap_lech_kich_ban(danh_gia: list[dict], lech: list[dict], kb: dict) -> tuple[list[dict], list[dict]]:
-    """Trả (bản SAO danh_gia với đáp án đúng = đáp án người tô thực tế ở các câu trong `lech`, danh sách thay đổi).
-    Không đổi gì máy đọc (doc / cx / ly_do) – chỉ đổi "đúng là gì". lech: [{"anh", "cau", "dap_an_thuc_te", "loai_thuc_te"?}]. Ảnh / câu không có -> ValueError."""
     import copy
     chap = {}
     for t in kb["to"].values():
@@ -225,7 +196,6 @@ def bao_cao_sau_xac_minh(chinh: dict, phu: dict, doi: list[dict], lech_meta: dic
 
 
 def cmd_sau_xac_minh(lech_path: Path, ra: Path) -> dict:
-    """Đọc ket_qua.json (KHÔNG ghi đè), áp tệp lệch, ghi sau_xac_minh.md / .json."""
     chinh = json.loads((ra / "ket_qua.json").read_text(encoding="utf-8"))
     kb = json.loads(KICH_BAN.read_text(encoding="utf-8"))
     lech_tep = json.loads(Path(lech_path).read_text(encoding="utf-8"))
@@ -246,7 +216,6 @@ def cmd_sau_xac_minh(lech_path: Path, ra: Path) -> dict:
     return out
 
 
-# ------------------------------------------------------------------------------------------------ đọc ảnh (pipeline OFFLINE)
 def liet_ke(thu_muc: Path) -> tuple[list[tuple[Path, str, str]], list[str]]:
     anh, bo = [], []
     for p in sorted(thu_muc.iterdir()) if thu_muc.exists() else []:
@@ -270,7 +239,7 @@ def doc_anh(p: Path, to_ma: str, dk: str, lay, mh, mh_ocr, ds_sbd, ds_ma) -> dic
         return rec
     om = doc_phieu(kq, lay, mh)
     hv = ocr.doc_chu_so(kq, lay, mh_ocr)
-    sbd_trong = None if "?" in om.sbd else om.sbd in ds_sbd                     # giống service.py
+    sbd_trong = None if "?" in om.sbd else om.sbd in ds_sbd
     ma_trong = None if "?" in om.ma_de else om.ma_de in ds_ma
     dc = ocr.doi_chieu_dinh_danh(om, hv, sbd_trong, ma_trong, mo_hinh=mh_ocr)
     rec["cau"] = [{"n": c.cau, "doc_o": c.dap_an, "doc_tt": c.trang_thai, "cx": bool(c.can_xem), "ly_do": list(c.ly_do),
@@ -371,12 +340,10 @@ def bao_cao_md(kq: dict) -> str:
     return "\n".join(L) + "\n"
 
 
-# ------------------------------------------------------------------------------------------------ tự kiểm (ảnh giả lập)
-XAM = {"dam": 30, "nhat": 170, "te_vet_tay": 215, "cham": 30}      # cùng mức xám ảnh giả đợt 2 (tools/eval_dot2.tao_gia); vết tẩy xám nhạt 215
+XAM = {"dam": 30, "nhat": 170, "te_vet_tay": 215, "cham": 30}
 
 
 def ve_to(to: dict, sai_co_y: dict | None = None):
-    """Vẽ một tờ giả lập từ kịch bản lên phiếu trắng (ảnh xám 300 DPI). sai_co_y = {câu: ô} -> tô ĐẬM ô khác kịch bản (đối chứng âm)."""
     import cv2
     import numpy as np
     L = json.loads((ROOT / "answer_sheet" / "output" / "layout.json").read_text(encoding="utf-8"))
@@ -407,13 +374,12 @@ def ve_to(to: dict, sai_co_y: dict | None = None):
         for i, ch in enumerate(to[ten]):
             if (ten, i + 1) not in tb:
                 tron(L[key]["bubbles"][i][int(ch)], 0.85 * L[key]["bubble_radius"], XAM["dam"])
-            x, y, w, h = L[key]["handwriting_boxes"][i]                       # chữ số "viết tay" bằng font Hershey (chỉ để kênh CNN có mực)
+            x, y, w, h = L[key]["handwriting_boxes"][i]
             cv2.putText(anh, ch, (int(x + 0.22 * w), int(y + 0.78 * h)), cv2.FONT_HERSHEY_SIMPLEX, 2.4, 40, 6, cv2.LINE_AA)
     return anh
 
 
 def lam_kho(anh):
-    """Điều kiện khó giả lập: bóng đổ chéo + phối cảnh nhẹ trên nền tối hơn (không thay cho ảnh khó thật)."""
     import cv2
     import numpy as np
     h, w = anh.shape
@@ -428,7 +394,7 @@ def lam_kho(anh):
     return cv2.warpPerspective(nen, cv2.getPerspectiveTransform(src, dst), (w + 2 * pad, h + 2 * pad), borderValue=90)
 
 
-SAI_CO_Y = {"T02": None}            # điền khi chạy: 3 câu bình thường của T02 bị tô ĐẬM ô khác -> phải ra đúng 3 sai âm thầm
+SAI_CO_Y = {"T02": None}
 
 
 def cmd_tu_kiem(a):

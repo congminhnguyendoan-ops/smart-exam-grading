@@ -1,5 +1,3 @@
-"""preprocess() trên 7 ảnh dev đại diện: ok, huong_xoay, anh_nan / anh_chuan_hoa giống tham chiếu (hồi quy theo vân tay
-v4 / v5 – tools/tao_tham_chieu.py). Kèm: preprocess_anh(gray) cho kết quả y hệt preprocess(path)."""
 import numpy as np
 import pytest
 from conftest import DATA, THAM_CHIEU, can_file, so_voi_tham_chieu

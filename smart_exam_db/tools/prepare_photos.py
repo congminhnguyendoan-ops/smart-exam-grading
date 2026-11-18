@@ -1,49 +1,3 @@
-
-
-"""
-prepare_photos.py - Chuẩn bị bộ ảnh dữ liệu từ ảnh HEIC chụp bằng iPhone.
-
-Bước 1 (lệnh `plan`):
-  - Chuyển data/raw_heic/*.HEIC -> data/_prepare/jpg/IMG_xxxx.jpg (JPEG 95, giữ độ phân giải,
-    ảnh được xoay đúng chiều theo EXIF). KHÔNG sửa, KHÔNG xoá file gốc.
-  - Sắp xếp ảnh theo thời gian chụp trong EXIF (DateTimeOriginal), KHÔNG dùng ngày sửa file.
-    Ảnh thiếu EXIF được xếp theo số trong tên IMG_xxxx.
-  - Đề xuất tên mới: 80 ảnh đầu -> NNNN_Ck.jpg (điều kiện lấy từ ground_truth.csv),
-    10 ảnh sau -> DNNN.jpg.
-  - Xuất data/_prepare/mapping.csv và data/_prepare/preview.html để kiểm tra bằng mắt.
-
-Lệnh `preview`: chỉ tạo lại preview.html từ mapping.csv hiện có (giữ nguyên chỗ bạn đã sửa).
-
-Bước 2 (lệnh `apply`): chép data/_prepare/jpg/<old_name> -> data/raw/<new_name> (ảnh phiếu) hoặc
-  data/raw_digits/<new_name> (trang chữ số). Kiểm tra TOÀN BỘ mapping trước, có lỗi thì không chép gì.
-  Không bao giờ ghi đè file đã có, không xoá ảnh nguồn. Dòng có new_name rỗng (ảnh đã bị thay) bị bỏ qua.
-
-Lệnh `replace`: thay 1 ảnh đã chép bằng ảnh chụp lại. Ảnh cũ được DI CHUYỂN sang data/raw_rejected/
-  (không xoá), ảnh mới chép vào đúng chỗ, mapping.csv ghi lại cả hai.
-
-Preview nắn bằng cv_engine.preprocessing.preprocess() (Tuần 4 Bước 6 – thay align() cũ, vốn chọn nhầm marker mà không
-  báo lỗi): ảnh bị từ chối ghi rõ mã lý do + thông báo (MA_LY_DO) và hiện 1/4 góc trên phải của ảnh GỐC (không nắn).
-  Mặc định chỉ ảnh dev (`--split dev` -> preview_dev.html); cả 94 ảnh cần `--split tat_ca --xac-nhan-test` (-> preview.html).
-
-Lệnh `measure`: đo ảnh chụp lại trước khi `replace` – preprocess() OK / từ chối, khoảng cách marker tới mép
-  ảnh, "độ phối cảnh" = min(trên/dưới, trái/phải và nghịch đảo) của tứ giác 4 tâm marker
-  (1,0 = chụp thẳng; ảnh C3 cần nhỏ như các ảnh C3 khác). `--ref` in khoảng C1/C3 của data/raw.
-  Marker được tìm độc lập với find_markers(): mỗi góc ảnh dò khối đen vuông gần góc nhất, nhiều ngưỡng
-  (nền bàn trắng làm 1 ngưỡng Otsu thất bại). Khối chạm mép vùng tìm -> coi như không có marker trọn vẹn.
-
-Chạy (từ thư mục smart_exam_db/):
-  python tools/prepare_photos.py plan
-  python tools/prepare_photos.py preview                 # chỉ dev -> preview_dev.html
-  python tools/prepare_photos.py apply
-  python tools/prepare_photos.py replace --src data/raw_heic/IMG_4357.JPG --name 0028_C4.jpg --reason "..."
-  python tools/prepare_photos.py measure data/raw_heic/IMG_4379.JPG --ref
-  python tools/prepare_photos.py verify-ids
-
-Lệnh `verify-ids`: đọc "Mã phiếu" in sẵn trên cả 80 ảnh data/raw, so với tên file (phát hiện ảnh tráo tên,
-  vd 0002_C3 <-> 0003_C3 phát hiện 03/10/2026). Nắn bằng marker_centers() (không qua align()), thử 4
-  chiều, so vùng 2 chữ số cuối với 40 trang phieu_danh_so.pdf -> data/_prepare/verify_ids.html.
-  Mặc định chỉ ảnh dev; ảnh test 0035–0040 cần --xac-nhan-test (cv_engine/tap_du_lieu.py).
-"""
 import argparse
 import base64
 import csv
@@ -61,40 +15,36 @@ import pymupdf
 from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 
-ROOT = Path(__file__).resolve().parent.parent          # smart_exam_db/
+ROOT = Path(__file__).resolve().parent.parent
 ANSWER_SHEET = ROOT / "answer_sheet"
 sys.path.insert(0, str(ROOT))
 from cv_engine.preprocessing import MA_LY_DO, nap_layout, preprocess  # noqa: E402
 from cv_engine.tap_du_lieu import chan_test, la_test, tap_cua  # noqa: E402
 
-register_heif_opener()                                  # cho phép Image.open() đọc HEIC
+register_heif_opener()
 
 N_SHEETS = 40
 N_DIGIT_PAGES = 10
 JPEG_QUALITY = 95
 IMG_RE = re.compile(r"IMG_(\d+)", re.I)
-SHEET_NAME_RE = re.compile(r"^(\d{4})_(C[1-4])\.jpg$")    # giống check_photos.py
+SHEET_NAME_RE = re.compile(r"^(\d{4})_(C[1-4])\.jpg$")
 DIGIT_NAME_RE = re.compile(r"^D\d{3}\.jpg$")
 
-# Thẻ EXIF
 EXIF_IFD = 0x8769
 TAG_DATETIME_ORIGINAL = 36867
 TAG_SUBSEC_ORIGINAL = 37521
 TAG_ORIENTATION = 274
 
-# Vùng chữ "Mã phiếu"/"Mã trang" trên ảnh đã nắn (mm, gốc góc trên trái) - xem generate_sheets.py
-CODE_BOX_MM = (120.0, 20.0, 200.0, 32.0)               # x0, y0, x1, y1
-MARKER_CHECK_MM = 3.0       # nửa cạnh ô kiểm tra ở tâm marker (marker 8 mm) – marker_fill (eval phép 1)
-NCC_SIZE = (124, 175)       # ảnh thu nhỏ để so với mẫu
+CODE_BOX_MM = (120.0, 20.0, 200.0, 32.0)
+MARKER_CHECK_MM = 3.0
+NCC_SIZE = (124, 175)
 CORNERS = ("tl", "tr", "br", "bl")
 CORNER_VI = {"tl": "trên trái", "tr": "trên phải", "br": "dưới phải", "bl": "dưới trái"}
 CONDITION_TEXT = {"C1": "C1 – đủ sáng, thẳng", "C2": "C2 – thiếu sáng", "C3": "C3 – nghiêng",
                   "C4": "C4 – đèn vàng, có bóng"}
 
 
-# ---------------------------------------------------------------- chuyển HEIC -> JPG
 def convert(src: Path, dst: Path) -> None:
-    """Xoay pixel theo EXIF rồi ghi JPEG; đặt lại Orientation = 1 để không bị xoay 2 lần."""
     with Image.open(src) as im:
         exif = im.getexif()
         icc = im.info.get("icc_profile")
@@ -105,7 +55,6 @@ def convert(src: Path, dst: Path) -> None:
 
 
 def capture_time(path: Path):
-    """Trả về (datetime, nguồn) từ EXIF DateTimeOriginal (+ phần lẻ giây), hoặc (None, ...)."""
     with Image.open(path) as im:
         sub = im.getexif().get_ifd(EXIF_IFD)
     raw = sub.get(TAG_DATETIME_ORIGINAL)
@@ -124,8 +73,6 @@ def img_number(path: Path) -> int:
 
 
 def sort_photos(items: list[dict]) -> list[dict]:
-    """Sắp theo giờ chụp EXIF. Ảnh thiếu EXIF mượn giờ của ảnh có số IMG liền trước nó,
-    nên vẫn nằm đúng chỗ theo số trong tên."""
     by_num = sorted(items, key=lambda it: it["num"])
     last = datetime.min
     for it in by_num:
@@ -135,7 +82,6 @@ def sort_photos(items: list[dict]) -> list[dict]:
     return sorted(items, key=lambda it: (it["sort_time"], it["num"]))
 
 
-# ---------------------------------------------------------------- tên đề xuất
 def proposed_names(ground_truth: Path) -> list[str]:
     with ground_truth.open(encoding="utf-8-sig", newline="") as f:
         rows = {r["sheet_id"]: r for r in csv.DictReader(f)}
@@ -148,7 +94,6 @@ def proposed_names(ground_truth: Path) -> list[str]:
     return names
 
 
-# ---------------------------------------------------------------- ảnh cho preview
 def to_b64(bgr_or_gray, max_w: int) -> str:
     h, w = bgr_or_gray.shape[:2]
     if w > max_w:
@@ -165,7 +110,6 @@ def ncc_prep(gray):
 
 
 def load_templates() -> dict:
-    """Mẫu để so chiều xoay: trang 1 của PDF phiếu và PDF trang chữ số."""
     out = {}
     for key, pdf in (("sheet", "phieu_danh_so.pdf"), ("digit", "trang_chu_so.pdf")):
         pix = pymupdf.open(ANSWER_SHEET / "output" / pdf)[0].get_pixmap(dpi=60, colorspace=pymupdf.csGRAY)
@@ -174,7 +118,6 @@ def load_templates() -> dict:
 
 
 def marker_fill(aligned, layout) -> dict:
-    """Tỉ lệ pixel tối ở tâm mỗi marker trên ảnh đã nắn (marker thật ~ 1.0)."""
     th = cv2.threshold(aligned, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
     r = round(MARKER_CHECK_MM * layout["dpi"] / 25.4)
     out = {}
@@ -185,27 +128,22 @@ def marker_fill(aligned, layout) -> dict:
 
 
 def nan_anh(path: Path, loai: str) -> tuple:
-    """preprocess() (Bước 6, thay check_align()/align() cũ) -> (anh_nan hoặc None, lý do – rỗng nếu OK).
-    Lý do = mã + thông báo (MA_LY_DO); preprocess đã tự quyết chiều phiếu bằng nội dung, không cần thử 4 chiều."""
     kq = preprocess(path, nap_layout(loai))
     return (kq.anh_nan, "") if kq.ok else (None, f"TỪ CHỐI – {kq.ly_do} ({MA_LY_DO[kq.ly_do]})")
 
 
 def cat_vung_ma(anh_nan, layout=None) -> np.ndarray:
-    """Vùng chữ 'Mã phiếu'/'Mã trang' trên ảnh đã nắn."""
     px_per_mm = (layout or nap_layout())["dpi"] / 25.4
     x0, y0, x1, y1 = (round(v * px_per_mm) for v in CODE_BOX_MM)
     return anh_nan[y0:y1, x0:x1]
 
 
 def preview_images(jpg: Path, loai: str) -> tuple[str, str, str]:
-    """(ảnh vùng mã đã cắt, ảnh thu nhỏ toàn trang, lý do nếu bị từ chối – rỗng nếu OK)."""
-    bgr = cv2.imdecode(np.fromfile(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)   # fromfile: an toàn với đường dẫn Unicode
+    bgr = cv2.imdecode(np.fromfile(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
     thumb = to_b64(bgr, 320)
     aligned, problem = nan_anh(jpg, loai)
     if aligned is not None:
         return to_b64(cat_vung_ma(aligned), 640), thumb, ""
-    # Bị từ chối: cắt 1/4 góc trên phải của ảnh GỐC (không nắn, không dựng đứng) để đọc mã bằng mắt
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
     return to_b64(np.ascontiguousarray(gray[: h // 2, w // 2:]), 480), thumb, problem
@@ -246,7 +184,6 @@ Sai ở đâu thì sửa cột <code>new_name</code> trong <code>mapping.csv</co
 {''.join(trs)}</table></body></html>""", encoding="utf-8")
 
 
-# ---------------------------------------------------------------- lệnh plan
 def cmd_plan(a) -> None:
     src, work = Path(a.src), Path(a.work)
     jpg_dir = work / "jpg"
@@ -269,7 +206,6 @@ def cmd_plan(a) -> None:
     if len(ordered) != expected:
         print(f"CẢNH BÁO: có {len(ordered)} ảnh, cần {expected}. Tên đề xuất sẽ lệch - kiểm tra kỹ preview.")
 
-    # Đánh dấu chỗ thứ tự theo giờ chụp khác thứ tự số IMG (gợi ý có thể bị lộn)
     by_num_rank = {it["heic"].name: k for k, it in enumerate(sorted(items, key=lambda it: it["num"]))}
     rows = []
     for k, it in enumerate(ordered):
@@ -299,13 +235,10 @@ def cmd_plan(a) -> None:
     n_swap = sum(1 for r in rows if r["note"])
     print(f"\n{len(rows)} ảnh | thiếu EXIF: {n_missing} | lệch thứ tự IMG: {n_swap}")
     print(f"  Mapping : {mapping}")
-    build_preview(work, "tat_ca", a.xac_nhan_test)     # nhận ảnh mới gồm cả phiếu test -> cần --xac-nhan-test
+    build_preview(work, "tat_ca", a.xac_nhan_test)
 
 
 def build_preview(work: Path, split: str = "tat_ca", xac_nhan_test: bool = False) -> None:
-    """Đọc mapping.csv (kể cả bản đã sửa tay) và tạo preview.html (tat_ca) / preview_dev.html (dev).
-    split 'dev': chỉ dòng có tên mới thuộc dev (0001–0034, D001–D010); dòng ảnh đã bị thay (tên rỗng) bỏ qua.
-    split 'tat_ca' đọc cả ảnh test -> bắt buộc xac_nhan_test (chặn TRƯỚC khi đọc ảnh)."""
     with (work / "mapping.csv").open(encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
     if split == "dev":
@@ -334,7 +267,6 @@ def cmd_preview(a) -> None:
     build_preview(Path(a.work), a.split, a.xac_nhan_test)
 
 
-# ---------------------------------------------------------------- lệnh apply (Bước 2)
 def cmd_apply(a) -> None:
     work, raw, raw_digits = Path(a.work), Path(a.raw), Path(a.raw_digits)
     with (work / "mapping.csv").open(encoding="utf-8-sig", newline="") as f:
@@ -346,7 +278,7 @@ def cmd_apply(a) -> None:
     errors, plan, seen, conds = [], [], set(), {}
     for r in rows:
         old, new = r["old_name"].strip(), r["new_name"].strip()
-        if not new:                     # ảnh đã bị thay (lệnh replace) -> bỏ qua
+        if not new:
             continue
         m = SHEET_NAME_RE.match(new)
         if m:
@@ -367,7 +299,6 @@ def cmd_apply(a) -> None:
             errors.append(f"#{r['order']}: {dst} đã tồn tại – không ghi đè")
         plan.append((src, dst))
 
-    # Mỗi phiếu phải có đúng các điều kiện ghi trong ground_truth.csv
     for sid, want in expected_conds.items():
         got = sorted(conds.get(sid, []))
         if got != want:
@@ -388,13 +319,12 @@ def cmd_apply(a) -> None:
     raw.mkdir(parents=True, exist_ok=True)
     raw_digits.mkdir(parents=True, exist_ok=True)
     for src, dst in plan:
-        shutil.copy2(src, dst)          # copy2: giữ nguyên nội dung + EXIF + thời gian file
+        shutil.copy2(src, dst)
     print(f"Đã chép {n_sheet} ảnh phiếu -> {raw}")
     print(f"Đã chép {n_digit} trang chữ số -> {raw_digits}")
     print("Ảnh nguồn (raw_heic/, _prepare/jpg/) giữ nguyên.")
 
 
-# ---------------------------------------------------------------- lệnh replace (thay ảnh chụp lại)
 def cmd_replace(a) -> None:
     src, name, work = Path(a.src), a.name.strip(), Path(a.work)
     if SHEET_NAME_RE.match(name):
@@ -425,7 +355,7 @@ def cmd_replace(a) -> None:
     t, source = capture_time(src)
 
     rejected.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(dst, rejected)          # DI CHUYỂN ảnh cũ, không xoá
+    shutil.move(dst, rejected)
     shutil.copy2(jpg, dst)
 
     old = old_rows[0]
@@ -449,15 +379,13 @@ def cmd_replace(a) -> None:
           f"{src.name} -> {dst.relative_to(ROOT).as_posix()} | mapping.csv đã cập nhật")
 
 
-# ---------------------------------------------------------------- lệnh measure (đo ảnh chụp lại)
 def marker_centers(gray) -> dict:
-    """Tâm + khung bao của marker ở mỗi góc ảnh, tìm độc lập với find_markers()."""
     H, W = gray.shape
     sx, sy = int(W * 0.35), int(H * 0.35)
     out = {}
     for c, (y0, x0) in {"tl": (0, 0), "tr": (0, W - sx), "bl": (H - sy, 0), "br": (H - sy, W - sx)}.items():
         patch = gray[y0:y0 + sy, x0:x0 + sx]
-        for f in (0.5, 0.4, 0.3, 0.2):                 # ngưỡng = f × độ sáng trung vị của ảnh
+        for f in (0.5, 0.4, 0.3, 0.2):
             n, _, st, ct = cv2.connectedComponentsWithStats((patch < np.median(gray) * f).astype(np.uint8))
             best = None
             for i in range(1, n):
@@ -474,7 +402,6 @@ def marker_centers(gray) -> dict:
 
 
 def perspective(m: dict) -> float:
-    """min(trên/dưới, trái/phải và nghịch đảo): 1,0 = thẳng; càng nhỏ càng nghiêng."""
     d = lambda a, b: np.linalg.norm(m[a]["center"] - m[b]["center"])  # noqa: E731
     tb, lr = d("tl", "tr") / d("bl", "br"), d("tl", "bl") / d("tr", "br")
     return min(tb, 1 / tb, lr, 1 / lr)
@@ -507,7 +434,6 @@ def cmd_measure(a) -> None:
         persp = f"{r['persp']:.2f}" if r["persp"] is not None else "—"
         print(f"{src.name}: marker trọn vẹn {r['found']}/4 | cách mép (px) {margins} | "
               f"độ phối cảnh {persp} | preprocess(): {problem or 'OK'}")
-        # Vùng mã phiếu để đọc bằng mắt: cắt từ ảnh đã nắn nếu OK, không thì 40% góc trên phải ảnh GỐC (không nắn)
         if aligned is not None:
             crop = cat_vung_ma(aligned)
         else:
@@ -532,18 +458,11 @@ def cmd_measure(a) -> None:
                   f"trung vị {np.median(vals):.2f}  max {max(vals):.2f}")
 
 
-# ---------------------------------------------------------------- lệnh verify-ids (đọc mã phiếu in sẵn)
-ID_SEARCH_MM = 6.0          # giấy cong / marker_centers lệch -> tìm mã phiếu trong ±6 mm
-# Kết quả tự động chỉ tin khi: chữ 'Mã phiếu: 00' khớp tốt (nắn đúng chỗ) VÀ mỗi chữ số hơn hẳn chữ số thứ
-# hai. Ngược lại (marker_centers bắt nhầm marker ở ảnh tối C2; ảnh C3 chữ quá nhỏ, nhầm 4/5) -> đọc bằng mắt.
+ID_SEARCH_MM = 6.0
 ID_MIN_ANCHOR, ID_MIN_MARGIN = 0.70, 0.10
 
 
 def id_templates(layout) -> dict:
-    """Mẫu từ 40 trang phieu_danh_so.pdf (@ dpi của layout):
-    - anchor: phần chữ chung 'Mã phiếu: 00' (giống nhau mọi trang) để định vị;
-    - tens/units: ảnh chữ số hàng chục (0-4) và hàng đơn vị (0-9), tách đôi vùng các trang khác nhau.
-    Nhận diện TỪNG chữ số: so cả cụm '0001' với '0011' chỉ chênh 0,02 (thử 03/10/2026), không phân biệt được."""
     doc = pymupdf.open(ANSWER_SHEET / "output" / "phieu_danh_so.pdf")
     px_mm = layout["dpi"] / 25.4
     x0, y0, x1, y1 = (round(v * px_mm) for v in CODE_BOX_MM)
@@ -557,9 +476,9 @@ def id_templates(layout) -> dict:
     ys, xs = np.nonzero(diff)
     pad = round(0.3 * px_mm)
     dy0, dy1, dx0, dx1 = ys.min() - pad, ys.max() + pad, xs.min() - pad, xs.max() + pad
-    mid = (dx0 + dx1) // 2                                   # chữ số DejaVu Bold rộng bằng nhau
-    ink = np.nonzero((pages[0] < 128).any(axis=0))[0]         # cột có mực: từ chữ 'M' tới hết số
-    anchor = (int(ink.min()) - pad, dy0, dx0, dy1)            # 'Mã phiếu: 00'
+    mid = (dx0 + dx1) // 2
+    ink = np.nonzero((pages[0] < 128).any(axis=0))[0]
+    anchor = (int(ink.min()) - pad, dy0, dx0, dy1)
     blur = lambda im: cv2.GaussianBlur(im, (5, 5), 0)         # noqa: E731  ảnh chụp luôn hơi mờ
     return {
         "page_box": (x0, y0),
@@ -572,15 +491,12 @@ def id_templates(layout) -> dict:
 
 
 def best_digit(win, temps: dict) -> tuple:
-    """(chữ số khớp nhất, điểm, điểm chữ số thứ hai) – so trong cửa sổ nhỏ quanh vị trí chữ số."""
     sc = {d: float(cv2.matchTemplate(win, t, cv2.TM_CCOEFF_NORMED).max()) for d, t in temps.items()}
     order = sorted(sc, key=sc.get, reverse=True)
     return order[0], sc[order[0]], sc[order[1]]
 
 
 def read_sheet_id(gray, layout, tp, sheet_template) -> dict:
-    """Nắn bằng marker_centers() (KHÔNG dùng align()); chiều xoay chọn bằng NCC cả trang với mẫu phiếu
-    (ảnh có thể nằm ngang/ngược); định vị bằng chữ 'Mã phiếu: 00' rồi đọc từng chữ số."""
     m = marker_centers(gray)
     if len(m) < 4:
         return {"error": f"chỉ tìm thấy {len(m)}/4 marker"}
@@ -600,9 +516,9 @@ def read_sheet_id(gray, layout, tp, sheet_template) -> dict:
     win = page[wy0:py0 + ay1 + s, wx0:px0 + ax1 + s]
     res = cv2.matchTemplate(win, tp["anchor"], cv2.TM_CCOEFF_NORMED)
     _, anchor_score, _, (bx, by) = cv2.minMaxLoc(res)
-    dx, dy = wx0 + bx - (px0 + ax0), wy0 + by - (py0 + ay0)     # độ lệch so với vị trí lý thuyết
+    dx, dy = wx0 + bx - (px0 + ax0), wy0 + by - (py0 + ay0)
     out = {"k": k, "anchor": anchor_score}
-    e = 4                                                        # px tìm thêm quanh từng chữ số
+    e = 4
     for key in ("tens", "units"):
         x0, y0, x1, y1 = tp[f"{key}_box"]
         sub = page[py0 + y0 + dy - e:py0 + y1 + dy + e, px0 + x0 + dx - e:px0 + x1 + dx + e]
@@ -621,7 +537,7 @@ def cmd_verify_ids(a) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("*.jpg"):
         old.unlink()
-    rows = []                                   # (tên, mã theo tên file, trạng thái, mô tả)
+    rows = []
     anh = [p for p in sorted(Path(a.raw).glob("*.jpg")) if SHEET_NAME_RE.match(p.name)]
     if not a.xac_nhan_test:
         n_test = sum(la_test(p) for p in anh)
@@ -640,8 +556,6 @@ def cmd_verify_ids(a) -> None:
             status = "mat"
             why = r.get("error") or (f"tự động đọc {r['id']} nhưng không chắc (neo {r['anchor']:.2f}, "
                                      f"hơn chữ số thứ hai {r['margin']:.2f})")
-            # Ảnh GỐC, không nắn: phần trên để đọc "Mã phiếu" bằng mắt. Ảnh nằm ngang (0006_C2/C3) không
-            # biết dựng theo chiều nào -> ghép cả 2 chiều xoay 90° cạnh nhau.
             ups = [gray] if gray.shape[0] >= gray.shape[1] else [np.rot90(gray, 1), np.rot90(gray, -1)]
             crops = [u[: int(u.shape[0] * 0.3), int(u.shape[1] * 0.35):] for u in ups]
             cv2.imencode(".jpg", np.ascontiguousarray(np.hstack(crops)))[1].tofile(out_dir / p.name)

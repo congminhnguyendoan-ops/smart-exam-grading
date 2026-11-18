@@ -1,6 +1,3 @@
-"""Kiểm thử suy luận CNN chữ số bằng NumPy + JSON (Tuần 6 Phần C, Bước 3): khớp PyTorch, tốc độ, ô trống / nhiễu, ca 0001.
-
-Cần models/ocr_cnn.json (có trong git). Test dùng ảnh / cache dev (data/ không có trong git) tự SKIP nếu thiếu; không đọc ảnh val / test."""
 import json
 import statistics
 import sys
@@ -50,7 +47,6 @@ def test_sieu_du_lieu_mo_hinh(mh):
 
 
 def test_numpy_khop_pytorch_tren_moi_chu_so_dev(mh):
-    """Dựng lại CNN PyTorch từ CHÍNH trọng số JSON; NumPy phải cho cùng nhãn 100%, chênh xác suất < 1e-4 trên mọi chữ số dev."""
     torch = pytest.importorskip("torch")
     can_file(CAT / "anh_nan.npz", CAT / "anh_nan.csv")
     sys.path.insert(0, str(ROOT / "tools"))
@@ -60,7 +56,7 @@ def test_numpy_khop_pytorch_tren_moi_chu_so_dev(mh):
     assert len(x) > 4000
     d = json.loads(MO_HINH.read_text(encoding="utf-8"))
     ps = []
-    sau = d.get("kien_truc") == ocr.KIEN_TRUC_SAU                  # lệnh AN: mô hình triển khai là CNN sâu "sau_2x2"
+    sau = d.get("kien_truc") == ocr.KIEN_TRUC_SAU
     for m_json in d["thanh_vien"]:
         if sau:
             sys.path.insert(0, str(ROOT / "tools"))
@@ -83,7 +79,7 @@ def test_numpy_khop_pytorch_tren_moi_chu_so_dev(mh):
 
 
 def test_thoi_gian_cat_9_o_va_suy_luan(kq0001, layout, mh):
-    ocr.doc_chu_so(kq0001, layout, mh)                          # khởi động
+    ocr.doc_chu_so(kq0001, layout, mh)
     ms = [ocr.doc_chu_so(kq0001, layout, mh).thoi_gian_ms for _ in range(7)]
     assert statistics.median(ms) <= 50.0, f"T5: {statistics.median(ms):.1f} ms > 50 ms"
 
@@ -106,26 +102,25 @@ def test_doc_chu_so_tu_choi_anh_khong_ok(layout, mh):
 
 
 def _sua_anh(kq, layout, ham):
-    """Bản sao `kq` với anh_nan bị sửa ở vùng 9 ô viết tay: ham(vung_xam, rng) -> vùng mới."""
     from dataclasses import replace
     anh = kq.anh_nan.copy()
     rng = np.random.default_rng(0)
     for f in ("sbd", "exam_code"):
         for x, y, w, h in layout[f]["handwriting_boxes"]:
-            x0, y0, x1, y1 = int(x) + 12, int(y) + 12, int(x + w) - 12, int(y + h) - 12      # chừa viền ô in sẵn
+            x0, y0, x1, y1 = int(x) + 12, int(y) + 12, int(x + w) - 12, int(y + h) - 12
             anh[y0:y1, x0:x1] = ham(anh[y0:y1, x0:x1], rng)
     return replace(kq, anh_nan=anh)
 
 
 def test_o_trong_khong_qua_cnn(kq0001, layout, mh):
-    kq = _sua_anh(kq0001, layout, lambda v, r: np.full_like(v, int(np.median(v))))     # xoá hết chữ: chỉ còn giấy
+    kq = _sua_anh(kq0001, layout, lambda v, r: np.full_like(v, int(np.median(v))))
     r = ocr.doc_chu_so(kq, layout, mh)
     for c in r.sbd + r.ma_de:
         assert c.o_trong and c.chu_so == "?" and c.top_k == [] and c.p == 0.0 and not c.cnn_chac, c
 
 
 def test_o_nhieu_muc_khong_phai_chu_so(kq0001, layout, mh):
-    kq = _sua_anh(kq0001, layout, lambda v, r: np.where(r.random(v.shape) < 0.6, 20, 230).astype(np.uint8))   # nhiễu đen dày
+    kq = _sua_anh(kq0001, layout, lambda v, r: np.where(r.random(v.shape) < 0.6, 20, 230).astype(np.uint8))
     r = ocr.doc_chu_so(kq, layout, mh)
     for c in r.sbd + r.ma_de:
         assert c.chu_so == "?" and not c.o_trong and c.loi_o in ("khong_phai_chu_so", "o_it_muc"), c
@@ -140,7 +135,6 @@ def test_loi_o_la_can_xem_ke_ca_khi_bubble_chac():
 
 
 def test_ca_0001_sbd_viet_062384_bubble_06238_thieu_cot_6(kq0001, layout, mh):
-    """Ca thử của kế hoạch: SBD viết tay 062384, bubble 06238- (chữ số 6 không tô) -> cột cuối PHẢI cần xem, trường không chắc."""
     can_file(ROOT / "models" / "omr_m1.json")
     res = omr.doc_phieu(kq0001, layout, omr.nap_mo_hinh())
     hv = ocr.doc_chu_so(kq0001, layout, mh)
@@ -153,7 +147,6 @@ def test_ca_0001_sbd_viet_062384_bubble_06238_thieu_cot_6(kq0001, layout, mh):
     assert dc["can_xem"]
 
 
-# --------------------------------------------------------------------------------------------- Lệnh AM: kiến trúc "sau_2x2"
 def _mang_sau_ngau_nhien(torch, seed=20261116):
     sys.path.insert(0, str(ROOT / "tools"))
     import ak_so_sanh_mo_rong as K
@@ -162,8 +155,6 @@ def _mang_sau_ngau_nhien(torch, seed=20261116):
 
 
 def test_cnn_sau_numpy_khop_pytorch_trong_so_ngau_nhien(tmp_path):
-    """Tiêu chí (c) của docs/tieu_chi_cnn_sau.md: ≥ 2000 ô MNIST test, cùng nhãn ≥ 99,9%, mọi logit lệch ≤ 1e-4.
-    Đi qua ĐÚNG đường xuất JSON (xuat_ocr.tham_so + lam_tron 8 chữ số) rồi nap_mo_hinh_ocr, so với PyTorch dùng trọng số GỐC."""
     torch = pytest.importorskip("torch")
     pytest.importorskip("sklearn")
     can_file(DATA / "_ocr" / "nguon" / "t10k-images-idx3-ubyte.gz")
@@ -185,13 +176,11 @@ def test_cnn_sau_numpy_khop_pytorch_trong_so_ngau_nhien(tmp_path):
 
 
 def test_mo_hinh_trien_khai_la_cnn_sau(mh):
-    """Lệnh AN: models/ocr_cnn.json = CNN sâu seed 2026 (docs/tieu_chi_thay_mo_hinh_an.md). Nhánh mô hình cũ vẫn được kiểm bằng tệp tạm bên dưới."""
     assert mh.kien_truc == ocr.KIEN_TRUC_SAU and "a1w" in mh.thanh_vien[0] and "c1w" not in mh.thanh_vien[0]
     assert sum(v.size for k, v in mh.thanh_vien[0].items() if k != "T") == 467818
 
 
 def test_nhanh_mo_hinh_co_ban_van_nap_va_chay(tmp_path):
-    """Nhánh kiến trúc cũ (Conv16–Conv32–Dense64) không được hỏng dù mô hình triển khai đã đổi: nạp một tệp tạm có khoá cũ + chạy được."""
     rng = np.random.default_rng(0)
     m = {"seed": 1, "T": 1.0, "c1w": rng.normal(size=(16, 1, 3, 3)).tolist(), "c1b": [0.0] * 16, "c2w": rng.normal(size=(32, 16, 3, 3)).tolist(), "c2b": [0.0] * 32,
          "d1w": rng.normal(size=(64, 1568)).tolist(), "d1b": [0.0] * 64, "d2w": rng.normal(size=(10, 64)).tolist(), "d2b": [0.0] * 10}

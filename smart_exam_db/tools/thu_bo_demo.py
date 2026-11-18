@@ -24,7 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
-os.environ["AUTH_MODE"] = "on"                     # kiểm cả phân quyền: mỗi kỳ thi do đúng giáo viên của lớp chấm
+os.environ["AUTH_MODE"] = "on"
 
 import kiem_bo_demo as K  # noqa: E402
 
@@ -38,7 +38,6 @@ NHAN = "[DEMO-BV]"
 
 
 def kich_ban() -> tuple[dict, dict]:
-    """({BVxx: dòng kịch bản}, {(exam, mã đề): đáp án}); kịch bản sai thì DỪNG."""
     loi, _ = K.kiem(K.doc(K.DAP_AN), K.doc(K.KICH_BAN))
     if loi:
         raise SystemExit("DỪNG: kịch bản demo sai – chạy python tools/kiem_bo_demo.py")
@@ -85,7 +84,7 @@ def chay() -> list[dict]:
     try:
         from backend import migrate
         thieu = migrate.chua_ap(conn)
-        if thieu:                                                  # chỉ KIỂM, không áp (quy tắc: công cụ / test không áp migration lên CSDL thật)
+        if thieu:
             raise SystemExit(f"DỪNG: migration chưa áp {sorted(thieu)} – chạy python -m backend.migrate (người dùng quyết).")
         ky_thi = {}
         for e in ("E1", "E2"):
@@ -122,7 +121,6 @@ def chay() -> list[dict]:
                         "sbd_doc": v["sbd"]["detected"], "sbd_can_xem": bool(v["sbd"]["can_xem"]), "sbd_ly_do": list(v["sbd"]["reasons"]),
                         "ma_de_doc": v["exam_code"]["detected"], "ma_de_can_xem": bool(v["exam_code"]["can_xem"]),
                         "cham_sai_khong_co": sai_khong_co}
-                # giáo viên duyệt ĐÚNG NHƯ GIẤY (kịch bản): câu cần xem -> đặt tập ô đã tô; SBD / mã đề -> nhập đúng
                 for q in cl.get(f"/sheets/{sid}/review-questions", headers=h).json():
                     lab = p[f"q{q['question_no']}"]
                     rr = cl.post(f"/sheets/{sid}/questions/{q['question_no']}/review", headers=h,
@@ -139,8 +137,6 @@ def chay() -> list[dict]:
                         "diem_chinh_thuc": None if sc.get("official") is None else str(sc["official"]),
                         "diem_tam_sau_duyet": str(sc["provisional"]), "ly_do_con_lai": list((v2.get("review") or {}).get("reasons") or [])
                         if v2["status"] == "needs_review" else [], "sv_cuoi": (v2.get("student") or {}).get("student_code")}
-                # Kỳ vọng theo danh sách dự thi THẬT trong CSDL: trong danh sách -> điểm chính thức = điểm mong đợi;
-                # ngoài danh sách (BV10) -> KHÔNG có điểm chính thức, phiếu còn chờ vì sbd_not_found, điểm tạm sau duyệt = điểm mong đợi.
                 row["trong_ds"] = conn.execute("SELECT 1 FROM exam_students es JOIN students s USING (student_id) WHERE es.exam_id = %s "
                                                "AND s.student_code = %s", (eid, p["sbd"])).fetchone() is not None
                 if row["trong_ds"]:
@@ -156,7 +152,7 @@ def chay() -> list[dict]:
                       f"chính thức {row['diem_chinh_thuc']}, kỳ vọng {row['ky_vong']}, {'KHỚP' if row['khop'] else 'KHÔNG KHỚP'}")
     finally:
         app.dependency_overrides.clear()
-        conn.rollback()                                            # KHÔNG ghi thật
+        conn.rollback()
         conn.close()
     return rows
 
@@ -187,7 +183,6 @@ def ghi_bao_cao(rows: list[dict]) -> None:
 
 
 def xuat() -> None:
-    """10 ảnh giả hoá BV01–BV10 + README.txt -> OUT/anh_gia/. Không ghi CSDL, không tải lên kỳ thi nào."""
     import shutil
     kb, dap_an = kich_ban()
     if not all((GIA / f"{m}.jpg").exists() for m in kb):

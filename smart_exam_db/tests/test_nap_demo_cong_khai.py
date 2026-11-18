@@ -1,5 +1,3 @@
-"""Lệnh AW (W1–W5): tools/nap_demo_cong_khai.py. Phần cần CSDL chạy trong MỘT schema tạm (CSDL trống như bản công khai vừa khởi tạo) + ROLLBACK:
-không đụng dữ liệu thật (conn_thu kiểm số dòng trước / sau)."""
 import sys
 from dataclasses import replace
 
@@ -17,7 +15,6 @@ BANG = ("users", "classes", "teacher_classes", "students", "subjects", "exams", 
 
 @pytest.fixture
 def db_trong(conn_thu):
-    """Schema tạm giống hệt CSDL công khai sau khoi_tao_db_san_xuat (01–03 + migration + mẫu phiếu; không seed). Cuối test conn_thu ROLLBACK."""
     conn_thu.execute("CREATE SCHEMA tmp_nap_aw")
     conn_thu.execute("SET LOCAL search_path = tmp_nap_aw")
     KT.ap_nen(conn_thu)
@@ -30,7 +27,6 @@ def dem(conn) -> dict:
     return {b: conn.execute(f"SELECT count(*) AS n FROM {b}").fetchone()["n"] for b in BANG}
 
 
-# ------------------------------------------------------------------------------------------------ không cần CSDL
 def test_w1_che_mat_khau_va_nguoi_dung():
     m = N.muc_tieu("postgresql://smart_exam_app:MAT-KHAU-BI-MAT@db.noi-bo:5432/smart_exam")
     assert "db.noi-bo" in m and "smart_exam" in m
@@ -52,7 +48,7 @@ def test_w3_tu_choi_ten_mau_va_trung():
 
 def test_w1_mac_dinh_xem_truoc_va_xac_nhan_sai_khong_ghi(capsys, monkeypatch):
     monkeypatch.setattr(N, "kiem_tham_so", lambda *a: [])
-    assert N.main(["--admin", "aaa", "--giao-vien", "bbb", "ccc", "--xac-nhan", "nap"]) == 1       # sai xác nhận: thoát trước khi nối CSDL
+    assert N.main(["--admin", "aaa", "--giao-vien", "bbb", "ccc", "--xac-nhan", "nap"]) == 1
     assert "KHÔNG ghi" in capsys.readouterr().out
     ma = (ROOT / "tools" / "nap_demo_cong_khai.py").read_text(encoding="utf-8")
     assert "SET TRANSACTION READ ONLY" in ma and "ghi = a.xac_nhan == XAC_NHAN" in ma
@@ -75,7 +71,6 @@ def test_w2_dap_an_trung_bo_demo_bv():
 
 
 def test_w2_sinh_vien_trung_seed_va_khong_co_ten_ngoai_seed():
-    """Mọi (MSSV, họ tên) phải có trong database/04_seed.sql (dữ liệu mẫu của dự án) – không có bản ghi nào do ta tự thêm từ nguồn khác."""
     seed = (ROOT / "database" / "04_seed.sql").read_text(encoding="utf-8")
     for ma, ten, _ in N.SINH_VIEN:
         assert f"fn_upsert_student('{ma}','{ten}'" in " ".join(seed.split()).replace("', '", "','"), (ma, ten)
@@ -87,7 +82,6 @@ def test_w6_dockerignore_cho_phep_cong_cu_nap_va_dat_lai():
         assert f"!tools/{t}" in di, t
 
 
-# ------------------------------------------------------------------------------------------------ CSDL trống (schema tạm, ROLLBACK)
 def test_w1_xem_truoc_khong_ghi(db_trong):
     truoc = dem(db_trong)
     kq = N.nap(db_trong, *TEN[:1], list(TEN[1:]), ap_dung=False)
@@ -101,7 +95,7 @@ def test_w2_w3_nap_dung_noi_dung(db_trong):
     kq = N.nap(db_trong, TEN[0], list(TEN[1:]), ap_dung=True)
     d = dem(db_trong)
     assert (d["users"], d["classes"], d["students"], d["exams"], d["exam_codes"], d["answer_keys"], d["exam_students"], d["teacher_classes"]) == (3, 2, 10, 3, 12, 480, 27, 2)
-    assert d["answer_sheets"] == 0 and d["results"] == 0                         # W4: kỳ thi trống phiếu
+    assert d["answer_sheets"] == 0 and d["results"] == 0
     assert db_trong.execute("SELECT count(*) AS n FROM users WHERE role = 'student'").fetchone()["n"] == 0
     assert {r["username"] for r in db_trong.execute("SELECT username FROM users")} == set(TEN)
     assert db_trong.execute("SELECT role::text AS r FROM users WHERE username = %s", (TEN[0],)).fetchone()["r"] == "admin"
@@ -155,7 +149,6 @@ def test_chua_khoi_tao_thi_dung(conn_thu):
     assert "chưa khởi tạo" in str(e.value)
 
 
-# ------------------------------------------------------------------------------------------------ W5: đăng nhập + tải BV01 -> ghép đúng SBD, 9,5
 def test_w5_dang_nhap_tai_bv01_ghep_sbd_va_ra_9_5(db_trong, cau_hinh_thu, monkeypatch):
     anh = ROOT / "data" / "_eval" / "demo_bv" / "anh_gia" / "BV01.jpg"
     can_file(anh, ROOT / "answer_sheet" / "demo_bv" / "demo_bv_kich_ban.csv")
@@ -180,9 +173,8 @@ def test_w5_dang_nhap_tai_bv01_ghep_sbd_va_ra_9_5(db_trong, cau_hinh_thu, monkey
             assert r.status_code in (200, 201), r.text
             sid = r.json()["sheet_id"]
             v = cl.get(f"/sheets/{sid}").json()
-            assert v["sbd"]["detected"] == "220001" and v["exam_code"]["detected"] == "101"          # ghép đúng SBD / mã đề (ảnh giả hoá: ô viết tay trống, bubble đúng)
-            assert v["status"] == "needs_review" and float(v["score"]["provisional"]) == 9.0        # điểm TẠM: còn câu mờ chờ giáo viên
-            # giáo viên duyệt ĐÚNG NHƯ GIẤY (kịch bản BV01) -> điểm chính thức 9,5 (38/40, đúng kiem_bo_demo)
+            assert v["sbd"]["detected"] == "220001" and v["exam_code"]["detected"] == "101"
+            assert v["status"] == "needs_review" and float(v["score"]["provisional"]) == 9.0
             import kiem_bo_demo as K
             nhan = next(x for x in K.doc(K.KICH_BAN) if x["sheet_id"] == "BV01")
             for q in cl.get(f"/sheets/{sid}/review-questions").json():
@@ -194,7 +186,7 @@ def test_w5_dang_nhap_tai_bv01_ghep_sbd_va_ra_9_5(db_trong, cau_hinh_thu, monkey
             assert sc["result_status"] == "confirmed" and float(sc["official"]) == 9.5, sc
             bd = cl.get(f"/exams/{kt['exam_id']}/results").json()
             assert any(x["sbd"] == "220001" and float(x["score"]) == 9.5 for x in bd["rows"]), bd
-            r2 = TestClient(app).get("/exams")                                  # không đăng nhập
+            r2 = TestClient(app).get("/exams")
             assert r2.status_code == 401
     finally:
         app.dependency_overrides.clear()

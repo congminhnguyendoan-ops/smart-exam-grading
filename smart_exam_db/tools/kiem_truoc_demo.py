@@ -29,19 +29,16 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 DAT, CANH_BAO, KHONG_DAT, KHONG_KIEM = "ĐẠT", "CẢNH BÁO", "KHÔNG ĐẠT", "KHÔNG KIỂM ĐƯỢC"
 def migration_can() -> list[str]:
-    """MỌI tệp trong backend/migrations/ (lệnh Y: không ghi cứng danh sách – thêm 006 thì tự đòi 006, nhãn tự đổi)."""
     from backend import migrate
     return [f.name for f in migrate.ds_file()]
 BANG_CHINH = ["users", "classes", "teacher_classes", "students", "subjects", "sheet_templates", "exams", "exam_students", "exam_codes", "answer_keys",
               "answer_sheets", "sheet_answers", "ocr_digits", "results", "review_queue", "score_audit_logs", "schema_migrations"]
 TAI_KHOAN = ["admin", "gv_an", "gv_binh"]
-KY_THI_CHINH = (1380, 1381, 1633)                     # phải TRỐNG trước buổi demo
-KY_THI_TAP = 1632                                     # kỳ thi tập: có phiếu nền (5 chính thức + #6028)
+KY_THI_CHINH = (1380, 1381, 1633)
+KY_THI_TAP = 1632
 DU_THI_THEO_KY_THI = {1380: "E1", 1381: "E2", 1632: "E1", 1633: "E2"}
 SO_DANG_KY = ROOT / "docs" / "dong_bang_ma_dot2.json"
 TEP_MO_HINH = ["models/omr_m1.json", "models/ocr_cnn.json", "answer_sheet/output/layout.json", "answer_sheet/output/phieu_trang_300dpi.png"]
-# Lệnh AO (16/11/2026): lệnh AN ĐÃ THAY models/ocr_cnn.json bằng CNN sâu (docs/ket_qua_thay_mo_hinh_an.md; SHA cũ 6D87205C… nằm trong sổ đăng ký đợt 2).
-# Sổ docs/dong_bang_ma_dot2.json là bản ghi LỊCH SỬ đóng băng nên KHÔNG sửa; kỳ vọng SHA của riêng tệp này được ghi đè ở đây, CÓ CHỦ ĐÍCH. Các tệp khác vẫn theo sổ.
 SHA_KY_VONG_GHI_DE = {"models/ocr_cnn.json": "A151C078E159E003FB668B4E4A9E00EC38554F5FEC9F870A9624D53B989AC6C8"}
 DEMO_BV = ROOT / "answer_sheet" / "demo_bv"
 ANH_BV = ROOT / "data" / "_eval" / "demo_bv" / "anh_gia"
@@ -64,12 +61,11 @@ def sha_hoa(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest().upper()
 
 
-# ------------------------------------------------------------------------------------------------ từng nhóm kiểm (mỗi hàm trả list[Muc])
 def kiem_csdl(conn) -> list[Muc]:
     from backend import migrate
     r = conn.execute("SELECT current_database() AS d, split_part(version(), ' ', 2) AS v, current_user AS u").fetchone()
     out = [Muc("CSDL", "Kết nối PostgreSQL", DAT, f"CSDL {r['d']}, PostgreSQL {r['v']}, người dùng {r['u']}")]
-    chua = migrate.chua_ap(conn, ca_tuy_chon=True)              # CHỈ ĐỌC (migrate.da_ap có CREATE TABLE – không dùng ở đây)
+    chua = migrate.chua_ap(conn, ca_tuy_chon=True)
     da = {f.name for f in migrate.ds_file()} - set(chua)
     can = migration_can()
     thieu = [m for m in can if m not in da]
@@ -84,7 +80,7 @@ def kiem_csdl(conn) -> list[Muc]:
 def kiem_mo_hinh(goc: Path = ROOT, tep: list[str] = TEP_MO_HINH, so_dang_ky: Path = SO_DANG_KY) -> list[Muc]:
     out = []
     dk = json.loads(so_dang_ky.read_text(encoding="utf-8")).get("sha256", {}) if so_dang_ky.exists() else {}
-    dk = {**dk, **{k: v for k, v in SHA_KY_VONG_GHI_DE.items() if k in tep}}      # lệnh AO: kỳ vọng mới của mô hình đã thay (xem chú thích ở đầu tệp)
+    dk = {**dk, **{k: v for k, v in SHA_KY_VONG_GHI_DE.items() if k in tep}}
     for t in tep:
         p = goc / t
         if not p.is_file():
@@ -220,12 +216,11 @@ def kiem_dia(goc: Path = ROOT) -> list[Muc]:
 
 
 def kiem_toc_do(anh: list[Path] = ANH_DO_TOC_DO) -> list[Muc]:
-    """Tải 2 ảnh ~12 MP qua API thật (TestClient) vào kỳ thi tạo trong MỘT giao dịch ROLLBACK; kho ảnh tạm, xoá ngay. Ngưỡng cảnh báo tính trên ảnh 2."""
     thieu = [p.name for p in anh if not p.is_file()]
     if thieu:
         return [Muc("Tốc độ", "Tải thử ảnh qua API", KHONG_KIEM, f"thiếu ảnh {thieu} (tạo: python tools/thu_dien_thoai.py tao-anh)")]
     cu = {k: os.environ.get(k) for k in ("AUTH_MODE", "ANH_XOA_TU_DONG")}
-    os.environ["AUTH_MODE"] = "demo"                          # TestClient trong tiến trình: bỏ đăng nhập; khôi phục ở finally
+    os.environ["AUTH_MODE"] = "demo"
     os.environ["ANH_XOA_TU_DONG"] = "0"
     from dataclasses import replace
 
@@ -240,7 +235,7 @@ def kiem_toc_do(anh: list[Path] = ANH_DO_TOC_DO) -> list[Muc]:
     conn = ket_noi()
 
     def _conn():
-        yield conn                                           # một giao dịch, KHÔNG commit -> rollback ở finally
+        yield conn
 
     app.dependency_overrides[get_conn] = _conn
     app.dependency_overrides[get_cau_hinh] = lambda: cfg
@@ -273,7 +268,6 @@ def kiem_toc_do(anh: list[Path] = ANH_DO_TOC_DO) -> list[Muc]:
                 f"ảnh 1: {giay[0]:.2f} s, ảnh 2: {nong:.2f} s (từ lúc gửi tới khi API trả kết quả chấm); trạng thái {trang_thai}" + (f" – CHẬM hơn {TOC_DO_TOI_DA_S:.0f} s" if nong > TOC_DO_TOI_DA_S else ""))]
 
 
-# ------------------------------------------------------------------------------------------------ tổng hợp
 def ma_thoat(muc: list[Muc]) -> int:
     return 1 if any(m.ket_qua == KHONG_DAT for m in muc) else 0
 
@@ -295,7 +289,7 @@ def chay(toc_do: bool = True) -> list[Muc]:
     try:
         cfg = lay_cau_hinh()
         conn = ket_noi()
-        conn.read_only = True                                  # mọi kiểm CSDL ở đây: giao dịch CHỈ ĐỌC
+        conn.read_only = True
         try:
             muc += kiem_csdl(conn)
             muc += kiem_tai_khoan(conn)

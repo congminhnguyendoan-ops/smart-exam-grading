@@ -1,16 +1,3 @@
-"""
-kiem_dinh_vi.py - Kiểm khâu định vị 2 tầng của cv_engine/omr.py (Tuần 5, Phần A mốc A1; docs/ke_hoach_tuan5.md).
-
-Chỉ dùng ảnh TRAIN 0001–0028 (Phần A không chạm val 0029–0034; test bị chặn). Ghi data/_eval/omr/dinh_vi/.
-
-  python tools/kiem_dinh_vi.py thong-ke     # 56 ảnh thật: điểm khớp khối / hàng, độ duy nhất đỉnh, lệch lân cận, cờ
-  python tools/kiem_dinh_vi.py dich-gia     # ảnh dịch giả: dịch cả trang đúng 1 khoảng cách ô (ngang 7 mm; dọc 11 mm,
-                                            # 5,8 mm) và 2 / 3,5 / 4 mm -> mỗi hàng / cột: ĐÚNG hoặc GẮN CỜ; đếm "khớp nhầm
-                                            # không cờ" (phải = 0)
-
-"Đúng" của ảnh dịch giả: độ dịch tìm được = độ dịch của chính ảnh đó khi chưa dịch + độ dịch giả (sai ≤ 0,5 mm mỗi trục).
-Đây là phép thử TƯƠNG ĐỐI (không cần biết vị trí thật); vị trí tuyệt đối đo độc lập ở tools/eval_omr.py (cách khác omr.py).
-"""
 import argparse
 import csv
 import sys
@@ -36,7 +23,6 @@ DICH_GIA_MM = [(7, 0), (-7, 0), (0, 11), (0, -11), (0, 5.8), (0, -5.8),
 
 
 def dich_anh(anh: np.ndarray, dx_mm: float, dy_mm: float) -> np.ndarray:
-    """Dịch cả trang (dx, dy) mm, phần lộ ra điền mức giấy (trung vị ảnh)."""
     M = np.float32([[1, 0, dx_mm / PX_MM], [0, 1, dy_mm / PX_MM]])
     return cv2.warpAffine(anh, M, (anh.shape[1], anh.shape[0]), flags=cv2.INTER_LINEAR,
                           borderMode=cv2.BORDER_CONSTANT, borderValue=int(np.median(anh)))
@@ -98,7 +84,7 @@ def cmd_dich_gia(L, mau, gioi_han: int | None) -> None:
             nham = []
             for key in kq.dich:
                 if goc.co[key]:
-                    dem["bo_qua"] += 1                    # ảnh gốc đã không tin được phần tử này
+                    dem["bo_qua"] += 1
                     continue
                 mong = np.array(goc.dich[key]) + np.array([dx, dy]) / PX_MM
                 sai = np.abs(np.array(kq.dich[key]) - mong).max() * PX_MM

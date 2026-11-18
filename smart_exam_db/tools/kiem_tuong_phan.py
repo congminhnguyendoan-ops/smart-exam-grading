@@ -1,12 +1,3 @@
-"""
-kiem_tuong_phan.py - Lệnh AA (B2): tính TỶ LỆ TƯƠNG PHẢN (WCAG 2.x) cho các cặp màu chữ / nền chính của giao diện.
-Đọc biến màu từ frontend/mau.css (nguồn duy nhất của bảng màu) – không ghi gì, không cần CSDL.
-
-  python tools/kiem_tuong_phan.py            # in bảng Markdown; mã thoát 1 nếu có cặp KHÔNG ĐẠT
-
-Ngưỡng: chữ thường ≥ 4,5:1 · chữ lớn (≥ 18,66 px đậm hoặc ≥ 24 px) ≥ 3:1 · thành phần giao diện (viền tiêu điểm, nền nút so với nền trang) ≥ 3:1.
-Tỷ lệ = (L1 + 0,05) / (L2 + 0,05), L = độ chói tương đối sRGB (WCAG 2.1, mục 1.4.3).
-"""
 import re
 import sys
 from pathlib import Path
@@ -15,7 +6,6 @@ ROOT = Path(__file__).resolve().parent.parent
 MAU_CSS = ROOT / "frontend" / "mau.css"
 NGUONG = {"thuong": 4.5, "lon": 3.0, "thanh_phan": 3.0}
 
-# (biến chữ, biến nền, loại, nơi dùng)
 CAP = [
     ("--ink", "--bg", "thuong", "chữ chính trên nền trang"),
     ("--ink", "--card", "thuong", "chữ chính trên thẻ"),
@@ -55,7 +45,6 @@ CAP = [
     ("--pri2", "--bg", "thanh_phan", "viền tiêu điểm bàn phím trên nền trang"),
     ("--pri", "--bg", "thanh_phan", "nền nút chính so với nền trang"),
     ("--pri", "--side", "thanh_phan", "mục đang chọn so với nền thanh bên"),
-    # lệnh AB: viền Ô NHẬP (input / select / textarea) – WCAG 1.4.11; viền thẻ (--line) là trang trí nên không xét
     ("--vien-o", "--card", "thanh_phan", "viền ô nhập trên thẻ"),
     ("--vien-o", "--bg", "thanh_phan", "viền ô nhập trên nền trang"),
     ("--vien-o", "--side", "thanh_phan", "viền ô chọn kỳ thi ở thanh bên"),
@@ -63,7 +52,6 @@ CAP = [
 
 
 def doc_bien(css: str | None = None) -> dict[str, str]:
-    """Biến màu dạng #RRGGBB trong :root của mau.css -> {"--ink": "#1E2A32", …}."""
     css = css if css is not None else MAU_CSS.read_text(encoding="utf-8")
     return {k: v.upper() for k, v in re.findall(r"(--[\w-]+)\s*:\s*(#[0-9A-Fa-f]{6})\b", css)}
 

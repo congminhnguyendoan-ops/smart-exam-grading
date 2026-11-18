@@ -1,4 +1,3 @@
-"""Lệnh AU (T5): tools/khoi_tao_db_san_xuat.py. Phần cần CSDL chạy trong schema tạm + ROLLBACK (conn_thu: SKIP nếu không có CSDL)."""
 import sys
 
 import pytest
@@ -14,7 +13,6 @@ def test_chi_chay_ba_tep_nen_khong_seed_khong_demo():
     assert not any("seed" in f or "demo" in f for f in K.FILE_NEN)
     ma = (ROOT / "tools" / "khoi_tao_db_san_xuat.py").read_text(encoding="utf-8")
     assert "execute" in ma and ".read_text" in ma
-    # 04_seed / 05_demo chỉ được NHẮC trong chú thích / chuỗi cảnh báo, không nằm trong danh sách tệp chạy
     assert "04_seed.sql\", " not in ma and "FILE_NEN = [" in ma
 
 
@@ -52,8 +50,7 @@ def test_tao_admin_moi_dung_vai_tro_va_mat_khau_ngau_nhien(conn_thu):
 
 
 def test_v_mau_phieu_chuan_idempotent_va_dung_cho_tao_ky_thi(conn_thu):
-    """Lệnh AV: DB sản xuất không seed vẫn tạo được kỳ thi nhờ mẫu phiếu chuẩn; chạy lại không nhân đôi."""
-    conn_thu.execute("UPDATE sheet_templates SET template_name = template_name || ' (tạm)' WHERE template_name = %s", (K.TEN_MAU_PHIEU,))   # đổi tên (kỳ thi thật còn trỏ tới), trong giao dịch ROLLBACK
+    conn_thu.execute("UPDATE sheet_templates SET template_name = template_name || ' (tạm)' WHERE template_name = %s", (K.TEN_MAU_PHIEU,))
     assert K.ap_mau_phieu(conn_thu) is True
     assert K.ap_mau_phieu(conn_thu) is False
     r = conn_thu.execute("SELECT num_questions, sbd_digits, exam_code_digits, page_width_px, page_height_px, layout_config FROM sheet_templates WHERE template_name = %s",

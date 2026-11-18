@@ -1,22 +1,3 @@
-"""
-eval_omr.py - Đánh giá ĐỘC LẬP cv_engine/omr.py (Tuần 5; docs/ke_hoach_tuan5.md mục 2, 3).
-
-Độc lập (như eval Tuần 4): KHÔNG import luật, ngưỡng, định vị, đặc trưng hay dự đoán của omr.py – chỉ gọi API công khai
-omr.doc_phieu / omr.nap_mo_hinh (pytest kiểm điều này). Có:
-  - bộ đọc nhãn riêng: tự phân tích mã ground_truth.csv (chữ hoa rõ / chữ thường mờ / 2 chữ / '-'), đối chiếu chéo với
-    cell_labels.csv – lệch nhau thì DỪNG;
-  - đo vị trí riêng: độ dịch thô cả khối bằng cv2.phaseCorrelate với trang mẫu render từ PDF (không dùng PNG mẫu của omr),
-    rồi tâm từng VÒNG TRÒN in sẵn bằng nhân vành trên bản đồ cạnh, bám theo hàng / cột; so với dich_chuyen_mm omr báo ra –
-    lệch > 0,5 mm = "vị trí đáng ngờ";
-  - bộ đếm riêng: lỗi nặng / nhẹ, cần xem cần thiết / thừa, ma trận nhầm lẫn, F1 faint + CI bootstrap theo phiếu.
-
-Phương pháp: 'm0' (models/omr_m0.json) và 'm1' (OOF: ảnh fold k đọc bằng data/_omr/mo_hinh_fold/omr_m1_fold{k}.json – mô hình
-không thấy phiếu của ảnh đó). Phần A: chỉ --split train (56 ảnh 0001–0028). val cần --cho-phep-val (Phần B); test bị chặn.
-
-  python tools/eval_omr.py run --phuong-phap m0
-  python tools/eval_omr.py run --phuong-phap m1
-  python tools/eval_omr.py report                 # bảng M0 vs M1 theo C1–C4 -> data/_eval/omr/bao_cao_phan_a.md + HTML xem bằng mắt
-"""
 import argparse
 import csv
 import html
@@ -44,12 +25,10 @@ DIEU_KIEN = ("C1", "C2", "C3", "C4")
 LOP = ("blank", "faint", "filled")
 SEED, SO_BOOT = 2026, 1000
 VI_TRI_SAI_MM = 0.5
-CA_THU = [("0019", 24, "C"), ("0020", 33, "C"), ("0033", 4, "C")]     # 0033 thuộc val – Phần A bỏ qua
+CA_THU = [("0019", 24, "C"), ("0020", 33, "C"), ("0033", 4, "C")]
 
 
-# ------------------------------------------------------------------------------------------------ nhãn (bộ đọc riêng)
 def giai_ma(code: str) -> dict:
-    """Mã câu ground_truth -> {ô: 'filled'/'faint'} (ô không có = trống)."""
     if code == "-":
         return {}
     if len(code) == 1:
@@ -68,13 +47,12 @@ def trang_thai_that(o: dict) -> str:
 
 
 def doc_nhan(phieu_cho_phep: set) -> dict:
-    """{phieu: {'cau': {q: {ô: mức}}, 'sbd': '06238-', 'ma_de': '101'}} – chỉ phiếu được phép; đối chiếu cell_labels."""
     out = {}
     with (DATA / "ground_truth.csv").open(encoding="utf-8-sig", newline="") as f:
         for r in csv.DictReader(f):
             p = int(r["sheet_id"])
             if p not in phieu_cho_phep:
-                continue                                        # dòng phiếu ngoài tập: bỏ ngay, không giữ
+                continue
             out[r["sheet_id"]] = {"cau": {q: giai_ma(r[f"q{q}"]) for q in range(1, 41)},
                                   "sbd": r["sbd_bubble"], "ma_de": r["exam_code_bubble"]}
     lech = 0
@@ -108,7 +86,6 @@ def ds_anh(split: str, cho_phep_val: bool) -> list[dict]:
     return rows
 
 
-# ------------------------------------------------------------------------------------------------ vị trí (cách riêng)
 def _mau_pdf(layout) -> np.ndarray:
     from check_layout import render_pdf_page
     a = render_pdf_page(ROOT / "answer_sheet" / "output" / "phieu_trang.pdf", layout["dpi"])
@@ -124,18 +101,16 @@ def _nhan_vanh(r: float) -> np.ndarray:
 
 
 def _tam_vong(canh: np.ndarray, cx: float, cy: float, r: float, ban_kinh: int) -> tuple[float, float]:
-    """Tâm vòng tròn in sẵn gần (cx, cy) nhất theo nhân vành trên bản đồ cạnh, tìm trong ±ban_kinh px."""
     k = _nhan_vanh(r)
     h = k.shape[0] // 2
     x0, y0 = int(round(cx)) - ban_kinh - h, int(round(cy)) - ban_kinh - h
-    vung = canh[y0:y0 + 2 * (ban_kinh + h) + 1, x0:x0 + 2 * (ban_kinh + h) + 1]       # ô luôn xa mép trang
+    vung = canh[y0:y0 + 2 * (ban_kinh + h) + 1, x0:x0 + 2 * (ban_kinh + h) + 1]
     res = cv2.filter2D(vung, cv2.CV_32F, k)[h:-h, h:-h]
     iy, ix = np.unravel_index(int(np.argmax(res)), res.shape)
     return x0 + h + ix, y0 + h + iy
 
 
 def vi_tri_doc_lap(anh: np.ndarray, layout: dict, mau_pdf: np.ndarray) -> dict:
-    """{'q1'..'q40', 'sbd1'.., 'ma_de1'..: (dx, dy) mm} đo bằng phaseCorrelate (thô) + tâm vòng tròn in sẵn (từng ô)."""
     px_mm = 25.4 / layout["dpi"]
     k4 = 4
     gx = cv2.Sobel(anh, cv2.CV_32F, 1, 0)
@@ -146,12 +121,11 @@ def vi_tri_doc_lap(anh: np.ndarray, layout: dict, mau_pdf: np.ndarray) -> dict:
         a = a.astype(np.float32)
         return cv2.resize(cv2.magnitude(cv2.Sobel(a, cv2.CV_32F, 1, 0), cv2.Sobel(a, cv2.CV_32F, 0, 1)), None,
                           fx=1 / k4, fy=1 / k4, interpolation=cv2.INTER_AREA)
-    ban = int(round(2.5 / px_mm))                                # ±2,5 mm < nửa khoảng cách ô ngang (3,5) / bubble (2,9)
+    ban = int(round(2.5 / px_mm))
     ans = layout["answers"]
     pts = np.array([xy for q in ans["centers"].values() for xy in q.values()])
     x0, y0 = (pts.min(0) / k4 - 40).astype(int)
     x1, y1 = (pts.max(0) / k4 + 40).astype(int)
-    # phaseCorrelate trên BẢN ĐỒ CẠNH (không phụ thuộc bóng / độ sáng; cửa sổ Hanning làm hỏng 0004_C4 – thử 07/10)
     (sx, sy), dap_ung = cv2.phaseCorrelate(canh_nho(mau_pdf)[y0:y1, x0:x1], canh_nho(anh)[y0:y1, x0:x1])
     tho = (sx * k4, sy * k4)
     if dap_ung < 0.05 or max(abs(sx), abs(sy)) * k4 * px_mm > 6:
@@ -175,7 +149,6 @@ def vi_tri_doc_lap(anh: np.ndarray, layout: dict, mau_pdf: np.ndarray) -> dict:
     return out
 
 
-# ------------------------------------------------------------------------------------------------ run
 def cmd_run(pp: str, split: str, cho_phep_val: bool) -> None:
     L = nap_layout("phieu")
     rows = ds_anh(split, cho_phep_val)
@@ -186,7 +159,6 @@ def cmd_run(pp: str, split: str, cho_phep_val: bool) -> None:
     cau_rows, cot_rows, o_rows, anh_rows = [], [], [], []
     cache = {}
     for r in rows:
-        # train: OOF (mô hình bỏ fold của ảnh); val (Phần B): mô hình ĐẦY ĐỦ models/omr_<pp>.json huấn luyện trên cả 56 ảnh train
         khoa = r["fold"] if split == "train" else "cuoi"
         mo_hinh = cache.setdefault(khoa, omr.nap_mo_hinh(MO_HINH[pp](r["fold"]) if split == "train" else ROOT / "models" / f"omr_{pp}.json"))
         t = time.perf_counter()
@@ -235,14 +207,12 @@ def cmd_run(pp: str, split: str, cho_phep_val: bool) -> None:
     print(f"-> {out}")
 
 
-# ------------------------------------------------------------------------------------------------ đếm (bộ đếm riêng)
 def doc_csv(p: Path) -> list[dict]:
     with p.open(encoding="utf-8", newline="") as f:
         return list(csv.DictReader(f))
 
 
 def loai_cau(r: dict) -> str:
-    """Xếp 1 lượt (ảnh, câu) vào đúng 1 loại (mục 2 + ★Q1)."""
     dung_o = r["that_o"] == "".join(sorted(r["doc_o"]))
     if r["can_xem"] == "1":
         if r["that"] in ("mo", "nhieu"):
@@ -271,12 +241,11 @@ def f1(y, d, k="faint"):
 
 
 def cp_tren(k: int, n: int) -> float:
-    """Cận trên 95% Clopper–Pearson (hai phía) của tỉ lệ k/n."""
     if k >= n:
         return 1.0
     from math import comb
     lo, hi = k / n, 1.0
-    for _ in range(60):                                          # tìm p: P(X ≤ k | n, p) = 0,025
+    for _ in range(60):
         mid = (lo + hi) / 2
         cdf = sum(comb(n, i) * mid ** i * (1 - mid) ** (n - i) for i in range(k + 1))
         lo, hi = (mid, hi) if cdf > 0.025 else (lo, mid)
@@ -382,7 +351,6 @@ def cmd_report(split: str) -> None:
         for dk in DIEU_KIEN:
             L.append(f"- {dk}: {b['dk'][dk]['cm']} · bubble (blank / filled): {b['dk'][dk]['cm_bubble']}")
         L.append("")
-    # ca thử
     L += ["## Ca thử (ô C, nhãn faint – đã so giấy; n 0,23–0,26 sát ngưỡng cố định)", ""]
     for p, q, o in CA_THU:
         if (int(p) in PHIEU_TRAIN) != (split == "train"):
@@ -395,7 +363,6 @@ def cmd_report(split: str) -> None:
                 f"{r['anh']}: ô {r['du_doan']} (p mờ {float(r['p_faint']):.3f}, rõ {float(r['p_filled']):.3f}), câu đọc "
                 f"'{cc[r['anh']]['doc_o'] or '-'}' {cc[r['anh']]['doc']}, cần xem {cc[r['anh']]['can_xem']} "
                 f"({cc[r['anh']]['ly_do'] or '–'})" for r in oo))
-    # tiêu chí
     if "m1" in kq:
         t = kq["m1"]["dk"]
         L += ["", "## Đối chiếu tiêu chí ★Q2 (M1, OOF train)", "",
@@ -418,10 +385,7 @@ def cmd_report(split: str) -> None:
         xuat_html(pp, split, chi_can_thiet=True)
 
 
-# ------------------------------------------------------------------------------------------------ HTML xem bằng mắt
 def xuat_html(pp: str, split: str, chi_can_thiet: bool = False) -> None:
-    """Ca lỗi nặng / nhẹ, cần xem thừa, cần xem mà đọc sai, vị trí đáng ngờ, ca thử: ảnh cắt hàng câu (vòng tròn tại vị trí omr
-    báo, màu theo dự đoán ô) + nhãn + kết quả. Phần A: người dùng xem SAU (không chặn)."""
     L = nap_layout("phieu")
     d = OUT / pp
     img_dir = d / "xem"
@@ -433,7 +397,7 @@ def xuat_html(pp: str, split: str, chi_can_thiet: bool = False) -> None:
     chon = []
     for r in cau:
         loai = loai_cau(r)
-        if chi_can_thiet:                      # Phần B1c: LIỆT KÊ CẢ câu "cần xem cần thiết" đọc đúng (mờ / nhiều ô) để kiểm nhãn rõ / mờ
+        if chi_can_thiet:
             if loai == "can_xem_can_thiet":
                 chon.append(("cau", loai, r))
             continue
@@ -505,7 +469,7 @@ def main() -> None:
     ap.add_argument("--cho-phep-val", action="store_true", help="Phần B: cho phép val 0029–0034")
     a = ap.parse_args()
     if a.split != "train" and a.lenh == "run":
-        ds_anh(a.split, a.cho_phep_val)                       # chặn trước khi làm gì
+        ds_anh(a.split, a.cho_phep_val)
     if a.lenh == "run":
         cmd_run(a.phuong_phap, a.split, a.cho_phep_val)
     else:

@@ -32,7 +32,7 @@ import ocr_do_luong as L  # noqa: E402
 
 AK = ROOT / "data" / "_eval" / "ak"
 TIEU_CHI = "docs/tieu_chi_so_sanh_mo_rong.md (commit 2e549da)"
-A.AI, A.TAM = AK, AK / "tam"                               # mọi hàm cũ ghi vào thư mục AK, không đụng data/_eval/ai
+A.AI, A.TAM = AK, AK / "tam"
 SEED0, SEEDS, NGUOI, TAU, EPS = A.SEED0, A.SEEDS, A.NGUOI, A.TAU, A.EPS
 
 CU = ("lr", "knn", "svm", "rf", "mlp", "cnn")
@@ -52,7 +52,6 @@ NHAN = {t: A.THUAT_TOAN[t][0] for t in TAT_CA}
 NHAN["cnn"] = "CNN hiện tại (Conv16–Conv32–Dense64)"
 
 
-# ------------------------------------------------------------------------------------------- mô hình scikit-learn mới
 def tao_sk(ten, g, seed):
     if ten == "dt":
         from sklearn.tree import DecisionTreeClassifier
@@ -83,7 +82,6 @@ _tao_cu, _diem_cu = A.tao_sk, A.diem_sk
 A.tao_sk, A.diem_sk = tao_sk, diem_sk
 
 
-# ------------------------------------------------------------------------------------------- mạng nơ-ron
 def tao_lenet():
     torch, nn, F = H._torch()
 
@@ -122,7 +120,6 @@ def tao_mang(ten):
 
 
 def pre_net(ten, seed, ghi):
-    """Tiền huấn luyện MNIST 55 000 (10 epoch, Adam 2e-3 + cosine, lô 128 mặc định) – đúng quy trình CNN; CNN dùng bộ đệm Tuần 6."""
     torch, _, _ = H._torch()
     if ten == "cnn":
         m = H.tao_cnn()
@@ -157,14 +154,14 @@ def net_e2b(ten, seed, D):
     xt, yt, nt = D["trang"]
     ghi = {"thi_nghiem": "E2b", "thuat_toan": ten, "seed": seed, "theo_fold": {}}
     pre = pre_net(ten, seed, ghi)
-    lt, lp = C.oof(pre, "co_ban", seed)                                  # tinh chỉnh 5 fold theo người – GIỐNG HỆT quy trình cũ
+    lt, lp = C.oof(pre, "co_ban", seed)
     if ten == "cnn":
         z0 = np.load(C.CAP / f"oof_g0_goc_{seed}.npz")
         ch = max(float(np.abs(z0["trang"] - lt).max()), float(np.abs(z0["phieu"] - lp).max()))
         ghi["chenh_logit_so_voi_bo_dem_g0_goc"] = ch
         if ch > 1e-4 and not A.THU:
             sys.exit(f"DỪNG: CNN E2b seed {seed} khác bộ đệm oof_g0_goc ({ch:.3g}) – tiêu chí mục 1")
-    if seed == SEED0:                                                    # mô hình "người 1 giữ ra" – chỉ để trình diễn trực tiếp + đo kích thước
+    if seed == SEED0:
         m1 = H.huan_luyen_cnn(xt[nt != 1], yt[nt != 1], C.FT["epochs"], C.FT["lr"], seed, mo_hinh=copy.deepcopy(pre), batch=C.FT["batch"])
         ghi["so_tham_so"] = A.so_tham_so(m1)
         torch.save(m1.state_dict(), A.TAM / f"mo_hinh_E2b_{ten}_nguoi1.pt")
@@ -177,7 +174,7 @@ _e1_cu, _e2_cu = A.e1, A.e2
 def e1(ten, seed, D):
     if ten in NET:
         return net_e1(ten, seed, D)
-    if ten == "hogsvm":                                                  # như SVM: mẫu con 20 000 (tiêu chí mục 1 + AI mục 2)
+    if ten == "hogsvm":
         x, y = D["mnist_tr"]
         i = A.mau_con(y, A.N_SVM_E1, SEED0)
         z, ghi = _e1_cu(ten, seed, dict(D, mnist_tr=(x[i], y[i])))
@@ -194,8 +191,6 @@ def e2(bien_the, ten, seed, D):
 A.e1, A.e2 = e1, e2
 
 
-# Thuật toán KHÔNG chạy E2b vì quá giới hạn 30 phút/thuật toán của tiêu chí (đo thật: một lần fit trên 13,9 nghìn mẫu ≈ 40 s khi máy rảnh; E2b cần 5 × (3 × 4 + 1) = 65 lần fit ≈ 44 phút).
-# Không cắt giảm âm thầm (không đổi lưới w, không bỏ kiểm định lồng): ghi rõ trong báo cáo.
 KHONG_CHAY_E2B = {"hgb": "ước tính ≈ 44 phút (65 lần fit × ≈ 40 s trên 13,9 nghìn mẫu × 784 chiều, đo trước khi chạy) > giới hạn 30 phút của tiêu chí; "
                          "không cắt giảm lưới w / kiểm định lồng nên không chạy; chỉ có E1"}
 
@@ -208,13 +203,11 @@ def cmd_chay(a):
     (A.TAM / "khong_chay.json").write_text(json.dumps({t: r for t, r in KHONG_CHAY_E2B.items() if t in a.thuat_toan}, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
-# ------------------------------------------------------------------------------------------- R4(b): cắt 117 ô giấy thật AG
 AG_ANH = ROOT / "data" / "anh_that_ag"
 AG_KB = ROOT / "data" / "_eval" / "ag" / "kich_ban.json"
 
 
 def cmd_ag_cat(a):
-    """Chỉ ĐỌC 13 ảnh AG + kịch bản (nhãn SBD / mã đề): preprocess -> doc_phieu -> doc_chu_so. KHÔNG gọi ag_cham_that.cham, không ghi gì ngoài data/_eval/ak/."""
     import ag_cham_that as G
     from cv_engine import ocr
     from cv_engine.omr import doc_phieu, nap_mo_hinh
@@ -247,7 +240,6 @@ def cmd_ag_cat(a):
 
 
 def sieu_tham_so_day_du(ten):
-    """g từ E1; w = giá trị chọn nhiều nhất qua 5 fold E2b, hoà -> nhỏ hơn (tiêu chí mục 3b)."""
     g = A.chon_e1(ten, SEEDS[0] if A.THUAT_TOAN[ten][2] else SEED0)
     ws = [r["chon"]["w"] for r in json.loads((A.TAM / f"E2b_{ten}_{SEED0}.json").read_text(encoding="utf-8"))["theo_fold"].values()]
     dem = {w: ws.count(w) for w in set(ws)}
@@ -260,9 +252,9 @@ def cmd_ag_doc(a):
     x_ag = np.load(AK / "ag_o.npz")["x"]
     X_ag = A.vec(x_ag)
     xm, ym = D["mnist_tr"]
-    xt, yt, _ = D["trang"]                                            # trang D của CẢ 5 người
+    xt, yt, _ = D["trang"]
     ghi = {}
-    p = ocr.du_doan_xac_suat(ocr.nap_mo_hinh_ocr(), x_ag)             # CNN triển khai: xác suất đã hiệu chỉnh -> lưu log p (T = 1)
+    p = ocr.du_doan_xac_suat(ocr.nap_mo_hinh_ocr(), x_ag)
     A.TAM.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(A.TAM / "AG_cnn_trien_khai_2026.npz", z=np.log(p + EPS))
     for ten in TAT_CA:
@@ -292,10 +284,7 @@ def cmd_ag_doc(a):
     (A.TAM / "AG_ghi.json").write_text(json.dumps(ghi, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
 
 
-# ------------------------------------------------------------------------------------------- R4: đối chiếu hai kênh với bộ đọc thay thế (THUẦN)
 def he_thong(o: list, truong: dict, P: np.ndarray) -> dict:
-    """o: danh sách ô {f, i, truth, b, bcx, doc, o_trong, loi_o}; truong[f] = {loai, trong_ds}; P [N,10] xác suất của thuật toán.
-    Mỗi trường: viết tay đúng cả chuỗi (argmax mọi ô; ô không qua bộ đọc = '?'), rồi doi_chieu_cot / doi_chieu_truong của hệ thống (τ_khop 0,5)."""
     from cv_engine import ocr
     theo = {}
     for k, c in enumerate(o):
@@ -323,7 +312,6 @@ def he_thong(o: list, truong: dict, P: np.ndarray) -> dict:
 
 
 def gop_he_thong(rs: list[dict]) -> dict:
-    """Gộp seed: tỉ lệ TB; đếm 'sai không cờ' CỘNG các seed (như lệnh AI)."""
     n = {k: rs[0][k]["n"] for k in ("sbd", "ma_de")}
     hw = {k: float(np.mean([r[k]["hw_dung"] for r in rs])) for k in n}
     return {"n_seed": len(rs), "n_sbd": n["sbd"], "n_ma_de": n["ma_de"], "hw_sbd": hw["sbd"] / n["sbd"], "hw_ma_de": hw["ma_de"] / n["ma_de"],
@@ -334,7 +322,6 @@ def gop_he_thong(rs: list[dict]) -> dict:
 
 
 def r4a(nap_e2b, yt):
-    """(a) 504 ô phiếu dev: OOF E2b + kênh bubble data/_ocr/omr_dev.json (như ocr_do_luong.cmd_bao_cao). Trả {tên: gop_he_thong}."""
     meta = H.tap_do("anh_nan")["phieu"]["meta"]
     omr = json.loads((H.OCR / "omr_dev.json").read_text(encoding="utf-8"))
     o, truong = [], {}
@@ -354,7 +341,6 @@ def r4a(nap_e2b, yt):
 
 
 def r4b(nap_ag, yt):
-    """(b) 13 ảnh giấy thật AG; nap_ag[tên] = [(seed, z_ag, T)]. T = nhiệt độ OOF trang D cùng thuật toán / seed (CNN triển khai: T = 1, đã trong mô hình)."""
     j = json.loads((AK / "ag_o.json").read_text(encoding="utf-8"))
     anh = j["anh"]
     o, truong = [], {}
@@ -374,9 +360,7 @@ def r4b(nap_ag, yt):
     return out, {"n_anh": len(anh), "n_tu_choi": sum(1 for a_ in anh if a_["tu_choi"]), "n_o": len(o), "n_o_doc": sum(c["doc"] for c in o)}
 
 
-# ------------------------------------------------------------------------------------------- R5: kích thước + thời gian
 def mo_hinh_nguoi1(ten):
-    """Nạp mô hình 'người 1 giữ ra' (seed 2026) -> (hàm dự đoán z cho ảnh uint8 [N,28,28], số byte, số tham số)."""
     if ten in NET:
         torch, _, _ = H._torch()
         f = A.TAM / f"mo_hinh_E2b_{ten}_nguoi1.pt"
@@ -404,14 +388,13 @@ def r5(D, co: list) -> dict:
         out[ten] = {"byte": byte, "so_tham_so": n_tp, "ms_moi_o": A.do_tg(f, xt),
                     "do_bang": "PyTorch CPU 1 luồng" if ten in NET else "scikit-learn predict, 1 luồng (kể cả HOG cho HOG+SVM)"}
         if ten in NET:
-            out[ten]["byte"] = 4 * n_tp                                              # trọng số float32
+            out[ten]["byte"] = 4 * n_tp
     mh = ocr.nap_mo_hinh_ocr()
     out["cnn"]["ms_moi_o_numpy_trien_khai"] = A.do_tg(lambda v: ocr.du_doan_xac_suat(mh, v), xt)
     out["cnn"]["byte_json_trien_khai"] = (ROOT / "models" / "ocr_cnn.json").stat().st_size
     return out
 
 
-# ------------------------------------------------------------------------------------------- bảng
 def pt(v):
     return f"{100 * v:.2f}%"
 
@@ -424,7 +407,6 @@ def cmd_bang(a):
     khong = json.loads((A.TAM / "khong_chay.json").read_text(encoding="utf-8")) if (A.TAM / "khong_chay.json").exists() else {}
     co = [t for t in TAT_CA if t not in khong and (A.TAM / f"E2b_{t}_{SEED0}.npz").exists()]
     lan = {t: A.nap("E2b", t) for t in co}
-    # ---- R3
     rs = {t: [A.chi_so_e2(z["trang"], z["phieu"], yt, nt, yp, npp) for _, z, _ in lan[t]] for t in co}
     e2b = {t: A.gop_seed(rs[t]) for t in co}
     cu = json.loads((ROOT / "data" / "_eval" / "ai" / "ket_qua.json").read_text(encoding="utf-8"))["E2b"]
@@ -441,10 +423,8 @@ def cmd_bang(a):
     b, c = int((dung_cnn & ~dung_k).sum()), int((~dung_cnn & dung_k).sum())
     r3["dau_cap_theo_o"] = {"so_sanh_voi": khac_nhat, "cnn_dung_kia_sai": b, "cnn_sai_kia_dung": c,
                             "p": float(binomtest(b, b + c, 0.5).pvalue) if b + c else 1.0, "ghi_chu": "seed 2026, trang D, phụ – không quyết định"}
-    # ---- R4(a)
     nap_a = {t: lan[t] for t in co}
     ra = r4a(nap_a, yt)
-    # ---- R4(b)
     kq_b, meta_b = {}, None
     if (AK / "ag_o.json").exists() and (A.TAM / "AG_cnn_trien_khai_2026.npz").exists():
         nap_b = {"cnn_trien_khai": [(SEED0, np.load(A.TAM / "AG_cnn_trien_khai_2026.npz")["z"], 1.0)]}
@@ -457,7 +437,6 @@ def cmd_bang(a):
             if ls:
                 nap_b[t] = ls
         kq_b, meta_b = r4b(nap_b, yt)
-    # ---- kết luận R4
     def ket_luan(bang, tham_chieu):
         khac_ = {t: v for t, v in bang.items() if t not in ("cnn", "cnn_trien_khai")}
         t_ = max(khac_, key=lambda k: khac_[k]["hw_gop"])
@@ -534,10 +513,7 @@ def bao_cao(kq: dict) -> str:
     return "\n".join(L_)
 
 
-# ------------------------------------------------------------------------------------------- chạy trực tiếp (dùng cho demo_may_hoc.py --so-sanh-truc-tiep)
 def cmd_truc_tiep(a):
-    """Nạp từng mô hình 'người 1 giữ ra' (không thấy người 1 lúc huấn luyện) và dự đoán TRƯỚC MẮT người xem trên ô trang D của người 1.
-    --da-tinh-san: không chạy, đọc kết quả đã đệm (truc_tiep.json). Trả dict (cũng ghi truc_tiep.json + truc_tiep.npz)."""
     return truc_tiep(da_tinh_san=a.da_tinh_san)
 
 
@@ -579,7 +555,6 @@ def truc_tiep(da_tinh_san: bool = False, in_ra=print) -> dict:
 
 
 def cmd_kiem_tat_dinh(a):
-    """Huấn luyện MLP tiền huấn luyện (seed 2026) HAI lần giống hệt nhau, so logit: máy này có tất định không? -> kiem_tat_dinh.json (giải thích MLP không trùng lệnh AI)."""
     x, y = C.du_lieu_truoc("mnist")
     xte = x[:2000]
     zs = [H.logits(H.huan_luyen_cnn(x, y, C.PRE["epochs"], C.PRE["lr"], SEED0, mo_hinh=A.tao_mlp()), xte) for _ in range(2)]

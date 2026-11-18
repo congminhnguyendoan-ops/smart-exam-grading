@@ -1,4 +1,3 @@
-"""Tuần 5 Phần B: nested CV (B1a), kiểm phép đo vị trí độc lập (B1b), HTML cần xem cần thiết (B1c). Cần data/ dev (tự SKIP nếu thiếu)."""
 import sys
 
 import numpy as np
@@ -18,7 +17,7 @@ def test_dem_cau_nested_khop_dem_phan_a():
     P = np.load(H.OMR_DIR / "oof_cau_m1_nan.npy")
     luat = __import__("json").loads((H.OMR_DIR / "luat.json").read_text(encoding="utf-8"))["cau"]
     t = N.tong(N.dem_cau(sel, P, luat))
-    d = H.mo_phong_cau(sel, P, luat)                          # bộ đếm gốc của Phần A phải trùng bộ đếm theo điều kiện
+    d = H.mo_phong_cau(sel, P, luat)
     assert (t["cau"], t["nang"], t["nhe"], t["thua"], t["ro_that"]) == (d["cau"], d["nang"], d["nhe"], d["thua"], d["ro_that"])
 
 
@@ -37,7 +36,7 @@ def test_phep_do_vi_tri_doc_lap_dung_voi_anh_dich_gia():
         m = E.vi_tri_doc_lap(K.dich_anh(nan, dx, dy, px), L, mau)
         sai = max(max(abs((m[k][0] - goc[k][0]) - dx), abs((m[k][1] - goc[k][1]) - dy)) for k in goc)
         assert sai <= K.SAI_SO_MM, (dx, dy, sai)
-    with pytest.raises(RuntimeError):                          # dịch đúng 1 chu kỳ dọc (11 mm): eval phải DỪNG, không đo sai im lặng
+    with pytest.raises(RuntimeError):
         E.vi_tri_doc_lap(K.dich_anh(nan, 0.0, 11.0, px), L, mau)
 
 

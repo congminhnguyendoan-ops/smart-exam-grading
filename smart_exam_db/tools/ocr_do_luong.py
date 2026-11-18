@@ -1,12 +1,3 @@
-"""
-ocr_do_luong.py - Đo lường CNN chữ số: chọn cấu hình tinh chỉnh, hiệu chỉnh nhiệt độ, ngưỡng "cần xem", đối chiếu với bubble OMR,
-bảng 3 cột (Tuần 6, docs/ke_hoach_tuan6.md Bước 5–6). Chỉ ĐO trên dữ liệu dev: trang D (OOF theo người viết) + phiếu 0001–0028.
-KHÔNG đọc phiếu 0029–0040.
-
-  omr    : chạy OMR (mô hình cuối, ĐÃ HUẤN LUYỆN trên 0001–0028 → kênh bubble hơi lạc quan) trên 56 ảnh phiếu dev -> data/_ocr/omr_dev.json
-  bao-cao: chọn cấu hình + T + τ, δ trên OOF trang D; đo phiếu dev; ghi data/_eval/ocr/bao_cao_buoc5.md + .json
-Chạy (từ smart_exam_db/):  python tools/ocr_do_luong.py omr | bao-cao
-"""
 import argparse
 import json
 import sys
@@ -22,7 +13,7 @@ from cv_engine import ocr  # noqa: E402
 from cv_engine.tap_du_lieu import PHIEU_TRAIN, chan_test, ma_phieu  # noqa: E402
 
 DATA, OCR, EVAL = H.DATA, H.OCR, H.EVAL
-TAU_KHOP = 0.5          # đối chiếu: bubble chắc + CNN cùng chữ số + p ≥ 0,5 (chọn trước, không chỉnh theo dữ liệu)
+TAU_KHOP = 0.5
 
 
 def softmax(z):
@@ -31,7 +22,6 @@ def softmax(z):
     return e / e.sum(axis=1, keepdims=True)
 
 
-# ------------------------------------------------------------------------------------------- OMR dev
 def cmd_omr(a):
     from cv_engine.omr import doc_phieu, nap_mo_hinh
     from cv_engine.preprocessing import nap_layout, preprocess
@@ -50,9 +40,7 @@ def cmd_omr(a):
     print(f"OMR {len(out)} ảnh -> data/_ocr/omr_dev.json; từ chối: {sum('tu_choi' in v for v in out.values())}")
 
 
-# ------------------------------------------------------------------------------------------- hiệu chỉnh + ngưỡng
 def chon_nhiet(z, y):
-    """Nhiệt độ T ∈ [0,5; 6] cực tiểu NLL của softmax(z / T) (tìm lưới mịn)."""
     best = None
     for T in np.arange(0.5, 6.01, 0.05):
         p = softmax(z / T)
@@ -68,7 +56,6 @@ def can_xem_cnn(p, tau, delta):
 
 
 def chon_nguong(p, y):
-    """τ, δ từ lưới: ít 'cần xem' nhất trong các cặp có LỖI IM LẶNG = 0 trên OOF (sai mà không gắn cần xem). Hoà: τ, δ lớn hơn."""
     sai = p.argmax(1) != y
     best = None
     for tau in [0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99, 0.995, 0.999, 0.9995, 0.9999]:
@@ -77,11 +64,10 @@ def chon_nguong(p, y):
             im_lang = int((sai & ~cx).sum())
             if im_lang == 0 and (best is None or cx.mean() < best[0] - 1e-12 or (abs(cx.mean() - best[0]) < 1e-12 and (tau, delta) > best[1:])):
                 best = (float(cx.mean()), tau, delta)
-    return best                                        # None nếu không có cặp nào đạt 0 lỗi im lặng
+    return best
 
 
 def xem_sai_chac_chan(t, p, y, n=60):
-    """Lưới ảnh các chữ số trang D bị đọc SAI với xác suất cao nhất (để người dùng xem nhãn / nét chữ): data/_eval/ocr/sai_chac_chan.png."""
     import cv2
     sai = np.where(p.argmax(1) != y)[0]
     sai = sai[np.argsort(-p[sai].max(1))][:n]
@@ -96,7 +82,6 @@ def xem_sai_chac_chan(t, p, y, n=60):
     cv2.imwrite(str(EVAL / "sai_chac_chan.png"), np.vstack([np.hstack(tl[i:i + 10]) for i in range(0, len(tl), 10)]))
 
 
-# ------------------------------------------------------------------------------------------- báo cáo
 def cmd_bao_cao(a):
     omr = json.loads((OCR / "omr_dev.json").read_text(encoding="utf-8"))
     m0 = json.loads((EVAL / "m0_buoc4.json").read_text(encoding="utf-8"))
@@ -119,7 +104,6 @@ def cmd_bao_cao(a):
     print("Cấu hình M2 (trang D OOF theo người viết):")
     for k, v in cau_hinh.items():
         print(f"  {k:24s} acc {v['acc_trang_oof']:.4f}  min người {v['min_nguoi']:.4f}  {v['theo_nguoi']}" + ("   <== CHỌN" if k == chon else ""))
-    # hiệu chỉnh + ngưỡng trên OOF trang D
     y_tr, meta_tr = t["trang"]["y"], t["trang"]["meta"]
     T = chon_nhiet(z["trang"], y_tr)
     p_tr = softmax(z["trang"] / T)
@@ -133,7 +117,6 @@ def cmd_bao_cao(a):
         _, tau, delta = ng
     ghi["tau"], ghi["delta"] = tau, delta
     xem_sai_chac_chan(t, p_tr, y_tr)
-    # đo digit-level OOF trang D
     cx = can_xem_cnn(p_tr, tau, delta)
     sai = p_tr.argmax(1) != y_tr
     ghi["trang_oof"] = {"n": int(len(y_tr)), "acc": H.tom_tat(y_tr, p_tr.argmax(1)), "sai": int(sai.sum()), "im_lang": int((sai & ~cx).sum()),
@@ -142,7 +125,6 @@ def cmd_bao_cao(a):
     lo, hi = H.cp_ci(int((sai & ~cx).sum()), int(sai.sum()) or 1)
     print(f"τ = {tau}, δ = {delta}: trang D OOF {len(y_tr)} chữ số, sai {int(sai.sum())}, lỗi im lặng {int((sai & ~cx).sum())} "
           f"(trong số ô sai CP95% ≤ {hi:.3f}), cần xem {cx.mean():.1%}")
-    # phiếu dev
     yp, meta_p = t["phieu"]["y"], t["phieu"]["meta"]
     p_ph = softmax(z["phieu"] / T)
     cx_p = can_xem_cnn(p_ph, tau, delta)
@@ -151,7 +133,6 @@ def cmd_bao_cao(a):
                         "can_xem": round(float(cx_p.mean()), 4), "theo_nguoi": H.theo_nguoi(yp, p_ph.argmax(1), meta_p),
                         "theo_dieu_kien": H.theo_dieu_kien(yp, p_ph.argmax(1), meta_p)}
     print(f"Phiếu dev (người lạ, OOF): {len(yp)} chữ số, sai {int(sai_p.sum())}, im lặng (chỉ CNN) {int((sai_p & ~cx_p).sum())}, cần xem {cx_p.mean():.1%}")
-    # đối chiếu với bubble, mức trường
     cot = {}
     for i, (r, pi, c) in enumerate(zip(meta_p, p_ph, cx_p)):
         cot[(r["anh"], r["loai"], int(r["vi_tri"]))] = (int(pi.argmax()), float(pi.max()), bool(c), r["trong"] == "1", int(r["nhan"]))
@@ -163,7 +144,7 @@ def cmd_bao_cao(a):
     kq = {"sbd": [], "ma_de": []}
     for (anh, lo), v in truong.items():
         v.sort(key=lambda x: x[0])
-        gia_tri, chac, ly = ocr.doi_chieu_truong([x[1] for x in v], True)       # dev: SBD / mã đề thật nằm trong danh sách
+        gia_tri, chac, ly = ocr.doi_chieu_truong([x[1] for x in v], True)
         dung = gia_tri == "".join(str(x[2]) for x in v)
         kq[lo].append({"anh": anh, "chac": chac, "dung": dung, "ly_do": list(ly)})
     ghi["doi_chieu_phieu_dev"] = {}
@@ -179,7 +160,6 @@ def cmd_bao_cao(a):
         ghi["doi_chieu_phieu_dev"][lo] = {"n": n, "chac": len(chac), "can_xem": n - len(chac), "im_lang": len(im_lang), "im_lang_anh": im_lang,
                                            "im_lang_ci95": [round(lo_, 4), round(hi_, 4)], "can_xem_thua": len(thua), "ly_do": ly}
         print(f"Mức trường {lo}: {n} ảnh, chắc {len(chac)}, cần xem {n - len(chac)}, LỖI IM LẶNG {len(im_lang)} {im_lang}, lý do {ly}")
-    # độ nhạy τ_khop (CHỈ THAM KHẢO – không chốt; phiếu dev là tập ĐO): chữ số bubble được nhận nếu p_CNN(chữ số bubble) ≥ τ
     nhay = {}
     for tk in (0.5, 0.3, 0.2, 0.1):
         nc = sl = nthua = 0
@@ -198,7 +178,6 @@ def cmd_bao_cao(a):
         nhay[str(tk)] = {"chac": nc, "im_lang": sl, "tong": len(truong)}
     ghi["do_nhay_tau_khop_tham_khao"] = nhay
     print("Độ nhạy τ_khop (tham khảo):", nhay)
-    # T4: phiếu (ảnh) toàn đúng nhưng bị gắn cần xem ở SBD hoặc mã đề
     ds_anh = {}
     for lo, ds in kq.items():
         for d in ds:
@@ -208,7 +187,6 @@ def cmd_bao_cao(a):
     thua = [a_ for a_ in flag if all(d["dung"] for d in ds_anh[a_])]
     ghi["T4"] = {"anh": n_anh, "can_xem": len(flag), "can_xem_thua_theo_dinh_nghia_T4": len(thua), "ti_le_can_xem": round(len(flag) / n_anh, 4)}
     print(f"T4: {n_anh} ảnh phiếu, cần xem {len(flag)} ({len(flag) / n_anh:.1%}); trong đó chữ số CUỐI vẫn đúng (cần xem thừa theo T4) {len(thua)}")
-    # mức trường chỉ CNN argmax (không đối chiếu) cho 3 cột
     ghi["m0"], ghi["m1"] = {k: m0[k] for k in ("mnist_test", "anh_nan", "anh_chuan_hoa")}, {k: m1[k] for k in ("mnist_test", "anh_nan", "anh_chuan_hoa")}
     (EVAL / "bao_cao_buoc5.json").write_text(json.dumps(ghi, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"Ghi {EVAL / 'bao_cao_buoc5.json'}")

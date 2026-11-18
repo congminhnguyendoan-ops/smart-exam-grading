@@ -1,5 +1,3 @@
-"""Tích hợp kênh chữ viết tay (CNN) vào backend (Tuần 6 Phần C, Bước 4): ảnh thật + CNN thật, hai kênh lệch, ô viết tay trống (luật Q3),
-ocr_digits, ảnh ô cắt, chữ số giáo viên chốt. Chạy trên CSDL thật trong giao dịch ROLLBACK (conftest)."""
 import numpy as np
 import pytest
 
@@ -10,7 +8,6 @@ from test_backend_api import anh_trang, can_anh, omr_gia, tai, tao_de, them_sv
 
 
 def ocr_tay(sbd: str, ma_de: str, p: float = 0.99, trong: bool = False):
-    """KetQuaOCR dựng tay: mỗi ký tự là chữ số CNN đọc ('?' = ô trống nếu `trong`)."""
     def cot(so):
         return [CotOCR(i, "?" if trong else d, [] if trong else [(int(d), p)], 0.0 if trong else p, trong, "", True, not trong, None,
                        np.full((20, 12), 255, np.uint8)) for i, d in enumerate(so)]
@@ -48,7 +45,6 @@ def test_hai_kenh_khop_va_trong_danh_sach_tu_chot(client, conn_thu, monkeypatch)
 
 
 def test_hai_kenh_lech_la_can_xem_khong_tu_chot(client, conn_thu, monkeypatch):
-    """Bubble 795125 nhưng chữ viết tay đọc 795126: cột 6 lệch -> SBD cần xem, KHÔNG có điểm chính thức, lý do ghi rõ."""
     can_anh("0002_C2")
     them_sv(conn_thu, "795125")
     eid = tao_de(client)
@@ -60,10 +56,8 @@ def test_hai_kenh_lech_la_can_xem_khong_tu_chot(client, conn_thu, monkeypatch):
     assert cot[5]["bubble"] == "5" and cot[5]["handwriting"]["chu_so"] == "6"
     assert "lech_bubble" in v["sbd"]["reasons"] and "low_ocr_confidence" in v["review"]["reasons"]
     assert v["review"]["details"]["sbd_ly_do"] == ["lech_bubble"]
-    # giáo viên chốt SBD đúng -> hết lý do -> chốt điểm
     r = client.put(f"/sheets/{v['sheet_id']}/identity", json={"sbd": "795125"}).json()
     assert r["status"] == "graded" and r["student"]["student_code"] == "795125" and r["score"]["result_status"] == "confirmed"
-    # chữ số giáo viên chốt được ghi theo từng ô viết tay (dữ liệu tinh chỉnh sau, không tự huấn luyện lại)
     assert [c["handwriting"]["corrected"] for c in r["sbd"]["columns"]] == list("795125")
     d = conn_thu.execute("SELECT position, predicted_digit, corrected_digit FROM ocr_digits WHERE sheet_id = %s AND field = 'sbd' "
                          "ORDER BY position", (v["sheet_id"],)).fetchall()
@@ -71,7 +65,6 @@ def test_hai_kenh_lech_la_can_xem_khong_tu_chot(client, conn_thu, monkeypatch):
 
 
 def test_cnn_khong_chac_p_thap_van_can_xem(client, conn_thu, monkeypatch):
-    """Cùng chữ số với bubble nhưng p < τ_khop (0,5) -> cần xem (tin_cay_thap)."""
     can_anh("0002_C2")
     them_sv(conn_thu, "795125")
     eid = tao_de(client)
@@ -81,7 +74,6 @@ def test_cnn_khong_chac_p_thap_van_can_xem(client, conn_thu, monkeypatch):
 
 
 def test_o_viet_tay_trong_q3_chap_nhan_bubble_chi_khi_co_trong_danh_sach(client, conn_thu, monkeypatch):
-    """Q3: ô viết tay trống, bubble chắc: SBD có trong danh sách -> tự chốt; không có -> cần xem (o_trong_ngoai_ds)."""
     can_anh("0002_C2")
     them_sv(conn_thu, "795125")
     eid = tao_de(client)
@@ -102,7 +94,6 @@ def test_o_viet_tay_trong_ma_de_ngoai_ky_thi_can_xem(client, conn_thu, monkeypat
 
 
 def test_anh_that_cnn_that_ocr_digits_va_anh_cat(client, conn_thu):
-    """Ảnh thật 0002_C2, OMR + CNN thật: 9 dòng ocr_digits + 9 ảnh PNG; ảnh phục vụ qua API; mọi cột có handwriting."""
     can_anh("0002_C2")
     them_sv(conn_thu, "795125")
     eid = tao_de(client)
@@ -118,7 +109,7 @@ def test_anh_that_cnn_that_ocr_digits_va_anh_cat(client, conn_thu):
     for truong, vt in (("sbd", 0), ("sbd", 5), ("exam_code", 2)):
         r = client.get(f"/sheets/{sid}/digits/{truong}/{vt}/image")
         assert r.status_code == 200 and r.headers["content-type"] == "image/png" and r.content[:4] == b"\x89PNG"
-    assert client.get(f"/sheets/{sid}/digits/sbd/8/image").status_code == 404           # SBD chỉ có ô 0–5
+    assert client.get(f"/sheets/{sid}/digits/sbd/8/image").status_code == 404
     assert client.get(f"/sheets/{sid}/digits/khac/0/image").status_code == 422
     m = conn_thu.execute("SELECT m.model_type::text AS t FROM answer_sheets a JOIN ml_models m ON m.model_id = a.ocr_model_id "
                          "WHERE a.sheet_id = %s", (sid,)).fetchone()

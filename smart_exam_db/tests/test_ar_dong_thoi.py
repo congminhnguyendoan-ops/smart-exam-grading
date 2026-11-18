@@ -1,5 +1,3 @@
-"""Lệnh AR (docs/tieu_chi_sua_ah.md): tầng điều phối đồng thời backend/dong_thoi.py + sửa R1–R5. Test đơn vị / tích hợp chạy trên CSDL thật trong giao dịch ROLLBACK
-(`conn_thu`); các cuộc đua THẬT giữa nhiều yêu cầu nằm ở tools/ah_thu_dong_thoi.py (máy chủ thử cổng 8010, ≥ 50 / 60 / 100 lần lặp)."""
 import psycopg
 import pytest
 
@@ -7,7 +5,6 @@ from backend import dong_thoi
 
 
 def _gia_dua(conn, so_lan_hong: int, ten_rb: str = "bang_ar_tam_pkey"):
-    """Hàm thay cho service.nhan_anh: `so_lan_hong` lần đầu vi phạm một ràng buộc duy nhất THẬT (bảng tạm), sau đó trả (7, False)."""
     conn.execute("CREATE TEMP TABLE IF NOT EXISTS bang_ar_tam (x int PRIMARY KEY)")
     goi = []
 
@@ -15,17 +12,16 @@ def _gia_dua(conn, so_lan_hong: int, ten_rb: str = "bang_ar_tam_pkey"):
         goi.append(1)
         if len(goi) <= so_lan_hong:
             c.execute("INSERT INTO bang_ar_tam VALUES (1)")
-            c.execute("INSERT INTO bang_ar_tam VALUES (1)")                       # UniqueViolation
+            c.execute("INSERT INTO bang_ar_tam VALUES (1)")
         return 7, False
     return nhan, goi
 
 
 @pytest.fixture
 def rb_dua(monkeypatch):
-    monkeypatch.setattr(dong_thoi, "RANG_BUOC_DUA", {"bang_ar_tam_pkey"})        # coi ràng buộc của bảng tạm như uq_results_exam_student
+    monkeypatch.setattr(dong_thoi, "RANG_BUOC_DUA", {"bang_ar_tam_pkey"})
 
 
-# ------------------------------------------------------------------------------------------------ R1: thử lại sau cuộc đua cùng SBD
 def test_r1_thu_lai_sau_unique_violation_do_dua(conn_thu, rb_dua):
     nhan, goi = _gia_dua(conn_thu, 1)
     kq = dong_thoi.nhan_anh_an_toan(conn_thu, None, None, 1, b"x", "a.jpg", 1, nhan=nhan)
@@ -46,7 +42,6 @@ def test_r1_khoa_muc_ky_thi_lay_khi_thu_lai_va_giu_den_het_giao_dich(conn_thu, r
 
 
 def test_r1_rang_buoc_khac_khong_bi_nuot(conn_thu):
-    """UniqueViolation không phải do đua (ràng buộc lạ) -> ném ngay, KHÔNG thử lại (không che lỗi dữ liệu thật)."""
     nhan, goi = _gia_dua(conn_thu, 5)
     with pytest.raises(psycopg.errors.UniqueViolation):
         dong_thoi.nhan_anh_an_toan(conn_thu, None, None, 1, b"x", "a.jpg", 1, nhan=nhan)
@@ -66,7 +61,6 @@ def test_r1_khong_dua_thi_goi_dung_mot_lan(conn_thu):
 
 
 def test_r1_main_dung_tang_dieu_phoi_va_khong_goi_thang_service_nhan_anh():
-    """Cả hai đường tải ảnh (đơn + lô) phải đi qua dong_thoi.nhan_anh_an_toan; không còn lời gọi thẳng service.nhan_anh trong main.py."""
     import inspect
 
     from backend import main
@@ -75,7 +69,6 @@ def test_r1_main_dung_tang_dieu_phoi_va_khong_goi_thang_service_nhan_anh():
 
 
 def test_r1_tep_dong_bang_khong_bi_cham():
-    """service.py / schemas.py / cv_engine / models nằm trong danh sách đóng băng: lệnh AR không được đổi (băm đầu lệnh ghi trong docs/tieu_chi_sua_ah.md)."""
     import hashlib
 
     from conftest import ROOT
@@ -83,15 +76,13 @@ def test_r1_tep_dong_bang_khong_bi_cham():
             "models/ocr_cnn.json": "a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8", "models/omr_m1.json": "507ecc7b4f885e148c1a896884f8a285ea4e308de4477e47f870bebf7c059797",
             "cv_engine/ocr.py": "e9b3e00fc0917341756441d5aecc39abc14a85861b35844e6506cae33a26b4be", "cv_engine/omr.py": "e0111fc1909af598f7df882b40bda9bb8d509e2c25c2423ea0e15963786c1912",
             "cv_engine/preprocessing.py": "0d35c26ae716778d11ec69382da5c1dff70e5a88b455ae8946091393d618f237",
-            "cv_engine/tap_du_lieu.py": "3f030b71ece0b3117db0465c2ebbe3cf1948911140deb002f20a333d37fd9f01"}      # băm sau khi đổi CRLF -> LF (autocrlf của Windows không làm test lệch)
+            "cv_engine/tap_du_lieu.py": "3f030b71ece0b3117db0465c2ebbe3cf1948911140deb002f20a333d37fd9f01"}
     for tep, sha in mong.items():
         du_lieu = (ROOT / tep).read_bytes().replace(b"\r\n", b"\n")
         assert hashlib.sha256(du_lieu).hexdigest() == sha, f"{tep} đã bị đổi – tệp đóng băng (docs/tieu_chi_sua_ah.md mục 0)"
 
 
-# ------------------------------------------------------------------------------------------------ R2: cùng một tệp ảnh gửi hai lần đồng thời
 def _khoa_dang_giu(ten: str) -> bool:
-    """True nếu MỘT KẾT NỐI KHÁC không lấy được khoá advisory `ten` (tức giao dịch của test đang giữ)."""
     from backend.db import ket_noi
     with ket_noi() as c2:
         c2.execute("SET TRANSACTION READ ONLY")
@@ -127,9 +118,7 @@ def test_r2_main_lo_tai_nhieu_anh_tat_khoa_theo_anh():
     assert "khoa_theo_anh=False" in nguon and "khoa_theo_anh" not in inspect.getsource(main.tai_mot_anh)
 
 
-# ------------------------------------------------------------------------------------------------ R3: /sheets/batch hai lô chéo
 def test_r3_lo_lay_khoa_muc_ky_thi_dau_lo(client, conn_thu):
-    """Sau /sheets/batch giao dịch giữ khoá 'lo' của kỳ thi -> lô thứ hai CÙNG kỳ phải chờ (không chéo khoá); kỳ thi khác không bị chặn."""
     from test_backend_api import anh_trang, tao_de
     eid = tao_de(client)
     r = client.post(f"/exams/{eid}/sheets/batch", files=[("files", ("t.jpg", anh_trang(), "image/jpeg"))])
@@ -146,7 +135,6 @@ def test_r3_khoa_lo_lay_truoc_khi_xu_ly_anh_dau_tien():
     assert nguon.index('khoa_ky_thi(conn, exam_id, "lo")') < nguon.index("INSERT INTO scan_batches") < nguon.index("nhan_anh_an_toan(")
 
 
-# ------------------------------------------------------------------------------------------------ R4: đăng xuất thu hồi token
 from test_dang_nhap import MK, bang_moi, client_on, tao_user  # noqa: E402,F401  (fixture dùng lại)
 
 DUONG_CO_XAC_THUC = [("GET", "/me", None), ("GET", "/me/classes", None), ("GET", "/exams", None), ("GET", "/exams/1/sheets", None), ("GET", "/exams/1/results", None),
@@ -156,7 +144,7 @@ DUONG_CO_XAC_THUC = [("GET", "/me", None), ("GET", "/me/classes", None), ("GET",
 def _goi(client_on, token, cach):
     from fastapi.testclient import TestClient
     from backend.main import app
-    with TestClient(app) as c:                                   # phiên riêng, KHÔNG dùng cookie của client_on
+    with TestClient(app) as c:
         h = {"Authorization": f"Bearer {token}"} if cach == "bearer" and token else {}
         if cach == "cookie" and token:
             c.cookies.set("se_session", token)
@@ -164,7 +152,6 @@ def _goi(client_on, token, cach):
 
 
 def _dang_xuat(token, cach="bearer"):
-    """Đăng xuất bằng một client MỚI (không dính cookie của client_on)."""
     from fastapi.testclient import TestClient
     from backend.main import app
     with TestClient(app) as c:
@@ -205,7 +192,7 @@ def test_r4_token_gia_van_401_va_khong_ghi_bang(client_on, bang_moi):
     for gia in ("v1.abc.def", "rac", t[:-3] + ("AAA" if not t.endswith("AAA") else "BBB"), t.replace("v1.", "v2.", 1)):
         assert _goi(client_on, gia, "bearer") == [401] * len(DUONG_CO_XAC_THUC)
         assert _dang_xuat(gia, "bearer") == 204 and _dang_xuat(gia, "cookie") == 204
-    assert _dang_xuat(None) == 204                                                                # không token
+    assert _dang_xuat(None) == 204
     assert bang_moi.execute("SELECT count(*) AS n FROM revoked_tokens").fetchone()["n"] == truoc, "token giả / không token KHÔNG được ghi vào bảng"
 
 
@@ -218,7 +205,6 @@ def test_r4_dang_xuat_lap_lai_an_toan(client_on, bang_moi):
 
 
 def test_r4_thu_hoi_hieu_luc_ngay_ca_khi_chua_commit(client_on, bang_moi, monkeypatch):
-    """Bộ nhớ trong tiến trình làm thu hồi có hiệu lực tức thì (get_conn commit SAU khi trả lời): giả lập bảng chưa thấy dòng mới."""
     from backend import nguoi_dung
     ten, _ = tao_user(bang_moi)
     t = _dang_nhap_lay_token(client_on, ten)
@@ -228,7 +214,6 @@ def test_r4_thu_hoi_hieu_luc_ngay_ca_khi_chua_commit(client_on, bang_moi, monkey
 
 
 def test_r4_demo_mode_dang_xuat_khong_dung_bang(client):
-    """AUTH_MODE=demo (client mặc định của test): đăng xuất vẫn 204 và không ghi bảng thu hồi."""
     truoc = client.app.state.cfg.auth_mode
     assert client.post("/auth/logout").status_code == 204 and truoc in ("on", "demo")
 
@@ -241,7 +226,6 @@ def test_r4_khoi_dong_thieu_bang_thu_hoi_thi_tu_choi():
     assert "revoked_tokens" in nguon and "LoiCauHinh" in nguon
 
 
-# ------------------------------------------------------------------------------------------------ R5: giới hạn chấm đồng thời
 def test_r5_cong_cham_gioi_han_va_503_khi_qua_han():
     import threading
     import time
@@ -266,9 +250,9 @@ def test_r5_cong_cham_gioi_han_va_503_khi_qua_han():
     [t.start() for t in ts]
     [t.join() for t in ts]
     assert dinh[0] <= 2, "không bao giờ quá giới hạn đồng thời"
-    assert ket.count("ok") == 2 and sum(1 for x in ket if isinstance(x, tuple)) == 4, ket       # 2 chạy, 4 quá hạn chờ 0,3 giây
+    assert ket.count("ok") == 2 and sum(1 for x in ket if isinstance(x, tuple)) == 4, ket
     assert all(x[1] >= 1 and isinstance(x[1], int) for x in ket if isinstance(x, tuple))
-    with cong.vao():                                                                              # nhả chỗ đúng: sau đó vào lại được
+    with cong.vao():
         pass
 
 
@@ -312,14 +296,14 @@ def test_r5_mac_dinh_toi_thieu_2_hai_luot_cua_giao_dien_khong_bao_gio_cho():
 
     from backend.config import CauHinh
     assert CauHinh.__dataclass_fields__["cham_dong_thoi"].default >= 2 and CauHinh.__dataclass_fields__["cham_cho_giay"].default > 0
-    cong = dong_thoi.CongCham(CauHinh.__dataclass_fields__["cham_dong_thoi"].default, 0.05)      # thời hạn chờ RẤT ngắn: nếu phải chờ là 503
+    cong = dong_thoi.CongCham(CauHinh.__dataclass_fields__["cham_dong_thoi"].default, 0.05)
     ok = []
 
     def luot():
         with cong.vao():
             time.sleep(0.2)
         ok.append(1)
-    ts = [threading.Thread(target=luot) for _ in range(2)]                                        # 2 lượt song song của MỘT giao diện
+    ts = [threading.Thread(target=luot) for _ in range(2)]
     [t.start() for t in ts]
     [t.join() for t in ts]
     assert len(ok) == 2
@@ -349,12 +333,12 @@ def test_r5_endpoint_tra_503_kem_retry_after_khi_cong_day(client, conn_thu):
     cu = getattr(app_state, "cong_cham", None)
     app_state.cong_cham = cong = dong_thoi.CongCham(1, 0.2)
     try:
-        with cong.vao():                                                                          # chiếm hết chỗ
+        with cong.vao():
             r = client.post(f"/exams/{eid}/sheets", files={"file": ("a.jpg", anh_trang(), "image/jpeg")})
             rl = client.post(f"/exams/{eid}/sheets/batch", files=[("files", ("a.jpg", anh_trang(), "image/jpeg"))])
         assert r.status_code == 503 and r.headers["retry-after"].isdigit() and int(r.headers["retry-after"]) >= 1 and "bận" in r.json()["detail"]
         assert rl.status_code == 503 and rl.headers["retry-after"].isdigit()
-        assert client.post(f"/exams/{eid}/sheets", files={"file": ("a.jpg", anh_trang(), "image/jpeg")}).status_code == 201     # hết bận thì nhận lại
+        assert client.post(f"/exams/{eid}/sheets", files={"file": ("a.jpg", anh_trang(), "image/jpeg")}).status_code == 201
     finally:
         if cu is None:
             del app_state.cong_cham

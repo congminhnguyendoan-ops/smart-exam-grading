@@ -1,4 +1,3 @@
-"""loi_khuyen.py - Lời khuyên chụp lại cho từng mã từ chối của preprocess() (hiển thị ở giao diện). Khoá = MA_LY_DO."""
 from cv_engine.preprocessing import MA_LY_DO
 
 LOI_KHUYEN = {

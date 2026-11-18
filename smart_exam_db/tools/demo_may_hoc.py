@@ -1,15 +1,3 @@
-"""
-demo_may_hoc.py - Lệnh AJ (phiên demo "Máy học"), cập nhật lệnh AO (16/11/2026): dựng MỘT trang HTML tự chứa tổng hợp phần máy học của đồ án. CHỈ ĐỌC kết quả đã có
-(docs/kiem_ke_du_lieu.md, data/_eval/ai|ak|ad|am|an/ket_qua.json, models/*.json) – không huấn luyện, không đổi mô hình, không bịa số. Chạy được khi KHÔNG có mạng
-(trang tự chứa: không tải tài nguyên ngoài).
-MÔ HÌNH TRIỂN KHAI = CNN SÂU (lệnh AN, models/ocr_cnn.json, 467 818 tham số); CNN cũ (105 866 tham số) chỉ là bản so sánh.
-
-  python tools/demo_may_hoc.py --ra data/_eval/demo_3_phien/may_hoc.html
-  python tools/demo_may_hoc.py --truc-tiep --ra data/_eval/demo_3_phien/may_hoc_truc_tiep.html
-        # --truc-tiep: nạp models/ocr_cnn.json (CNN sâu), chạy THẬT (NumPy) trên 504 ô chữ số của phiếu dev 0001–0028 (viết tay trên phiếu,
-        #   mô hình KHÔNG huấn luyện trên chúng – chỉ huấn luyện trên MNIST + trang chữ số D001–D010); nếu có bản sao lưu CNN cũ thì đọc song song. Không đọc val / test.
-        #   Có mục 1 mẫu ngẫu nhiên (seed 2026, cả đúng lẫn sai) và mục "ví dụ sai – CHỌN CÓ CHỦ Ý" kèm tỉ lệ đúng của TOÀN BỘ mẫu.
-"""
 import argparse
 import csv
 import html
@@ -29,9 +17,9 @@ KQ_AD = ROOT / "data" / "_eval" / "ad" / "ket_qua.json"
 CAT = ROOT / "data" / "_ocr" / "cat"
 MAU_CSS = ROOT / "frontend" / "mau.css"
 TEN = {"lr": "Logistic regression", "knn": "k-NN", "svm": "SVM nhân RBF", "rf": "Random Forest (300 cây)", "mlp": "MLP 1 lớp ẩn (128)", "cnn": "CNN cũ (nhỏ, 105 866 tham số)"}
-KQ_AM = ROOT / "data" / "_eval" / "am" / "ket_qua.json"        # lệnh AM: huấn luyện + đo CNN sâu
-KQ_AN = ROOT / "data" / "_eval" / "an" / "ket_qua.json"        # lệnh AN: đo trên val + test, quyết định thay
-CNN_CU_SAO_LUU = ROOT / "data" / "_eval" / "an" / "ocr_cnn_hien_tai_sao_luu.json"      # CNN cũ (SHA 6d87205c…), chỉ để so sánh
+KQ_AM = ROOT / "data" / "_eval" / "am" / "ket_qua.json"
+KQ_AN = ROOT / "data" / "_eval" / "an" / "ket_qua.json"
+CNN_CU_SAO_LUU = ROOT / "data" / "_eval" / "an" / "ocr_cnn_hien_tai_sao_luu.json"
 TEN_AK = {"cnn": "CNN cũ (nhỏ)", "cnn_trien_khai": "CNN cũ (nhỏ)", "cnnsau": "CNN sâu (ĐANG TRIỂN KHAI)"}
 
 
@@ -49,9 +37,7 @@ def inline(s: str) -> str:
     return re.sub(r"`(.+?)`", r"<code>\1</code>", s)
 
 
-# ------------------------------------------------------------------------------------------------ đọc kiem_ke_du_lieu.md
 def doc_kiem_ke() -> list[dict]:
-    """Tách theo '## ': mỗi mục = {tieu_de, khoi: [('p', text) | ('bang', [[ô]])]}. Chỉ chuyển đổi, không sửa số."""
     muc, cur, bang = [], None, None
     for dong in KIEM_KE.read_text(encoding="utf-8").splitlines():
         if dong.startswith("## "):
@@ -71,7 +57,7 @@ def doc_kiem_ke() -> list[dict]:
             bang.append(o)
         else:
             bang = None
-            if dong.strip():        # các dòng liền nhau (không có dòng trống) là MỘT đoạn
+            if dong.strip():
                 if cur.get("_dang_p"):
                     cur["khoi"][-1] = ("p", cur["khoi"][-1][1] + " " + dong.strip())
                 else:
@@ -94,14 +80,13 @@ def html_muc(m: dict) -> str:
     return "\n".join(ra)
 
 
-# ------------------------------------------------------------------------------------------------ mô hình
 def thong_tin_mo_hinh() -> dict:
     ocr_p = ROOT / "models" / "ocr_cnn.json"
     omr_p = ROOT / "models" / "omr_m1.json"
     ocr = json.loads(ocr_p.read_text(encoding="utf-8"))
     omr = json.loads(omr_p.read_text(encoding="utf-8"))
     m = ocr["thanh_vien"][0]
-    n_cnn = sum(int(np.asarray(v).size) for k, v in m.items() if k not in ("seed", "T"))          # mọi kiến trúc (lệnh AN: mô hình triển khai là sau_2x2)
+    n_cnn = sum(int(np.asarray(v).size) for k, v in m.items() if k not in ("seed", "T"))
     n_m1 = 0
     for k in ("cau", "bubble"):
         n_m1 += int(np.asarray(omr[k]["he_so"]).size) + int(np.asarray(omr[k]["chan"]).size)
@@ -111,7 +96,7 @@ def thong_tin_mo_hinh() -> dict:
 
 
 def so(n: int) -> str:
-    return f"{n:,}".replace(",", " ")           # 467 818 (khoảng trắng, như phần còn lại của trang)
+    return f"{n:,}".replace(",", " ")
 
 
 def dec(v: float, d: int = 1) -> str:
@@ -145,7 +130,6 @@ def the_mo_hinh(t: dict, ai: dict) -> str:
 
 
 def muc_ly_thuyet_cnn() -> str:
-    """Lý thuyết CNN và CNN sâu BẰNG LỜI (lệnh AP). Không có số liệu mới: các con số nhắc lại lấy từ phần còn lại của trang (tham số 105 866 / 467 818, độ lệch 3,3–3,7 ms)."""
     return """<p>Mục này giải thích bằng lời, không cần biết toán trước. Các mục sau cho thấy số liệu thật.</p>
 <h3>1. Máy học là gì?</h3>
 <p>Thay vì viết luật “chữ số 3 có hai nét cong”, ta cho máy xem <b>rất nhiều ví dụ có đáp án</b> và để nó tự chỉnh các con số bên trong (gọi là <b>trọng số</b>) cho đến khi đoán đúng nhiều nhất. Ở đồ án có hai chỗ dùng máy học: đọc <b>ô tô đáp án</b> (mô hình nhỏ 40 tham số, hồi quy logistic) và đọc <b>chữ số viết tay</b> (CNN).</p>
@@ -173,7 +157,6 @@ def muc_ly_thuyet_cnn() -> str:
 
 
 def muc_hai_mang(t: dict) -> str:
-    """Hai mạng cạnh nhau + mã suy luận NumPy THẬT trích từ cv_engine/ocr.py (inspect.getsource), không viết lại."""
     import inspect
 
     from cv_engine import ocr
@@ -198,7 +181,6 @@ def muc_hai_mang(t: dict) -> str:
 
 
 def muc_ket_qua_thay() -> str:
-    """Số liệu lệnh AM (huấn luyện 3 seed, dev) và AN (val + test, quyết định thay). Đọc từ data/_eval/am|an/ket_qua.json."""
     am, an = doc_json(KQ_AM), doc_json(KQ_AN)
     if not am or not an:
         return '<div class="canh-bao">Chưa có <code>data/_eval/am/ket_qua.json</code> hoặc <code>data/_eval/an/ket_qua.json</code> (chạy <code>tools/am_cnn_sau.py do</code>, <code>tools/an_do_thay_mo_hinh.py</code>).</div>'
@@ -234,7 +216,6 @@ def muc_ket_qua_thay() -> str:
 
 
 def muc_bang_11() -> str:
-    """Bảng E2b của lệnh AK: 11 thuật toán (HistGradientBoosting chỉ chạy E1 vì quá giới hạn thời gian – ghi rõ)."""
     ak = doc_json(KQ_AK)
     if not ak:
         return '<div class="canh-bao">Chưa có <code>data/_eval/ak/ket_qua.json</code> (lệnh AK).</div>'
@@ -257,9 +238,7 @@ def tom_tat_du_lieu() -> str:
             '<div><b>240 000 + 60 000</b>EMNIST Digits + ô phiếu giả: tăng chỉ +0,36 điểm (lệnh AD) → KHÔNG dùng</div></div>')
 
 
-# ------------------------------------------------------------------------------------------------ biểu đồ
 def bieu_do(ai: dict) -> str:
-    """Cột ngang E2b: độ đúng TB 5 người ± độ lệch chuẩn giữa người. CNN = màu nhấn, 5 thuật toán còn lại = xám. Nhãn trực tiếp."""
     hang = sorted(((k, ai["E2b"][k]["macro"], ai["E2b"][k]["sd_nguoi"]) for k in TEN), key=lambda r: -r[1])
     W, L, R, H, G = 900, 250, 150, 44, 10
     x0, x1 = 0.70, 1.0
@@ -325,25 +304,23 @@ def muc_gioi_han() -> str:
 <li>Ô tô: 56 ảnh / 28 phiếu huấn luyện, lớp “mờ” rất hiếm (366 / 8 960 ≈ 4,1% ô đáp án); đã đo trên tập val, đợt 2 và 10 tờ giấy thật, chưa thử với nhiều loại bút / giấy khác.</li></ul>"""
 
 
-# ------------------------------------------------------------------------------------------------ chạy trực tiếp
 def chay_truc_tiep() -> dict:
-    """CNN thật trên ô phiếu dev 0001–0028 (không huấn luyện trên chúng). Trả số liệu + danh sách ô."""
     from cv_engine import ocr
     from cv_engine.tap_du_lieu import PHIEU_TRAIN, ma_phieu
     x = np.load(CAT / "anh_nan.npz")["x"]
     with (CAT / "anh_nan.csv").open(encoding="utf-8", newline="") as f:
         meta = list(csv.DictReader(f))
     assert len(meta) == len(x)
-    idx = [i for i, r in enumerate(meta) if r["loai"] != "trang" and (ma_phieu(r["anh"]) or 0) in PHIEU_TRAIN]      # CHỈ phiếu dev 0001–0028
+    idx = [i for i, r in enumerate(meta) if r["loai"] != "trang" and (ma_phieu(r["anh"]) or 0) in PHIEU_TRAIN]
     assert all(meta[i]["loai"] in ("sbd", "ma_de") for i in idx)
     co_muc = [i for i in idx if meta[i]["trong"] == "0"]
-    mh = ocr.nap_mo_hinh_ocr()                                   # mô hình triển khai = CNN sâu
+    mh = ocr.nap_mo_hinh_ocr()
     P = ocr.du_doan_xac_suat(mh, x[co_muc])
     du = P.argmax(1)
     y = np.array([int(meta[i]["nhan"]) for i in co_muc])
     ok = du == y
     ra = {"tong_dev": len(idx), "n": len(co_muc), "dung": int(ok.sum()), "theo_nguoi": {}, "o": [], "kien_truc": mh.kien_truc}
-    if CNN_CU_SAO_LUU.exists():                                  # CNN cũ chỉ để so sánh song song (không phải mô hình triển khai)
+    if CNN_CU_SAO_LUU.exists():
         du_cu = ocr.du_doan_xac_suat(ocr.nap_mo_hinh_ocr(CNN_CU_SAO_LUU), x[co_muc]).argmax(1)
         ra["dung_cu"] = int((du_cu == y).sum())
     for ng in sorted({meta[i]["nguoi"] for i in co_muc}):
@@ -383,7 +360,6 @@ Mô hình triển khai <b>chưa từng huấn luyện</b> trên các ô này (ch
 <div class="o-so">{''.join(the_o(o) for o in chon)}</div>"""
 
 
-# ------------------------------------------------------------------------------------------------ so sánh mở rộng chạy trực tiếp (lệnh AK)
 KQ_AK = ROOT / "data" / "_eval" / "ak" / "ket_qua.json"
 AK_NPZ = ROOT / "data" / "_eval" / "ak" / "truc_tiep.npz"
 
@@ -397,7 +373,6 @@ def anh_o(x28: np.ndarray, px: int = 56) -> str:
 
 
 def chay_so_sanh_truc_tiep(da_tinh_san: bool) -> dict:
-    """Chạy (hoặc đọc đã tính sẵn) tools/ak_so_sanh_mo_rong.truc_tiep: mô hình 'người 1 giữ ra' dự đoán ô trang D của người 1. In từng thuật toán khi chạy."""
     sys.path.insert(0, str(ROOT / "tools"))
     import ak_so_sanh_mo_rong as AKM
     print("Chạy trực tiếp từng thuật toán trên ô của người viết 1 (mô hình chưa thấy người này)…" if not da_tinh_san else "Đọc kết quả ĐÃ TÍNH SẴN…", flush=True)
@@ -421,7 +396,7 @@ def muc_so_sanh_truc_tiep(tt: dict, ak: dict) -> str:
                 f'<li><b>R4(a) mức hệ thống, 504 ô phiếu dev: {dat(r4["a"])}</b> – đúng cả chuỗi: CNN cũ {pt(r4["a"]["hw_cnn"])} so với {e(N[r4["a"]["tot_nhat_khac"]])} {pt(r4["a"]["hw_tot_nhat"])}.</li>'
                 + (f'<li><b>R4(b) giấy thật (26 trường): {dat(r4["b"])}</b> – CNN cũ {pt(r4["b"]["hw_cnn"])} so với {e(N[r4["b"]["tot_nhat_khac"]])} {pt(r4["b"]["hw_tot_nhat"])} (chênh đúng 1 trường).</li>' if r4["b"] else "")
                 + '<li>Cả 11 thuật toán đều <b>0 lần sai mà không cờ</b> nhờ đối chiếu bubble: chọn thuật toán không ảnh hưởng độ an toàn của điểm, chỉ ảnh hưởng số phiếu giáo viên phải xem.</li>'
-                '<li>Nên nói: “mạng tích chập vượt mọi thuật toán không-tích-chập ≥ 1,7 điểm”; KHÔNG nói “CNN cũ tối ưu” – CNN sâu và LeNet-5 đọc cả chuỗi tốt hơn trên phiếu dev; đó là lý do lệnh AM / AN chuyển hệ thống sang CNN sâu (bảng này là kết quả lệnh AK, đo TRƯỚC khi thay).</li></ul></div>')    # --- biểu đồ cột: độ đúng trên người 1 (chạy trực tiếp)
+                '<li>Nên nói: “mạng tích chập vượt mọi thuật toán không-tích-chập ≥ 1,7 điểm”; KHÔNG nói “CNN cũ tối ưu” – CNN sâu và LeNet-5 đọc cả chuỗi tốt hơn trên phiếu dev; đó là lý do lệnh AM / AN chuyển hệ thống sang CNN sâu (bảng này là kết quả lệnh AK, đo TRƯỚC khi thay).</li></ul></div>')
     W, Lm, R, H, G = 900, 300, 190, 34, 8
     x0, x1 = 0.60, 1.0
     X = lambda v: Lm + (min(max(v, x0), x1) - x0) / (x1 - x0) * (W - Lm - R)                      # noqa: E731
@@ -436,22 +411,19 @@ def muc_so_sanh_truc_tiep(tt: dict, ak: dict) -> str:
                  f'<rect x="{Lm}" y="{y}" width="{X(al[t]["dung"]) - Lm:.1f}" height="{H}" rx="4" fill="{"var(--pri)" if cnn else "#9AA9B1"}"><title>{e(ten(t))}: {pt(al[t]["dung"])}</title></rect>'
                  f'<text x="{X(al[t]["dung"]) + 8:.1f}" y="{y + H / 2 + 5}" font-size="15" fill="var(--ink)" font-weight="{700 if cnn else 400}">{pt(al[t]["dung"])} · sai {al[t]["sai"]}</text>')
     s.append("</svg>")
-    # --- bảng chạy trực tiếp
     bang = ("<table><tr><th>Thuật toán</th><th>Đúng (người 1)</th><th>Ô sai</th><th>Thời gian cả {n} ô</th><th>Kích thước</th><th>E2b – TB 5 người</th></tr>".format(n=n)
             + "".join(f"<tr class='{'nhan' if t == 'cnnsau' else ''}'><td class='trai'>{e(ten(t))}</td><td>{pt(al[t]['dung'])}</td><td>{al[t]['sai']}/{n}</td><td>{al[t]['giay_tong']:.2f} s</td>"
                       f"<td>{al[t]['byte'] / 1048576:.2f} MB</td><td>{pt(E[t]['macro']) if t in E else '–'}</td></tr>" for t in hang) + "</table>")
-    # --- R4 tóm tắt
     ra, rb = ak["R4a"], ak.get("R4b") or {}
     thu = sorted(ra, key=lambda t: -ra[t]["hw_gop"])
     r4 = ("<table><tr><th>Thuật toán</th><th>(a) 504 ô phiếu dev: đúng cả chuỗi</th><th>(a) sai mà không cờ</th><th>(b) 117 ô giấy thật: đúng cả chuỗi</th><th>(b) sai mà không cờ</th></tr>"
           + "".join(f"<tr class='{'nhan' if t == 'cnnsau' else ''}'><td class='trai'>{e(ten(t))}</td><td>{pt(ra[t]['hw_gop'])}</td><td>{ra[t]['sai_khong_co_cong']}</td>"
                     + (f"<td>{pt(rb[bt]['hw_gop'])}</td><td>{rb[bt]['sai_khong_co_cong']}</td>" if (bt := ('cnn_trien_khai' if t == 'cnn' else t)) in rb else "<td>–</td><td>–</td>")
                     + "</tr>" for t in thu) + "</table>")
-    # --- lưới ví dụ: cùng một ô, các thuật toán đọc khác nhau
     p = tt["npz"]
     x, y = p["x"], p["y"].astype(int)
     co = [t for t in hang if f"p_{t}" in p]
-    P = np.stack([p[f"p_{t}"] for t in co]).astype(int)                                           # [A, N]
+    P = np.stack([p[f"p_{t}"] for t in co]).astype(int)
     bat_dong = np.where((P != P[0]).any(0))[0]
     rng = np.random.default_rng(2026)
     ngau = sorted(rng.choice(bat_dong, size=min(12, len(bat_dong)), replace=False).tolist()) if len(bat_dong) else []
@@ -481,7 +453,6 @@ Hệ thống thật dùng CNN sâu (từ lệnh AN); CNN cũ và các thuật to
 nhưng <b>nặng ~50 lần</b> (≈ 5,3 triệu so với 105 866 tham số của CNN cũ lúc đó, +71 MB thư viện) và lắp nguyên trạng làm số phiếu cần giáo viên xem tăng (53,6% so với 46,4%). Lúc đó (lệnh D, trước khi đổi sang CNN sâu) nhóm giữ CNN nhỏ; PP-OCRv6 vẫn là hướng cải tiến.</div>"""
 
 
-# ------------------------------------------------------------------------------------------------ trang
 CSS = """*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Segoe UI",system-ui,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:20px 16px 60px} h1{font-size:28px;margin:0 0 4px} .sub{color:var(--mut);margin:0 0 16px}
 section{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lon);box-shadow:var(--bong);padding:18px 22px;margin:18px 0}
@@ -529,8 +500,7 @@ def dung_trang(truc_tiep: dict | None, so_sanh: dict | None = None) -> str:
     if so_sanh:
         ak = json.loads(KQ_AK.read_text(encoding="utf-8"))
         s.insert(5, sec(4, "So sánh TRỰC TIẾP nhiều thuật toán (lệnh AK)", muc_so_sanh_truc_tiep(so_sanh, ak)))
-    if True:                                   # luôn đánh số lại (lệnh AP: số mục đổi theo cờ --truc-tiep / --so-sanh-truc-tiep)
-        # đánh số lại
+    if True:
         n = [0]
 
         def dem(m):

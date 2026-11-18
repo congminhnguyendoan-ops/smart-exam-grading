@@ -1,14 +1,3 @@
-"""Ma trận các trường hợp tô ô (mức xám 0–255) chạy qua cả chuỗi doc_phieu trên phiếu trắng vẽ giả.
-
-Khác test_omr_luat.py (đưa xác suất giả vào luật), file này vẽ ô bằng điểm ảnh thật với mức xám cho trước,
-nên bắt được lỗi ở khâu đặc trưng / ngưỡng. Mức xám tính trên giấy trắng 255 (0 = đen hẳn).
-
-Ngưỡng quan sát được (omr_m1.json, ô vẽ đặc 0,85r, các câu còn lại của tờ tô đen 30 như phiếu thường):
-    <= 80  tô RÕ, chắc      100  vùng đệm rõ/mờ (giấy tối)      120–205  tô MỜ, cần xem      220  vùng đệm mờ/trống      >= 235  TRỐNG, chắc
-LƯU Ý: mô hình đo độ tối của ô theo thang của CHÍNH TỜ PHIẾU (S_anh trong omr.py), nên ranh giới rõ/mờ dịch theo độ đậm bút
-chung của tờ: tờ tô toàn bút chì nhạt (xám 150) thì xám 170–190 vẫn là "rõ". Thiên lệch này an toàn (nghiêng về hỏi giáo viên khi
-tờ đậm) nhưng có nghĩa là một vệt nhạt lạc trên tờ toàn nét nhạt không bị gắn cờ.
-"""
 from types import SimpleNamespace
 
 import cv2
@@ -30,9 +19,6 @@ def mo_hinh():
 
 
 def doc(mo_hinh, cases, giay=255):
-    """cases: tối đa 40 dict {ô: mức xám}; câu i+1 tô theo cases[i]. Các câu còn lại tô đậm ô C như một phiếu thường
-    (thang S_anh của omr.py ước lượng từ chính tờ phiếu, nên một tờ có quá ít vết tô sẽ cho kết quả khác);
-    chỉ trả về len(cases) câu đầu."""
     n = len(cases)
     cases = list(cases) + [{"C": 30}] * (40 - n)
     anh = omr.nap_mau().copy()
@@ -46,7 +32,7 @@ def doc(mo_hinh, cases, giay=255):
     return omr.doc_phieu(kq, L, mo_hinh).cau[:n]
 
 
-GIAY = [255, 170]          # giấy sáng và giấy tối (thiếu sáng)
+GIAY = [255, 170]
 
 
 @pytest.mark.parametrize("giay", GIAY)
@@ -64,7 +50,6 @@ def test_mot_o_theo_muc_xam(mo_hinh, giay):
 
 @pytest.mark.parametrize("giay", GIAY)
 def test_mot_dam_mot_nhat(mo_hinh, giay):
-    """A đậm + B ở mọi mức: B tô được (đậm hay mờ) -> nhiều ô cần xem; B gần như trống -> A rõ, không cần xem."""
     muc = DAM + MO + TRONG
     kq = doc(mo_hinh, [{"A": 20, "B": g} for g in muc], giay)
     for g, k in zip(muc, kq):
@@ -77,7 +62,6 @@ def test_mot_dam_mot_nhat(mo_hinh, giay):
 @pytest.mark.parametrize("giay", GIAY)
 @pytest.mark.parametrize("so_o", [2, 3, 4])
 def test_nhieu_o_cung_muc(mo_hinh, giay, so_o):
-    """2 / 3 / 4 ô cùng mức (đậm cùng đậm, nhạt cùng nhạt): luôn nhiều ô + cần xem; cùng trống thì là câu trống."""
     chon = "ABCD"[:so_o]
     muc = DAM + MO + TRONG
     kq = doc(mo_hinh, [{o: g for o in chon} for g in muc], giay)
@@ -89,7 +73,6 @@ def test_nhieu_o_cung_muc(mo_hinh, giay, so_o):
 
 
 def test_hai_o_mot_dam_mot_mo_o_cac_vi_tri_khac_nhau(mo_hinh):
-    """Mọi cặp ô (6 cặp) × (đậm, mờ): luôn nhiều ô + cần xem, đáp án trả về đúng hai ô."""
     cap = [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D")]
     cases = [{a: 20, b: 200} for a, b in cap] + [{a: 200, b: 20} for a, b in cap]
     for (a, b), k in zip(cap + cap, doc(mo_hinh, cases)):
@@ -97,7 +80,6 @@ def test_hai_o_mot_dam_mot_mo_o_cac_vi_tri_khac_nhau(mo_hinh):
 
 
 def test_du_40_cau_moi_cau_mot_dap_an_khac_nhau(mo_hinh):
-    """Đủ 40 câu: câu q tô ô 'ABCD'[q % 4] đậm -> cả 40 câu đọc đúng, không câu nào cần xem."""
     cases = [{"ABCD"[q % 4]: 30} for q in range(1, 41)]
     kq = doc(mo_hinh, cases)
     assert len(kq) == 40
@@ -106,7 +88,6 @@ def test_du_40_cau_moi_cau_mot_dap_an_khac_nhau(mo_hinh):
 
 
 def test_du_40_cau_xen_ke_ro_mo_trong_nhieu(mo_hinh):
-    """40 câu xen kẽ 4 loại, mỗi loại 10 câu: rõ / mờ / trống / nhiều ô -> trạng thái và cờ cần xem đúng từng câu."""
     mau = [({"B": 30}, "ro", False), ({"C": 200}, "mo", True), ({}, "trong", False), ({"A": 30, "D": 30}, "nhieu", True)]
     cases = [mau[(q - 1) % 4][0] for q in range(1, 41)]
     for q, k in enumerate(doc(mo_hinh, cases), 1):
@@ -116,7 +97,6 @@ def test_du_40_cau_xen_ke_ro_mo_trong_nhieu(mo_hinh):
 
 @pytest.mark.parametrize("kich", [0.7, 1.0, 1.2])
 def test_vung_to_du_to_la_ro(mo_hinh, kich):
-    """Vết tô phủ từ 0,7r tới tràn ra ngoài viền (1,2r) vẫn là tô rõ."""
     anh = omr.nap_mau().copy()
     for q in range(1, 41):
         cx, cy = ANS["centers"][str(q)]["B"]
@@ -128,7 +108,6 @@ def test_vung_to_du_to_la_ro(mo_hinh, kich):
 @pytest.mark.parametrize("kich", [0.2, 0.3])
 @pytest.mark.parametrize("xam", [30, 90])
 def test_cham_nho_dam_phai_can_xem(mo_hinh, kich, xam):
-    """Luật phụ 'vet_nho' (27/10/2026): chấm nhỏ đậm ở ô không chọn -> cần xem, KHÔNG đổi trạng thái / đáp án."""
     anh = omr.nap_mau().copy()
     for q in range(1, 41):
         cx, cy = ANS["centers"][str(q)]["B"]
@@ -139,7 +118,6 @@ def test_cham_nho_dam_phai_can_xem(mo_hinh, kich, xam):
 
 
 def test_cham_nho_canh_dap_an_ro_van_can_xem(mo_hinh):
-    """A tô rõ + chấm nhỏ ở D: đáp án vẫn A (rõ) nhưng câu cần xem vì vết nhỏ ở ô khác."""
     kq = omr.doc_phieu(SimpleNamespace(ok=True, anh_nan=_ve_cham_d(), anh_chuan_hoa=_ve_cham_d()), L, mo_hinh).cau
     assert all((k.trang_thai, k.dap_an, k.can_xem, k.ly_do) == ("ro", "A", True, ("vet_nho",)) for k in kq)
 
@@ -154,15 +132,12 @@ def _ve_cham_d():
 
 
 def test_phieu_trang_khong_gan_co_vet_nho(mo_hinh):
-    """Nét chữ A–D và viền in sẵn không bị coi là vết nhỏ: phiếu trắng nguyên bản -> không câu nào 'vet_nho'."""
     anh = omr.nap_mau().copy()
     kq = omr.doc_phieu(SimpleNamespace(ok=True, anh_nan=anh, anh_chuan_hoa=anh), L, mo_hinh).cau
     assert not any("vet_nho" in k.ly_do for k in kq)
 
 
-# ------------------------------------------------------------------------------------------------ luật mức tờ 'to_nhat'
 def _doc_to(mo_hinh, cases, nen=None):
-    """Như doc() nhưng trả cả KetQuaOMR; các câu sau `cases` tô ô C ở xám `nen` (None = bỏ trống)."""
     cases = list(cases) + [({"C": nen} if nen is not None else {})] * (40 - len(cases))
     anh = omr.nap_mau().copy()
     for q, cs in enumerate(cases, 1):
@@ -177,7 +152,7 @@ def test_to_nhat_ca_to_xam_nhat_moi_cau_da_chon_can_xem(mo_hinh, xam):
     res = _doc_to(mo_hinh, [{"ABCD"[q % 4]: xam} for q in range(40)])
     assert res.to_nhat and res.do_toi_to < omr.TO_NHAT_X
     assert all(k.can_xem and "to_nhat" in k.ly_do for k in res.cau)
-    assert all((k.trang_thai, k.dap_an) == ("ro", "ABCD"[q % 4]) for q, k in enumerate(res.cau))      # chỉ cộng cờ
+    assert all((k.trang_thai, k.dap_an) == ("ro", "ABCD"[q % 4]) for q, k in enumerate(res.cau))
 
 
 @pytest.mark.parametrize("xam", [30, 60, 80])
@@ -188,12 +163,10 @@ def test_to_nhat_to_dam_khong_co(mo_hinh, xam):
 
 @pytest.mark.parametrize("nen,vet", [(150, 170), (150, 190), (190, 190), (190, 210)])
 def test_to_nhat_vet_lac_tren_to_nhat_co_co(mo_hinh, nen, vet):
-    """Tờ nhạt + vệt lạc 1 ô ở câu 1: trước luật mức tờ vệt 170 / 190 là 'rõ chắc' không cờ."""
     res = _doc_to(mo_hinh, [{"A": vet}], nen)
     assert res.to_nhat and res.cau[0].can_xem and "to_nhat" in res.cau[0].ly_do
 
 
 def test_to_nhat_it_o_ro_chac_khong_danh_gia(mo_hinh):
-    """Dưới TO_NHAT_N ô 'rõ chắc' thì không kết luận (không đủ dữ liệu): 5 câu xám 150, còn lại bỏ trống."""
     res = _doc_to(mo_hinh, [{"A": 150}] * 5)
     assert not res.to_nhat and omr.np.isnan(res.do_toi_to)

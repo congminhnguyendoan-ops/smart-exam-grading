@@ -1,4 +1,3 @@
-"""Kiểm thử giao diện demo (HTML + JS thuần) và các endpoint thêm cho nó. Chạy trên CSDL thật trong giao dịch ROLLBACK."""
 import re
 import shutil
 import subprocess
@@ -24,7 +23,7 @@ def test_phuc_vu_trang_tinh(client):
     for f in ("app.js", "style.css"):
         assert client.get(f"/app/{f}").status_code == 200
     assert client.get("/app/khong_co.js").status_code == 404
-    assert client.get("/health").status_code == 200                       # API vẫn chạy cạnh thư mục tĩnh
+    assert client.get("/health").status_code == 200
 
 
 def test_trang_tinh_tham_chieu_dung_file_va_dung_endpoint(client):
@@ -33,10 +32,9 @@ def test_trang_tinh_tham_chieu_dung_file_va_dung_endpoint(client):
         assert (FRONTEND / ref).exists(), ref
     js = (FRONTEND / "app.js").read_text(encoding="utf-8")
     from backend.main import app
-    paths = app.openapi()["paths"]                        # lệnh AU T1: /openapi.json mặc định 404, schema vẫn sinh được
-    # mọi đường dẫn API mà JS gọi phải có trong OpenAPI (đổi ${...} thành {tham_so})
+    paths = app.openapi()["paths"]
     for m in set(re.findall(r"`(/(?:exams|sheets|meta)[^`?]*)", js)) | set(re.findall(r'"(/(?:exams|sheets|meta)[^"?]*)"', js)):
-        chuan = re.sub(r"(?<!/)\$\{[^}]+\}", "", re.sub(r"(?<=/)\$\{[^}]+\}", "{x}", m))   # ${..} đầu đoạn = tham số, còn lại = query
+        chuan = re.sub(r"(?<!/)\$\{[^}]+\}", "", re.sub(r"(?<=/)\$\{[^}]+\}", "{x}", m))
         assert any(re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", p), chuan) for p in paths), f"JS gọi {m} nhưng API không có"
 
 
@@ -70,7 +68,6 @@ def test_danh_sach_phieu_co_them_truong(client, conn_thu):
 
 
 def test_luong_f1_den_f4_qua_api(client, conn_thu):
-    """Đúng chuỗi lời gọi mà giao diện thực hiện: tải → danh sách → chi tiết → câu cần xem → ảnh cắt → duyệt → chính thức."""
     can_anh("0002_C2")
     them_sv(conn_thu, "795125")
     eid = tao_de(client)

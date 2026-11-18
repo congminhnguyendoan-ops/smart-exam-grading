@@ -1,4 +1,3 @@
-"""Kiểm thử định vị 2 tầng của cv_engine/omr.py + split.csv (Tuần 5, Phần A mốc A1). Chỉ dùng ảnh TRAIN 0001–0028."""
 import hashlib
 import json
 import sys
@@ -21,7 +20,6 @@ def layout():
 
 
 def test_mau_png_khop_sha(layout):
-    """PNG mẫu (trong git) đúng cỡ trang và đúng SHA điểm ảnh ghi trong .json."""
     mau = omr.nap_mau(kiem_sha=False)
     meta = json.loads(omr.MAU_PNG.with_suffix(".json").read_text(encoding="utf-8"))
     assert mau.shape == (layout["page_px"][1], layout["page_px"][0])
@@ -29,11 +27,10 @@ def test_mau_png_khop_sha(layout):
 
 
 def test_lech_lan_can_theo_duong_thang():
-    """Độ dịch đổi đều theo hàng (giấy cong) không bị coi là lệch; một hàng nhảy 1 mm thì bị bắt."""
-    deu = [(0.0, 5.0 * i) for i in range(10)]                           # 5 px / hàng ≈ 0,42 mm / hàng
+    deu = [(0.0, 5.0 * i) for i in range(10)]
     assert max(omr._lech_lan_can(deu, i, 3) for i in range(10)) < 1e-6
     nhay = list(deu)
-    nhay[4] = (0.0, nhay[4][1] + 12.0)                                  # ~1 mm
+    nhay[4] = (0.0, nhay[4][1] + 12.0)
     assert omr._lech_lan_can(nhay, 4, 3) > omr.mm_px(nap_layout("phieu"), omr.LAN_CAN_MM)
 
 
@@ -44,8 +41,6 @@ def _anh(ten, layout):
 
 
 def test_giay_cong_0014_C2(layout):
-    """0014_C2 (giấy cong, hàng cuối cột 1 lệch ~4,3 mm): định vị được mọi hàng, không cờ; khớp với tìm rộng ±5 mm
-    từng hàng (số liệu A1: q10 ≈ (−2,6; 3,4) mm)."""
     kq = omr.dinh_vi(_anh("0014_C2", layout), layout)
     assert not any(kq.co.values()), {k: v for k, v in kq.co.items() if v}
     dx, dy = np.array(kq.dich["q10"]) * PX_MM
@@ -54,7 +49,6 @@ def test_giay_cong_0014_C2(layout):
 
 @pytest.mark.parametrize("dx,dy", [(7, 0), (-7, 0), (0, 11), (0, 5.8), (0, -5.8)])
 def test_dich_dung_mot_khoang_cach_o(layout, dx, dy):
-    """Dịch cả trang đúng 1 khoảng cách ô: mỗi hàng / cột hoặc đúng, hoặc gắn cờ – không bao giờ khớp nhầm không cờ."""
     from kiem_dinh_vi import dich_anh
     anh = _anh("0001_C1", layout)
     goc = omr.dinh_vi(anh, layout)
@@ -85,7 +79,7 @@ def test_split_rang_buoc():
     import tao_split
     nd = tao_split.tao_noi_dung(ROOT / "data" / "raw", ROOT / "data" / "ground_truth.csv")
     assert tao_split.kiem_rang_buoc(nd) == []
-    assert (ROOT / "data" / "split.csv").read_text(encoding="utf-8") == nd     # tái tạo từng byte (seed 2026)
+    assert (ROOT / "data" / "split.csv").read_text(encoding="utf-8") == nd
 
 
 def test_phan_a_chan_val_va_test():

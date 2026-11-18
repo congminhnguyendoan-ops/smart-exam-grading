@@ -1,4 +1,3 @@
-"""Đối chiếu hai kênh bubble ↔ viết tay (cv_engine/ocr.py: doi_chieu_cot / doi_chieu_truong). Hàm thuần, không đọc ảnh."""
 import pytest
 
 from cv_engine.ocr import doi_chieu_cot as c
@@ -11,18 +10,17 @@ def test_khop_la_chac():
 
 
 def test_khop_nhung_cnn_khong_chac_van_nhan_neu_p_du():
-    assert c("3", False, "3", 0.55, False, False).chac           # τ_khop 0,5: hai kênh độc lập cùng ra 3
+    assert c("3", False, "3", 0.55, False, False).chac
     r = c("3", False, "3", 0.3, False, False)
     assert not r.chac and r.ly_do == ("tin_cay_thap",)
 
 
 def test_lech_la_can_xem_va_giu_bubble():
     r = c("3", False, "8", 0.99, True, False)
-    assert not r.chac and r.ly_do == ("lech_bubble",) and r.chu_so == "3"   # không để CNN chắc ghi đè bubble
+    assert not r.chac and r.ly_do == ("lech_bubble",) and r.chu_so == "3"
 
 
 def test_thieu_bubble_khong_tu_nhan_chu_viet_tay():
-    """Ca 0001: SBD viết 062384, bubble 06238- (cột 6 không tô) -> cần xem, gợi ý 4 từ chữ viết tay, KHÔNG chắc."""
     r = c("?", True, "4", 0.99, True, False)
     assert not r.chac and r.ly_do == ("thieu_bubble",) and r.chu_so == "4"
 

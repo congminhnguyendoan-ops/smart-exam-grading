@@ -1,23 +1,19 @@
-"""ak_hog.py - lớp HOG + SVM cho lệnh AK (đặt ở tệp riêng để pickle nạp lại được từ mọi nơi, không phụ thuộc __main__)."""
 import numpy as np
 
 
 class HogSVM:
-    """HOG (cửa sổ 28, block 14, bước block 7, cell 7, 9 bin = 324 chiều; cài bằng NumPy) rồi SVC nhân RBF. Vào: vectơ 784 điểm ảnh /255."""
 
     def __init__(self, C: float = 1.0):
         self.C = C
 
     @staticmethod
     def dac_trung(X: np.ndarray) -> np.ndarray:
-        """HOG Dalal–Triggs bằng NumPy (OpenCV 5.0 không còn HOGDescriptor): gradient trung tâm, 9 bin không dấu (0–180°) nội suy tuyến tính theo góc,
-        cell 7×7 px (4×4 cell), block 2×2 cell bước 1 cell (3×3 block), chuẩn hoá L2-Hys (cắt 0,2) -> 3·3·4·9 = 324 chiều."""
         a = X.reshape(-1, 28, 28).astype(np.float32)
         gx, gy = np.zeros_like(a), np.zeros_like(a)
         gx[:, :, 1:-1] = a[:, :, 2:] - a[:, :, :-2]
         gy[:, 1:-1, :] = a[:, 2:, :] - a[:, :-2, :]
         mag = np.hypot(gx, gy)
-        ang = (np.degrees(np.arctan2(gy, gx)) % 180.0) / 20.0               # [0, 9)
+        ang = (np.degrees(np.arctan2(gy, gx)) % 180.0) / 20.0
         b0 = np.floor(ang).astype(int) % 9
         b1 = (b0 + 1) % 9
         w1 = ang - np.floor(ang)

@@ -1,7 +1,3 @@
-"""
-nguoi_dung.py - Dịch vụ tài khoản: đăng nhập, hồ sơ, đổi mật khẩu, lớp của giáo viên, danh sách sinh viên của lớp.
-Mọi truy vấn SQL dùng tham số. KHÔNG tự commit (API / test quyết định). Không log mật khẩu / token.
-"""
 import hashlib
 import re
 import threading
@@ -26,10 +22,7 @@ class QuaNhieuLan(LoiDichVu):
     ma_http = 429
 
 
-# ------------------------------------------------------------------------------------------------ thu hồi token (lệnh AR – R4)
-# Nguồn sự thật = bảng revoked_tokens (migration 006; sống qua khởi động lại và nhiều worker). Thêm một bộ nhớ NGAY trong tiến trình: hiệu lực tức thì
-# kể cả khi giao dịch ghi bảng chưa kịp commit lúc trình duyệt gửi yêu cầu kế tiếp (get_conn commit SAU khi trả lời). Chỉ lưu BĂM SHA-256, không lưu token thô.
-_THU_HOI_TRONG_BO_NHO: dict[str, float] = {}               # băm token -> hạn của token (epoch giây); dọn dòng quá hạn mỗi lần thêm
+_THU_HOI_TRONG_BO_NHO: dict[str, float] = {}
 _KHOA_THU_HOI = threading.Lock()
 
 
@@ -38,7 +31,6 @@ def bam_token(token: str) -> str:
 
 
 def thu_hoi_token(conn, cfg: CauHinh, token: str | None) -> bool:
-    """Đăng xuất: thu hồi MỘT token. Chỉ khi chữ ký đúng và chưa hết hạn (token giả / hết hạn: không ghi gì, trả False). Lặp lại an toàn (ON CONFLICT)."""
     d = auth.doc_token(cfg.auth_secret, token) if token else None
     if not d:
         return False
@@ -59,9 +51,7 @@ def da_thu_hoi(conn, token: str) -> bool:
     return conn.execute("SELECT 1 FROM revoked_tokens WHERE token_sha256 = %s", (h,)).fetchone() is not None
 
 
-# ------------------------------------------------------------------------------------------------ đăng nhập / phiên
 def dang_nhap(conn, cfg: CauHinh, username: str, mat_khau: str, ip: str) -> tuple[str, auth.NguoiDung]:
-    """Đúng -> (token, người dùng). Mọi lỗi (sai tên, sai mật khẩu, tài khoản bị khoá) cùng MỘT thông báo + 401; quá 5 lần sai / 15 phút -> 429."""
     khoa = (username.strip().lower(), ip)
     if auth.gioi_han.bi_chan(khoa):
         raise QuaNhieuLan("Thử đăng nhập sai quá nhiều lần. Hãy thử lại sau ít phút.")
@@ -82,7 +72,6 @@ def dang_nhap(conn, cfg: CauHinh, username: str, mat_khau: str, ip: str) -> tupl
 
 
 def xac_thuc(conn, cfg: CauHinh, token: str | None, x_user: str | None) -> auth.NguoiDung:
-    """Người dùng hiện tại. AUTH_MODE=demo: DEMO_USER / X-User (hành vi cũ, không kiểm quyền). on: token ký hợp lệ (cookie hoặc Bearer)."""
     if cfg.auth_mode == "demo":
         ten = x_user or cfg.nguoi_dung_demo
         u = conn.execute("SELECT user_id, username, full_name, email, role::text AS role FROM users WHERE lower(username) = lower(%s) AND is_active",
@@ -93,7 +82,7 @@ def xac_thuc(conn, cfg: CauHinh, token: str | None, x_user: str | None) -> auth.
     if not token:
         raise ChuaDangNhap("Cần đăng nhập.")
     d = auth.doc_token(cfg.auth_secret, token)
-    if d and da_thu_hoi(conn, token):                                          # đã đăng xuất (lệnh AR – R4): cùng thông báo như token sai / hết hạn
+    if d and da_thu_hoi(conn, token):
         raise ChuaDangNhap("Phiên đăng nhập không hợp lệ hoặc đã hết hạn.")
     u = conn.execute("SELECT user_id, username, full_name, email, role::text AS role, is_active, password_hash FROM users WHERE user_id = %s",
                      (d["u"],)).fetchone() if d else None
@@ -102,7 +91,6 @@ def xac_thuc(conn, cfg: CauHinh, token: str | None, x_user: str | None) -> auth.
     return auth.NguoiDung(u["user_id"], u["username"], u["full_name"], u["email"], u["role"])
 
 
-# ------------------------------------------------------------------------------------------------ hồ sơ
 def ho_so(conn, nd: auth.NguoiDung) -> dict:
     return conn.execute("SELECT user_id, username, full_name, email, role::text AS role, last_login_at, created_at FROM users WHERE user_id = %s",
                         (nd.user_id,)).fetchone()
@@ -137,9 +125,7 @@ def doi_mat_khau(conn, nd: auth.NguoiDung, cu: str, moi: str) -> None:
     conn.execute("UPDATE users SET password_hash = %s WHERE user_id = %s", (auth.bam_mat_khau(moi), nd.user_id))
 
 
-# ------------------------------------------------------------------------------------------------ lớp + sinh viên
 def lop_cua_toi(conn, nd: auth.NguoiDung) -> list[dict]:
-    """Lớp mình phụ trách (kèm môn dạy + số sinh viên). Admin: mọi lớp (không gắn môn)."""
     if nd.la_admin or nd.demo:
         return conn.execute(
             "SELECT c.class_id, c.class_code, c.class_name, c.academic_year, NULL::bigint AS subject_id, NULL::text AS subject_code, "
@@ -157,7 +143,6 @@ def _escape_like(q: str) -> str:
 
 
 def sinh_vien_lop(conn, class_id: int, q: str | None, trang: int, co_trang: int) -> dict:
-    """Quyền đã kiểm ở phan_quyen.kiem_lop. Tìm theo mã hoặc tên (không phân biệt hoa thường), phân trang."""
     lop = conn.execute("SELECT class_id, class_code, class_name, academic_year FROM classes WHERE class_id = %s", (class_id,)).fetchone()
     if not lop:
         raise KhongTimThay(f"Không có lớp {class_id}.")

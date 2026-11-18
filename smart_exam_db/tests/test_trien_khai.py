@@ -1,4 +1,3 @@
-"""Lệnh AU – kiểm thử chuẩn bị bản công khai (tiêu chí docs/tieu_chi_trien_khai.md). Phần lớn KHÔNG cần CSDL."""
 import json
 import subprocess
 import sys
@@ -9,7 +8,6 @@ from conftest import ROOT
 
 
 def chay_py(ma: str, env_them: dict | None = None) -> subprocess.CompletedProcess:
-    """Chạy một đoạn Python trong tiến trình mới (app đọc biến môi trường lúc import) với môi trường sạch của các biến AU."""
     import os
     from pathlib import Path
     env = {k: v for k, v in os.environ.items() if k not in ("DOCS_ENABLED", "MOI_TRUONG", "FORWARDED_ALLOW_IPS")}
@@ -21,7 +19,6 @@ MA_DOCS = ("from fastapi.testclient import TestClient\nfrom backend.main import 
            "import json\nprint(json.dumps([c.get(p).status_code for p in ('/docs', '/redoc', '/openapi.json')]))")
 
 
-# ------------------------------------------------------------------------------------------------ T1
 @pytest.mark.parametrize("env,mong", [({}, [404, 404, 404]), ({"DOCS_ENABLED": "0"}, [404, 404, 404]), ({"DOCS_ENABLED": "1"}, [200, 200, 200])])
 def test_t1_docs_theo_bien(env, mong):
     r = chay_py(MA_DOCS, env)
@@ -30,16 +27,15 @@ def test_t1_docs_theo_bien(env, mong):
 
 
 def test_t1_health_cong_khai_chi_trang_thai(client, monkeypatch):
-    r = client.get("/health")                                     # conftest đặt HEALTH_CHI_TIET=1 (test cũ) -> có chi tiết
+    r = client.get("/health")
     assert r.status_code == 200 and r.json()["omr_model"].startswith("omr_m1-")
     from backend import main
     cfg = main.app.state.cfg
     monkeypatch.setattr(main.app.state, "cfg", type(cfg)(**{**cfg.__dict__, "health_chi_tiet": False}))
     j = client.get("/health").json()
-    assert j == {"status": "ok", "db": "ok"}                      # không phiên bản, không SHA / tên mô hình
+    assert j == {"status": "ok", "db": "ok"}
 
 
-# ------------------------------------------------------------------------------------------------ T2
 MA_PROXY = '''
 import json
 from fastapi.testclient import TestClient
@@ -87,11 +83,10 @@ def test_t2_proxy_tin_cay_khoa_theo_ip_that_va_bo_qua_nguon_la():
 def test_t2_khong_dat_bien_thi_bo_qua_header_hoan_toan():
     r = chay_py(MA_PROXY, {"FORWARDED_ALLOW_IPS": ""})
     kq = json.loads(r.stdout.strip().splitlines()[-1])
-    assert kq["tin_cay_A_5_sai_roi_khoa"] == [401] * 5 + [429]        # khoá theo IP kết nối 10.0.0.1
-    assert kq["tin_cay_B_khong_bi_khoa_theo_A"] == [429]              # B bị chung khoá với A (mặc định không tin header) – đúng hành vi LAN cũ
+    assert kq["tin_cay_A_5_sai_roi_khoa"] == [401] * 5 + [429]
+    assert kq["tin_cay_B_khong_bi_khoa_theo_A"] == [429]
 
 
-# ------------------------------------------------------------------------------------------------ T3
 import io
 import struct
 import zlib
@@ -102,14 +97,12 @@ from test_backend_api import anh_trang, tai, tao_de
 
 
 def png_tieu_de(rong: int, cao: int) -> bytes:
-    """PNG chỉ có chữ ký + IHDR + IEND (Pillow đọc được kích thước từ tiêu đề; không có dữ liệu điểm ảnh)."""
     def chunk(loai, d):
         return struct.pack(">I", len(d)) + loai + d + struct.pack(">I", zlib.crc32(loai + d) & 0xFFFFFFFF)
     return kiem_anh.CHU_KY_PNG + chunk(b"IHDR", struct.pack(">IIBBBBB", rong, cao, 8, 0, 0, 0, 0)) + chunk(b"IEND", b"")
 
 
 class _DocDem(io.BytesIO):
-    """Đếm tổng byte đã bị đọc ra – để chứng minh dừng sớm."""
     da_doc = 0
 
     def read(self, n=-1):
@@ -123,7 +116,7 @@ def test_t3_doc_tep_dung_som_khi_vuot_gioi_han():
     with pytest.raises(kiem_anh.TepQuaLon) as e:
         kiem_anh.doc_tep_gioi_han(tep, 1)
     assert e.value.ma_http == 413 and "1 MB" in str(e.value)
-    assert tep.da_doc <= 2 * 1024 * 1024 + 10                       # KHÔNG đọc hết 5 MB: dừng ở đoạn đầu tiên vượt 1 MB
+    assert tep.da_doc <= 2 * 1024 * 1024 + 10
 
 
 def test_t3_tep_qua_lon_413_theo_content_length(client, monkeypatch):
@@ -158,21 +151,21 @@ def test_t3_lo_qua_nhieu_anh_413(client, cau_hinh_thu):
     files = [("files", (f"{i}.jpg", anh_trang(), "image/jpeg")) for i in range(3)]
     r = client.post(f"/exams/{eid}/sheets/batch", files=files)
     assert r.status_code == 413 and "tối đa 2 ảnh" in r.json()["detail"]
-    r2 = client.post(f"/exams/{eid}/sheets/batch", files=files[:2])          # đúng giới hạn thì qua
+    r2 = client.post(f"/exams/{eid}/sheets/batch", files=files[:2])
     assert r2.status_code == 201 and r2.json()["tong"] == 2
 
 
 def test_t3_anh_qua_nhieu_diem_anh_422(client):
     eid = tao_de(client)
-    r = tai(client, eid, "bom", png_tieu_de(10000, 10000))                    # 100 triệu điểm ảnh > 60 triệu
+    r = tai(client, eid, "bom", png_tieu_de(10000, 10000))
     assert r.status_code == 422 and "điểm ảnh" in r.json()["detail"] and "100" in r.json()["detail"]
-    assert tai(client, eid, "ok", png_tieu_de(1000, 1000)).status_code != 422  # 1 triệu điểm: qua kiểm (sau đó bị từ chối vì không có nội dung phiếu / hỏng)
+    assert tai(client, eid, "ok", png_tieu_de(1000, 1000)).status_code != 422
 
 
 @pytest.mark.parametrize("du_lieu", [b"day khong phai anh", b"<html>" + b"x" * 100, b"PK\x03\x04" + b"0" * 50, b"\x89PNG", b""])
 def test_t3_duoi_jpg_nhung_noi_dung_khong_phai_anh_422(client, du_lieu):
     eid = tao_de(client)
-    r = tai(client, eid, "gia", du_lieu)                                       # tên tệp "gia.jpg", Content-Type image/jpeg
+    r = tai(client, eid, "gia", du_lieu)
     assert r.status_code == 422, r.text
     assert "ảnh" in r.json()["detail"]
 
@@ -201,7 +194,6 @@ def test_t3_dat_image_max_image_pixels():
         Image.MAX_IMAGE_PIXELS = cu
 
 
-# ------------------------------------------------------------------------------------------------ T4 / T4b
 from backend.config import LoiCauHinh, lay_cau_hinh
 
 GOC_ENV = {"DATABASE_URL": "postgresql://x:y@localhost/z", "AUTH_MODE": "on", "AUTH_SECRET": "s" * 40, "COOKIE_SECURE": "1"}
@@ -229,7 +221,7 @@ def test_t4_production_tu_choi_cau_hinh_khong_an_toan(monkeypatch, sai, noi_dung
     _dat_env(monkeypatch, MOI_TRUONG="production", **sai)
     with pytest.raises(LoiCauHinh) as e:
         lay_cau_hinh()
-    assert noi_dung in str(e.value) and "s" * 40 not in str(e.value)          # không lộ giá trị bí mật
+    assert noi_dung in str(e.value) and "s" * 40 not in str(e.value)
 
 
 def test_t4_production_gom_het_loi_mot_lan(monkeypatch):
@@ -241,7 +233,7 @@ def test_t4_production_gom_het_loi_mot_lan(monkeypatch):
 
 @pytest.mark.parametrize("env", [{}, {"AUTH_MODE": "demo", "COOKIE_SECURE": "0", "WEB_CONCURRENCY": "4"}])
 def test_t4_mac_dinh_khong_doi_hanh_vi_lan(monkeypatch, env):
-    _dat_env(monkeypatch, **env)                     # không đặt MOI_TRUONG -> mọi kiểm tra production KHÔNG chạy
+    _dat_env(monkeypatch, **env)
     assert lay_cau_hinh().moi_truong == ""
 
 
@@ -261,14 +253,13 @@ def test_t4_tep_mau_production_du_bien_bat_buoc_va_vuot_kiem_tra(monkeypatch):
         monkeypatch.delenv(k, raising=False)
     for k, v in bien.items():
         monkeypatch.setenv(k, v)
-    with pytest.raises(LoiCauHinh) as e:             # sao chép nguyên mẫu mà không đổi khoá -> bị từ chối (giá trị giữ chỗ "DOI_…" dài > 32 ký tự)
+    with pytest.raises(LoiCauHinh) as e:
         lay_cau_hinh()
     assert "giá trị mẫu" in str(e.value)
-    monkeypatch.setenv("AUTH_SECRET", "k" * 48)      # đổi khoá thật -> mẫu còn lại hợp lệ
+    monkeypatch.setenv("AUTH_SECRET", "k" * 48)
     assert lay_cau_hinh().moi_truong == "production"
 
 
-# ------------------------------------------------------------------------------------------------ T6 / T7 (kiểm TĨNH: máy có thể không chạy được Docker)
 import ast
 import fnmatch
 import hashlib
@@ -276,7 +267,6 @@ import re as _re
 
 
 def _khop_dockerignore(duong_dan: str, mau: list[str]) -> bool:
-    """True nếu `duong_dan` (tương đối, dùng '/') BỊ LOẠI theo .dockerignore (mẫu sau thắng; '!' = giữ lại). Đủ cho các dạng dùng trong repo này."""
     bi_loai = False
     for dong in mau:
         dong = dong.strip()
@@ -338,7 +328,6 @@ def test_t6_caddyfile_co_tls_gioi_han_than_va_proxy():
 
 
 def test_t6_requirements_prod_du_goi_cho_moi_import_cua_backend():
-    """Mọi gói ngoài thư viện chuẩn mà backend/, cv_engine/, tools/khoi_tao_db_san_xuat.py import đều có trong requirements-prod.txt."""
     ten_goi = {"cv2": "opencv-python-headless", "PIL": "pillow", "dotenv": "python-dotenv", "multipart": "python-multipart", "pillow_heif": "pillow-heif"}
     chuan = {l.split("==")[0].strip().lower().replace("_", "-") for l in (ROOT / "requirements-prod.txt").read_text(encoding="utf-8").splitlines()
              if "==" in l and not l.startswith("#")}
@@ -374,26 +363,25 @@ def test_t7_mo_hinh_co_san_va_sha_dung():
 
 
 def test_t7_health_chi_tiet_bao_dung_sha_mo_hinh(client):
-    j = client.get("/health").json()                  # conftest đặt HEALTH_CHI_TIET=1 (chế độ nội bộ)
+    j = client.get("/health").json()
     assert j["ocr_model"] == "ocr_cnn-a151c078" and j["omr_model"].startswith("omr_m1-")
 
 
 def test_t2_dai_mang_cidr_nhu_trong_docker_compose():
     r = chay_py(MA_PROXY.replace('"10.0.0.1"', '"172.28.0.5"'), {"FORWARDED_ALLOW_IPS": "172.28.0.0/24"})
     kq = json.loads(r.stdout.strip().splitlines()[-1])
-    assert kq["tin_cay_A_5_sai_roi_khoa"] == [401] * 5 + [429] and kq["tin_cay_B_khong_bi_khoa_theo_A"] == [401]    # proxy trong dải được tin
+    assert kq["tin_cay_A_5_sai_roi_khoa"] == [401] * 5 + [429] and kq["tin_cay_B_khong_bi_khoa_theo_A"] == [401]
     r2 = chay_py(MA_PROXY.replace('"10.0.0.1"', '"172.29.0.5"'), {"FORWARDED_ALLOW_IPS": "172.28.0.0/24"})
     kq2 = json.loads(r2.stdout.strip().splitlines()[-1])
-    assert kq2["tin_cay_B_khong_bi_khoa_theo_A"] == [429]            # nguồn NGOÀI dải: bỏ qua header -> B dùng chung khoá theo IP kết nối
+    assert kq2["tin_cay_B_khong_bi_khoa_theo_A"] == [429]
 
 
-# ------------------------------------------------------------------------------------------------ V7 (lệnh AV): liên kết Swagger ở giao diện
 import shutil
 
 
 def test_v7_lien_ket_swagger_an_san_va_chi_hien_khi_co_openapi():
     html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
-    assert '<span id="lk-docs-wrap" class="hidden"><br><a href="/docs" target="_blank">API (Swagger)</a></span>' in html      # ẩn mặc định
+    assert '<span id="lk-docs-wrap" class="hidden"><br><a href="/docs" target="_blank">API (Swagger)</a></span>' in html
     assert '<script src="lien_ket_docs.js"></script>' in html
     js = (ROOT / "frontend" / "lien_ket_docs.js").read_text(encoding="utf-8")
     assert '"/openapi.json"' in js and 'classList.remove("hidden")' in js
@@ -413,7 +401,6 @@ def test_v7_may_chu_phuc_vu_script_va_docs_404_mac_dinh(client):
 
 
 def test_v2_ngu_canh_build_thuc_te_khong_con_du_lieu_rieng_tu():
-    """Duyệt THẬT thư mục smart_exam_db/ (bỏ qua nhánh đã bị loại cả thư mục): tệp còn lại KHÔNG có ảnh / dump / .env / cấu hình cục bộ."""
     import os
     from pathlib import Path
     con_lai = []
@@ -430,7 +417,6 @@ def test_v2_ngu_canh_build_thuc_te_khong_con_du_lieu_rieng_tu():
     assert "models/ocr_cnn.json" in con_lai and "answer_sheet/output/phieu_trang_300dpi.png" in con_lai
 
 
-# ------------------------------------------------------------------------------------------------ V8 (Render) + HEIC thật + postgres://
 def _render():
     import yaml
     return yaml.safe_load((ROOT.parent / "render.yaml").read_text(encoding="utf-8"))
@@ -450,18 +436,17 @@ def test_v8_render_yaml_dung_cau_hinh_da_chot():
     assert env["STORAGE_DIR"]["value"] == w["disk"]["mountPath"] and env["PORT"]["value"] == "8000"
     assert env["DATABASE_URL"]["fromDatabase"]["name"] == d["databases"][0]["name"] and env["AUTH_SECRET"]["generateValue"] is True
     assert env["PUBLIC_BASE_URL"].get("sync") is False and "value" not in env["PUBLIC_BASE_URL"]
-    assert "value" not in env["AUTH_SECRET"] and "value" not in env["DATABASE_URL"]               # không có bí mật viết cứng
-    assert "khoi_tao_db_san_xuat.py --ap-dung" in w["preDeployCommand"] and "--tao-admin" not in w["preDeployCommand"]   # KHÔNG tạo tài khoản trong deploy
+    assert "value" not in env["AUTH_SECRET"] and "value" not in env["DATABASE_URL"]
+    assert "khoi_tao_db_san_xuat.py --ap-dung" in w["preDeployCommand"] and "--tao-admin" not in w["preDeployCommand"]
 
 
 def test_v8_moi_bien_render_qua_kiem_tra_production(monkeypatch):
-    """Nạp ĐÚNG các biến của render.yaml (giả lập giá trị Render điền) -> lay_cau_hinh() chạy được ở chế độ production."""
     for k in ("MOI_TRUONG", "WEB_CONCURRENCY", "COOKIE_SECURE", "AUTH_SECRET", "AUTH_MODE", "PUBLIC_BASE_URL", "FORWARDED_ALLOW_IPS", "STORAGE_DIR", "PORT"):
         monkeypatch.delenv(k, raising=False)
     for e in _render()["services"][0]["envVars"]:
         v = e.get("value")
         if "fromDatabase" in e:
-            v = "postgres://smart_exam_app:mk-do-render@dpg-abc123-a/smart_exam"        # dạng Render cấp (kiểm ở test dưới)
+            v = "postgres://smart_exam_app:mk-do-render@dpg-abc123-a/smart_exam"
         elif e.get("generateValue"):
             v = "r" * 43
         elif e.get("sync") is False:
@@ -473,7 +458,6 @@ def test_v8_moi_bien_render_qua_kiem_tra_production(monkeypatch):
 
 @pytest.mark.parametrize("url", ["postgres://u:p%40ss@dpg-abc123-a/db", "postgresql://u:p@dpg-abc.oregon-postgres.render.com:5432/db?sslmode=require", "postgres://u:p@host:5432/db"])
 def test_v8_database_url_postgres_scheme_psycopg_doc_duoc(url):
-    """libpq / psycopg chấp nhận cả `postgres://` lẫn `postgresql://` (Render cấp một trong hai) – không cần chuẩn hoá trong mã."""
     from psycopg.conninfo import conninfo_to_dict
     d = conninfo_to_dict(url)
     assert d["user"] == "u" and d["dbname"] == "db" and d["host"]
@@ -492,7 +476,6 @@ def test_v8_postgres_scheme_ket_noi_that(conn_thu):
 
 @pytest.mark.skipif(not (ROOT / "data" / "raw_heic" / "IMG_4223.HEIC").exists(), reason="thiếu ảnh HEIC thật (data/ không có trong git)")
 def test_v4_anh_heic_that_qua_kiem_noi_dung_va_duoc_cham(client):
-    """Ảnh iPhone THẬT (HEIC, 12 MP): qua kiem_anh, API nhận 201 và đọc đúng SBD (phiếu 0005); điểm chính thức sau duyệt đúng giấy = 34/40 → 8,5."""
     from decimal import Decimal
     from backend import demo
     f = ROOT / "data" / "raw_heic" / "IMG_4223.HEIC"

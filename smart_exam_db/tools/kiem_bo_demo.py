@@ -1,12 +1,3 @@
-"""
-kiem_bo_demo.py - Kiểm ĐỘC LẬP bộ demo bảo vệ (answer_sheet/demo_bv/): đáp án + kịch bản 10 phiếu BV01–BV10. CHỈ ĐỌC; không import cv_engine / backend.
-
-Kiểm: 4 mã đề đủ 40 ký tự A–D, mỗi kỳ thi 2 mã đề cùng môn / lớp / giáo viên; mỗi phiếu đủ q1..q40, ký hiệu hợp lệ ('-' trống, chữ hoa đậm,
-chữ thường mờ, nhiều chữ = nhiều ô); mã đề của phiếu thuộc đúng kỳ thi; SBD 220001–220005 thuộc E1, 220006–220010 thuộc E2;
-số câu đúng (đúng ⇔ tô đúng MỘT ô – đậm hay mờ – trùng đáp án) và điểm = đúng × 10 / 40 khớp cột so_cau_dung, diem_mong_doi.
-
-  python tools/kiem_bo_demo.py          # sai một điều -> in lỗi, mã thoát 1
-"""
 import csv
 import re
 import sys
@@ -31,7 +22,6 @@ def dung(nhan: str, dap_an: str) -> bool:
 
 
 def kiem(dap_an_rows: list[dict], kich_ban: list[dict]) -> tuple[list[str], list[dict]]:
-    """(danh sách lỗi, bảng tính lại từng phiếu)."""
     loi, ky_thi, ma_de = [], {}, {}
     for r in dap_an_rows:
         a = r["answers"]
@@ -66,7 +56,7 @@ def kiem(dap_an_rows: list[dict], kich_ban: list[dict]) -> tuple[list[str], list
             loi.append(f"{ma}: mã đề {p['exam_code']} không thuộc kỳ thi {p['exam']}")
             continue
         if len(md["answers"]) != SO_CAU:
-            continue                                         # đáp án mã đề hỏng đã báo ở trên – không tính điểm trên đáp án sai
+            continue
         if SBD_KY_THI.get(p["sbd"]) != p["exam"]:
             loi.append(f"{ma}: SBD {p['sbd']} không thuộc kỳ thi {p['exam']} theo quy ước (220001–220005 → E1, 220006–220010 → E2)")
         n = sum(dung(p[f"q{q}"], md["answers"][q - 1]) for q in range(1, SO_CAU + 1))

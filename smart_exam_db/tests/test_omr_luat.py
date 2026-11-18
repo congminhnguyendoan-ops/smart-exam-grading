@@ -1,7 +1,3 @@
-"""Kiểm thử luật ô -> câu / cột, mô hình JSON và API doc_phieu (Tuần 5, Phần A mốc A3).
-
-Ca hiếm không có trên ảnh thật (câu 3–4 ô, rõ + mờ cùng câu, cột bubble mờ / không tô, ô lưng chừng) kiểm bằng dữ liệu tạo
-ra: xác suất giả cho luật, và vết tô vẽ lên PNG mẫu phiếu trắng cho cả chuỗi doc_phieu."""
 import json
 from types import SimpleNamespace
 
@@ -41,14 +37,12 @@ def test_nhieu_o_ke_ca_3_4_o_va_ro_cong_mo(o, dap_an):
 
 
 def test_trong_chac_chan_khong_can_xem():
-    """★Q1: câu trống chắc chắn KHÔNG cần xem."""
     k = cau(TRONG, TRONG, TRONG, TRONG)
     assert (k.trang_thai, k.dap_an, k.can_xem) == ("trong", "", False)
 
 
 @pytest.mark.parametrize("lung", [(0.70, 0.29, 0.01), (0.55, 0.44, 0.01), (0.89, 0.10, 0.01)])
 def test_trong_co_o_sat_nguong_can_xem(lung):
-    """★Q1: câu trống mà có ô sát ngưỡng -> cần xem (đọc nhầm vết tô thành trống là lỗi nặng)."""
     k = cau(TRONG, lung, TRONG, TRONG)
     assert k.trang_thai == "trong" and k.dap_an == "" and k.can_xem and k.ly_do == ("tin_cay_thap",)
 
@@ -59,7 +53,7 @@ def test_o_to_lung_chung_ben_canh_o_ro():
 
 
 def test_ro_min_quyet_ro_hay_mo():
-    assert cau((0.0, 0.45, 0.55), TRONG, TRONG, TRONG).trang_thai == "mo"     # p(rõ | tô) 0,55 < 0,6
+    assert cau((0.0, 0.45, 0.55), TRONG, TRONG, TRONG).trang_thai == "mo"
     assert cau((0.0, 0.35, 0.65), TRONG, TRONG, TRONG).trang_thai == "ro"
 
 
@@ -95,14 +89,12 @@ def test_cot_nhieu_o():
 
 @pytest.mark.parametrize("p", [0.3, 0.45, 0.6])
 def test_cot_mo_lung_chung_can_xem(p):
-    """Bubble mờ (không có mẫu thật): xác suất lưng chừng -> cần xem, không bao giờ 'chắc chắn'."""
     k = cot(*([0.001] * 5 + [p] + [0.001] * 4))
     assert k.can_xem and "tin_cay_thap" in k.ly_do
     assert k.chu_so == ("5" if p >= 0.5 else "?")
 
 
 def test_cot_bubble_mo_theo_ld_anh():
-    """Luật an toàn bubble: xác suất cao (mô hình 2 lớp) nhưng ld_anh thấp (vết mờ) -> 'o_mo' cần xem."""
     P = np.column_stack([np.full(10, 0.999), np.full(10, 0.001)])
     P[4] = (0.2, 0.8)
     ld = np.zeros(10)
@@ -150,8 +142,6 @@ def _ve_o(anh, cx, cy, r, muc):
 
 
 def test_doc_phieu_tren_phieu_trang_ve_gia():
-    """Chuỗi đầy đủ trên phiếu trắng vẽ giả: câu 1 tô 3 ô (A, B, C) -> nhiều ô; câu 2 rõ + mờ -> nhiều ô; câu 3 tô rõ B;
-    mọi câu khác trống chắc; SBD cột 1 không tô -> '?', cột 2 tô mờ (xám nhạt) -> cần xem; mã đề 1-0-1."""
     L = nap_layout("phieu")
     anh = omr.nap_mau().copy()
     ans, r = L["answers"], L["answers"]["bubble_radius"]
@@ -161,7 +151,7 @@ def test_doc_phieu_tren_phieu_trang_ve_gia():
     _ve_o(anh, *ans["centers"]["2"]["D"], r, 175)
     _ve_o(anh, *ans["centers"]["3"]["B"], r, 30)
     sbd, ma = L["sbd"], L["exam_code"]
-    _ve_o(anh, *sbd["bubbles"][1][4], sbd["bubble_radius"], 200)                  # cột 2 mờ
+    _ve_o(anh, *sbd["bubbles"][1][4], sbd["bubble_radius"], 200)
     for i, d in enumerate([4, 5, 6, 7]):
         _ve_o(anh, *sbd["bubbles"][i + 2][d], sbd["bubble_radius"], 30)
     for i, d in enumerate([1, 0, 1]):
@@ -174,14 +164,13 @@ def test_doc_phieu_tren_phieu_trang_ve_gia():
     assert (c[3].trang_thai, c[3].dap_an, c[3].can_xem) == ("ro", "B", False)
     assert all(c[q].trang_thai == "trong" and not c[q].can_xem for q in range(4, 41))
     assert res.sbd_cot[0].chu_so == "?" and "khong_o_nao" in res.sbd_cot[0].ly_do
-    assert res.sbd_cot[1].can_xem                                                  # cột mờ không bao giờ chắc chắn
+    assert res.sbd_cot[1].can_xem
     assert res.sbd[2:] == "4567" and not any(k.can_xem for k in res.sbd_cot[2:])
     assert res.ma_de == "101" and not res.ma_de_can_xem
     assert res.can_xem and res.sbd_can_xem and len(res.cau) == 40
 
 
 def test_doc_phieu_anh_that_0001_C1():
-    """0001_C1 (train): SBD tô '06238-' (cột 6 không tô) -> '06238?' cần xem 'khong_o_nao'; mã đề 101."""
     can_file(ROOT / "data" / "raw" / "0001_C1.jpg")
     from cv_engine.preprocessing import preprocess
     L = nap_layout("phieu")
@@ -189,4 +178,4 @@ def test_doc_phieu_anh_that_0001_C1():
     assert res.sbd == "06238?" and res.sbd_cot[5].ly_do == ("khong_o_nao",)
     assert res.ma_de == "101" and not res.ma_de_can_xem
     assert res.nguon_anh == "anh_nan" and res.phien_ban_mo_hinh == "omr_m1"
-    assert json.dumps(res.dich_chuyen_mm)                                          # tuần tự hoá được cho backend
+    assert json.dumps(res.dich_chuyen_mm)
