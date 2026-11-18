@@ -51,7 +51,7 @@ def test_main_dung_khi_kiem_tra_khong_dat(monkeypatch, capsys):
 @pytest.mark.parametrize("che_do", C.CHE_DO)
 def test_huong_dan_8_den_10_dong_co_url(che_do):
     d = C.huong_dan(che_do, "http://127.0.0.1:1234/")
-    assert 8 <= len(d) <= 10
+    assert (6 if che_do == "xla" else 8) <= len(d) <= 10          # lệnh AY: hướng dẫn xla chỉ 6–7 dòng (đăng nhập, chọn kỳ, tải, BV01, điểm tạm, câu cần xem)
     assert any("http://127.0.0.1:1234/" in x for x in d)
     assert not any(re.search(r"mật khẩu *[:=] *\w{4,}", x, re.I) for x in d), "không được ghi mật khẩu thật"
 
@@ -66,7 +66,7 @@ def test_chi_in_khong_lam_gi_ngoai_in(che_do, monkeypatch, capsys):
     monkeypatch.setattr(C, "ThreadingHTTPServer", lambda *a, **k: pytest.fail("mở máy chủ"))
     assert C.main([che_do, "--chi-in"]) == 0
     out = capsys.readouterr().out
-    assert f"DEMO {che_do.upper()}" in out and len(re.findall(r"^\d\. ", out, re.M)) >= 8
+    assert f"DEMO {che_do.upper()}" in out and len(re.findall(r"^\d\. ", out, re.M)) >= (6 if che_do == "xla" else 8)
 
 
 # ------------------------------------------------------------------------------------------------ đặt lại đúng kỳ thi
@@ -79,7 +79,7 @@ def test_main_dat_lai_dung_ky_thi_cua_che_do(che_do, monkeypatch):
     monkeypatch.setattr(C, "chay_ml", lambda *a, **k: 0)
     monkeypatch.setattr(C, "chay_dacn", lambda *a, **k: 0)
     assert C.main([che_do, "--khong-mo"]) == 0
-    assert goi == [che_do]
+    assert goi == [C.KY_THI_CUA[che_do]]
 
 
 def test_dacn_dung_neu_khong_dat_lai_duoc_con_xla_ml_chay_tiep(monkeypatch, capsys):
@@ -87,7 +87,8 @@ def test_dacn_dung_neu_khong_dat_lai_duoc_con_xla_ml_chay_tiep(monkeypatch, caps
     monkeypatch.setattr(C, "dat_lai", lambda *a, **k: False)
     monkeypatch.setattr(C, "chay_xla", lambda *a, **k: 0)
     monkeypatch.setattr(C, "chay_dacn", lambda *a, **k: pytest.fail("dacn không được chạy khi chưa đặt lại được"))
-    assert C.main(["xla", "--khong-mo"]) == 0
+    assert C.main(["xla-cong-cu", "--khong-mo"]) == 0
+    assert C.main(["ml", "--khong-mo"]) == 0
     assert C.main(["dacn", "--khong-mo"]) == 1
 
 
@@ -253,3 +254,76 @@ def test_ly_thuyet_cac_mon_co_giai_dinh_va_7_mon_va_khong_bia_so():
     assert "http://" not in h and "https://" not in h
     h2 = T.dung_trang({"so_duong_dan_api": 60, "so_bang": 23, "so_view": 8})
     assert "60 cặp" in h2 and "23 bảng" in h2
+
+
+# ------------------------------------------------------------------------------------------------ lệnh AY: xla = hệ thống thật, xla-cong-cu = công cụ cũ
+def test_ay_xla_chay_he_thong_that_khong_phai_cong_cu_8765(monkeypatch):
+    goi = {}
+    monkeypatch.setattr(C, "kiem_truoc", lambda: KIEM_GOC("main", C.SHA_MO_HINH_OCR))
+    monkeypatch.setattr(C, "dat_lai", lambda cd, *a, **k: goi.setdefault("dat_lai", []).append(cd) or True)
+    monkeypatch.setattr(C, "chay_xla", lambda *a, **k: pytest.fail("xla không được chạy công cụ ngoại tuyến"))
+    monkeypatch.setattr(C, "chay_ml", lambda *a, **k: pytest.fail("không được chạy ml"))
+    monkeypatch.setattr(C, "chay_dacn", lambda cong, mo, **k: goi.update(cong=cong, mo=mo, **k) or 0)
+    assert C.main(["xla", "--khong-mo"]) == 0
+    assert goi == {"dat_lai": ["xla"], "cong": 8000, "mo": False, "che_do": "xla"}            # chỉ đặt lại kỳ [XLA]; không [ĐACN] / [ML]
+    goi.clear()
+    assert C.main(["xla", "--khong-mo", "--cong", "8010"]) == 0 and goi["cong"] == 8010
+
+
+def test_ay_xla_dung_neu_khong_dat_lai_duoc(monkeypatch, capsys):
+    monkeypatch.setattr(C, "kiem_truoc", lambda: KIEM_GOC("main", C.SHA_MO_HINH_OCR))
+    monkeypatch.setattr(C, "dat_lai", lambda *a, **k: False)
+    monkeypatch.setattr(C, "chay_dacn", lambda *a, **k: pytest.fail("xla không được chạy khi chưa đặt lại được"))
+    assert C.main(["xla", "--khong-mo"]) == 1
+    assert "xla" in capsys.readouterr().out
+
+
+def test_ay_xla_khong_dat_lai_khi_co_khong_dat_lai(monkeypatch):
+    monkeypatch.setattr(C, "kiem_truoc", lambda: KIEM_GOC("main", C.SHA_MO_HINH_OCR))
+    monkeypatch.setattr(C, "dat_lai", lambda *a, **k: pytest.fail("không được đặt lại"))
+    monkeypatch.setattr(C, "chay_dacn", lambda *a, **k: 0)
+    assert C.main(["xla", "--khong-dat-lai", "--khong-mo"]) == 0
+
+
+def test_ay_chi_in_xla_chi_chua_6_viec_va_khong_nhac_dacn_ml(capsys, monkeypatch):
+    monkeypatch.setattr(C, "kiem_truoc", lambda: KIEM_GOC("main", C.SHA_MO_HINH_OCR))
+    assert C.main(["xla", "--chi-in"]) == 0
+    out = capsys.readouterr().out
+    assert "http://127.0.0.1:8000/app/" in out and "8765" not in out
+    for muc in ("ĐĂNG NHẬP", "[XLA] Xử lý ảnh", "Tải ảnh & chấm", "BV01", "ĐIỂM TẠM", "cần xem"):
+        assert muc in out, muc
+    assert "[ĐACN]" not in out and "[ML]" not in out
+
+
+def test_ay_chay_dacn_che_do_xla_mo_app_mot_tab_khong_dung_ly_thuyet(monkeypatch, tmp_path):
+    monkeypatch.setattr(C, "RA", tmp_path)
+    monkeypatch.setattr(C, "dung_ly_thuyet", lambda: pytest.fail("xla không dựng trang lý thuyết"))
+
+    class P:
+        def wait(self):
+            raise KeyboardInterrupt
+
+        def terminate(self):
+            pass
+    san_sang = iter([False, True])
+    monkeypatch.setattr(C, "may_chu_dang_chay", lambda *a, **k: next(san_sang))
+    mo = []
+    assert C.chay_dacn(8000, True, mo_trinh_duyet=mo.append, mo_tien_trinh=lambda *a, **k: P(), cho_s=1, che_do="xla") == 0
+    assert mo == ["http://127.0.0.1:8000/app/"]
+
+
+def test_ay_xla_cong_cu_con_ton_tai_cong_8765(monkeypatch):
+    assert "xla-cong-cu" in C.CHE_DO and C.CONG_XLA == 8765 and callable(C.chay_xla)
+    goi = {}
+    monkeypatch.setattr(C, "kiem_truoc", lambda: KIEM_GOC("main", C.SHA_MO_HINH_OCR))
+    monkeypatch.setattr(C, "dat_lai", lambda cd, *a, **k: True)
+    monkeypatch.setattr(C, "chay_xla", lambda cong, mo, *a, **k: goi.update(cong=cong) or 0)
+    monkeypatch.setattr(C, "chay_dacn", lambda *a, **k: pytest.fail("xla-cong-cu không chạy hệ thống thật"))
+    assert C.main(["xla-cong-cu", "--khong-mo"]) == 0 and goi == {"cong": 8765}
+
+
+def test_ay_chi_in_xla_cong_cu_giu_huong_dan_cu(capsys, monkeypatch):
+    monkeypatch.setattr(C, "kiem_truoc", lambda: KIEM_GOC("main", C.SHA_MO_HINH_OCR))
+    assert C.main(["xla-cong-cu", "--chi-in"]) == 0
+    out = capsys.readouterr().out
+    assert "http://127.0.0.1:8765/" in out and "ngoại tuyến" in out
