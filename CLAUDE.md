@@ -510,6 +510,13 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - Sau gộp: pytest **713 đạt + 1 skip** (cần `Remove-Item Env:PUBLIC_BASE_URL`); `kiem_truoc_demo` 27 đạt, 1 cảnh báo (`PUBLIC_BASE_URL`), 0 KHÔNG ĐẠT; `chay_demo dacn --chi-in` đạt.
 - Phần 2 (nạp dữ liệu demo cho DB công khai) làm trên nhánh `nap-demo-cong-khai`, tiêu chí W1–W7 ở `docs/tieu_chi_trien_khai.md` mục AW; CHƯA gộp `main`. Kết quả: `tools/nap_demo_cong_khai.py --admin QT --giao-vien GV1 GV2 [--xac-nhan NAP_DEMO_CONG_KHAI]` (mặc định xem trước; chỉ INSERT; tên cấm admin / gv_an / gv_binh / sv220001; mật khẩu 20 ký tự in một lần); 10 sinh viên GIẢ lấy từ `04_seed.sql`; đặt lại bằng `dat_lai_demo.py --ky-thi` (+ `SAO_LUU_DIR` trong container, MỚI). pytest 729 đạt + 1 skip. CHƯA thử trong container Docker thật, CHƯA nạp vào CSDL công khai thật.
 
+### 4x. Nạp dữ liệu demo cho CSDL công khai (18/11/2026; đã gộp `main`, tag `main-truoc-gop-nap-demo-18-11` = trước gộp)
+- `python tools/nap_demo_cong_khai.py --admin QT --giao-vien GV1 GV2 [--xac-nhan NAP_DEMO_CONG_KHAI]` (trong container: `docker compose run --rm --no-deps app python tools/nap_demo_cong_khai.py …`). Chạy SAU `khoi_tao_db_san_xuat`, TRƯỚC khi bật app. Mặc định XEM TRƯỚC (chỉ đọc, in host + tên CSDL, không in người dùng / mật khẩu); ghi cần đúng `--xac-nhan`.
+- Nạp (chỉ INSERT, chạy lại không trùng): lớp CNTT-K22A / K22B, 10 sinh viên GIẢ (220001–220010, lấy từ `04_seed.sql`), 3 kỳ thi `[XLA]` / `[ML]` / `[ĐACN]` (0 phiếu), admin + 2 giáo viên. Tên cấm: admin, gv_an, gv_binh, sv220001. Không tài khoản sinh viên, không ảnh, không đọc `data/`.
+- **Mật khẩu (20 ký tự) của tài khoản MỚI chỉ in MỘT lần** ra màn hình; không lưu ở đâu. Tài khoản đã có: giữ nguyên mật khẩu, không in. Dùng `run --rm`, không chạy nền (tránh nằm lại trong log container).
+- Đặt lại giữa các buổi: `dat_lai_demo.py --ky-thi xla|ml|dacn [--xac-nhan DAT_LAI]`; trong container cần `-e SAO_LUU_DIR=/app/storage/sao_luu` (biến mới của `don_du_lieu_test.py`, mặc định không đổi). `tools/nap_demo_cong_khai.py`, `dat_lai_demo.py`, `don_du_lieu_test.py` được `.dockerignore` cho phép vào image.
+- pytest 729 đạt + 1 skip. **CHƯA thử trong container Docker** (engine không chạy 18/11), chưa nạp vào CSDL công khai thật; ảnh BV01–BV10 không nằm trong image / git. Chi tiết: `docs/trien_khai_public.md` mục 2 (bước 4b) và 9b.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
