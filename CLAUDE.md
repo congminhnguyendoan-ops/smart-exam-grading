@@ -856,7 +856,8 @@ In phiếu: **Scale = None / Actual size, Zoom 100%**, 1 mặt, trắng đen. Ph
 - Không bao giờ chạy `run_all.bat`/`run_all.sh` hoặc bất kỳ lệnh ghi/xoá dữ liệu PostgreSQL
   (DROP, DELETE, TRUNCATE, UPDATE, ALTER) khi chưa hỏi người dùng. Sau khi reset DB phải chạy lại
   `answer_sheet/output/update_template.sql`.
-- Dùng `pathlib`, đọc/ghi UTF-8 (Windows). Thông báo in ra màn hình và comment bằng **tiếng Việt**.
+- Dùng `pathlib`, đọc/ghi UTF-8 (Windows). Thông báo in ra màn hình bằng **tiếng Việt**.
+- Mã Python không còn chú thích và docstring (đã xóa ở lệnh AZ, tag `ban-truoc-xoa-chu-thich-18-11` giữ bản có chú thích). Ngoại lệ: shebang, dòng mã hóa, chỉ thị noqa/type/pragma/fmt/pylint/isort, docstring đầu tệp CLI dùng cho --help, và các tệp khung đóng băng (`cv_engine/`, `backend/service.py`, `backend/schemas.py`, 4 tệp `tools/` nêu ở mục 4z). Giải thích thiết kế nằm ở CLAUDE.md và `docs/`.
 - Nhãn lớp: `blank` / `filled` / `faint` (cấp ô); `blank` / đáp án / `multiple` (cấp câu).
 - Mỗi con số đưa vào báo cáo phải tái tạo được bằng script.
 - Khi `HUONG_DAN.md` (viết trước) khác CLAUDE.md thì **theo CLAUDE.md**.
