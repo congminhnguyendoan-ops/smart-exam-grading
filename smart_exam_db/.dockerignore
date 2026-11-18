@@ -21,6 +21,10 @@ docs/
 # công cụ + tài liệu không cần khi chạy – chỉ giữ tệp khởi tạo CSDL sản xuất
 tools/*
 !tools/khoi_tao_db_san_xuat.py
+# nạp / đặt lại dữ liệu demo công khai (Lệnh AW) – cần trong image để chạy bằng `docker compose run`
+!tools/nap_demo_cong_khai.py
+!tools/dat_lai_demo.py
+!tools/don_du_lieu_test.py
 # phiếu PDF / nhãn / bộ demo / đợt 2: không cần khi chạy (giữ layout.json, phieu_trang_300dpi.*, digit_sheet_layout.json, fonts, sheet_layout.py)
 answer_sheet/demo_bv/
 answer_sheet/dot2/
