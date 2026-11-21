@@ -29,7 +29,7 @@ Kiểm kịch bản: `python tools/kiem_bo_demo.py` (khớp 10/10). Nạp lại:
 | 2 | Đăng nhập `gv_an` | thanh bên: tên GV; ô **Kỳ thi** hiện đủ tên "Giữa kỳ Cơ sở dữ liệu – K22A [DEMO-BV]" + "Môn … · lớp CNTT-K22A"; KHÔNG thấy kỳ thi K22B |
 | 3 | **Lớp của tôi** → CNTT-K22A | danh sách sinh viên lớp mình (có ô tìm) |
 | 4 | **Tải ảnh & chấm**: BV01 → BV05 | mỗi phiếu: điểm tạm + số câu cần xem (bảng mục 4) |
-| 5 | **Hàng đợi duyệt**: BV02 câu 6 (tô A+C) | lý do "nhiều ô": câu tô hai ô bị tính SAI sau khi GV xác nhận; ô mờ → GV chọn đáp án |
+| 5 | **Hàng đợi duyệt**: BV02 câu 6 (tô A+C) | (lệnh BA, 21/11/2026) câu tô hai ô **tự chấm SAI ngay**, không còn chặn điểm: hiện ở mục riêng "Đã chấm tự động – cần xem lại" (GV "Giữ như máy chấm" hoặc chọn lại đáp án thật, điểm tính lại + ghi vết); ô mờ vẫn là câu chờ → GV chọn đáp án |
 | 6 | **Bảng điểm** + **Xuất Excel** | cột Điểm chỉ có điểm chính thức; Excel có "Môn: IT3080 – Cơ sở dữ liệu" (A4), "Lớp: CNTT-K22A – …" (F4); BV04 5,5 đạt sát ngưỡng, BV05 4,25 không đạt |
 | 7 | Đăng xuất → đăng nhập `gv_binh` | chỉ thấy E2; gõ tay `#/…` hay gọi `GET /exams/1380` → 404 như không tồn tại |
 | 8 | Tải BV06, BV08, BV09 | như bước 4 |
@@ -40,16 +40,17 @@ Kiểm kịch bản: `python tools/kiem_bo_demo.py` (khớp 10/10). Nạp lại:
 | Phiếu | SBD | Kỳ thi / mã đề | Điểm tạm lúc tải | Câu cần xem (lý do) | Sau khi GV duyệt đúng giấy | Mong đợi |
 |---|---|---|---|---|---|---|
 | BV01 | 220001 | E1/101 | 9,0 | 2: 10, 40 (`o_mo`) | chính thức 9,5 | 9,5 |
-| BV02 | 220002 | E1/102 | 7,75 | 3: 6, 24, 40 (`nhieu_o`, `o_mo`) | chính thức 8,25 | 8,25 |
-| BV03 | 220003 | E1/101 | 6,25 | 3: 1, 30, 33 (`nhieu_o`, `o_mo`) | chính thức 6,75 | 6,75 |
+| BV02 | 220002 | E1/102 | 7,75 | 2: 24, 40 (`o_mo`); câu 6 `nhieu_o` tự chấm sai | chính thức 8,25 | 8,25 |
+| BV03 | 220003 | E1/101 | 6,25 | 2: 1, 33 (`o_mo`); câu `nhieu_o` tự chấm sai | chính thức 6,75 | 6,75 |
 | BV04 | 220004 | E1/102 | 5,0 | 2: 10, 32 (`o_mo`) | chính thức 5,5 | 5,5 |
-| BV05 | 220005 | E1/101 | 3,75 | 3: 6, 10, 12 (`nhieu_o`, `o_mo`) | chính thức 4,25 | 4,25 |
+| BV05 | 220005 | E1/101 | 3,75 | 2: 10, 12 (`o_mo`); câu 6 `nhieu_o` tự chấm sai | chính thức 4,25 | 4,25 |
 | BV06 | 220006 | E2/103 | 8,5 | 2: 10, 26 (`o_mo`) | chính thức 9,0 | 9,0 |
 | BV07 | 220007 | E2/104 | 0,0 | 40 (`to_nhat`) | chính thức 7,5 | 7,5 |
 | BV08 | 220008 | E2/103 | 5,5 | 2: 29, 38 (`o_mo`) | chính thức 6,0 | 6,0 |
 | BV09 | 220009 | E2/104 | 2,75 | 2: 8, 29 (`o_mo`) | chính thức 3,25 | 3,25 |
 | BV10 | 220010 | E2/103 | 7,25 | 2: 5, 31 (`o_mo`); SBD `o_trong_ngoai_ds` | KHÔNG ghi điểm, chờ `sbd_not_found` (tạm 7,75) | không ghi điểm |
-Khớp 10/10; 0 câu chấm sai mà không gắn cần xem. Câu tô hai ô: GV xác nhận đúng giấy → câu đó SAI (đúng ⇔ tô đúng MỘT ô).
+Khớp 10/10 (đo lại 21/11/2026 sau lệnh BA); 0 câu chấm sai mà không gắn cần xem hoặc "tự chấm – cần xem lại". Câu tô hai ô: máy tính SAI ngay (đúng ⇔ tô đúng MỘT ô); GV giữ như máy chấm hoặc chọn lại theo giấy.
+Ở bảng này "Điểm tạm lúc tải" không đổi (câu nhiều ô vốn không được cộng điểm); phiếu chỉ có câu nhiều ô nay ra điểm chính thức ngay kèm cảnh báo "còn N câu tô nhiều ô đã chấm sai, chờ xem lại".
 
 ## 5. Khác biệt khi dùng ẢNH THẬT (nói trước với hội đồng nếu xảy ra)
 - Ảnh giả hoá vẽ phẳng, **không có chữ viết tay**: SBD / mã đề "chắc" chỉ nhờ có trong danh sách. Với ảnh thật, CNN chữ số đọc từng ô viết tay; trên dev

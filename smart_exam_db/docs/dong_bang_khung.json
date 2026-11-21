@@ -1,0 +1,37 @@
+{
+ "ghi_chu": "Sổ băm tệp khung đóng băng của test_ar_dong_thoi. Test so với bản ghi CUỐI; bản ghi cũ giữ làm lịch sử. docs/dong_bang_ma_dot2.json (tag dang-ky-dot2) KHÔNG sửa.",
+ "ban_ghi": [
+  {
+   "ngay": "2026-11-16",
+   "lenh": "AR",
+   "commit": null,
+   "ly_do": "Mốc ban đầu của test_r1_tep_dong_bang_khong_bi_cham (sau AN/AR); chép từ hằng số cũ trong tests/test_ar_dong_thoi.py",
+   "sha256": {
+    "backend/service.py": "2537b4f51a00a167c1c2d9d45e9ff29fcd9e149d8a3e6260b4ce6dd875847f8e",
+    "backend/schemas.py": "05310795f5646007320a3dd1795ffb971eea5e45cd4bf882115e7dcb84cd231d",
+    "models/ocr_cnn.json": "a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8",
+    "models/omr_m1.json": "507ecc7b4f885e148c1a896884f8a285ea4e308de4477e47f870bebf7c059797",
+    "cv_engine/ocr.py": "e9b3e00fc0917341756441d5aecc39abc14a85861b35844e6506cae33a26b4be",
+    "cv_engine/omr.py": "e0111fc1909af598f7df882b40bda9bb8d509e2c25c2423ea0e15963786c1912",
+    "cv_engine/preprocessing.py": "0d35c26ae716778d11ec69382da5c1dff70e5a88b455ae8946091393d618f237",
+    "cv_engine/tap_du_lieu.py": "3f030b71ece0b3117db0465c2ebbe3cf1948911140deb002f20a333d37fd9f01"
+   }
+  },
+  {
+   "ngay": "2026-11-21",
+   "lenh": "BA",
+   "commit": "DIEN_SAU",
+   "ly_do": "Câu tô nhiều ô thuần tự chấm sai (service.nhan_anh không còn gắn needs_review; thêm xem_lai_cau_tu_cham, ghi_dap_an_va_cham_lai, giu_nhu_may_cham, cau_tu_cham_can_xem; xem_phieu/ds_phieu thêm tu_cham_can_xem / auto_graded_pending); schemas.py thêm trường CauOut.tu_cham_can_xem, Diem.auto_graded_pending, PhieuTomTat / TaiAnhOut.auto_graded_pending, DongBangDiem / TongBangDiem trường cảnh báo",
+   "sha256": {
+    "backend/service.py": "0499388e4ed7098d0af00c01fc0e91e7fb103a5fb2a77bc5641f5fcb9616625f",
+    "backend/schemas.py": "3da300d22db2bbca2302cf389d46d5d1e4145332c3fa4a995c685d9c968812f8",
+    "models/ocr_cnn.json": "a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8",
+    "models/omr_m1.json": "507ecc7b4f885e148c1a896884f8a285ea4e308de4477e47f870bebf7c059797",
+    "cv_engine/ocr.py": "e9b3e00fc0917341756441d5aecc39abc14a85861b35844e6506cae33a26b4be",
+    "cv_engine/omr.py": "e0111fc1909af598f7df882b40bda9bb8d509e2c25c2423ea0e15963786c1912",
+    "cv_engine/preprocessing.py": "0d35c26ae716778d11ec69382da5c1dff70e5a88b455ae8946091393d618f237",
+    "cv_engine/tap_du_lieu.py": "3f030b71ece0b3117db0465c2ebbe3cf1948911140deb002f20a333d37fd9f01"
+   }
+  }
+ ]
+}

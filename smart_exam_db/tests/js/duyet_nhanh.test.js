@@ -8,7 +8,7 @@ const { DuyetNhanh: D } = require(path.join(__dirname, "..", "..", "frontend", "
 const Q = [
   { question_no: 3, needs_review: true, reasons: ["o_mo"], omr_selected_options: "D" },
   { question_no: 5, needs_review: false, reasons: [], omr_selected_options: "A" },
-  { question_no: 7, needs_review: true, reasons: ["nhieu_o"], omr_selected_options: "AB" },
+  { question_no: 7, needs_review: true, reasons: ["nhieu_o", "to_nhat"], omr_selected_options: "AB" },
   { question_no: 9, needs_review: true, reasons: ["vi_tri", "o_mo"], omr_selected_options: "C" },
   { question_no: 12, needs_review: true, reasons: ["vet_nho", "tin_cay_thap"], omr_selected_options: "" },
 ];
@@ -61,7 +61,7 @@ test("hàng loạt không có SBD / mã đề: chỉ đọc mảng questions, ph
 test("hộp xác nhận: mỗi câu một dòng – số câu, máy đọc, dấu hiệu", () => {
   const dong = D.dongXacNhan(D.cauHangLoat(Q).duoc);
   assert.equal(dong.length, 1);                                                         // AF2: chỉ câu 7 (nhiều ô)
-  assert.equal(dong[0], "Câu 7: máy đọc AB – nhiều ô");
+  assert.equal(dong[0], "Câu 7: máy đọc AB – nhiều ô, cả tờ tô nhạt");
   assert.equal(D.dongXacNhan([{ question_no: 12, omr: "", reasons: ["vet_nho", "tin_cay_thap"] }])[0],
     "Câu 12: máy đọc bỏ trống – vết nhỏ ở ô khác, sát ngưỡng");                           // định dạng dòng (AF) giữ nguyên
 });
@@ -69,7 +69,7 @@ test("hộp xác nhận: mỗi câu một dòng – số câu, máy đọc, dấ
 test("nhãn câu: máy đọc + dấu hiệu + mức", () => {
   const n7 = D.nhanCau(Q[2]);
   assert.equal(n7.may_doc, "AB");
-  assert.equal(n7.dau_hieu, "nhiều ô");
+  assert.equal(n7.dau_hieu, "nhiều ô, cả tờ tô nhạt");
   assert.equal(n7.muc, "nhieu");
   assert.match(n7.goi_y, /tô 2 ô thì câu tính SAI/);
   assert.equal(D.nhanCau(Q[0]).muc, "mo");

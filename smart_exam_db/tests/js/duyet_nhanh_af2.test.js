@@ -9,8 +9,8 @@ const cau = (n, reasons, omr = "A", needs_review = true) => ({ question_no: n, r
 
 test("hợp lệ hàng loạt: MỌI lý do thuộc {nhieu_o, to_nhat} – cùng điều kiện máy chủ", () => {
   assert.deepEqual(D.LY_DO_HANG_LOAT, ["nhieu_o", "to_nhat"]);
-  for (const ly of [["nhieu_o"], ["to_nhat"], ["nhieu_o", "to_nhat"]]) assert.ok(D.hopLeHangLoat(cau(1, ly)), ly.join("+"));
-  for (const ly of [[], ["o_mo"], ["vet_nho"], ["tin_cay_thap"], ["vi_tri"], ["nhieu_o", "o_mo"], ["to_nhat", "vet_nho"], ["nhieu_o", "vi_tri"]])
+  for (const ly of [["to_nhat"], ["nhieu_o", "to_nhat"]]) assert.ok(D.hopLeHangLoat(cau(1, ly)), ly.join("+"));
+  for (const ly of [["nhieu_o"], [], ["o_mo"], ["vet_nho"], ["tin_cay_thap"], ["vi_tri"], ["nhieu_o", "o_mo"], ["to_nhat", "vet_nho"], ["nhieu_o", "vi_tri"]])
     assert.ok(!D.hopLeHangLoat(cau(1, ly)), ly.join("+") || "(rỗng)");
   assert.ok(!D.hopLeHangLoat(cau(1, ["nhieu_o"], "AB", false)), "câu không còn cờ");
 });
@@ -19,10 +19,10 @@ test("nhãn nút: đếm đúng câu hợp lệ; 0 câu -> ẩn nút (null)", ()
   const q = [cau(1, ["nhieu_o"], "AB"), cau(2, ["o_mo"]), cau(3, ["to_nhat"], "C"), cau(4, ["vet_nho"], ""), cau(5, ["nhieu_o", "to_nhat"], "BD"),
     cau(6, ["tin_cay_thap"]), cau(7, ["nhieu_o"], "AC", false)];
   const { duoc, tay } = D.cauHangLoat(q);
-  assert.deepEqual(duoc.map((c) => c.question_no), [1, 3, 5]);
-  assert.deepEqual(tay, [2, 4, 6]);
-  assert.equal(D.nhanNutHangLoat(duoc.length), "Xác nhận 3 câu nhiều ô / tô nhạt như máy đọc…");
-  assert.equal(D.nhanNutHangLoat(1), "Xác nhận 1 câu nhiều ô / tô nhạt như máy đọc…");
+  assert.deepEqual(duoc.map((c) => c.question_no), [3, 5]);
+  assert.deepEqual(tay, [1, 2, 4, 6]);
+  assert.equal(D.nhanNutHangLoat(duoc.length), "Xác nhận 2 câu tô nhạt cả tờ như máy đọc…");
+  assert.equal(D.nhanNutHangLoat(1), "Xác nhận 1 câu tô nhạt cả tờ như máy đọc…");
   assert.equal(D.nhanNutHangLoat(0), null);
   assert.equal(D.nhanNutHangLoat(D.cauHangLoat([cau(2, ["o_mo"]), cau(4, ["vet_nho"])]).duoc.length), null);   // phiếu chỉ có mờ / vết -> ẩn
   assert.equal(D.nhanNutHangLoat(D.cauHangLoat([]).duoc.length), null);

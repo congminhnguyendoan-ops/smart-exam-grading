@@ -35,7 +35,8 @@ def test_bang_diem_du_bon_trang_thai(client, conn_thu):
     assert d["795125"]["status"] == "pending" and d["795125"]["score"] is None and d["795125"]["num_correct"] is None
     assert d["795125"]["provisional_score"] is not None and d["795125"]["pending_questions"] > 0 and d["795125"]["sheet_id"] == s2
     assert d["111111"]["status"] == "no_sheet" and d["062384"]["status"] == "no_sheet"
-    assert b["counts"] == {"official": 0, "pending": 1, "no_sheet": 2, "rejected": 1, "unmatched_review": 1, "students": 3, "students_duplicate_pending": 0}
+    assert b["counts"] == {"official": 0, "pending": 1, "no_sheet": 2, "rejected": 1, "unmatched_review": 1, "students": 3, "students_duplicate_pending": 0,
+                          "auto_graded_pending_questions": 0, "students_auto_graded_pending": 0}
     kh = {p["status"]: p for p in b["unmatched"]}
     assert set(kh) == {"needs_review", "rejected"} and kh["needs_review"]["detected_sbd"] == "06238?" and kh["rejected"]["reject_code"] == "thieu_marker"
     giai_quyet_het(client, s2)

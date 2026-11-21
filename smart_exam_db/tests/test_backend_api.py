@@ -340,7 +340,7 @@ def test_phieu_sach_tu_chot_auto_va_doi_chieu_csdl(client, conn_thu, monkeypatch
     assert client.post(f"/sheets/{t['sheet_id']}/questions/1/review", json={"action": "confirm"}).status_code == 409
 
 
-@pytest.mark.parametrize("loai", ["mo", "nhieu"])
+@pytest.mark.parametrize("loai", ["mo"])
 def test_mot_cau_can_xem_la_khong_tu_chot(client, monkeypatch, loai):
     can_anh("0002_C2")
     eid = tao_de(client)
