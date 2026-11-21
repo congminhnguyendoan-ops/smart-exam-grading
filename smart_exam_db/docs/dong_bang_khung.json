@@ -48,6 +48,22 @@
     "cv_engine/preprocessing.py": "0d35c26ae716778d11ec69382da5c1dff70e5a88b455ae8946091393d618f237",
     "cv_engine/tap_du_lieu.py": "3f030b71ece0b3117db0465c2ebbe3cf1948911140deb002f20a333d37fd9f01"
    }
+  },
+  {
+   "ngay": "2026-11-21",
+   "lenh": "BD",
+   "commit": "5739241",
+   "ly_do": "Câu bị tính sai: service.xem_phieu trả questions[].correct_option (chỉ đọc, đáp án theo mã đề của phiếu; không đổi cách tính điểm); schemas.py thêm CauOut.correct_option",
+   "sha256": {
+    "backend/service.py": "2683732fea131055c9320ac8d0ddc91ff5ba81fbc11141be94a26a35b3b285fe",
+    "backend/schemas.py": "749406595de0d0a6fc8639be5f0810f47d5c64707435eb75cae9f1c77fdadffa",
+    "models/ocr_cnn.json": "a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8",
+    "models/omr_m1.json": "507ecc7b4f885e148c1a896884f8a285ea4e308de4477e47f870bebf7c059797",
+    "cv_engine/ocr.py": "e9b3e00fc0917341756441d5aecc39abc14a85861b35844e6506cae33a26b4be",
+    "cv_engine/omr.py": "e0111fc1909af598f7df882b40bda9bb8d509e2c25c2423ea0e15963786c1912",
+    "cv_engine/preprocessing.py": "0d35c26ae716778d11ec69382da5c1dff70e5a88b455ae8946091393d618f237",
+    "cv_engine/tap_du_lieu.py": "3f030b71ece0b3117db0465c2ebbe3cf1948911140deb002f20a333d37fd9f01"
+   }
   }
  ]
 }

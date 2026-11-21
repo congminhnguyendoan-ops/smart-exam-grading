@@ -294,6 +294,7 @@ class CauOut(BaseModel):
     confidence: float | None
     tu_cham_can_xem: bool = Field(default=False, description="Đã chấm tự động (nhiều ô = sai), giáo viên chưa xem lại")
     da_xem: bool = Field(default=False, description="Giáo viên đã xem / chốt câu này (có thể hoàn tác)")
+    correct_option: str | None = Field(default=None, description="Đáp án đúng theo mã đề của phiếu (None = chưa biết mã đề)")
 
 
 class PhieuOut(BaseModel):

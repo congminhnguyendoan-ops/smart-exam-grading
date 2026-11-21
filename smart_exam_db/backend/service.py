@@ -683,9 +683,10 @@ def xem_phieu(conn, sheet_id: int) -> dict:
     ex = conn.execute("SELECT * FROM exams WHERE exam_id = %s", (sh["exam_id"],)).fetchone()
     rows = conn.execute("SELECT * FROM sheet_answers WHERE sheet_id = %s ORDER BY question_no", (sheet_id,)).fetchall()
     kq = None
+    dap_an_ma = {}
     if sh["exam_code_id"]:
-        kq = grading.cham_diem(rows, _dap_an(conn, sh["exam_code_id"], ex["num_questions"]),
-                               Decimal(ex["max_score"]) / Decimal(ex["num_questions"]))
+        dap_an_ma = _dap_an(conn, sh["exam_code_id"], ex["num_questions"])
+        kq = grading.cham_diem(rows, dap_an_ma, Decimal(ex["max_score"]) / Decimal(ex["num_questions"]))
     res = conn.execute("SELECT result_id, score, num_correct, status FROM results WHERE sheet_id = %s AND status <> 'void'",
                        (sheet_id,)).fetchone()
     sv = conn.execute("SELECT student_id, student_code, full_name FROM students WHERE student_id = %s",
@@ -736,7 +737,8 @@ def xem_phieu(conn, sheet_id: int) -> dict:
                        "needs_review": r["needs_review"], "reasons": r["review_reasons"], "is_correct": r["is_correct"],
                        "manually_edited": r["manually_edited"], "omr_selected_options": r["omr_selected_options"],
                        "confidence": r["confidence"], "tu_cham_can_xem": _tu_cham_can_xem(r),
-                       "da_xem": r["reviewed_at"] is not None} for r in rows],
+                       "da_xem": r["reviewed_at"] is not None,
+                       "correct_option": (dap_an_ma.get(r["question_no"]) or (None,))[0]} for r in rows],
         "image_deleted_at": anh_da_xoa_luc(conn, sheet_id),
     }
 

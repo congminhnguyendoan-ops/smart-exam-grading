@@ -43,14 +43,15 @@
 
   /** Nhãn của một câu cần xem: máy đọc gì + dấu hiệu nào. muc: "nhieu" (máy đọc rõ ≥ 2 ô – nếu đúng thì câu tính SAI), "mo" (dấu mờ – người
       quyết có chọn không), "vet" (có vết nhỏ ở ô khác), "nhat" (cả tờ tô nhạt), "tay" (phải chọn tay), "khac". */
-  const TEN_DAU_HIEU = { nhieu_o: "nhiều ô", o_mo: "ô mờ", vet_nho: "vết nhỏ ở ô khác", to_nhat: "cả tờ tô nhạt", tin_cay_thap: "sát ngưỡng", vi_tri: "chưa chắc vị trí hàng" };
+  const lyDoCau = () => (typeof LyDoCau !== "undefined" ? LyDoCau : require("./ly_do_cau.js").LyDoCau);
+  const TEN_DAU_HIEU = { nhieu_o: "nhiều ô", o_mo: "ô chưa chắc đã tô đặc", vet_nho: "vết nhỏ ở ô khác", to_nhat: "cả tờ tô nhạt", tin_cay_thap: "sát ngưỡng", vi_tri: "chưa chắc vị trí hàng" };
   function nhanCau(q) {
     const ly = q.reasons || [];
     const doc = q.omr_selected_options || "";
     const muc = ly.includes("vi_tri") ? "tay" : ly.includes("nhieu_o") ? "nhieu" : ly.includes("o_mo") ? "mo"
       : ly.includes("vet_nho") ? "vet" : ly.includes("to_nhat") ? "nhat" : "khac";
     const goiY = muc === "nhieu" ? `Có dấu hiệu khác ngoài nhiều ô: nếu thí sinh thật sự tô ${doc.length} ô thì câu tính SAI – xác nhận như máy đọc.`
-      : muc === "mo" ? "Dấu mờ: nhìn ảnh xem là ý chọn hay vết tẩy." : muc === "vet" ? "Có vết nhỏ ở ô khác: nhìn ảnh xem có phải ý chọn không."
+      : muc === "mo" ? lyDoCau().GOI_Y_O_MO : muc === "vet" ? "Có vết nhỏ ở ô khác: nhìn ảnh xem có phải ý chọn không."
       : muc === "nhat" ? "Cả tờ tô nhạt: kiểm nhanh đáp án máy đọc." : muc === "tay" ? "Máy chưa chắc vị trí hàng – chọn tay." : "";
     return { may_doc: doc || "bỏ trống", dau_hieu: ly.map((r) => TEN_DAU_HIEU[r] || r).join(", "), muc, goi_y: goiY };
   }
