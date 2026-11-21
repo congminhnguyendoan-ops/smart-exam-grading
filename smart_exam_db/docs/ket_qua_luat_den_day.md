@@ -39,3 +39,11 @@ Tiêu chí đăng ký trước: `docs/tieu_chi_luat_den_day.md` (commit `3c1309f
 ## Hệ quả thực tế của việc đổi `mo` → `ro` trên 23 ô nhãn mờ
 
 Máy vẫn đọc đúng ô (đáp án máy = nhãn ở cả 31 câu đổi); thay đổi duy nhất là câu không còn vào hàng đợi duyệt. Điều chưa đo được: ý định của thí sinh với ô tô đậm nhưng người gán nhãn đặt là mờ.
+
+## Kết luận (quyết định của người dùng, 21/11/2026)
+
+Luật "đen đủ dày" KHÔNG được áp dụng. `cv_engine/omr.py` và `models/` giữ nguyên.
+
+Lý do: tiêu chí (b) không đạt (26/434 ô nhãn mờ thoả luật, biên nhỏ nhất −0,05 so với yêu cầu ≥ +0,20; 23 câu nhãn `faint` bị đổi thành `ro`). Theo mục (e) của tiêu chí đã đăng ký, không đạt thì không sửa.
+
+Hạn chế đã biết của đặc trưng OMR: `phu_dam`, `tuyet_doi`, `phu_nhe` không tách được ô tô gạch chéo (đen dày nhưng p(rõ | có tô) thấp) khỏi ô nhãn mờ đen đậm ở biên 0,20. Các ô gạch chéo kiểu 23535 câu 13C, 21B, 28C và 23536 câu 10A tiếp tục được máy đọc đúng ô nhưng gắn `o_mo` và vào hàng đợi để giáo viên xác nhận. Muốn khắc phục cần đặc trưng khác và một đăng ký tiêu chí mới.
