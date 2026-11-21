@@ -57,6 +57,7 @@ Khớp 10/10 (đo lại 21/11/2026 sau lệnh BA); 0 câu chấm sai mà không 
   khoảng **46–54% phiếu có SBD hoặc mã đề "cần xem"** (T4, `docs/ke_hoach_tuan6.md`) – GV xác nhận 1 lần, không sai điểm. Không phải lỗi demo.
 - Số câu cần xem có thể nhiều hơn bảng mục 4 (ảnh tối / nghiêng C2–C3); điểm chính thức sau duyệt vẫn phải bằng cột "Mong đợi".
 - BV07 thật (bút chì HB nhẹ tay) có thể KHÔNG kích hoạt `to_nhat` nếu nét đậm hơn ngưỡng (T ≥ 0,44, `ke_hoach_cai_tien_27-10.md` 6.6) – khi đó các ô mờ được gắn `o_mo` từng câu.
+- (lệnh BD) Mã `o_mo` hiện trên thẻ câu là "Máy chưa chắc ô này đã được tô đặc (nét tô nhạt, hoặc tô gạch chéo / có bóng đổ)", không còn "ô tô mờ"; cuối màn chi tiết / duyệt phiếu có khối "Câu bị tính sai" (đáp án đúng, ảnh cắt, Sửa lại / Hoàn tác / Giữ như máy chấm).
 - Ảnh bị từ chối (mờ, thiếu marker…) → thông báo + lời khuyên chụp lại; chụp lại rồi tải.
 
 ## 5b. Luồng CHỤP BẰNG ĐIỆN THOẠI → chấm ngay (yêu cầu 2; `docs/thiet_ke_chup_dien_thoai.md`)

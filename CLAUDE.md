@@ -554,6 +554,12 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - Giao diện: `frontend/hoan_tac.js` (logic thuần, `tests/js/hoan_tac.test.js`) + `app.js`: nút "Hoàn tác" ở thẻ câu đã chốt / đã xem lại (màn Duyệt phiếu) và ở bảng 40 câu của màn chi tiết phiếu; loại a có điểm chính thức → hộp hỏi "Điểm chính thức sẽ bị rút về điểm tạm". Mục "Đã chấm tự động" ở hàng đợi liệt kê câu CHƯA xem nên không có nút; câu vừa Giữ / chọn lại hoàn tác trong màn Duyệt phiếu của phiếu đó (thẻ "đã xem lại" hiện cả sau khi tải lại trang).
 - Sổ băm `docs/dong_bang_khung.json`: thêm `ban_ghi` BC (service.py, schemas.py đổi có chủ đích); bản AR / BA giữ nguyên. Test: `tests/test_hoan_tac.py` (11).
 
+### 4ad. Lệnh BD – khối "Câu bị tính sai" + lý do dễ hiểu (21/11/2026, nhánh `lenh-bd-cau-bi-tinh-sai` từ `main` @ `3fad4a4`; tag trước: `main-truoc-bd-21-11`; gộp `main` CỤC BỘ, chưa push)
+- Backend (chỉ đọc): `CauOut.correct_option` = đáp án đúng theo mã đề của phiếu (`service.xem_phieu`, dùng lại `_dap_an`; `None` khi chưa biết mã đề); cùng quyền `phan_quyen.kiem_phieu` của `GET /sheets/{id}`, KHÔNG đổi cách tính điểm. Sổ băm `docs/dong_bang_khung.json` thêm bản ghi BD (service.py, schemas.py).
+- Giao diện: `frontend/cau_sai.js` (logic thuần: `tomTat`, `danhSachSai`, `lyDo`, `moTaChon`, `hanhDong`) + `khoiCauSai` / `ganCauSai` trong `app.js` – khối ở cuối màn chi tiết phiếu và màn duyệt. Tóm tắt "27/40 đúng · 9 sai · 3 bỏ trống · 1 tô nhiều ô" (các loại tách rời); thứ tự tô nhiều ô → bỏ trống → chọn sai; câu `is_correct` null tách "Chưa chấm (chờ duyệt)"; 0 câu sai → "Không có câu nào bị tính sai". Ảnh cắt tải lười khi mở dòng.
+  Nút: "Sửa lại" (chỉ khi câu có thẻ: cần xem / tự chấm sai / đã xem; câu máy đọc chắc chắn chưa từng qua duyệt KHÔNG có API sửa nên không có nút), "Hoàn tác" (BC), "Giữ như máy chấm" (BA, `tu_cham_can_xem`) – dùng API có sẵn.
+- Chữ lý do: `frontend/ly_do_cau.js` (`o_mo` = "Máy chưa chắc ô này đã được tô đặc (nét tô nhạt, hoặc tô gạch chéo / có bóng đổ) – hãy nhìn ảnh rồi xác nhận"; dạng ngắn "ô chưa chắc đã tô đặc"; độ tin cậy `confidence` chỉ hiện khi API đã trả). Mã `o_mo` ở backend KHÔNG đổi; không đổi ngưỡng / `cv_engine/`. Test: `tests/test_cau_bi_tinh_sai.py`, `tests/js/cau_sai.test.js`, `tests/js/ly_do_cau.test.js`.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
