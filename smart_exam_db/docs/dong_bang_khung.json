@@ -20,7 +20,7 @@
   {
    "ngay": "2026-11-21",
    "lenh": "BA",
-   "commit": "DIEN_SAU",
+   "commit": "8ed099f",
    "ly_do": "Câu tô nhiều ô thuần tự chấm sai (service.nhan_anh không còn gắn needs_review; thêm xem_lai_cau_tu_cham, ghi_dap_an_va_cham_lai, giu_nhu_may_cham, cau_tu_cham_can_xem; xem_phieu/ds_phieu thêm tu_cham_can_xem / auto_graded_pending); schemas.py thêm trường CauOut.tu_cham_can_xem, Diem.auto_graded_pending, PhieuTomTat / TaiAnhOut.auto_graded_pending, DongBangDiem / TongBangDiem trường cảnh báo",
    "sha256": {
     "backend/service.py": "0499388e4ed7098d0af00c01fc0e91e7fb103a5fb2a77bc5641f5fcb9616625f",
