@@ -8,7 +8,7 @@ HANH_DONG = {
     "tao_lop": "class", "sua_lop": "class", "vo_hieu_hoa_lop": "class", "kich_hoat_lop": "class", "xoa_lop": "class",
     "them_giao_vien_vao_lop": "class", "bo_giao_vien_khoi_lop": "class",
 }
-HANH_DONG_DUYET = {"xac_nhan_hang_loat": "exam"}
+HANH_DONG_DUYET = {"xac_nhan_hang_loat": "exam", "giu_nhu_may_cham": "exam"}
 _NHAY_CAM = re.compile(r"pass|mat_khau|matkhau|hash|token|secret|cookie|session", re.IGNORECASE)
 
 

@@ -132,8 +132,11 @@ def test_khong_bao_gio_dung_sbd_ma_de(client, conn_thu):
     assert v0["status"] == "needs_review" and v0["sbd"]["can_xem"]
     od0 = conn_thu.execute("SELECT detected_sbd, detected_exam_code, omr_detail FROM answer_sheets WHERE sheet_id = %s", (sid,)).fetchone()
     dg0 = conn_thu.execute("SELECT field, position, corrected_digit FROM ocr_digits WHERE sheet_id = %s ORDER BY field, position", (sid,)).fetchall()
-    con_tay = [n for n in can_xem(client, sid) if n not in can_xem_hl(client, sid)]
-    assert can_xem_hl(client, sid), "0001_C1 phải có câu 'nhiều ô'"
+    cho = can_xem(client, sid)
+    n_hl = cho[0] if cho else conn_thu.execute("SELECT question_no FROM sheet_answers WHERE sheet_id = %s ORDER BY question_no LIMIT 1", (sid,)).fetchone()["question_no"]
+    conn_thu.execute("UPDATE sheet_answers SET needs_review = TRUE, is_correct = NULL, review_reasons = ARRAY['to_nhat'] WHERE sheet_id = %s AND question_no = %s", (sid, n_hl))
+    con_tay = [n for n in can_xem(client, sid) if n != n_hl]
+    assert can_xem_hl(client, sid) == [n_hl]
     r = hang_loat(client, sid)
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "needs_review" and r.json()["official"] is None

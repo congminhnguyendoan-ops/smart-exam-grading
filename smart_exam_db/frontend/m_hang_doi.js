@@ -67,6 +67,18 @@
       return k;
     }
 
+    /** Lệnh BA: tờ đã có điểm chính thức nhưng còn câu tô nhiều ô đã chấm sai chờ xem lại (giáo viên xem trên máy tính). */
+    demTuCham() {
+      const r = { soTo: 0, soCau: 0 };
+      for (const t of this.ds) {
+        if (t.thayBang || t.trangThai !== "xong" || !t.ketQua || t.ketQua.status !== "graded") continue;
+        const sc = (t.ketQua.chiTiet && t.ketQua.chiTiet.score) || {};
+        const n = t.ketQua.auto_graded_pending ?? sc.auto_graded_pending ?? 0;
+        if (n > 0) { r.soTo++; r.soCau += n; }
+      }
+      return r;
+    }
+
     soToKeTiep() { return this._soTo + 1; }
 
     /** Số tờ MẤT sau khi tải lại trang (chưa gửi xong, ảnh không còn) và chưa được chụp lại thay. */

@@ -40,7 +40,8 @@ const NHAN_HANH_DONG = { tao_ky_thi: "Tạo kỳ thi", sua_ky_thi: "Sửa kỳ t
   tao_tai_khoan: "Tạo tài khoản", dat_lai_mat_khau: "Đặt lại mật khẩu", vo_hieu_hoa_tai_khoan: "Vô hiệu hoá tài khoản", kich_hoat_tai_khoan: "Kích hoạt lại tài khoản",
   gan_ky_thi: "Gán kỳ thi", bo_gan_ky_thi: "Bỏ gán kỳ thi", dat_lop_giao_vien: "Đặt lớp cho giáo viên", tao_lop: "Tạo lớp", sua_lop: "Sửa lớp",
   vo_hieu_hoa_lop: "Vô hiệu hoá lớp", kich_hoat_lop: "Kích hoạt lại lớp", xoa_lop: "Xoá lớp", them_giao_vien_vao_lop: "Thêm giáo viên vào lớp",
-  bo_giao_vien_khoi_lop: "Bỏ giáo viên khỏi lớp", xac_nhan_hang_loat: "Xác nhận hàng loạt câu của một phiếu (duyệt)" };
+  bo_giao_vien_khoi_lop: "Bỏ giáo viên khỏi lớp", xac_nhan_hang_loat: "Xác nhận hàng loạt câu của một phiếu (duyệt)",
+  giu_nhu_may_cham: "Giữ như máy chấm các câu tô nhiều ô (duyệt)" };
 const NHAN_DOI_TUONG = { exam: "Kỳ thi", user: "Tài khoản", class: "Lớp" };
 const giaTriNk = (v) => (v === null || v === undefined || v === "" ? "–" : Array.isArray(v) ? (v.length ? v.join(", ") : "–") : typeof v === "object" ? JSON.stringify(v) : String(v));
 function chiTietNk(d) {

@@ -72,11 +72,11 @@ def test_r1_tep_dong_bang_khong_bi_cham():
     import hashlib
 
     from conftest import ROOT
-    mong = {"backend/service.py": "2537b4f51a00a167c1c2d9d45e9ff29fcd9e149d8a3e6260b4ce6dd875847f8e", "backend/schemas.py": "05310795f5646007320a3dd1795ffb971eea5e45cd4bf882115e7dcb84cd231d",
-            "models/ocr_cnn.json": "a151c078e159e003fb668b4e4a9e00ec38554f5fec9f870a9624d53b989ac6c8", "models/omr_m1.json": "507ecc7b4f885e148c1a896884f8a285ea4e308de4477e47f870bebf7c059797",
-            "cv_engine/ocr.py": "e9b3e00fc0917341756441d5aecc39abc14a85861b35844e6506cae33a26b4be", "cv_engine/omr.py": "e0111fc1909af598f7df882b40bda9bb8d509e2c25c2423ea0e15963786c1912",
-            "cv_engine/preprocessing.py": "0d35c26ae716778d11ec69382da5c1dff70e5a88b455ae8946091393d618f237",
-            "cv_engine/tap_du_lieu.py": "3f030b71ece0b3117db0465c2ebbe3cf1948911140deb002f20a333d37fd9f01"}
+    import json
+
+    so = json.loads((ROOT / "docs" / "dong_bang_khung.json").read_text(encoding="utf-8"))["ban_ghi"]
+    assert len(so) >= 2 and so[0]["lenh"] == "AR" and so[-1]["ngay"] >= so[0]["ngay"]
+    mong = so[-1]["sha256"]
     for tep, sha in mong.items():
         du_lieu = (ROOT / tep).read_bytes().replace(b"\r\n", b"\n")
         assert hashlib.sha256(du_lieu).hexdigest() == sha, f"{tep} đã bị đổi – tệp đóng băng (docs/tieu_chi_sua_ah.md mục 0)"

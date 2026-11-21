@@ -27,21 +27,27 @@ def chup(conn, sid) -> tuple:
 
 
 @pytest.fixture
-def phieu_tron(client):
+def phieu_tron(client, conn_thu):
     can_anh(ANH_TRON)
     sid = tai(client, tao_de(client), ANH_TRON).json()["sheet_id"]
+    tu_cham = [r["question_no"] for r in conn_thu.execute(
+        "SELECT question_no FROM sheet_answers WHERE sheet_id = %s AND NOT needs_review AND review_reasons = ARRAY['nhieu_o'] ORDER BY question_no",
+        (sid,)).fetchall()]
+    assert tu_cham
+    conn_thu.execute("UPDATE sheet_answers SET needs_review = TRUE, is_correct = NULL, review_reasons = ARRAY['to_nhat', 'nhieu_o'] "
+                     "WHERE sheet_id = %s AND question_no = ANY(%s)", (sid, tu_cham))
     q = rq(client, sid)
-    nhieu = [c["question_no"] for c in q if c["reasons"] == ["nhieu_o"]]
+    nhieu = [c["question_no"] for c in q if set(c["reasons"]) == {"to_nhat", "nhieu_o"}]
     mo = [c["question_no"] for c in q if "o_mo" in c["reasons"]]
-    assert nhieu and mo, q
+    assert nhieu == tu_cham and mo, q
     return sid, nhieu, mo
 
 
 def test_hop_le_chi_nhieu_o_va_to_nhat():
     assert LY_DO_HANG_LOAT == {"nhieu_o", "to_nhat"}
-    for ly in (["nhieu_o"], ["to_nhat"], ["nhieu_o", "to_nhat"]):
+    for ly in (["to_nhat"], ["nhieu_o", "to_nhat"]):
         assert hop_le_hang_loat(ly), ly
-    for ly in ([], None, ["o_mo"], ["vet_nho"], ["tin_cay_thap"], ["vi_tri"], ["nhieu_o", "o_mo"], ["to_nhat", "vet_nho"],
+    for ly in (["nhieu_o"], [], None, ["o_mo"], ["vet_nho"], ["tin_cay_thap"], ["vi_tri"], ["nhieu_o", "o_mo"], ["to_nhat", "vet_nho"],
                ["nhieu_o", "tin_cay_thap"], ["vi_tri", "nhieu_o"], ["o_mo", "to_nhat"]):
         assert not hop_le_hang_loat(ly), ly
 
@@ -52,7 +58,7 @@ def test_lo_co_cau_mo_bi_tu_choi_toan_bo(client, conn_thu, phieu_tron):
     r = hl(client, sid, nhieu + mo[:1])
     assert r.status_code == 422, r.text
     d = r.json()["detail"]
-    assert "Từ chối cả lô: 1 câu" in d and str(mo[0]) in d and "nhiều ô" in d and "Chưa ghi câu nào" in d
+    assert "Từ chối cả lô: 1 câu" in d and str(mo[0]) in d and "tô nhạt cả tờ" in d and "Chưa ghi câu nào" in d
     r = hl(client, sid, nhieu + mo)
     assert r.status_code == 422 and f"{len(mo)} câu" in r.json()["detail"]
     assert hl(client, sid, mo).status_code == 422
@@ -103,7 +109,7 @@ def test_lo_chi_nhieu_o_duoc_nhan_cau_mo_o_lai(client, conn_thu, phieu_tron):
                              "WHERE sheet_id = %s AND question_no = %s", (sid, n)).fetchone()
         assert a["selected_options"] == (a["omr_selected_options"] or "") and len(a["selected_options"]) >= 2 and not a["needs_review"] and not a["manually_edited"]
     nk = conn_thu.execute("SELECT details FROM admin_audit_log WHERE action = 'xac_nhan_hang_loat' ORDER BY log_id DESC LIMIT 1").fetchone()["details"]
-    assert nk["so_cau"] == len(nhieu) and all(c["ly_do"] == ["nhieu_o"] for c in nk["cau"])
+    assert nk["so_cau"] == len(nhieu) and all(set(c["ly_do"]) == {"to_nhat", "nhieu_o"} for c in nk["cau"])
 
 
 def test_lo_chi_to_nhat_chot_diem(client, conn_thu):

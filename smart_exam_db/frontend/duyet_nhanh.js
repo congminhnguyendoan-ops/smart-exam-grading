@@ -5,7 +5,7 @@
      phimCau(" ", { tag: "BODY" })                 -> { loai: "xac_nhan" }      (Space = xác nhận như máy đọc câu đang chọn)
      phimCau("Enter", { tag: "INPUT" })            -> null                       (ô nhập SBD / mã đề giữ phím của lệnh AA)
      cauHangLoat(p.questions)                      -> { duoc: [{question_no, omr, reasons}], tay: [n, …] }   (AF2: duoc = chỉ nhieu_o / to_nhat)
-     nhanNutHangLoat(3)                            -> "Xác nhận 3 câu nhiều ô / tô nhạt như máy đọc…"   (0 -> null = ẩn nút)
+     nhanNutHangLoat(3)                            -> "Xác nhận 3 câu tô nhạt cả tờ như máy đọc…"   (0 -> null = ẩn nút)
      tabKeTiep(4, 3, false)                        -> 0   (bẫy Tab trong hộp xác nhận: xoay vòng)
      nhomPhieu(g)                                  -> "dinh_danh" | "trung" | "vi_tri" | "chi_nhieu_o" | "chi_mo" | "khac" */
 "use strict";
@@ -32,7 +32,7 @@
       máy chủ mới là nơi quyết; ở đây chỉ để hiện nút / hộp). Câu mờ, vết nhỏ, lưng chừng, vị trí -> chọn từng câu bằng mắt.
       Chỉ câu trả lời – SBD / mã đề không phải phần tử của `questions` nên không bao giờ lọt vào. */
   const LY_DO_HANG_LOAT = ["nhieu_o", "to_nhat"];
-  const hopLeHangLoat = (q) => !!q.needs_review && (q.reasons || []).length > 0 && (q.reasons || []).every((r) => LY_DO_HANG_LOAT.includes(r));
+  const hopLeHangLoat = (q) => !!q.needs_review && (q.reasons || []).includes("to_nhat") && (q.reasons || []).every((r) => LY_DO_HANG_LOAT.includes(r));
   function cauHangLoat(questions) {
     const can = (questions || []).filter((q) => q.needs_review);
     const tay = can.filter((q) => !hopLeHangLoat(q)).map((q) => q.question_no);
@@ -49,14 +49,14 @@
     const doc = q.omr_selected_options || "";
     const muc = ly.includes("vi_tri") ? "tay" : ly.includes("nhieu_o") ? "nhieu" : ly.includes("o_mo") ? "mo"
       : ly.includes("vet_nho") ? "vet" : ly.includes("to_nhat") ? "nhat" : "khac";
-    const goiY = muc === "nhieu" ? `Nếu thí sinh thật sự tô ${doc.length} ô thì câu tính SAI – xác nhận như máy đọc.`
+    const goiY = muc === "nhieu" ? `Có dấu hiệu khác ngoài nhiều ô: nếu thí sinh thật sự tô ${doc.length} ô thì câu tính SAI – xác nhận như máy đọc.`
       : muc === "mo" ? "Dấu mờ: nhìn ảnh xem là ý chọn hay vết tẩy." : muc === "vet" ? "Có vết nhỏ ở ô khác: nhìn ảnh xem có phải ý chọn không."
       : muc === "nhat" ? "Cả tờ tô nhạt: kiểm nhanh đáp án máy đọc." : muc === "tay" ? "Máy chưa chắc vị trí hàng – chọn tay." : "";
     return { may_doc: doc || "bỏ trống", dau_hieu: ly.map((r) => TEN_DAU_HIEU[r] || r).join(", "), muc, goi_y: goiY };
   }
 
   /** Nhãn nút hàng loạt; null = ẩn nút (phiếu không có câu hợp lệ). */
-  const nhanNutHangLoat = (n) => (n > 0 ? `Xác nhận ${n} câu nhiều ô / tô nhạt như máy đọc…` : null);
+  const nhanNutHangLoat = (n) => (n > 0 ? `Xác nhận ${n} câu tô nhạt cả tờ như máy đọc…` : null);
 
   /** Bẫy Tab trong hộp thoại: chỉ số phần tử nhận tiêu điểm kế tiếp (xoay vòng). n = số phần tử, i = chỉ số hiện tại (-1 = tiêu điểm ở ngoài hộp). */
   function tabKeTiep(n, i, lui) {

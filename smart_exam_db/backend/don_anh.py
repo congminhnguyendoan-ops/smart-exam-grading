@@ -38,6 +38,8 @@ def phieu_can_xoa(conn, cfg: CauHinh, bay_gio: datetime | None = None, gioi_han:
         "LEFT JOIN results r ON r.sheet_id = a.sheet_id AND r.status <> 'void' "
         "WHERE a.image_deleted_at IS NULL AND (a.status = 'rejected' OR (a.status = 'graded' AND r.result_id IS NOT NULL)) "
         "AND GREATEST(a.updated_at, COALESCE(r.updated_at, a.updated_at)) <= %(moc)s "
+        "AND NOT EXISTS (SELECT 1 FROM sheet_answers q WHERE q.sheet_id = a.sheet_id AND NOT q.needs_review "
+        "AND 'nhieu_o' = ANY(q.review_reasons) AND q.reviewed_at IS NULL) "
         "AND (NOT %(giu_demo)s OR e.exam_title NOT LIKE '%%[DEMO%%') "
         "AND (%(kt)s::bigint[] IS NULL OR a.exam_id = ANY(%(kt)s::bigint[])) "
         "ORDER BY a.sheet_id LIMIT %(n)s", {"moc": moc, "giu_demo": cfg.anh_giu_demo, "n": gioi_han, "kt": ky_thi}).fetchall()
