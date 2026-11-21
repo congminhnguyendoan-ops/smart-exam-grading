@@ -293,6 +293,7 @@ class CauOut(BaseModel):
     omr_selected_options: str | None = Field(description="Cách máy đọc ban đầu")
     confidence: float | None
     tu_cham_can_xem: bool = Field(default=False, description="Đã chấm tự động (nhiều ô = sai), giáo viên chưa xem lại")
+    da_xem: bool = Field(default=False, description="Giáo viên đã xem / chốt câu này (có thể hoàn tác)")
 
 
 class PhieuOut(BaseModel):

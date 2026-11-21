@@ -547,7 +547,7 @@ def _tu_cham_can_xem(r) -> bool:
 
 
 def ghi_dap_an_va_cham_lai(conn, sheet_id: int, question_no: int, chon: str, user_id: int, danh_dau_da_xem: bool,
-                           ly_do_sua: str | None = None) -> dict:
+                           ly_do_sua: str | None = None, hoan_tac: bool = False) -> dict:
     sh = conn.execute("SELECT * FROM answer_sheets WHERE sheet_id = %s", (sheet_id,)).fetchone()
     ex = conn.execute("SELECT * FROM exams WHERE exam_id = %s", (sh["exam_id"],)).fetchone()
     n = ex["num_questions"]
@@ -578,8 +578,14 @@ def ghi_dap_an_va_cham_lai(conn, sheet_id: int, question_no: int, chon: str, use
             raise RuntimeError(f"phiếu {sheet_id}: điểm Python {kq.diem_tam} ≠ fn_grade_sheet {diem_db} – dừng, không ghi điểm")
         conn.execute("SELECT set_config('app.change_reason', %s, true)",
                      (ly_do_sua or f"Giáo viên sửa câu {question_no}: {cu['selected_options'] or 'trống'} → {chon or 'trống'}",))
-        conn.execute("UPDATE results SET num_correct = %s, score = %s, status = 'manual_edited', confirmed_by = %s, confirmed_at = now() "
-                     "WHERE result_id = %s", (kq.num_correct, kq.diem_tam, user_id, res["result_id"]))
+        trang = "manual_edited"
+        if hoan_tac and not conn.execute("SELECT 1 FROM sheet_answers WHERE sheet_id = %s AND manually_edited", (sheet_id,)).fetchone():
+            da_review = conn.execute("SELECT 1 FROM review_queue WHERE sheet_id = %s LIMIT 1", (sheet_id,)).fetchone() is not None
+            trang = "confirmed" if da_review else "auto"
+        conn.execute("UPDATE results SET num_correct = %s, score = %s, status = %s::result_status, "
+                     "confirmed_by = CASE WHEN %s = 'auto' THEN NULL ELSE %s END, "
+                     "confirmed_at = CASE WHEN %s = 'auto' THEN NULL ELSE now() END WHERE result_id = %s",
+                     (kq.num_correct, kq.diem_tam, trang, trang, user_id, trang, res["result_id"]))
     return {"status": sh["status"], "score": kq.diem_tam}
 
 
@@ -610,6 +616,36 @@ def xem_lai_cau_tu_cham(conn, sheet_id: int, question_no: int, hanh_dong: str, l
         return {"status": sh["status"], "da_sua": False}
     ghi_dap_an_va_cham_lai(conn, sheet_id, question_no, chon, user_id, True, ghi_chu)
     return {"status": sh["status"], "da_sua": True}
+
+
+def hoan_tac_cau(conn, sheet_id: int, question_no: int, user_id: int) -> dict:
+    sh = conn.execute("SELECT sheet_id, status FROM answer_sheets WHERE sheet_id = %s FOR UPDATE", (sheet_id,)).fetchone()
+    if not sh:
+        raise KhongTimThay(f"Không có phiếu {sheet_id}.")
+    if sh["status"] == "rejected":
+        raise XungDot("Phiếu đang ở trạng thái 'rejected' (ảnh bị từ chối) – không hoàn tác được.")
+    if sh["status"] not in ("graded", "needs_review"):
+        raise XungDot(f"Phiếu {sheet_id} đang ở trạng thái '{sh['status']}', không có câu nào để hoàn tác.")
+    r = conn.execute("SELECT * FROM sheet_answers WHERE sheet_id = %s AND question_no = %s FOR UPDATE", (sheet_id, question_no)).fetchone()
+    if not r or r["reviewed_at"] is None:
+        raise XungDot(f"Câu {question_no} của phiếu {sheet_id} chưa được giáo viên xem – không có gì để hoàn tác.")
+    conn.execute("SELECT set_config('app.current_user_id', %s, true)", (str(user_id),))
+    if la_nhieu_o_thuan(r["review_reasons"]):
+        ghi_dap_an_va_cham_lai(conn, sheet_id, question_no, r["omr_selected_options"] or "", user_id, False,
+                               f"Giáo viên hoàn tác xem lại câu {question_no}", hoan_tac=True)
+        conn.execute("UPDATE sheet_answers SET state = COALESCE(omr_state, state), needs_review = FALSE, manually_edited = FALSE, "
+                     "reviewed_by = NULL, reviewed_at = NULL WHERE sheet_id = %s AND question_no = %s", (sheet_id, question_no))
+        return {"status": sh["status"], "loai": "tu_cham"}
+    conn.execute("SELECT set_config('app.change_reason', %s, true)", (f"Giáo viên hoàn tác xác nhận câu {question_no}",))
+    conn.execute("UPDATE sheet_answers SET selected_options = COALESCE(omr_selected_options, ''), state = COALESCE(omr_state, state), "
+                 "needs_review = TRUE, manually_edited = FALSE, reviewed_by = NULL, reviewed_at = NULL, is_correct = NULL "
+                 "WHERE sheet_id = %s AND question_no = %s", (sheet_id, question_no))
+    res = conn.execute("SELECT result_id FROM results WHERE sheet_id = %s AND status <> 'void' FOR UPDATE", (sheet_id,)).fetchone()
+    if res is not None:
+        conn.execute("UPDATE results SET status = 'void' WHERE result_id = %s", (res["result_id"],))
+        conn.execute("UPDATE answer_sheets SET status = 'needs_review' WHERE sheet_id = %s", (sheet_id,))
+    kq = danh_gia_phieu(conn, sheet_id, user_id, f"Giáo viên hoàn tác xác nhận câu {question_no}")
+    return {"status": kq["status"], "loai": "cho"}
 
 
 def giu_nhu_may_cham(conn, muc: list[tuple[int, int]], user_id: int) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
@@ -699,7 +735,8 @@ def xem_phieu(conn, sheet_id: int) -> dict:
         "questions": [{"question_no": r["question_no"], "selected_options": r["selected_options"], "state": r["state"],
                        "needs_review": r["needs_review"], "reasons": r["review_reasons"], "is_correct": r["is_correct"],
                        "manually_edited": r["manually_edited"], "omr_selected_options": r["omr_selected_options"],
-                       "confidence": r["confidence"], "tu_cham_can_xem": _tu_cham_can_xem(r)} for r in rows],
+                       "confidence": r["confidence"], "tu_cham_can_xem": _tu_cham_can_xem(r),
+                       "da_xem": r["reviewed_at"] is not None} for r in rows],
         "image_deleted_at": anh_da_xoa_luc(conn, sheet_id),
     }
 

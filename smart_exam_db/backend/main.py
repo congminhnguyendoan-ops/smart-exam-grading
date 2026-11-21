@@ -320,6 +320,14 @@ def xu_ly_cau(sheet_id: int, question_no: int, body: schemas.XuLyCau, conn=Depen
     return service.xem_phieu(conn, sheet_id)
 
 
+@app.post("/sheets/{sheet_id}/questions/{question_no}/review/undo", response_model=schemas.PhieuOut, tags=["Review"],
+          summary="Hoàn tác một câu giáo viên đã xác nhận / sửa / giữ nhầm (về như máy đọc)")
+def hoan_tac_cau(sheet_id: int, question_no: int, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
+    phan_quyen.kiem_phieu(conn, nd, sheet_id)
+    service.hoan_tac_cau(conn, sheet_id, question_no, nd.user_id)
+    return service.xem_phieu(conn, sheet_id)
+
+
 @app.post("/sheets/{sheet_id}/questions/confirm-remaining", response_model=duyet_nhanh.KetQuaHangLoat, tags=["Review"],
           summary="Lệnh AF: xác nhận TẤT CẢ câu trả lời còn cần xem của MỘT phiếu như máy đọc (KHÔNG gồm SBD / mã đề)")
 def xac_nhan_hang_loat(sheet_id: int, body: duyet_nhanh.XacNhanHangLoat, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):

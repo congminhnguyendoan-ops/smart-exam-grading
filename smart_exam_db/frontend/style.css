@@ -117,3 +117,5 @@ select,textarea{color:var(--ink);background:var(--card);border:1px solid var(--v
 .tag[class*="nhom-"]{color:var(--ink);background:var(--xam-nen);border-color:var(--line)}
 .tag.nhom-dinh_danh,.tag.nhom-trung,.tag.nhom-vi_tri{color:var(--warn);background:var(--warnbg);border-color:var(--warn-vien)}
 .hl-tich{display:flex;gap:8px;align-items:flex-start;margin:12px 0}.hl-tich input{margin-top:3px;flex:none}
+.q{flex-wrap:wrap}
+.nut-hoan-tac{font-size:11.5px;padding:2px 6px;flex:1 0 100%}
