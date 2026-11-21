@@ -112,6 +112,8 @@ function canhBao(v) {
   if (ly.includes("duplicate_sbd")) ra.push("SBD trùng với một phiếu khác");
   if (v.exam_code && v.exam_code.can_xem) ra.push(`Mã đề cần xem${LyDoCot.moTa(v.exam_code, LY_DO_SBD).length ? `: ${esc(LyDoCot.moTa(v.exam_code, LY_DO_SBD).join("; "))}` : ""}`);
   else if (!(v.exam_code && v.exam_code.matched_code)) ra.push(`Mã đề ${esc(v.exam_code && v.exam_code.detected)} không thuộc kỳ thi`);
+  const nTc = v.questions.filter((q) => q.tu_cham_can_xem).length;
+  if (nTc) ra.push(`${nTc} câu tô nhiều ô đã chấm sai – xem lại trên máy tính`);
   if (v.questions.some((q) => q.needs_review && (q.reasons || []).includes("to_nhat"))) ra.push("Tờ tô nhạt cả tờ – kiểm tra lại các câu");
   return ra;
 }
@@ -149,9 +151,9 @@ function dongTo(t) {
   return `<li class="to ${t.trangThai}${t.thayBang ? " da-thay" : ""}" data-stt="${t.stt}"><div class="dau"><b>Tờ ${t.soTo}</b>${t.thayCho ? ' <span class="small muted">(chụp lại)</span>' : ""}${daKhoiPhuc}${nhan}</div>${giua}${duoi}</li>`;
 }
 function veHangDoi() {
-  const k = hd.tong(), tong = tongTo();
+  const k = hd.tong(), tong = tongTo(), tc = hd.demTuCham();
   $("#tk-so").innerHTML = `<span><b>${k.daChup}</b>${tong ? `/${tong}` : ""} đã chụp</span><span class="ok"><b>${k.chamDuoc}</b> chấm được</span>
-    <span class="warn"><b>${k.canXem}</b> cần xem</span><span class="bad"><b>${k.tuChoi}</b> từ chối</span>`;
+    <span class="warn"><b>${k.canXem}</b> cần xem</span><span class="bad"><b>${k.tuChoi}</b> từ chối</span>${tc.soTo ? `<span class="warn" id="tk-tu-cham"><b>${tc.soCau}</b> câu nhiều ô chờ xem lại (${tc.soTo} tờ)</span>` : ""}`;
   $("#tk-cho").textContent = [hd.soMat() ? `${hd.soMat()} tờ mất khi tải lại (chụp lại)` : "", k.dangCho ? `${k.dangCho} đang chờ` : "", k.loi ? `${k.loi} lỗi mạng` : "", k.trung ? `${k.trung} ảnh trùng` : "",
     hd.tamDung ? "tạm dừng – cần đăng nhập" : ""].filter(Boolean).join(" · ") || "Không có tờ nào đang chờ.";
   const n = hd.soToKeTiep();
@@ -200,7 +202,7 @@ async function traCuuPhieu(id, meta) {
   const p = await api(`/sheets/${id}`);
   const sc = p.score || {};
   return { sheet_id: p.sheet_id, da_ton_tai: !!meta.daTonTai, status: p.status, reject_code: p.reject_code, reject_message: p.reject_message,
-    pending_questions: sc.pending_questions || 0, provisional_score: sc.provisional ?? null, official_score: sc.official ?? null, chiTiet: p };
+    pending_questions: sc.pending_questions || 0, auto_graded_pending: sc.auto_graded_pending || 0, provisional_score: sc.provisional ?? null, official_score: sc.official ?? null, chiTiet: p };
 }
 async function khoiPhucPhien() {
   let p = null;

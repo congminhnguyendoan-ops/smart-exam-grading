@@ -335,7 +335,7 @@ function hangKetQuaTai(ten, r) {
     const ly = state.reasons[r.reject_code] || {};
     chiTiet = `<div class="alert bad"><b>${esc(r.reject_message || ly.message)}</b><br>Lời khuyên: ${esc(ly.advice || "chụp lại phiếu rõ nét, đủ sáng, thấy đủ 4 góc.")}</div>`;
   } else if (r.status === "needs_review") chiTiet = `<span class="tag warn">${r.pending_questions} câu cần xem</span>`;
-  else if (r.status === "graded") chiTiet = "Máy tự chốt, không còn mục cần xem.";
+  else if (r.status === "graded") chiTiet = r.auto_graded_pending ? `Đã chấm. <span class="tag warn">${r.auto_graded_pending} câu tô nhiều ô đã chấm sai, chờ xem lại</span>` : "Máy tự chốt, không còn mục cần xem.";
   if (r.da_ton_tai) chiTiet += ' <span class="muted small">(ảnh đã tải trước đó – trả phiếu cũ)</span>';
   const diem = r.status === "rejected" ? "–" : r.official_score !== null ? `<b>${fmt(r.official_score)}</b>`
     : r.provisional_score !== null ? `<b>${fmt(r.provisional_score)}</b> <span class="tag warn">tạm</span>` : "–";
@@ -357,7 +357,7 @@ async function manDanhSach() {
     ${ds.map((p) => `<tr class="row-link${state.moi.has(p.sheet_id) ? " moi" : ""}" data-id="${p.sheet_id}"><td>${p.sheet_id}${state.moi.has(p.sheet_id) ? ' <span class="tag ok">mới</span>' : ""}</td><td>${tenTepHtml(p.original_filename)}</td>
       <td>${p.status === "rejected" ? "–" : esc(p.detected_sbd || "–")}</td><td>${p.status === "rejected" ? "–" : esc(p.detected_exam_code || "–")}</td>
       <td>${esc(p.student_name || "–")}</td>
-      <td>${tag(p.status)}${p.status === "needs_review" ? ` <span class="muted small">${p.pending_questions} câu</span>` : ""}
+      <td>${tag(p.status)}${p.status === "needs_review" ? ` <span class="muted small">${p.pending_questions} câu</span>` : ""}${p.auto_graded_pending ? ` <span class="tag warn">${p.auto_graded_pending} câu nhiều ô chờ xem lại</span>` : ""}
         ${p.status === "rejected" ? `<div class="muted small">${esc(p.reject_message || p.reject_code)}</div>` : ""}</td>
       <td>${diemTomTat(p)}</td><td>${p.status === "needs_review" ? `<a class="btn pri" href="#/review/${p.sheet_id}">Duyệt</a>` : ""}</td></tr>`).join("")
       || '<tr><td colspan="8" class="muted">Chưa có phiếu nào. Vào "Tải ảnh &amp; chấm".</td></tr>'}
@@ -397,7 +397,8 @@ function cauHtml(q, dapAn) {
   const cls = q.needs_review ? "review" : q.is_correct === true ? "good" : q.is_correct === false ? "wrong" : "";
   const doc = q.selected_options || (q.state === "blank" ? "—" : "?");
   const ketQua = q.needs_review ? "?" : q.is_correct === true ? "✓" : q.is_correct === false ? "✗" : "";
-  const ly = q.needs_review ? `<small>${q.reasons.map((r) => LY_DO_CAU[r] || r).join(", ")}</small>` : q.manually_edited ? '<small style="color:var(--mut)">GV đã sửa</small>' : "";
+  const ly = q.needs_review ? `<small>${q.reasons.map((r) => LY_DO_CAU[r] || r).join(", ")}</small>` : q.tu_cham_can_xem ? "<small>tô nhiều ô – tự chấm sai, chờ xem lại</small>"
+    : q.manually_edited ? '<small style="color:var(--mut)">GV đã sửa</small>' : "";
   return `<div class="q ${cls}" title="Máy đọc: ${esc(q.omr_selected_options || "bỏ trống")}${dapAn ? " · đáp án: " + dapAn : ""}"><span>Câu ${q.question_no}: <b>${esc(doc)}</b>${ly}</span><span>${ketQua}</span></div>`;
 }
 async function manChiTiet(id) {
@@ -416,7 +417,8 @@ async function manChiTiet(id) {
     <div><div class="card">${rejected ? await khoiTuChoi(p) : `
       <div class="score">${diemHtml(p.score, p.status)}</div>
       ${p.score && p.score.official === null && p.score.pending_questions ? `<p class="muted small">Điểm tạm chỉ tính các câu máy chắc chắn. Điểm chính thức có sau khi giáo viên xem hết ${p.score.pending_questions} câu cần xem.</p>` : ""}
-      ${p.score && p.score.result_status ? `<p class="muted small">Chốt bởi: ${p.score.result_status === "confirmed" ? "giáo viên (đã duyệt)" : "máy (tự động)"} · đúng ${p.score.num_correct ?? "–"} câu</p>` : ""}
+      ${p.score && p.score.result_status ? `<p class="muted small">Chốt bởi: ${{ confirmed: "giáo viên (đã duyệt)", manual_edited: "giáo viên (đã sửa điểm)" }[p.score.result_status] || "máy (tự động)"} · đúng ${p.score.num_correct ?? "–"} câu</p>` : ""}
+      ${p.score && p.score.auto_graded_pending ? `<div class="alert warn" id="canh-bao-tu-cham">Còn ${p.score.auto_graded_pending} câu tô nhiều ô đã chấm sai, chờ xem lại. <a class="btn" href="#/review/${id}">Xem lại →</a></div>` : ""}
       <dl class="kv"><dt>SBD</dt><dd>${cotsHtml(p.sbd)} <span class="muted small">${p.sbd && p.sbd.can_xem ? "cần xem" : ""}</span></dd>
         <dt>Mã đề</dt><dd>${cotsHtml(p.exam_code)} ${maKhop ? "" : '<span class="tag warn">chưa xác định</span>'}</dd>
         <dt>Sinh viên</dt><dd>${p.student ? esc(p.student.full_name) + ` (${esc(p.student.student_code)})` : '<span class="muted">chưa ghép được</span>'}</dd></dl>
@@ -458,10 +460,36 @@ async function manHangDoi() {
       <td><span class="tag nhom-${g.nhom}">${DuyetNhanh.TEN_NHOM[g.nhom]}</span></td><td>${g.so_cau}${g.so_cau ? ` <span class="muted small">(${lyDo(g)})</span>` : ""}</td>
       <td>${dd(g) ? `<span class="tag warn">${dd(g)}</span>` : '<span class="muted">–</span>'}</td><td>${g.provisional === null || g.provisional === undefined ? "–" : fmt(g.provisional)}</td>
       <td><a class="btn pri" href="#/review/${g.sheet_id}">Duyệt</a></td></tr>`).join("")
-      || '<tr><td colspan="8" class="muted">Không còn phiếu nào cần duyệt.</td></tr>'}</tbody></table></div>`;
+      || '<tr><td colspan="8" class="muted">Không còn phiếu nào cần duyệt.</td></tr>'}</tbody></table></div>
+    <div id="muc-tu-cham"></div>`;
   $("#loc-nhom").addEventListener("change", (e) => { state.locNhom = e.target.value; manHangDoi(); });
+  await mucTuCham();
+}
+/* Lệnh BA: câu tô nhiều ô đã TỰ CHẤM SAI (phiếu đã có điểm) nhưng chờ giáo viên xem lại – mục riêng, không chặn điểm. */
+async function mucTuCham() {
+  const ds = await api(`/exams/${state.examId}/auto-graded-review`);
+  const cho = $("#muc-tu-cham");
+  if (!cho) return;
+  if (!ds.length) { cho.innerHTML = ""; return; }
+  cho.innerHTML = `<h2 id="tieu-de-tu-cham">Đã chấm tự động – cần xem lại (${ds.length} câu)</h2><div class="card">
+    <p class="muted small">Các câu thí sinh tô từ 2 ô trở lên: máy đã tính SAI nên phiếu có điểm chính thức ngay. Nhìn ảnh rồi giữ như máy chấm hoặc chọn lại đáp án thật.</p>
+    <div class="row"><button type="button" id="giu-tat-ca">Giữ như máy chấm tất cả (${ds.length} câu)</button>
+      <span class="small muted">Chỉ ghi "đã xem lại", điểm KHÔNG đổi. Sẽ hỏi lại trước khi làm.</span></div>
+    <table><thead><tr><th>Phiếu</th><th>Ảnh</th><th>SBD</th><th>Thí sinh</th><th>Câu</th><th>Máy đọc</th><th>Điểm</th><th></th></tr></thead><tbody>
+    ${ds.map((c) => `<tr><td>#${c.sheet_id}</td><td>${tenTepHtml(c.original_filename)}</td><td>${esc(c.detected_sbd || "–")}</td><td>${esc(c.student_name || "–")}</td>
+      <td>${c.question_no}</td><td><b>${esc(c.omr_reading || "bỏ trống")}</b></td><td>${c.official_score === null ? '<span class="muted">tạm</span>' : fmt(c.official_score)}</td>
+      <td><a class="btn pri" href="#/review/${c.sheet_id}">Xem lại</a></td></tr>`).join("")}</tbody></table></div>`;
+  $("#giu-tat-ca").addEventListener("click", async () => {
+    if (!confirm(`Giữ như máy chấm ${ds.length} câu tô nhiều ô? Điểm không đổi; các câu này sẽ không còn ở mục cần xem lại.`)) return;
+    try {
+      const r = await post(`/exams/${state.examId}/auto-graded-review/keep-all`, { confirm: true, items: ds.map((c) => ({ sheet_id: c.sheet_id, question_no: c.question_no })) });
+      toast(`Đã giữ ${r.da_giu} câu như máy chấm.${r.bo_qua ? ` ${r.bo_qua} câu đã có người xử lý.` : ""}`);
+      await napChiTietKyThi(); await manHangDoi();
+    } catch (e) { toast(e.message, true); }
+  });
 }
 
+const daXemTuCham = {};   // sheet_id -> Set(question_no) câu "đã chấm tự động" đã xem lại trong phiên này
 const daXem = {};   // sheet_id -> Set(question_no) đã duyệt trong phiên này (hiện thẻ "đã chốt" thay vì biến mất)
 /* datTieuDiem: vừa mở phiếu (từ hàng đợi / nút kế tiếp) -> đặt con trỏ vào ô SBD / mã đề cần chốt (không chọn gì thay giáo viên).
    daLuu: vừa lưu SBD / mã đề -> hiện ngay tại chỗ nút "Phiếu cần xem kế tiếp" (AA2 d). */
@@ -469,7 +497,9 @@ async function manDuyet(id, { datTieuDiem = false, daLuu = false } = {}) {
   const p = await api(`/sheets/${id}`);
   if (p.status === "rejected") { location.hash = `#/sheet/${id}`; return; }
   const xong = (daXem[id] = daXem[id] || new Set());
-  const the = p.questions.filter((q) => q.needs_review || xong.has(q.question_no));
+  const xongTc = (daXemTuCham[id] = daXemTuCham[id] || new Set());
+  const the = p.questions.filter((q) => q.needs_review || (xong.has(q.question_no) && !xongTc.has(q.question_no)));
+  const theTuCham = p.questions.filter((q) => q.tu_cham_can_xem || xongTc.has(q.question_no));
   const dinhDanhCan = p.status === "needs_review" && p.sbd && p.exam_code &&
     (p.sbd.can_xem || p.exam_code.can_xem || !p.exam_code.matched_code || !p.student);
   const rv = p.review;
@@ -486,7 +516,7 @@ async function manDuyet(id, { datTieuDiem = false, daLuu = false } = {}) {
   main.innerHTML = `<p class="row nav-duyet"><a href="#/review">← Hàng đợi</a> · <a href="#/sheet/${id}">Chi tiết phiếu</a>${keTiep ? " · " + nutKeTiep("ke-tiep", "") : ""}</p>
     <h2>Duyệt phiếu #${id} ${tag(p.status)}</h2>
     <div class="card"><div class="score">${diemHtml(p.score, p.status)}</div>
-      ${p.status === "graded" ? `<div class="alert ok">Đã chốt điểm chính thức – phiếu duyệt xong. ${keTiep ? `<a href="#/review/${keTiep}">Sang phiếu cần xem kế tiếp (#${keTiep}) →</a>` : '<a href="#/review">Về hàng đợi (không còn phiếu cần xem khác) →</a>'}</div>` : ""}
+      ${p.status === "graded" ? `<div class="alert ok">Đã chốt điểm chính thức – ${p.score && p.score.auto_graded_pending ? "còn câu tô nhiều ô chờ xem lại (xem dưới)." : "phiếu duyệt xong."} ${keTiep ? `<a href="#/review/${keTiep}">Sang phiếu cần xem kế tiếp (#${keTiep}) →</a>` : '<a href="#/review">Về hàng đợi (không còn phiếu cần xem khác) →</a>'}</div>` : ""}
       ${rv && p.status === "needs_review" ? `<div class="alert warn">Còn lại: ${rv.reasons.map((r) => LY_DO_PHIEU[r] || r).join("; ")}</div>` : ""}
       <p class="muted small">Sinh viên: ${p.student ? esc(p.student.full_name) + " (" + esc(p.student.student_code) + ")" : "chưa ghép được"} · Mã đề: ${esc((p.exam_code && p.exam_code.matched_code) || "chưa xác định")}</p></div>
     ${trung ? khungTrung(p, trung, phieuCu) : ""}
@@ -494,7 +524,10 @@ async function manDuyet(id, { datTieuDiem = false, daLuu = false } = {}) {
     ${dinhDanhCan ? khungDinhDanh(p) : ""}
     <h3>Câu cần xem (${p.questions.filter((q) => q.needs_review).length} còn lại)</h3>
     ${p.status === "needs_review" ? khungNhanh(p) : ""}
-    ${the.map((q) => theCau(id, q)).join("") || '<p class="muted">Không có câu nào cần xem.</p>'}`;
+    ${the.map((q) => theCau(id, q)).join("") || '<p class="muted">Không có câu nào cần xem.</p>'}
+    ${theTuCham.length ? `<h3 id="tieu-de-tu-cham">Đã chấm tự động – cần xem lại (${theTuCham.filter((q) => q.tu_cham_can_xem).length} còn lại)</h3>
+      <p class="muted small">Thí sinh tô từ 2 ô trở lên nên máy đã tính câu SAI. Điểm của phiếu đã tính theo cách đó; nhìn ảnh rồi giữ như máy chấm hoặc chọn lại đáp án thật (điểm sẽ được tính lại và ghi vết).</p>
+      ${theTuCham.map((q) => theCauTuCham(id, q)).join("")}` : ""}`;
   if (trung) {
     $("#trung-bo").addEventListener("click", () => boPhieuTrung(id, trung));
     $("#trung-thay").addEventListener("click", () => thayPhieuCu(id, trung, phieuCu));
@@ -518,7 +551,7 @@ function khungNhanh(p) {
   const nhan = DuyetNhanh.nhanNutHangLoat(hl.duoc.length);                      // AF2: chỉ đếm câu nhiều ô / tô nhạt; 0 câu -> ẩn nút
   return `<div class="card" id="khung-nhanh">
     ${nhan ? `<div class="row"><button type="button" id="xn-tat-ca" aria-haspopup="dialog">${esc(nhan)}</button>
-      <span class="small muted">Chỉ câu trả lời "nhiều ô" / "tô nhạt cả tờ" bên dưới. SBD / mã đề KHÔNG nằm trong thao tác này. Sẽ hỏi lại trước khi làm.</span></div>` : ""}
+      <span class="small muted">Chỉ câu trả lời "tô nhạt cả tờ" bên dưới. SBD / mã đề KHÔNG nằm trong thao tác này. Sẽ hỏi lại trước khi làm.</span></div>` : ""}
     ${hl.tay.length ? `<p class="small" id="giai-thich-tay">Câu mờ / vết cần quyết định bằng mắt – ${hl.tay.length} câu (${hl.tay.join(", ")}) chọn từng câu.</p>` : ""}
     <p class="small muted phim-goi-y" id="goi-y-phim">${PHIM_GOI_Y}</p></div>`;
 }
@@ -541,7 +574,7 @@ function moXacNhanHangLoat(id, p, { dinhDanhCan, trung }) {
   const dlg = document.createElement("div");
   dlg.id = "dlg-hl"; dlg.className = "modal"; dlg.setAttribute("role", "dialog"); dlg.setAttribute("aria-modal", "true");
   dlg.setAttribute("aria-labelledby", "dlg-hl-h"); dlg.setAttribute("aria-describedby", "dlg-hl-canh-bao");
-  dlg.innerHTML = `<div class="modal-box"><h2 id="dlg-hl-h">Xác nhận ${hl.duoc.length} câu nhiều ô / tô nhạt như máy đọc?</h2>
+  dlg.innerHTML = `<div class="modal-box"><h2 id="dlg-hl-h">Xác nhận ${hl.duoc.length} câu tô nhạt cả tờ như máy đọc?</h2>
     <p>Phiếu #${id}. Mỗi câu dưới đây được chốt ĐÚNG như máy đọc – giống bấm "Xác nhận như máy đọc" từng câu:</p>
     <ul class="ds-hl">${DuyetNhanh.dongXacNhan(hl.duoc).map((t, i) => `<li><a href="#" data-xem="${hl.duoc[i].question_no}">${esc(t)}</a></li>`).join("")}</ul>
     <div class="alert warn" id="dlg-hl-canh-bao"><b>Không hoàn tác được</b>: câu đã xác nhận không mở lại được trên hệ thống hiện tại.
@@ -608,7 +641,7 @@ document.addEventListener("keydown", (ev) => {
   if (a.loai === "chon") { const b = el.querySelector(`.opts button[data-o="${a.o}"]`); if (b) b.classList.toggle("sel"); }
   else if (a.loai === "bo_chon") el.querySelectorAll(".opts .sel").forEach((b) => b.classList.remove("sel"));
   else if (a.loai === "xac_nhan") {
-    const b = el.querySelector('[data-act="confirm"]');
+    const b = el.querySelector('[data-act="confirm"], [data-act="keep"]');
     if (b && !b.disabled) b.click(); else toast("Câu này phải chọn tay (máy chưa chắc vị trí hàng): bấm A–D rồi Enter.", true);
   } else if (a.loai === "luu") {
     if (el.querySelector(".opts .sel")) el.querySelector('[data-act="set"]').click();
@@ -750,8 +783,21 @@ function theCau(id, q) {
       ${viTri ? '<p class="small muted">Máy chưa chắc vị trí hàng này nên không cho xác nhận nhanh – hãy nhìn ảnh rồi chọn.</p>' : ""}`}
     </div></div>`;
 }
+function theCauTuCham(id, q) {
+  const xong = !q.tu_cham_can_xem;
+  const dacMay = q.omr_selected_options || "bỏ trống";
+  return `<div class="rcard tc ${xong ? "done" : ""}" data-q="${q.question_no}" data-tc="1" id="the-cau-${q.question_no}" ${xong ? "" : 'tabindex="0"'} aria-label="Câu ${q.question_no} đã chấm tự động">
+    <div><img src="/sheets/${id}/questions/${q.question_no}/image" alt="câu ${q.question_no}" loading="lazy"></div>
+    <div><h3>Câu ${q.question_no} ${xong ? '<span class="tag ok">đã xem lại</span>' : '<span class="tag warn">tự chấm sai</span>'}</h3>
+      <p>Máy đọc: <b>${esc(dacMay)}</b> · ${xong ? `đáp án hiện tại: <b>${esc(q.selected_options || "bỏ trống")}</b>${q.manually_edited ? " (giáo viên sửa)" : " (giữ như máy chấm)"}` : "tô nhiều ô nên tính SAI (0 điểm)"}</p>
+      ${xong ? "" : `<div class="opts row">${["A", "B", "C", "D"].map((o) => `<button type="button" data-o="${o}">${o}</button>`).join("")}</div>
+      <div class="row"><button class="pri" data-act="set">Lưu lựa chọn</button><button data-act="blank">Bỏ trống</button>
+        <button data-act="keep">Giữ như máy chấm (${esc(dacMay)} – tính sai)</button></div>`}
+    </div></div>`;
+}
 function gan(el, id) {
   const n = Number(el.dataset.q);
+  if (el.dataset.tc) return ganTuCham(el, id, n);
   if (!el.classList.contains("done")) el.addEventListener("focusin", () => datHienTai(id, n));    // bấm / Tab vào thẻ -> phím tắt tác động lên câu này
   el.querySelectorAll(".opts button").forEach((b) => b.addEventListener("click", () => b.classList.toggle("sel")));
   el.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", async () => {
@@ -771,6 +817,27 @@ function gan(el, id) {
   }));
 }
 
+function ganTuCham(el, id, n) {
+  if (!el.classList.contains("done")) el.addEventListener("focusin", () => datHienTai(id, n));
+  el.querySelectorAll(".opts button").forEach((b) => b.addEventListener("click", () => b.classList.toggle("sel")));
+  el.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", async () => {
+    const act = b.dataset.act;
+    let body;
+    if (act === "keep") body = { action: "keep" };
+    else if (act === "blank") body = { action: "set", selected_options: "" };
+    else {
+      const ch = [...el.querySelectorAll(".opts .sel")].map((x) => x.dataset.o).join("");
+      if (!ch) { toast("Chọn ít nhất một đáp án, hoặc bấm 'Bỏ trống'.", true); return; }
+      body = { action: "set", selected_options: ch };
+    }
+    el.querySelectorAll("button").forEach((x) => (x.disabled = true));
+    try {
+      await post(`/sheets/${id}/questions/${n}/auto-review`, body);
+      daXemTuCham[id].add(n); toast(act === "keep" ? `Câu ${n}: giữ như máy chấm.` : `Câu ${n} đã sửa, điểm được tính lại.`); await manDuyet(id);
+    } catch (e) { toast(e.message, true); el.querySelectorAll("button").forEach((x) => (x.disabled = false)); }
+  }));
+}
+
 /* ------------------------------------------------------------------ F5: bảng điểm */
 const NHAN_BD = { official: ["Chính thức", "ok"], pending: ["Chưa duyệt xong – điểm tạm", "warn"], rejected: ["Bị từ chối", "bad"], no_sheet: ["Chưa có phiếu", "gray"] };
 async function manBangDiem() {
@@ -780,7 +847,8 @@ async function manBangDiem() {
     const [t, c] = NHAN_BD[d.status];
     const diem = d.score !== null ? `<b>${fmt(d.score)}</b>` : '<span class="muted">–</span>';
     const tam = d.provisional_score !== null ? `${fmt(d.provisional_score)} <span class="muted small">(${d.pending_questions} câu chờ)</span>` : '<span class="muted">–</span>';
-    const canhBao = d.duplicate_pending ? `<span class="tag bad">Còn ${d.duplicate_pending} phiếu trùng chờ duyệt</span> ${d.duplicate_sheet_ids.map((s) => `<a href="#/review/${s}">#${s}</a>`).join(" ")}` : "";
+    const canhBao = (d.duplicate_pending ? `<span class="tag bad">Còn ${d.duplicate_pending} phiếu trùng chờ duyệt</span> ${d.duplicate_sheet_ids.map((s) => `<a href="#/review/${s}">#${s}</a>`).join(" ")}` : "")
+      + (d.auto_graded_pending ? `<span class="tag warn">Còn ${d.auto_graded_pending} câu tô nhiều ô đã chấm sai, chờ xem lại</span> <a href="#/review/${d.sheet_id}">#${d.sheet_id}</a>` : "");
     return `<tr><td>${d.stt}</td><td>${esc(d.sbd)}</td><td>${esc(d.full_name)}</td><td>${esc(d.exam_code || "–")}</td>
       <td>${d.num_correct ?? "–"}</td><td>${diem}</td><td>${tam}</td><td><span class="tag ${c}">${esc(t)}</span></td>
       <td>${d.sheet_id ? `<a href="#/sheet/${d.sheet_id}">#${d.sheet_id}</a>` : "–"}</td><td>${canhBao}</td></tr>`;
@@ -791,7 +859,9 @@ async function manBangDiem() {
       <span class="tag ok">Chính thức: ${k.official}</span><span class="tag warn">Chưa duyệt xong: ${k.pending}</span>
       <span class="tag bad">Bị từ chối: ${k.rejected}</span><span class="tag gray">Chưa có phiếu: ${k.no_sheet}</span>
       ${k.students_duplicate_pending ? `<span class="tag bad">Thí sinh có phiếu trùng SBD chờ duyệt: ${k.students_duplicate_pending}</span>` : ""}
+      ${k.auto_graded_pending_questions ? `<span class="tag warn">Câu tô nhiều ô chờ xem lại: ${k.auto_graded_pending_questions}</span>` : ""}
       <a class="btn pri" href="/exams/${state.examId}/export.xlsx" download>Xuất Excel</a></div>
+      ${k.auto_graded_pending_questions ? `<div class="alert warn" id="canh-bao-tu-cham-bd">Còn ${k.auto_graded_pending_questions} câu tô nhiều ô (${k.students_auto_graded_pending} thí sinh) đã chấm sai tự động, chờ giáo viên xem lại. Điểm ở bảng đã tính các câu này là sai; xem lại ở <a href="#/review">Hàng đợi</a>.</div>` : ""}
       ${k.students_duplicate_pending ? `<div class="alert warn">${k.students_duplicate_pending} thí sinh còn phiếu <b>trùng SBD</b> đang chờ duyệt. Điểm ở bảng là của phiếu đã chính thức; hãy xử lý các phiếu trùng ở cột "Cảnh báo" trước khi xuất Excel chốt.</div>` : ""}
       <p class="muted small">Cột <b>Điểm</b> chỉ có điểm chính thức. Điểm của phiếu chưa duyệt xong nằm ở cột <b>Điểm tạm</b> và chưa phải điểm chính thức.
         Phiếu bị từ chối là ảnh không dùng được nên không biết của thí sinh nào (chụp lại).</p>
