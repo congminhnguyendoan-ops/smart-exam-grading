@@ -529,6 +529,11 @@ dịch ROLLBACK (`tests/conftest.py`). Kiểm đầu-cuối độc lập: `pytho
 - Giữ 26 docstring module ở tệp dùng `description=__doc__` (CLI). Các chú thích "lệnh X" / lịch sử trong mã không còn: tra cứu lịch sử và lý do bằng `docs/`, mục trong CLAUDE.md và tag trên.
 - Kiểm sau xoá: pytest 739 đạt + 1 skip; `kiem_truoc_demo` 0 KHÔNG ĐẠT; `chay_demo dacn|xla --chi-in` đạt; `chay_demo xla` chạy thật trên cổng 8011: `/health` 200, `/app/` 200 (cổng 8000 của người dùng không đụng).
 
+### 4aa. Lệnh BB – luật "đen đủ dày" cho ô gạch chéo (21/11/2026, nhánh `luat-den-day` từ `main` @ `69288d4`; gộp `main` chỉ để lưu hồ sơ; tag trước: `main-truoc-bb-21-11`)
+- Tiêu chí đăng ký trước `docs/tieu_chi_luat_den_day.md` (`3c1309f`); kết quả `docs/ket_qua_luat_den_day.md`; công cụ `tools/bb_luat_den_day.py phan-bo | do` (chỉ đọc ảnh, mô phỏng luật, không ghi `omr.py`).
+- **KHÔNG ĐẠT (b)**: ngưỡng đăng ký phu_dam ≥ 0,85, tuyet_doi ≥ 0,65, phu_nhe ≥ 0,95 làm 26/434 ô nhãn mờ (train + val) thoả luật, biên tối thiểu −0,05 (cần ≥ +0,20); 23 câu nhãn `faint` bị đổi thành `ro`. Đạt: (c) 4 ô gạch chéo → `ro`, 4 ô nhạt thật vẫn `mo`; (d) 13 ảnh AG 0 lỗi im lặng mới; (a) lỗi nặng 0 → 0, câu cần xem 560 → 529.
+- Theo mục (e) KHÔNG sửa `cv_engine/omr.py`, `models/` không đổi. **Quyết định người dùng 21/11/2026: bỏ luật** (hạn chế đã biết của đặc trưng OMR: ô gạch chéo vẫn `o_mo` → hàng đợi); nhánh gộp `--no-ff` vào `main` cục bộ chỉ để lưu hồ sơ.
+
 ## 5. Cài đặt và chạy
 
 Chạy trong Terminal của PyCharm, thư mục `answer_sheet/`, venv đã bật:
