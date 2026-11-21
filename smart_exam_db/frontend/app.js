@@ -12,7 +12,8 @@ const fmt = (x) => (x === null || x === undefined ? "–" : Number(x).toFixed(2)
 
 const NHAN_TRANG_THAI = { graded: ["Chính thức", "ok"], needs_review: ["Cần xem", "warn"], rejected: ["Bị từ chối", "bad"],
   processing: ["Đang xử lý", "gray"], uploaded: ["Đã tải lên", "gray"], processed: ["Đã xử lý", "gray"], error: ["Lỗi", "bad"] };
-const LY_DO_CAU = { o_mo: "ô tô mờ", nhieu_o: "tô nhiều ô", khong_o_nao: "không thấy ô nào", tin_cay_thap: "máy chưa chắc", vi_tri: "chưa chắc vị trí hàng", vet_nho: "vết nhỏ trong ô không chọn", to_nhat: "phiếu tô nhạt cả tờ" };
+const LY_DO_CAU = LyDoCau.DAI;
+const LY_DO_CAU_NGAN = LyDoCau.NGAN;
 const LY_DO_CHU_SO = { lech_bubble: "chữ viết tay khác chữ số bubble", tin_cay_thap: "chữ viết tay khó đọc (máy chưa chắc)",
   thieu_bubble: "cột bubble không đọc được (không tô / tô nhiều ô)", bubble_cx: "cột bubble máy chưa chắc",
   o_trong_ngoai_ds: "ô viết tay trống và số này không có trong danh sách", o_trong_chua_biet_ds: "ô viết tay trống, chưa kiểm được danh sách",
@@ -397,7 +398,7 @@ function cauHtml(q, dapAn, phieu) {
   const cls = q.needs_review ? "review" : q.is_correct === true ? "good" : q.is_correct === false ? "wrong" : "";
   const doc = q.selected_options || (q.state === "blank" ? "—" : "?");
   const ketQua = q.needs_review ? "?" : q.is_correct === true ? "✓" : q.is_correct === false ? "✗" : "";
-  const ly = q.needs_review ? `<small>${q.reasons.map((r) => LY_DO_CAU[r] || r).join(", ")}</small>` : q.tu_cham_can_xem ? "<small>tô nhiều ô – tự chấm sai, chờ xem lại</small>"
+  const ly = q.needs_review ? `<small>${esc(LyDoCau.chuoi(q.reasons, LY_DO_CAU_NGAN))}</small>` : q.tu_cham_can_xem ? "<small>tô nhiều ô – tự chấm sai, chờ xem lại</small>"
     : q.manually_edited ? '<small style="color:var(--mut)">GV đã sửa</small>' : "";
   return `<div class="q ${cls}" title="Máy đọc: ${esc(q.omr_selected_options || "bỏ trống")}${dapAn ? " · đáp án: " + dapAn : ""}"><span>Câu ${q.question_no}: <b>${esc(doc)}</b>${ly}</span><span>${ketQua}</span>${phieu ? HoanTac.nutHtml(q, phieu) : ""}</div>`;
 }
@@ -428,8 +429,59 @@ async function manChiTiet(id) {
       ${p.status === "needs_review" ? `<a class="btn pri" href="#/review/${id}">Duyệt các mục cần xem →</a>` : ""}`}</div></div></div>
     ${rejected ? "" : `<div class="card"><h3>Bảng ${p.questions.length} câu</h3>
       <p class="small muted">Xanh = đúng · đỏ = sai · vàng viền đậm = cần xem (chưa tính vào điểm chính thức). Chỉ chấm khi đã biết mã đề.</p>
-      <div class="qgrid">${p.questions.map((q) => cauHtml(q, dapAn ? dapAn[q.question_no - 1] : null, p)).join("")}</div></div>`}`;
+      <div class="qgrid">${p.questions.map((q) => cauHtml(q, dapAn ? dapAn[q.question_no - 1] : null, p)).join("")}</div></div>
+    ${khoiCauSai(p)}`}`;
+  if (!rejected) ganCauSai(id, p, () => manChiTiet(id));
   if (!rejected) main.querySelectorAll(".qgrid [data-undo]").forEach((b) => b.addEventListener("click", () => { const n = Number(b.dataset.undo); b.disabled = true; hoanTacCau(id, n, p, p.questions.find((x) => x.question_no === n), () => manChiTiet(id)).finally(() => { b.disabled = false; }); }));
+}
+const cauCanCuon = {};
+function khoiCauSai(p) {
+  const qs = p.questions;
+  const tt = CauSai.tomTat(qs);
+  const sai = CauSai.danhSachSai(qs);
+  const cho = CauSai.chuaCham(qs);
+  const dong = sai.map((q) => {
+    const h = CauSai.hanhDong(q, p);
+    return `<details class="cau-sai" data-q="${q.question_no}"><summary>Câu ${q.question_no} · ${esc(CauSai.moTaChon(q))} · đáp án đúng <b>${esc(q.correct_option || "?")}</b> · <span class="tag bad">${esc(CauSai.lyDo(q))}</span></summary>
+      <div class="cau-sai-than"><img data-src="/sheets/${p.sheet_id}/questions/${q.question_no}/image" alt="ảnh câu ${q.question_no}">
+        <div class="row">${h.sua ? `<button type="button" data-sua="${q.question_no}">Sửa lại</button>` : '<span class="muted small">Máy đọc chắc chắn nên không có thẻ để sửa.</span>'}
+          ${h.hoan_tac ? HoanTac.nutHtml(q, p) : ""}${h.giu ? `<button type="button" data-giu="${q.question_no}">Giữ như máy chấm</button>` : ""}</div></div></details>`;
+  }).join("");
+  return `<div class="card" id="khoi-cau-sai"><h3>Câu bị tính sai (${sai.length})</h3>
+    <p class="small" id="tom-tat-cau-sai"><b>${esc(tt.chuoi)}</b>${tt.chua_cham ? ` · ${tt.chua_cham} chưa chấm` : ""}</p>
+    ${sai.length ? dong : '<p class="muted" id="khong-cau-sai">Không có câu nào bị tính sai</p>'}
+    ${cho.length ? `<h4 id="cau-chua-cham">Chưa chấm (chờ duyệt) (${cho.length})</h4><p class="small">Câu ${cho.join(", ")}</p>` : ""}</div>`;
+}
+function ganCauSai(id, p, lamMoi) {
+  const khoi = $("#khoi-cau-sai");
+  if (!khoi) return;
+  khoi.querySelectorAll("details.cau-sai").forEach((d) => d.addEventListener("toggle", () => {
+    const img = d.querySelector("img[data-src]");
+    if (d.open && img) { img.src = img.dataset.src; img.removeAttribute("data-src"); }
+  }));
+  khoi.querySelectorAll("[data-sua]").forEach((b) => b.addEventListener("click", () => {
+    const n = Number(b.dataset.sua);
+    const q = p.questions.find((x) => x.question_no === n);
+    cauHT[id] = n;
+    cauCanCuon[id] = n;
+    if (!q.needs_review && !q.tu_cham_can_xem) (daXem[id] = daXem[id] || new Set()).add(n);
+    if (location.hash === `#/review/${id}`) manDuyet(id); else location.hash = `#/review/${id}`;
+  }));
+  khoi.querySelectorAll("[data-undo]").forEach((b) => b.addEventListener("click", () => {
+    const n = Number(b.dataset.undo);
+    b.disabled = true;
+    hoanTacCau(id, n, p, p.questions.find((x) => x.question_no === n), lamMoi).finally(() => { b.disabled = false; });
+  }));
+  khoi.querySelectorAll("[data-giu]").forEach((b) => b.addEventListener("click", async () => {
+    const n = Number(b.dataset.giu);
+    b.disabled = true;
+    try {
+      await post(`/sheets/${id}/questions/${n}/auto-review`, { action: "keep" });
+      (daXemTuCham[id] = daXemTuCham[id] || new Set()).add(n);
+      toast(`Câu ${n}: giữ như máy chấm.`);
+      await lamMoi();
+    } catch (e) { toast(e.message, true); b.disabled = false; }
+  }));
 }
 async function khoiTuChoi(p) {
   if (p.reject_code === "bi_thay_the" || p.reject_code === "chup_lai_bi_bo")      // phiếu trùng SBD đã xử lý (không phải lỗi ảnh)
@@ -443,7 +495,7 @@ async function khoiTuChoi(p) {
 
 /* ------------------------------------------------------------------ F4: duyệt */
 /* AF4: hàng đợi lọc / nhóm theo lý do chính (GET /exams/{id}/review-groups) – CHỈ hiển thị, không đổi trạng thái phiếu nào. */
-const LY_DO_NGAN = { o_mo: "mờ", nhieu_o: "nhiều ô", vet_nho: "vết nhỏ", to_nhat: "tô nhạt", tin_cay_thap: "sát ngưỡng", vi_tri: "vị trí" };
+const LY_DO_NGAN = { o_mo: "chưa chắc đặc", nhieu_o: "nhiều ô", vet_nho: "vết nhỏ", to_nhat: "tô nhạt", tin_cay_thap: "sát ngưỡng", vi_tri: "vị trí" };
 async function manHangDoi() {
   const ds = await api(`/exams/${state.examId}/review-groups`);
   const dem = {};
@@ -529,7 +581,9 @@ async function manDuyet(id, { datTieuDiem = false, daLuu = false } = {}) {
     ${the.map((q) => theCau(id, q, p)).join("") || '<p class="muted">Không có câu nào cần xem.</p>'}
     ${theTuCham.length ? `<h3 id="tieu-de-tu-cham">Đã chấm tự động – cần xem lại (${theTuCham.filter((q) => q.tu_cham_can_xem).length} còn lại)</h3>
       <p class="muted small">Thí sinh tô từ 2 ô trở lên nên máy đã tính câu SAI. Điểm của phiếu đã tính theo cách đó; nhìn ảnh rồi giữ như máy chấm hoặc chọn lại đáp án thật (điểm sẽ được tính lại và ghi vết).</p>
-      ${theTuCham.map((q) => theCauTuCham(id, q, p)).join("")}` : ""}`;
+      ${theTuCham.map((q) => theCauTuCham(id, q, p)).join("")}` : ""}
+    ${khoiCauSai(p)}`;
+  ganCauSai(id, p, () => manDuyet(id));
   if (trung) {
     $("#trung-bo").addEventListener("click", () => boPhieuTrung(id, trung));
     $("#trung-thay").addEventListener("click", () => thayPhieuCu(id, trung, phieuCu));
@@ -540,6 +594,11 @@ async function manDuyet(id, { datTieuDiem = false, daLuu = false } = {}) {
   const nut = $("#xn-tat-ca");
   if (nut) nut.addEventListener("click", () => moXacNhanHangLoat(id, p, { dinhDanhCan, trung }));
   datHienTai(id, cauHT[id], !(dinhDanhCan && datTieuDiem));                     // không giành tiêu điểm của ô SBD / mã đề (AA2)
+  if (cauCanCuon[id]) {
+    const the = $(`#the-cau-${cauCanCuon[id]}`);
+    delete cauCanCuon[id];
+    if (the) the.scrollIntoView({ block: "center" });
+  }
   await napChiTietKyThi();
 }
 
@@ -777,7 +836,7 @@ function theCau(id, q, p) {
     <div><h3>Câu ${q.question_no} ${xong ? '<span class="tag ok">đã chốt</span>' : ""}</h3>
       ${xong ? "" : `<p class="nhan-cau muc-${nh.muc}"><span class="tag">Máy đọc: <b>${esc(nh.may_doc)}</b></span> <span class="tag dau-hieu">Dấu hiệu: ${esc(nh.dau_hieu || "–")}</span>
         ${nh.goi_y ? `<span class="small muted">${esc(nh.goi_y)}</span>` : ""}</p>`}
-      <p>Máy đọc: <b>${esc(dacMay)}</b> · lý do: ${q.reasons.map((r) => LY_DO_CAU[r] || r).join(", ") || "–"}</p>
+      <p>Máy đọc: <b>${esc(dacMay)}</b> · lý do: ${esc(LyDoCau.chuoi(q.reasons) || "–")}${LyDoCau.doTinCay(q) ? ` · <span class="muted">${esc(LyDoCau.doTinCay(q))}</span>` : ""}</p>
       ${xong ? `<p>Đáp án đã chốt: <b>${esc(q.selected_options || "bỏ trống")}</b>${q.manually_edited ? " (giáo viên sửa)" : " (xác nhận như máy đọc)"}</p>
       <div class="row">${HoanTac.nutHtml(q, p)}</div>` : `
       <div class="opts row">${["A", "B", "C", "D"].map((o) => `<button type="button" data-o="${o}">${o}</button>`).join("")}<span class="muted small">(chọn nhiều ô nếu thực sự tô 2 ô)</span></div>
