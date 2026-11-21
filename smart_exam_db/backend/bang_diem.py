@@ -37,7 +37,9 @@ def bang_diem(conn, exam_id: int) -> dict:
     phieu = conn.execute(
         "SELECT a.sheet_id, a.status::text AS status, a.matched_student_id AS sid, a.raw_score, a.num_correct AS dung_tam, "
         "a.detected_exam_code, c.code AS ma_de, r.score AS diem, r.num_correct AS dung, "
-        "(SELECT count(*) FROM sheet_answers q WHERE q.sheet_id = a.sheet_id AND q.needs_review) AS cho "
+        "(SELECT count(*) FROM sheet_answers q WHERE q.sheet_id = a.sheet_id AND q.needs_review) AS cho, "
+        "(SELECT count(*) FROM sheet_answers q WHERE q.sheet_id = a.sheet_id AND NOT q.needs_review AND 'nhieu_o' = ANY(q.review_reasons) "
+        "AND q.reviewed_at IS NULL) AS tu_cham "
         "FROM answer_sheets a LEFT JOIN results r ON r.sheet_id = a.sheet_id AND r.status <> 'void' "
         "LEFT JOIN exam_codes c ON c.exam_code_id = a.exam_code_id "
         "WHERE a.exam_id = %s AND a.matched_student_id IS NOT NULL AND a.status IN ('graded', 'needs_review') "
@@ -61,11 +63,11 @@ def bang_diem(conn, exam_id: int) -> dict:
         d = {"stt": i, "student_id": s["student_id"], "sbd": s["student_code"], "full_name": s["full_name"], "exam_code": None,
              "num_correct": None, "score": None, "provisional_score": None, "provisional_correct": None, "pending_questions": 0,
              "sheet_id": None, "sheets": so_phieu.get(s["student_id"], 0),
-             "duplicate_pending": len(cho_trung.get(s["student_id"], [])), "duplicate_sheet_ids": cho_trung.get(s["student_id"], [])}
+             "auto_graded_pending": 0, "duplicate_pending": len(cho_trung.get(s["student_id"], [])), "duplicate_sheet_ids": cho_trung.get(s["student_id"], [])}
         if p is None:
             d["status"] = "no_sheet"
         else:
-            d.update(sheet_id=p["sheet_id"], exam_code=p["ma_de"] or p["detected_exam_code"])
+            d.update(sheet_id=p["sheet_id"], exam_code=p["ma_de"] or p["detected_exam_code"], auto_graded_pending=p["tu_cham"])
             if p["diem"] is not None:
                 d.update(status="official", score=_f(p["diem"]), num_correct=p["dung"])
             else:
@@ -86,6 +88,8 @@ def bang_diem(conn, exam_id: int) -> dict:
     dem["rejected"] = sum(p["status"] == "rejected" for p in roi)
     dem["unmatched_review"] = sum(p["status"] == "needs_review" for p in roi)
     dem["students_duplicate_pending"] = sum(d["duplicate_pending"] > 0 for d in dong)
+    dem["auto_graded_pending_questions"] = sum(d["auto_graded_pending"] for d in dong)
+    dem["students_auto_graded_pending"] = sum(d["auto_graded_pending"] > 0 for d in dong)
     return {"exam_id": exam_id, "exam_title": ex["exam_title"], "subject_code": ex["subject_code"], "subject_name": ex["subject_name"],
             "class_id": ex["class_id"], "class_code": ex["class_code"], "class_name": ex["class_name"], "max_score": _f(ex["max_score"]), "num_questions": ex["num_questions"],
             "exported_on": date.today().isoformat(), "counts": {**dem, "students": len(dong)}, "rows": dong, "unmatched": roi}
@@ -134,9 +138,11 @@ def xuat_excel(conn, exam_id: int) -> tuple[bytes, str]:
     for i, d in enumerate(b["rows"], 6):
         ws.append([d["stt"], d["sbd"], d["full_name"], d["exam_code"], d["num_correct"], d["score"], d["provisional_score"],
                    d["status_label"], d["sheet_id"],
-                   (f"Còn {d['duplicate_pending']} phiếu trùng SBD chờ duyệt (mã phiếu " + ", ".join(map(str, d["duplicate_sheet_ids"])) + ")")
-                   if d["duplicate_pending"] else None])
-        if d["duplicate_pending"]:
+                   "; ".join(x for x in (
+                       (f"Còn {d['duplicate_pending']} phiếu trùng SBD chờ duyệt (mã phiếu " + ", ".join(map(str, d["duplicate_sheet_ids"])) + ")")
+                       if d["duplicate_pending"] else None,
+                       f"Còn {d['auto_graded_pending']} câu tô nhiều ô đã chấm sai, chờ xem lại" if d["auto_graded_pending"] else None) if x) or None])
+        if d["duplicate_pending"] or d["auto_graded_pending"]:
             ws.cell(row=i, column=10).font = Font(bold=True, color="C00000")
         ws.cell(row=i, column=2).number_format = "@"
         ws.cell(row=i, column=8).fill = PatternFill("solid", fgColor=mau[d["status"]])

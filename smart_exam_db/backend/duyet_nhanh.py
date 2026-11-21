@@ -9,12 +9,12 @@ LY_DO_HANG_LOAT = frozenset({"nhieu_o", "to_nhat"})
 
 def hop_le_hang_loat(reasons) -> bool:
     r = set(reasons or [])
-    return bool(r) and r <= LY_DO_HANG_LOAT
+    return "to_nhat" in r and r <= LY_DO_HANG_LOAT
 
 
 class XacNhanHangLoat(BaseModel):
     question_nos: list[int] = Field(min_length=1, max_length=40,
-                                    description="ĐÚNG các câu đã hiển thị trong hộp xác nhận = mọi câu cần xem có lý do chỉ gồm `nhieu_o` / `to_nhat`. "
+                                    description="ĐÚNG các câu đã hiển thị trong hộp xác nhận = mọi câu cần xem có lý do thuộc `nhieu_o` / `to_nhat` và có `to_nhat` (câu nhiều ô thuần đã tự chấm sai, không còn ở đây). "
                                                 "Có câu loại khác (mờ, vết, lưng chừng, vị trí) -> 422 cả lô; danh sách cũ / lệch -> 409")
     confirm: Literal[True] = Field(description="Phải là true (giáo viên đã bấm nút trong hộp xác nhận)")
 
@@ -61,9 +61,9 @@ def xac_nhan_hang_loat(conn, sheet_id: int, question_nos: list[int], nd) -> dict
     bi_loai = sorted({n for n in question_nos if n in tay})
     if bi_loai:
         raise service.DuLieuSai(f"Từ chối cả lô: {len(bi_loai)} câu không xác nhận hàng loạt được (câu {', '.join(map(str, bi_loai))}) – chỉ nhận câu "
-                                "'nhiều ô' / 'tô nhạt cả tờ'. Câu mờ / vết / lưng chừng / vị trí phải chọn từng câu bằng mắt. Chưa ghi câu nào.")
+                                "'tô nhạt cả tờ'. Câu mờ / vết / lưng chừng / vị trí phải chọn từng câu bằng mắt. Chưa ghi câu nào.")
     if not duoc:
-        raise service.XungDot("Phiếu không còn câu 'nhiều ô' / 'tô nhạt cả tờ' nào chờ xem – các câu còn lại phải chọn từng câu.")
+        raise service.XungDot("Phiếu không còn câu 'tô nhạt cả tờ' nào chờ xem – các câu còn lại phải chọn từng câu.")
     gui, that = sorted(set(question_nos)), [c["question_no"] for c in duoc]
     if len(gui) != len(question_nos) or gui != that:
         raise service.XungDot(f"Danh sách câu đã thay đổi (máy chủ: {that}, màn hình: {sorted(question_nos)}) – tải lại phiếu rồi xem lại hộp xác nhận.")

@@ -14,7 +14,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from urllib.parse import quote
 
-from . import auth, bang_diem, don_anh, dong_thoi, duyet_nhanh, loi_khuyen, mang, nguoi_dung, nhat_ky, phan_quyen, phieu_trung, quan_tri, schemas, service, trang_bia
+from . import auth, bang_diem, don_anh, dong_thoi, duyet_nhanh, loi_khuyen, mang, nguoi_dung, nhat_ky, phan_quyen, phieu_trung, quan_tri, schemas, service, trang_bia, tu_cham
 from . import kiem_anh
 from .config import CauHinh, LoiCauHinh, docs_bat, lay_cau_hinh
 from .db import ket_noi
@@ -209,7 +209,7 @@ def _tom_tat_tai(conn, sheet_id: int, da_ton_tai: bool) -> dict:
     v = service.xem_phieu(conn, sheet_id)
     sc = v["score"] or {}
     return {"sheet_id": sheet_id, "da_ton_tai": da_ton_tai, "status": v["status"], "reject_code": v["reject_code"],
-            "reject_message": v["reject_message"], "pending_questions": sc.get("pending_questions", 0),
+            "reject_message": v["reject_message"], "pending_questions": sc.get("pending_questions", 0), "auto_graded_pending": sc.get("auto_graded_pending", 0),
             "provisional_score": sc.get("provisional"), "official_score": sc.get("official")}
 
 
@@ -334,6 +334,29 @@ def nhom_hang_doi(exam_id: int, conn=Depends(get_conn), nd: auth.NguoiDung = Dep
     if not conn.execute("SELECT 1 FROM exams WHERE exam_id = %s", (exam_id,)).fetchone():
         raise service.KhongTimThay(f"Không có kỳ thi {exam_id}.")
     return duyet_nhanh.nhom_hang_doi(conn, exam_id)
+
+
+@app.get("/exams/{exam_id}/auto-graded-review", response_model=list[tu_cham.CauTuCham], tags=["Review"],
+         summary="Câu tô nhiều ô đã tự chấm sai, chờ giáo viên xem lại (chỉ đọc)")
+def cau_tu_cham(exam_id: int, limit: int = Query(default=500, ge=1, le=5000), conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
+    phan_quyen.kiem_ky_thi(conn, nd, exam_id)
+    return service.cau_tu_cham_can_xem(conn, exam_id, limit)
+
+
+@app.post("/exams/{exam_id}/auto-graded-review/keep-all", response_model=tu_cham.KetQuaGiu, tags=["Review"],
+          summary="Giữ như máy chấm các câu đang hiển thị ở mục 'Đã chấm tự động – cần xem lại' (chỉ ghi đã xem, điểm không đổi)")
+def giu_tat_ca(exam_id: int, body: tu_cham.GiuTatCa, conn=Depends(get_conn), nd: auth.NguoiDung = Depends(giao_vien)):
+    phan_quyen.kiem_ky_thi(conn, nd, exam_id)
+    return tu_cham.giu_tat_ca(conn, exam_id, body, nd)
+
+
+@app.post("/sheets/{sheet_id}/questions/{question_no}/auto-review", response_model=schemas.PhieuOut, tags=["Review"],
+          summary="Xem lại MỘT câu tô nhiều ô đã tự chấm sai: giữ như máy chấm hoặc chọn lại đáp án")
+def xem_lai_cau_tu_cham(sheet_id: int, question_no: int, body: tu_cham.XemLaiCauTuCham, conn=Depends(get_conn),
+                        nd: auth.NguoiDung = Depends(giao_vien)):
+    phan_quyen.kiem_phieu(conn, nd, sheet_id)
+    service.xem_lai_cau_tu_cham(conn, sheet_id, question_no, body.action, body.selected_options, nd.user_id, body.note)
+    return service.xem_phieu(conn, sheet_id)
 
 
 @app.put("/sheets/{sheet_id}/identity", response_model=schemas.PhieuOut, tags=["Review"],

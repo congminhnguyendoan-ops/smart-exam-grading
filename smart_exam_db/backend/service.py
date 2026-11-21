@@ -354,10 +354,15 @@ def nhan_anh(conn, cfg: CauHinh, mh: MoHinhDichVu, exam_id: int, du_lieu: bytes,
         cur.executemany(
             "INSERT INTO sheet_answers (sheet_id, question_no, state, selected_options, confidence, option_probs, needs_review, "
             "review_reasons, omr_state, omr_selected_options) VALUES (%s, %s, %s::bubble_state, %s, %s, %s, %s, %s, %s::bubble_state, %s)",
-            [(sheet_id, c.cau, omr.sang_bubble_state(c.trang_thai), c.dap_an, c.do_tin_cay, Jsonb(c.xac_suat), c.can_xem,
-              list(c.ly_do), omr.sang_bubble_state(c.trang_thai), c.dap_an) for c in res.cau[:n]])
+            [(sheet_id, c.cau, omr.sang_bubble_state(c.trang_thai), c.dap_an, c.do_tin_cay, Jsonb(c.xac_suat),
+              c.can_xem and not la_nhieu_o_thuan(c.ly_do), list(c.ly_do), omr.sang_bubble_state(c.trang_thai), c.dap_an)
+             for c in res.cau[:n]])
     danh_gia_phieu(conn, sheet_id, user_id)
     return sheet_id, False
+
+
+def la_nhieu_o_thuan(ly_do) -> bool:
+    return set(ly_do or ()) == {"nhieu_o"}
 
 
 # ------------------------------------------------------------------------------------------------ quyết định
@@ -537,6 +542,103 @@ def sua_dinh_danh(conn, sheet_id: int, sbd: str | None, ma_de: str | None, user_
     return danh_gia_phieu(conn, sheet_id, user_id, ghi_chu)
 
 
+def _tu_cham_can_xem(r) -> bool:
+    return (not r["needs_review"]) and "nhieu_o" in (r["review_reasons"] or []) and r["reviewed_at"] is None
+
+
+def ghi_dap_an_va_cham_lai(conn, sheet_id: int, question_no: int, chon: str, user_id: int, danh_dau_da_xem: bool,
+                           ly_do_sua: str | None = None) -> dict:
+    sh = conn.execute("SELECT * FROM answer_sheets WHERE sheet_id = %s", (sheet_id,)).fetchone()
+    ex = conn.execute("SELECT * FROM exams WHERE exam_id = %s", (sh["exam_id"],)).fetchone()
+    n = ex["num_questions"]
+    cu = conn.execute("SELECT selected_options, omr_selected_options FROM sheet_answers WHERE sheet_id = %s AND question_no = %s",
+                      (sheet_id, question_no)).fetchone()
+    conn.execute("SELECT set_config('app.current_user_id', %s, true)", (str(user_id),))
+    conn.execute("UPDATE sheet_answers SET selected_options = %s, state = %s::bubble_state, manually_edited = %s, "
+                 "reviewed_by = CASE WHEN %s THEN %s ELSE reviewed_by END, reviewed_at = CASE WHEN %s THEN now() ELSE reviewed_at END "
+                 "WHERE sheet_id = %s AND question_no = %s",
+                 (chon, grading.trang_thai_tu_lua_chon(chon), chon != (cu["omr_selected_options"] or ""), danh_dau_da_xem, user_id,
+                  danh_dau_da_xem, sheet_id, question_no))
+    rows = conn.execute("SELECT question_no, selected_options, state, needs_review, review_reasons FROM sheet_answers "
+                        "WHERE sheet_id = %s AND question_no <= %s ORDER BY question_no", (sheet_id, n)).fetchall()
+    if not sh["exam_code_id"]:
+        return {"status": sh["status"], "score": None}
+    kq = grading.cham_diem(rows, _dap_an(conn, sh["exam_code_id"], n), Decimal(ex["max_score"]) / Decimal(n))
+    with conn.cursor() as cur:
+        cur.executemany("UPDATE sheet_answers SET is_correct = %s WHERE sheet_id = %s AND question_no = %s",
+                        [(c.is_correct, sheet_id, c.question_no) for c in kq.cau])
+    conn.execute("UPDATE answer_sheets SET num_correct = %s, raw_score = %s WHERE sheet_id = %s",
+                 (kq.num_correct, kq.diem_tam, sheet_id))
+    res = conn.execute("SELECT result_id FROM results WHERE sheet_id = %s AND status <> 'void' FOR UPDATE", (sheet_id,)).fetchone()
+    if res is not None:
+        if kq.so_cau_can_xem:
+            raise RuntimeError(f"phiếu {sheet_id} đã có điểm chính thức nhưng còn {kq.so_cau_can_xem} câu cần xem – dừng")
+        diem_db = conn.execute("SELECT fn_grade_sheet(%s) AS s", (sheet_id,)).fetchone()["s"]
+        if Decimal(diem_db) != kq.diem_tam:
+            raise RuntimeError(f"phiếu {sheet_id}: điểm Python {kq.diem_tam} ≠ fn_grade_sheet {diem_db} – dừng, không ghi điểm")
+        conn.execute("SELECT set_config('app.change_reason', %s, true)",
+                     (ly_do_sua or f"Giáo viên sửa câu {question_no}: {cu['selected_options'] or 'trống'} → {chon or 'trống'}",))
+        conn.execute("UPDATE results SET num_correct = %s, score = %s, status = 'manual_edited', confirmed_by = %s, confirmed_at = now() "
+                     "WHERE result_id = %s", (kq.num_correct, kq.diem_tam, user_id, res["result_id"]))
+    return {"status": sh["status"], "score": kq.diem_tam}
+
+
+def xem_lai_cau_tu_cham(conn, sheet_id: int, question_no: int, hanh_dong: str, lua_chon: str | None, user_id: int,
+                        ghi_chu: str | None = None) -> dict:
+    sh = conn.execute("SELECT sheet_id, status FROM answer_sheets WHERE sheet_id = %s FOR UPDATE", (sheet_id,)).fetchone()
+    if not sh:
+        raise KhongTimThay(f"Không có phiếu {sheet_id}.")
+    if sh["status"] not in ("graded", "needs_review"):
+        raise XungDot(f"Phiếu {sheet_id} đang ở trạng thái '{sh['status']}', không có câu nào đã chấm tự động để xem lại.")
+    r = conn.execute("SELECT * FROM sheet_answers WHERE sheet_id = %s AND question_no = %s FOR UPDATE", (sheet_id, question_no)).fetchone()
+    if not r or not _tu_cham_can_xem(r):
+        raise XungDot(f"Câu {question_no} của phiếu {sheet_id} không ở trạng thái 'đã chấm tự động – cần xem lại'.")
+    if hanh_dong == "keep":
+        chon = r["selected_options"] or ""
+    elif hanh_dong == "set":
+        if lua_chon is None:
+            raise DuLieuSai("Thiếu selected_options (chuỗi rỗng = bỏ trống).")
+        try:
+            chon = grading.chuan_hoa_lua_chon(lua_chon, 4)
+        except ValueError as e:
+            raise DuLieuSai(str(e)) from e
+    else:
+        raise DuLieuSai("action chỉ nhận 'keep' hoặc 'set'.")
+    if chon == (r["selected_options"] or ""):
+        conn.execute("UPDATE sheet_answers SET reviewed_by = %s, reviewed_at = now() WHERE sheet_id = %s AND question_no = %s",
+                     (user_id, sheet_id, question_no))
+        return {"status": sh["status"], "da_sua": False}
+    ghi_dap_an_va_cham_lai(conn, sheet_id, question_no, chon, user_id, True, ghi_chu)
+    return {"status": sh["status"], "da_sua": True}
+
+
+def giu_nhu_may_cham(conn, muc: list[tuple[int, int]], user_id: int) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    da, bo_qua = [], []
+    for sheet_id, question_no in sorted(set(muc)):
+        sh = conn.execute("SELECT status FROM answer_sheets WHERE sheet_id = %s FOR UPDATE", (sheet_id,)).fetchone()
+        r = conn.execute("SELECT * FROM sheet_answers WHERE sheet_id = %s AND question_no = %s FOR UPDATE",
+                         (sheet_id, question_no)).fetchone()
+        if not sh or sh["status"] not in ("graded", "needs_review") or not r or not _tu_cham_can_xem(r):
+            bo_qua.append((sheet_id, question_no))
+            continue
+        conn.execute("UPDATE sheet_answers SET reviewed_by = %s, reviewed_at = now() WHERE sheet_id = %s AND question_no = %s",
+                     (user_id, sheet_id, question_no))
+        da.append((sheet_id, question_no))
+    return da, bo_qua
+
+
+def cau_tu_cham_can_xem(conn, exam_id: int, gioi_han: int = 500) -> list[dict]:
+    if not conn.execute("SELECT 1 FROM exams WHERE exam_id = %s", (exam_id,)).fetchone():
+        raise KhongTimThay(f"Không có kỳ thi {exam_id}.")
+    return conn.execute(
+        "SELECT q.sheet_id, q.question_no, q.omr_selected_options AS omr_reading, q.selected_options, a.original_filename, a.detected_sbd, "
+        "s.full_name AS student_name, r.score AS official_score, r.status::text AS result_status, a.status::text AS sheet_status "
+        "FROM sheet_answers q JOIN answer_sheets a USING (sheet_id) LEFT JOIN students s ON s.student_id = a.matched_student_id "
+        "LEFT JOIN results r ON r.sheet_id = a.sheet_id AND r.status <> 'void' "
+        "WHERE a.exam_id = %s AND a.status IN ('graded', 'needs_review') AND NOT q.needs_review AND 'nhieu_o' = ANY(q.review_reasons) "
+        "AND q.reviewed_at IS NULL ORDER BY q.sheet_id, q.question_no LIMIT %s", (exam_id, gioi_han)).fetchall()
+
+
 # ------------------------------------------------------------------------------------------------ đọc kết quả
 def xem_phieu(conn, sheet_id: int) -> dict:
     sh = conn.execute("SELECT * FROM answer_sheets WHERE sheet_id = %s", (sheet_id,)).fetchone()
@@ -591,12 +693,13 @@ def xem_phieu(conn, sheet_id: int) -> dict:
             "official": res["score"] if res else None, "result_status": res["status"] if res else None,
             "provisional": kq.diem_tam if kq else None, "max_possible": kq.diem_toi_da if kq else None,
             "num_correct": (res["num_correct"] if res else (kq.num_correct if kq else None)),
-            "pending_questions": sum(1 for r in rows if r["needs_review"]), "max_score": ex["max_score"]},
+            "pending_questions": sum(1 for r in rows if r["needs_review"]),
+            "auto_graded_pending": sum(1 for r in rows if _tu_cham_can_xem(r)), "max_score": ex["max_score"]},
         "review": dict(rv) if rv else None,
         "questions": [{"question_no": r["question_no"], "selected_options": r["selected_options"], "state": r["state"],
                        "needs_review": r["needs_review"], "reasons": r["review_reasons"], "is_correct": r["is_correct"],
                        "manually_edited": r["manually_edited"], "omr_selected_options": r["omr_selected_options"],
-                       "confidence": r["confidence"]} for r in rows],
+                       "confidence": r["confidence"], "tu_cham_can_xem": _tu_cham_can_xem(r)} for r in rows],
         "image_deleted_at": anh_da_xoa_luc(conn, sheet_id),
     }
 
@@ -607,7 +710,9 @@ def ds_phieu_ky_thi(conn, exam_id: int, status: str | None = None, gioi_han: int
     return conn.execute(
         "SELECT a.sheet_id, a.status, a.original_filename, a.detected_sbd, a.detected_exam_code, a.reject_code, a.error_message AS reject_message, "
         "a.raw_score, r.score AS official_score, r.status::text AS result_status, s.full_name AS student_name, "
-        "(SELECT count(*) FROM sheet_answers q WHERE q.sheet_id = a.sheet_id AND q.needs_review) AS pending_questions "
+        "(SELECT count(*) FROM sheet_answers q WHERE q.sheet_id = a.sheet_id AND q.needs_review) AS pending_questions, "
+        "(SELECT count(*) FROM sheet_answers q WHERE q.sheet_id = a.sheet_id AND NOT q.needs_review AND 'nhieu_o' = ANY(q.review_reasons) "
+        "AND q.reviewed_at IS NULL) AS auto_graded_pending "
         "FROM answer_sheets a LEFT JOIN results r ON r.sheet_id = a.sheet_id AND r.status <> 'void' "
         "LEFT JOIN students s ON s.student_id = a.matched_student_id "
         "WHERE a.exam_id = %s AND (%s::text IS NULL OR a.status::text = %s) ORDER BY a.sheet_id LIMIT %s",

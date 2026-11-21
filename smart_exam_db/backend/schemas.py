@@ -270,6 +270,7 @@ class Diem(BaseModel):
     max_possible: float | None = Field(description="Điểm tối đa nếu mọi câu cần xem đều đúng")
     num_correct: int | None
     pending_questions: int = Field(description="Số câu OMR còn cần xem")
+    auto_graded_pending: int = Field(default=0, description="Số câu tô nhiều ô đã tự chấm sai, chờ giáo viên xem lại")
     max_score: float
 
 
@@ -291,6 +292,7 @@ class CauOut(BaseModel):
     manually_edited: bool
     omr_selected_options: str | None = Field(description="Cách máy đọc ban đầu")
     confidence: float | None
+    tu_cham_can_xem: bool = Field(default=False, description="Đã chấm tự động (nhiều ô = sai), giáo viên chưa xem lại")
 
 
 class PhieuOut(BaseModel):
@@ -323,6 +325,7 @@ class PhieuTomTat(BaseModel):
     result_status: str | None = Field(default=None, description="auto | confirmed (khi đã có điểm chính thức)")
     student_name: str | None = None
     pending_questions: int
+    auto_graded_pending: int = 0
 
 
 class CauCanXem(BaseModel):
@@ -342,6 +345,7 @@ class TaiAnhOut(BaseModel):
     reject_code: str | None
     reject_message: str | None
     pending_questions: int
+    auto_graded_pending: int = 0
     provisional_score: float | None
     official_score: float | None
 
@@ -429,6 +433,7 @@ class DongBangDiem(BaseModel):
     sheet_id: int | None
     sheets: int = Field(description="Số phiếu đã ghép thí sinh này (>1: tải nhiều lần / trùng SBD)")
     duplicate_pending: int = Field(default=0, description="Số phiếu TRÙNG SBD của thí sinh này đang chờ giáo viên duyệt (lý do duplicate_sbd)")
+    auto_graded_pending: int = Field(default=0, description="Số câu tô nhiều ô đã chấm sai tự động, chờ giáo viên xem lại")
     duplicate_sheet_ids: list[int] = Field(default_factory=list, description="Mã các phiếu trùng đang chờ")
 
 
@@ -449,6 +454,8 @@ class TongBangDiem(BaseModel):
     unmatched_review: int = Field(description="Phiếu cần xem nhưng chưa ghép được thí sinh")
     students: int
     students_duplicate_pending: int = Field(default=0, description="Số thí sinh còn phiếu trùng SBD đang chờ duyệt")
+    auto_graded_pending_questions: int = Field(default=0, description="Tổng số câu tô nhiều ô đã chấm sai, chờ xem lại")
+    students_auto_graded_pending: int = Field(default=0, description="Số thí sinh có câu tô nhiều ô chờ xem lại")
 
 
 class BangDiemOut(BaseModel):
